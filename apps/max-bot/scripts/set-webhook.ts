@@ -1,5 +1,4 @@
 import "dotenv/config";
-import { Bot } from "grammy";
 
 const token = process.env.MAX_BOT_TOKEN;
 const webhookUrl = process.env.MAX_WEBHOOK_URL;
@@ -10,9 +9,23 @@ if (!token || !webhookUrl) {
   process.exit(1);
 }
 
-const bot = new Bot(token, { client: { apiRoot: MAX_API_ROOT } });
-const url = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
+const webhookEndpoint = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
 
-await bot.api.setWebhook(url, { drop_pending_updates: true });
-const info = await bot.api.getWebhookInfo();
-console.log("✓ MAX webhook:", info.url);
+const res = await fetch(`${MAX_API_ROOT}/subscriptions`, {
+  method: "POST",
+  headers: {
+    "Authorization": token,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ url: webhookEndpoint }),
+});
+
+const json = await res.json() as any;
+
+if (!res.ok) {
+  console.error("Ошибка:", JSON.stringify(json, null, 2));
+  process.exit(1);
+}
+
+console.log("✓ MAX webhook установлен:", webhookEndpoint);
+console.log("Ответ:", JSON.stringify(json, null, 2));
