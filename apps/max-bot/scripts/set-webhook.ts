@@ -1,12 +1,12 @@
 import "dotenv/config";
 import { Bot } from "grammy";
 
-const token = process.env.BOT_TOKEN;
-const webhookUrl = process.env.WEBHOOK_URL;
+const token = process.env.MAX_BOT_TOKEN;
+const webhookUrl = process.env.MAX_WEBHOOK_URL;
 const MAX_API_ROOT = "https://botapi.max.ru";
 
 if (!token || !webhookUrl) {
-  console.error("Нужны BOT_TOKEN и WEBHOOK_URL в .env");
+  console.error("Нужны MAX_BOT_TOKEN и MAX_WEBHOOK_URL в .env");
   process.exit(1);
 }
 

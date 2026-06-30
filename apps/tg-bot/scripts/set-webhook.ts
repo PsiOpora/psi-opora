@@ -1,11 +1,11 @@
 import "dotenv/config";
 import { Bot } from "grammy";
 
-const token = process.env.BOT_TOKEN;
-const webhookUrl = process.env.WEBHOOK_URL;
+const token = process.env.TG_BOT_TOKEN;
+const webhookUrl = process.env.TG_WEBHOOK_URL;
 
 if (!token || !webhookUrl) {
-  console.error("Нужны BOT_TOKEN и WEBHOOK_URL в .env");
+  console.error("Нужны TG_BOT_TOKEN и TG_WEBHOOK_URL в .env");
   process.exit(1);
 }
 

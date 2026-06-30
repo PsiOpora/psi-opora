@@ -20,7 +20,9 @@ export interface BotOptions {
 }
 
 export function createBot({ storage, apiRoot, messenger = "telegram" }: BotOptions = {}) {
-  const bot = new Bot<AppContext>(process.env.BOT_TOKEN ?? "", {
+  const prefix = messenger === "telegram" ? "TG" : "MAX";
+  const token = process.env[`${prefix}_BOT_TOKEN`] ?? process.env.BOT_TOKEN ?? "";
+  const bot = new Bot<AppContext>(token, {
     client: apiRoot ? { apiRoot } : undefined,
   });
 
