@@ -45,12 +45,16 @@ export async function consultationConversation(
         `[CONSULTATION] name=${name} phone=${phoneText}${sessionData.campaign ? ` campaign=${sessionData.campaign}` : ""} user=${sessionData.userId}`
       );
 
-      createBitrixLead({
-        name,
-        phone: phoneText,
-        campaign: sessionData.campaign,
-        telegramUserId: sessionData.userId,
-      }).catch((err) => console.error("[bitrix] ошибка:", err.message));
+      try {
+        await createBitrixLead({
+          name,
+          phone: phoneText,
+          campaign: sessionData.campaign,
+          telegramUserId: sessionData.userId,
+        });
+      } catch (err: any) {
+        console.error("[bitrix] ошибка:", err.message);
+      }
 
       await phoneCtx.reply(
         "✅ *Заявка принята!*\n\n" +
