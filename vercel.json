@@ -2,7 +2,7 @@
   "rewrites": [{ "source": "/(.*)", "destination": "/" }],
   "functions": {
     "index.ts": {
-      "maxDuration": 10
+      "maxDuration": 30
     }
   }
 }
