@@ -1,0 +1,8 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://aiprimetech.io",
+    "ANTHROPIC_AUTH_TOKEN": "sk-8370fa5d08c28586eba3f4e56fe44808478fa60b10aec1ea6f79f2b1006dd6d2",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CODE_ATTRIBUTION_HEADER": "0"
+  }
+}

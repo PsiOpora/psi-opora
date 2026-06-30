@@ -1,0 +1,1 @@
+2026-06-30T10:20:14.709Z [FATAL] Error: Bot information unavailable! Make sure to call `await bot.init()` before accessing `bot.botInfo`!
