@@ -1,5 +1,6 @@
 {
   "installCommand": "cd ../.. && bun install",
+  "outputDirectory": "public",
   "functions": {
     "api/webhook.ts": {
       "maxDuration": 30
