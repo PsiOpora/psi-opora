@@ -40,4 +40,5 @@ export async function createBitrixLead(data: LeadData): Promise<void> {
   if (json.error) {
     throw new Error(`Bitrix24 error: ${json.error} — ${json.error_description}`);
   }
+  console.log(`[bitrix] лид создан id=${json.result} name=${data.name} phone=${data.phone}${data.campaign ? ` campaign=${data.campaign}` : ""}`);
 }
