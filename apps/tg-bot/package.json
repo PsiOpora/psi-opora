@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run --env-file=.env src/dev.ts",
+    "build": "echo 'no build step — deployed as Vercel Edge Functions'",
     "set-webhook": "bun run --env-file=.env scripts/set-webhook.ts",
     "typecheck": "tsc --noEmit"
   },
