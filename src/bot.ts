@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { Bot, session, InlineKeyboard, type Middleware } from "grammy";
 import { conversations, createConversation } from "@grammyjs/conversations";
 import type { StorageAdapter } from "grammy";
