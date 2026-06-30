@@ -1,6 +1,7 @@
 {
+  "rewrites": [{ "source": "/(.*)", "destination": "/" }],
   "functions": {
-    "api/webhook.ts": {
+    "index.ts": {
       "maxDuration": 10
     }
   }

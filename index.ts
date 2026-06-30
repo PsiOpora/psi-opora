@@ -1,7 +1,18 @@
-import { Bot } from "grammy";
+import { Hono } from "hono";
+import { handle } from "hono/vercel";
+import { webhookCallback } from "grammy";
+import { createBot } from "./src/bot.js";
+import { createUpstashRedis, createRedisStorage } from "./src/storage/upstash.js";
+import type { ConsultationSession } from "./src/types/context.js";
 
-const bot = new Bot(process.env.BOT_TOKEN!);
+export const config = { runtime: "nodejs" };
 
-bot.on("message:text", (ctx) => ctx.reply("OK"));
+const redis = createUpstashRedis();
+const storage = createRedisStorage<ConsultationSession>(redis);
+const bot = createBot(storage);
 
-bot.start();
+const app = new Hono();
+app.post("/api/webhook", webhookCallback(bot, "hono"));
+app.get("/", (c) => c.text("ok"));
+
+export default handle(app);
