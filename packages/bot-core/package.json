@@ -6,6 +6,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "setup:bitrix": "bun run scripts/setup-bitrix-connector.ts"
+  },
   "dependencies": {
     "@grammyjs/conversations": "^2.1.1",
     "@upstash/redis": "^1.38.0",
