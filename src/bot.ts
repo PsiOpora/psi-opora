@@ -1,15 +1,15 @@
 import "dotenv/config";
-import { Bot, session, InlineKeyboard, webhookCallback, type Middleware } from "grammy";
+import { Bot, session, InlineKeyboard, type Middleware } from "grammy";
 import { conversations, createConversation } from "@grammyjs/conversations";
+import type { StorageAdapter } from "grammy";
 import type { AppContext, ConsultationSession } from "./types/context.js";
 import { parseUtmParams, formatUtmLog } from "./utils/utm.js";
 import { consultationConversation } from "./handlers/consultation.js";
 import { appendFileSync } from "fs";
 import { resolve } from "path";
-import { createServer, type IncomingMessage, type ServerResponse } from "http";
 
 const logPath = resolve("bot.log");
-const log = (msg: string) => {
+export const log = (msg: string) => {
   const line = `${new Date().toISOString()} ${msg}`;
   console.log(line);
   appendFileSync(logPath, line + "\n");
@@ -19,14 +19,17 @@ function createInitialSession(): ConsultationSession {
   return { step: "name" };
 }
 
-async function main() {
+export function createBot(storage?: StorageAdapter<ConsultationSession>) {
   const bot = new Bot<AppContext>(process.env.BOT_TOKEN ?? "");
 
-  bot.use(session({ initial: createInitialSession }) as Middleware<AppContext>);
+  bot.use(
+    session({ initial: createInitialSession, storage }) as Middleware<AppContext>,
+  );
   bot.use(conversations() as Middleware<AppContext>);
   bot.use(
     createConversation(consultationConversation) as Middleware<AppContext>,
   );
+
   bot.command("start", async (ctx: AppContext) => {
     const rawParam = typeof ctx.match === "string" ? ctx.match : undefined;
     const utm = parseUtmParams(rawParam);
@@ -39,9 +42,7 @@ async function main() {
       ctx.session.utmTerm = utm.utm_term;
     }
 
-    log(
-      `[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)}`,
-    );
+    log(`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)}`);
 
     const sourceLabel = utm.utm_source
       ? `📌 Вы пришли к нам через: *${utm.utm_source}*\n\n`
@@ -60,6 +61,7 @@ async function main() {
       { parse_mode: "Markdown", reply_markup: keyboard },
     );
   });
+
   bot.callbackQuery("start_consultation", async (ctx: AppContext) => {
     await ctx.answerCallbackQuery();
 
@@ -89,9 +91,7 @@ async function main() {
     log(`[CONSENT] user=${ctx.from?.id} согласился`);
 
     await ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() });
-    await ctx.reply(
-      "✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?",
-    );
+    await ctx.reply("✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?");
     await ctx.conversation.enter("consultationConversation");
   });
 
@@ -110,38 +110,8 @@ async function main() {
   bot.catch((err) => {
     const ctx = err.ctx as AppContext;
     log(`[ERROR] update_id=${ctx.update.update_id} ${err.error}`);
-    ctx.reply(
-      "⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.",
-    );
+    ctx.reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.");
   });
 
-  const webhookUrl = process.env.WEBHOOK_URL;
-  const port = Number(process.env.PORT ?? 3000);
-
-  if (!webhookUrl) {
-    throw new Error("WEBHOOK_URL не задан в .env");
-  }
-
-  const webhookPath = "/webhook";
-  const handleUpdate = webhookCallback(bot, "http");
-
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    if (req.method === "POST" && req.url === webhookPath) {
-      await handleUpdate(req, res);
-    } else {
-      res.writeHead(200).end("ok");
-    }
-  });
-
-  server.listen(port, async () => {
-    await bot.api.setWebhook(`${webhookUrl}${webhookPath}`, {
-      drop_pending_updates: true,
-    });
-    log(`[BOT] Webhook установлен: ${webhookUrl}${webhookPath}`);
-    log(`[BOT] Сервер слушает порт ${port}`);
-  });
+  return bot;
 }
-main().catch((err) => {
-  log(`[FATAL] ${err}`);
-  process.exit(1);
-});
