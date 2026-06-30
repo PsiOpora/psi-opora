@@ -1,7 +1,5 @@
 {
   "installCommand": "cd ../.. && bun install",
-  "buildCommand": "echo 'no build'",
-  "outputDirectory": ".",
   "functions": {
     "api/webhook.ts": {
       "maxDuration": 30
