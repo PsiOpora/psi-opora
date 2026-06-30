@@ -33,7 +33,8 @@ export function createBot({ storage, apiRoot, messenger = "telegram" }: BotOptio
   bot.use(
     createConversation(
       (conv: Conversation<ConvContext, ConvContext>, ctx: ConvContext) =>
-        consultationConversation(conv, ctx, messenger)
+        consultationConversation(conv, ctx, messenger),
+      "consultationConversation"
     ) as Middleware<AppContext>
   );
 
