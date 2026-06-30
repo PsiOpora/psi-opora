@@ -3,15 +3,25 @@
   "version": "0.0.1",
   "type": "module",
   "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
+  "files": ["dist"],
   "scripts": {
+    "build": "bun scripts/build.mjs",
     "setup:bitrix": "bun run scripts/setup-bitrix-connector.ts"
   },
   "dependencies": {
     "@grammyjs/conversations": "^2.1.1",
     "@upstash/redis": "^1.38.0",
     "grammy": "^1.44.0"
+  },
+  "devDependencies": {
+    "tsdown": "^0.22.3"
   }
 }
