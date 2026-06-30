@@ -31,11 +31,7 @@ export async function consultationConversation(
 
     if (hasPhoneNumber(phoneText)) {
       const sessionData = await conv.external((c) => ({
-        utmSource: c.session.utmSource,
-        utmMedium: c.session.utmMedium,
-        utmCampaign: c.session.utmCampaign,
-        utmContent: c.session.utmContent,
-        utmTerm: c.session.utmTerm,
+        campaign: c.session.campaign,
         userId: c.from?.id,
       }));
 
@@ -45,22 +41,14 @@ export async function consultationConversation(
         c.session.step = "done";
       });
 
-      const utmInfo = sessionData.utmSource
-        ? ` | UTM: source=${sessionData.utmSource} medium=${sessionData.utmMedium ?? "-"} campaign=${sessionData.utmCampaign ?? "-"}`
-        : "";
-
       console.log(
-        `[CONSULTATION] name=${name} phone=${phoneText}${utmInfo} user=${sessionData.userId}`
+        `[CONSULTATION] name=${name} phone=${phoneText}${sessionData.campaign ? ` campaign=${sessionData.campaign}` : ""} user=${sessionData.userId}`
       );
 
       createBitrixLead({
         name,
         phone: phoneText,
-        utmSource: sessionData.utmSource,
-        utmMedium: sessionData.utmMedium,
-        utmCampaign: sessionData.utmCampaign,
-        utmContent: sessionData.utmContent,
-        utmTerm: sessionData.utmTerm,
+        campaign: sessionData.campaign,
         telegramUserId: sessionData.userId,
       }).catch((err) => console.error("[bitrix] ошибка:", err.message));
 

@@ -5,7 +5,7 @@ import { createBot } from "./src/bot.js";
 import { createUpstashRedis, createRedisStorage } from "./src/storage/upstash.js";
 import type { ConsultationSession } from "./src/types/context.js";
 
-export const config = { runtime: "nodejs" };
+export const runtime = "edge";
 
 const redis = createUpstashRedis();
 const storage = createRedisStorage<ConsultationSession>(redis);

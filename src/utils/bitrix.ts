@@ -1,11 +1,7 @@
 export interface LeadData {
   name: string;
   phone: string;
-  utmSource?: string;
-  utmMedium?: string;
-  utmCampaign?: string;
-  utmContent?: string;
-  utmTerm?: string;
+  campaign?: string;
   telegramUserId?: number;
 }
 
@@ -24,12 +20,10 @@ export async function createBitrixLead(data: LeadData): Promise<void> {
       NAME: data.name,
       PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
       SOURCE_ID: "WEB",
-      SOURCE_DESCRIPTION: "Telegram бот",
-      UTM_SOURCE: data.utmSource ?? "",
-      UTM_MEDIUM: data.utmMedium ?? "",
-      UTM_CAMPAIGN: data.utmCampaign ?? "",
-      UTM_CONTENT: data.utmContent ?? "",
-      UTM_TERM: data.utmTerm ?? "",
+      SOURCE_DESCRIPTION: data.campaign ?? "Telegram бот",
+      UTM_SOURCE: "telegram",
+      UTM_MEDIUM: "bot",
+      UTM_CAMPAIGN: data.campaign ?? "",
       COMMENTS: data.telegramUserId
         ? `Telegram user_id: ${data.telegramUserId}`
         : "",

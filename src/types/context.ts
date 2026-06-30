@@ -6,11 +6,7 @@ export interface ConsultationSession {
   consentGiven?: boolean;
   name?: string;
   phone?: string;
-  utmSource?: string;
-  utmMedium?: string;
-  utmCampaign?: string;
-  utmContent?: string;
-  utmTerm?: string;
+  campaign?: string;
 }
 
 type SessionContext = Context & SessionFlavor<ConsultationSession>;

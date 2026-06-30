@@ -5,14 +5,8 @@ import type { StorageAdapter } from "grammy";
 import type { AppContext, ConsultationSession } from "./types/context.js";
 import { parseUtmParams, formatUtmLog } from "./utils/utm.js";
 import { consultationConversation } from "./handlers/consultation.js";
-import { appendFileSync } from "fs";
-import { resolve } from "path";
-
-const logPath = resolve("bot.log");
 export const log = (msg: string) => {
-  const line = `${new Date().toISOString()} ${msg}`;
-  console.log(line);
-  appendFileSync(logPath, line + "\n");
+  console.log(`${new Date().toISOString()} ${msg}`);
 };
 
 function createInitialSession(): ConsultationSession {
@@ -34,18 +28,14 @@ export function createBot(storage?: StorageAdapter<ConsultationSession>) {
     const rawParam = typeof ctx.match === "string" ? ctx.match : undefined;
     const utm = parseUtmParams(rawParam);
 
-    if (utm.utm_source || utm.utm_medium || utm.utm_campaign) {
-      ctx.session.utmSource = utm.utm_source;
-      ctx.session.utmMedium = utm.utm_medium;
-      ctx.session.utmCampaign = utm.utm_campaign;
-      ctx.session.utmContent = utm.utm_content;
-      ctx.session.utmTerm = utm.utm_term;
+    if (utm.campaign) {
+      ctx.session.campaign = utm.campaign;
     }
 
     log(`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)}`);
 
-    const sourceLabel = utm.utm_source
-      ? `📌 Вы пришли к нам через: *${utm.utm_source}*\n\n`
+    const sourceLabel = utm.campaign
+      ? `📌 Вы пришли к нам через: *${utm.campaign}*\n\n`
       : "";
 
     const keyboard = new InlineKeyboard().text(
