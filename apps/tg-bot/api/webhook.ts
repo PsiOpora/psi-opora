@@ -1,5 +1,5 @@
 import { webhookCallback } from "grammy";
-import { createBot, createUpstashRedis, createRedisStorage, type ConsultationSession } from "@psi-opora/bot-core";
+import { createBot, createUpstashRedis, createRedisStorage, type ConsultationSession } from "../../../packages/bot-core/src/index.ts";
 
 export const config = { runtime: "edge" };
 
