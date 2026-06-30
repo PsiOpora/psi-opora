@@ -1,0 +1,19 @@
+{
+  "name": "@psi-opora/max-bot",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --env-file=.env src/dev.ts",
+    "set-webhook": "bun run --env-file=.env scripts/set-webhook.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@psi-opora/bot-core": "workspace:*",
+    "dotenv": "^17.4.2",
+    "grammy": "^1.44.0"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

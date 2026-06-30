@@ -1,0 +1,14 @@
+{
+  "name": "@psi-opora/bot-core",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@grammyjs/conversations": "^2.1.1",
+    "@upstash/redis": "^1.38.0",
+    "grammy": "^1.44.0"
+  }
+}
