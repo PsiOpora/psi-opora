@@ -16,10 +16,10 @@ export function createRedisStorage<T>(redis: Redis): StorageAdapter<T> {
 }
 
 export function createUpstashRedis() {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url = process.env.KV_REST_API_URL;
+  const token = process.env.KV_REST_API_TOKEN;
   if (!url || !token) {
-    throw new Error("UPSTASH_REDIS_REST_URL и UPSTASH_REDIS_REST_TOKEN не заданы");
+    throw new Error("KV_REST_API_URL и KV_REST_API_TOKEN не заданы");
   }
   return new Redis({ url, token });
 }
