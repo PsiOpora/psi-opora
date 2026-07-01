@@ -77,6 +77,30 @@ function buildDealFields(data: DealData, contactId: number) {
   };
 }
 
+async function linkBitrixTrace(
+  messenger: string,
+  contactId: number,
+  dealId: number,
+  data: DealData,
+): Promise<void> {
+  const trace = {
+    SOURCE_ID: getSourceId(messenger),
+    SOURCE_DESC: [data.source, data.campaign].filter(Boolean).join(" / ") || `${messenger} бот`,
+  };
+
+  try {
+    await bitrixPost("crm.tracking.trace.add", {
+      TRACE: JSON.stringify(trace),
+      ENTITIES: [
+        { TYPE: "CONTACT", ID: contactId },
+        { TYPE: "DEAL", ID: dealId },
+      ],
+    }, messenger);
+  } catch (err: any) {
+    console.error(`[bitrix] не удалось привязать трейс сквозной аналитики: ${err.message}`);
+  }
+}
+
 export async function createBitrixDeal(data: DealData): Promise<void> {
   const messenger = data.messenger ?? "telegram";
   const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
@@ -96,6 +120,9 @@ export async function createBitrixDeal(data: DealData): Promise<void> {
   console.log(
     `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`
   );
+
+  // Привязываем трейс сквозной аналитики — так у сделки/контакта заполняется TRACKING_SOURCE_ID
+  await linkBitrixTrace(messenger, contactId, dealId, data);
 }
 
 export interface BitrixSource {
