@@ -14,7 +14,9 @@
   "files": ["dist"],
   "scripts": {
     "build": "bun scripts/build.mjs",
-    "setup:bitrix": "bun run scripts/setup-bitrix-connector.ts"
+    "setup:bitrix": "bun run --env-file=../../.env scripts/setup-bitrix-connector.ts",
+    "setup:bitrix-source": "bun run --env-file=../../.env scripts/setup-bitrix-source.ts",
+    "list:bitrix-sources": "bun run --env-file=../../.env scripts/list-bitrix-sources.ts"
   },
   "dependencies": {
     "@grammyjs/conversations": "^2.1.1",

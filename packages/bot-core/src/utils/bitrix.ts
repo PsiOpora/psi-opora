@@ -16,6 +16,16 @@ function getBotId(messenger: string): string {
   return getEnv(messenger, "BOT_ID") ?? messenger;
 }
 
+function getSourceId(messenger: string): string {
+  const fallback = messenger === "telegram" ? "TELEGRAM_OL" : "MAX_OL";
+  return getEnv(messenger, "BITRIX_SOURCE_ID") ?? fallback;
+}
+
+function getSourceName(messenger: string): string {
+  const label = messenger === "telegram" ? "Telegram" : "MAX";
+  return getEnv(messenger, "BITRIX_SOURCE_NAME") ?? `${label} - Открытая линия`;
+}
+
 function getWebhookBase(messenger: string): string {
   const url = getEnv(messenger, "BITRIX_WEBHOOK_URL");
   if (!url) throw new Error(`BITRIX_WEBHOOK_URL не задан для ${messenger}`);
@@ -36,9 +46,12 @@ async function bitrixPost<T = unknown>(method: string, body: unknown, messenger:
 }
 
 function buildContactFields(data: DealData) {
+  const messenger = data.messenger ?? "telegram";
   return {
     NAME: data.name,
     PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
+    SOURCE_ID: getSourceId(messenger),
+    SOURCE_DESCRIPTION: [data.source, data.campaign].filter(Boolean).join(" / "),
   };
 }
 
@@ -49,7 +62,7 @@ function buildDealFields(data: DealData, contactId: number) {
   return {
     TITLE: `Заявка (${botId}): ${data.name}`,
     CONTACT_IDS: [contactId],
-    SOURCE_ID: "WEB",
+    SOURCE_ID: getSourceId(messenger),
     SOURCE_DESCRIPTION: description || `${messenger} бот`,
     UTM_SOURCE: data.source ?? messenger,
     UTM_MEDIUM: `${messenger}_bot`,
@@ -83,6 +96,42 @@ export async function createBitrixDeal(data: DealData): Promise<void> {
   console.log(
     `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`
   );
+}
+
+export interface BitrixSource {
+  STATUS_ID: string;
+  NAME: string;
+}
+
+export async function listBitrixSources(messenger: string): Promise<BitrixSource[]> {
+  const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
+  if (!webhookUrl) throw new Error(`BITRIX_WEBHOOK_URL не задан для ${messenger}`);
+
+  return bitrixPost<BitrixSource[]>("crm.status.list", {
+    filter: { ENTITY_ID: "SOURCE" },
+    select: ["STATUS_ID", "NAME"],
+  }, messenger);
+}
+
+export async function registerBitrixSource(messenger: string): Promise<void> {
+  const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
+  if (!webhookUrl) throw new Error(`BITRIX_WEBHOOK_URL не задан для ${messenger}`);
+
+  const sourceId = getSourceId(messenger);
+  const sourceName = getSourceName(messenger);
+
+  try {
+    await bitrixPost("crm.status.add", {
+      fields: { ENTITY_ID: "SOURCE", STATUS_ID: sourceId, NAME: sourceName },
+    }, messenger);
+    console.log(`[bitrix] источник создан: ${sourceId} (${sourceName})`);
+  } catch (err: any) {
+    if (String(err.message).includes("Duplicate")) {
+      console.log(`[bitrix] источник уже существует: ${sourceId}`);
+      return;
+    }
+    throw err;
+  }
 }
 
 export async function registerBitrixConnector(messenger: string): Promise<void> {

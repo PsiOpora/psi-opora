@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { registerBitrixConnector } from "../src/utils/bitrix.js";
 
 const messenger = process.argv[2] ?? "telegram";
