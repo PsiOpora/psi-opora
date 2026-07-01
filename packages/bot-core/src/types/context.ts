@@ -7,6 +7,7 @@ export interface ConsultationSession {
   name?: string;
   phone?: string;
   phoneAttempts?: number;
+  email?: string;
   campaign?: string;
   source?: string;
 }

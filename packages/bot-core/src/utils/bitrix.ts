@@ -1,6 +1,7 @@
 export interface DealData {
   name: string;
   phone: string;
+  email?: string;
   campaign?: string;
   source?: string;
   telegramUserId?: number;
@@ -50,6 +51,7 @@ function buildContactFields(data: DealData) {
   return {
     NAME: data.name,
     PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
+    ...(data.email ? { EMAIL: [{ VALUE: data.email, VALUE_TYPE: "WORK" }] } : {}),
     SOURCE_ID: getSourceId(messenger),
     SOURCE_DESCRIPTION: [data.source, data.campaign].filter(Boolean).join(" / "),
   };
@@ -118,7 +120,7 @@ export async function createBitrixDeal(data: DealData): Promise<void> {
     fields: buildDealFields(data, contactId),
   }, messenger);
   console.log(
-    `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`
+    `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`
   );
 
   // Привязываем трейс сквозной аналитики — так у сделки/контакта заполняется TRACKING_SOURCE_ID
