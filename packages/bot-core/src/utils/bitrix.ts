@@ -53,90 +53,6 @@ function buildDealFields(data: DealData, contactId: number) {
   };
 }
 
-function buildUserUrl(messenger: string, userId: number): string {
-  if (messenger === "telegram") return `tg://user?id=${userId}`;
-  if (messenger === "max") return `https://max.ru/profile/${userId}`;
-  return "";
-}
-
-/**
- * Отправляет сообщение в Открытую Линию Bitrix24 через imconnector.
- * Создаёт сессию чата, к которой менеджер может ответить из CRM.
- * Возвращает chat_id сессии или null если Open Line не настроена.
- */
-async function sendToOpenLine(data: DealData, messenger: string): Promise<number | null> {
-  const openLineId = getEnv(messenger, "BITRIX_OPEN_LINE_ID");
-  const connectorId = getEnv(messenger, "BITRIX_CONNECTOR_ID") ?? "psiopora_bot";
-
-  if (!openLineId || !data.telegramUserId) return null;
-
-  const messageText =
-    `Клиент оставил заявку на консультацию через ${messenger}-бот.\n` +
-    `Имя: ${data.name}\n` +
-    `Телефон: ${data.phone}` +
-    (data.campaign ? `\nКампания: ${data.campaign}` : "");
-
-  const result = await bitrixPost<{
-    SUCCESS?: boolean;
-    DATA?: { RESULT?: Array<{ session?: { CHAT_ID?: string | number } }> };
-  }>(
-    "imconnector.send.messages",
-    {
-      CONNECTOR: connectorId,
-      LINE: openLineId,
-      MESSAGES: [
-        {
-          user: {
-            id: String(data.telegramUserId),
-            name: data.name,
-            url: buildUserUrl(messenger, data.telegramUserId),
-            skip_phone_validate: "Y",
-          },
-          message: {
-            id: `${messenger}_${data.telegramUserId}_${Date.now()}`,
-            date: Math.floor(Date.now() / 1000),
-            text: messageText,
-          },
-          chat: {
-            id: `${messenger}_${data.telegramUserId}`,
-            name: data.name,
-          },
-        },
-      ],
-    },
-    messenger
-  );
-
-  const chatId = result?.DATA?.RESULT?.[0]?.session?.CHAT_ID;
-  return chatId ? Number(chatId) : null;
-}
-
-/**
- * Bitrix24 сам привязывает CRM-сущность к чату открытой линии (трекер CRM)
- * на основе настроек линии в админке — API для ручной привязки произвольной
- * сделки к чату не существует. Здесь только проверяем, что чат реально
- * привязан к нашей сделке, чтобы не полагаться на "тихий" сбой.
- */
-async function verifyOpenLineBinding(chatId: number, dealId: number, messenger: string): Promise<void> {
-  const dialog = await bitrixPost<{ entity_data_2?: string }>(
-    "imopenlines.dialog.get",
-    { CHAT_ID: chatId },
-    messenger
-  );
-
-  const boundDealId = dialog?.entity_data_2?.match(/DEAL\|(\d+)/)?.[1];
-
-  if (boundDealId && Number(boundDealId) === dealId) {
-    console.log(`[bitrix] открытая линия привязана к сделке: deal=${dealId} chat=${chatId}`);
-  } else {
-    console.warn(
-      `[bitrix] чат открытой линии chat=${chatId} не привязан к сделке deal=${dealId} ` +
-      `(bound=${dialog?.entity_data_2 ?? "?"}). Проверьте в Bitrix24: Контакт-центр → линия → ` +
-      `вкладка CRM → тип создаваемого элемента должен быть «Сделка».`
-    );
-  }
-}
-
 export async function createBitrixDeal(data: DealData): Promise<void> {
   const messenger = data.messenger ?? "telegram";
   const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
@@ -145,7 +61,7 @@ export async function createBitrixDeal(data: DealData): Promise<void> {
     return;
   }
 
-  // 1. Создаём контакт (имя+телефон) и сделку в CRM
+  // Создаём контакт (имя+телефон) и сделку в CRM
   const contactId = await bitrixPost<number>("crm.contact.add", {
     fields: buildContactFields(data),
   }, messenger);
@@ -156,19 +72,6 @@ export async function createBitrixDeal(data: DealData): Promise<void> {
   console.log(
     `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.campaign ? ` campaign=${data.campaign}` : ""} messenger=${messenger}`
   );
-
-  // 2. Если настроена Открытая Линия — создаём сессию чата и проверяем привязку
-  const openLineId = getEnv(messenger, "BITRIX_OPEN_LINE_ID");
-  if (!openLineId) return;
-
-  try {
-    const chatId = await sendToOpenLine(data, messenger);
-    if (chatId) {
-      await verifyOpenLineBinding(chatId, dealId, messenger);
-    }
-  } catch (err: any) {
-    console.error("[bitrix] ошибка привязки открытой линии:", err.message);
-  }
 }
 
 export async function registerBitrixConnector(messenger: string): Promise<void> {
