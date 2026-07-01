@@ -24,11 +24,11 @@ function createInitialSession(): ConsultationSession {
 }
 
 function sessionMiddleware(
-  storage: StorageAdapter<ConsultationSession> | undefined
+  storage: StorageAdapter<ConsultationSession> | undefined,
 ): MiddlewareFn<AppContext> {
   const memory = new Map<string, ConsultationSession>();
   return async (ctx, next) => {
-    const key = String(ctx.user?.id ?? ctx.chatId ?? "anon");
+    const key = String(ctx.user?.user_id ?? ctx.chatId ?? "anon");
     const existing = storage ? await storage.read(key) : memory.get(key);
     ctx.session = existing ?? createInitialSession();
     await next();
@@ -45,9 +45,13 @@ async function handleStart(ctx: AppContext, startPayload: string | undefined) {
   const utm = parseUtmParams(startPayload);
   if (utm.campaign) ctx.session.campaign = utm.campaign;
 
-  log(`[START] user=${ctx.user?.id} chat=${ctx.chatId} ${formatUtmLog(utm)} messenger=max`);
+  log(
+    `[START] user=${ctx.user?.user_id} chat=${ctx.chatId} ${formatUtmLog(utm)} messenger=max`,
+  );
 
-  const sourceLabel = utm.campaign ? `📌 Вы пришли к нам через: *${utm.campaign}*\n\n` : "";
+  const sourceLabel = utm.campaign
+    ? `📌 Вы пришли к нам через: *${utm.campaign}*\n\n`
+    : "";
 
   await ctx.reply(
     "👋 Добро пожаловать в центр психологической помощи *Пси-Опора*!\n\n" +
@@ -58,10 +62,15 @@ async function handleStart(ctx: AppContext, startPayload: string | undefined) {
       format: "markdown",
       attachments: [
         Keyboard.inlineKeyboard([
-          [Keyboard.button.callback("📝 Записаться на консультацию", "start_consultation")],
+          [
+            Keyboard.button.callback(
+              "📝 Записаться на консультацию",
+              "start_consultation",
+            ),
+          ],
         ]),
       ],
-    }
+    },
   );
 }
 
@@ -71,7 +80,9 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
 
   bot.use(sessionMiddleware(storage));
 
-  bot.on("bot_started", (ctx) => handleStart(ctx, ctx.startPayload ?? undefined));
+  bot.on("bot_started", (ctx) =>
+    handleStart(ctx, ctx.startPayload ?? undefined),
+  );
   bot.command("start", (ctx) => handleStart(ctx, undefined));
 
   bot.action("start_consultation", async (ctx) => {
@@ -92,11 +103,16 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
         format: "markdown",
         attachments: [
           Keyboard.inlineKeyboard([
-            [Keyboard.button.callback("✅ Согласен(а) на обработку данных", "consent_agree")],
+            [
+              Keyboard.button.callback(
+                "✅ Согласен(а) на обработку данных",
+                "consent_agree",
+              ),
+            ],
             [Keyboard.button.callback("❌ Не согласен(а)", "consent_decline")],
           ]),
         ],
-      }
+      },
     );
   });
 
@@ -104,17 +120,19 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
     await ctx.answerOnCallback({ notification: "Спасибо! Продолжаем." });
     ctx.session.consentGiven = true;
     ctx.session.step = "name";
-    log(`[CONSENT] user=${ctx.user?.id} согласился`);
-    await ctx.reply("✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?");
+    log(`[CONSENT] user=${ctx.user?.user_id} согласился`);
+    await ctx.reply(
+      "✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?",
+    );
   });
 
   bot.action("consent_decline", async (ctx) => {
     await ctx.answerOnCallback({});
-    log(`[CONSENT] user=${ctx.user?.id} отказался`);
+    log(`[CONSENT] user=${ctx.user?.user_id} отказался`);
     await ctx.reply(
       "Вы отказались от обработки персональных данных.\n\n" +
         "Без согласия мы не можем принять заявку. " +
-        "Если передумаете — нажмите /start."
+        "Если передумаете — нажмите /start.",
     );
   });
 
@@ -125,7 +143,9 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
     if (ctx.session.step === "name") {
       ctx.session.name = text;
       ctx.session.step = "phone";
-      await ctx.reply(`Отлично, ${text}! Теперь введите, пожалуйста, ваш номер телефона для связи.`);
+      await ctx.reply(
+        `Отлично, ${text}! Теперь введите, пожалуйста, ваш номер телефона для связи.`,
+      );
       return;
     }
 
@@ -137,7 +157,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
         ctx.session.step = "done";
 
         log(
-          `[CONSULTATION] name=${name} phone=${text}${campaign ? ` campaign=${campaign}` : ""} user=${ctx.user?.id} messenger=max`
+          `[CONSULTATION] name=${name} phone=${text}${campaign ? ` campaign=${campaign}` : ""} user=${ctx.message.sender?.user_id} messenger=max`,
         );
 
         try {
@@ -145,7 +165,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
             name,
             phone: text,
             campaign,
-            telegramUserId: ctx.user?.id,
+            telegramUserId: ctx.message.sender?.user_id,
             messenger: "max",
           });
         } catch (err: any) {
@@ -159,7 +179,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
             "📖 Узнать больше о наших специалистах: https://psi-opora.ru/services\n" +
             "💬 Задать вопрос в чат\n\n" +
             "Хорошего дня! 🌿",
-          { format: "markdown" }
+          { format: "markdown" },
         );
         return;
       }
@@ -170,20 +190,24 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
         await ctx.reply(
           "😔 К сожалению, мы не смогли распознать номер. " +
             "Напишите, пожалуйста, номер в любом формате: +7 999 123-45-67, " +
-            "8 999 123 45 67 и т.д. Мы свяжемся с вами для уточнения."
+            "8 999 123 45 67 и т.д. Мы свяжемся с вами для уточнения.",
         );
         return;
       }
 
       await ctx.reply(
-        "Не удалось распознать номер телефона. Введите, пожалуйста, номер в любом формате, например: +7 (999) 123-45-67"
+        "Не удалось распознать номер телефона. Введите, пожалуйста, номер в любом формате, например: +7 (999) 123-45-67",
       );
     }
   });
 
   bot.catch((err, ctx) => {
-    log(`[ERROR] update=${ctx.updateType} ${err instanceof Error ? err.message : String(err)}`);
-    ctx.reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.").catch(() => {});
+    log(
+      `[ERROR] update=${ctx.updateType} ${err instanceof Error ? err.message : String(err)}`,
+    );
+    ctx
+      .reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.")
+      .catch(() => {});
   });
 
   return bot;
@@ -196,12 +220,23 @@ export type MaxBot = ReturnType<typeof createMaxBot>;
  * т.к. у Bot нет публичного webhookCallback (в отличие от grammy), а внутренний
  * handleUpdate приватный.
  */
-export async function processUpdate(bot: MaxBot, update: unknown): Promise<void> {
-  const ctx = new AppContext(update as ConstructorParameters<typeof AppContext>[0], bot.api, bot.botInfo);
+export async function processUpdate(
+  bot: MaxBot,
+  update: unknown,
+): Promise<void> {
+  const ctx = new AppContext(
+    update as ConstructorParameters<typeof AppContext>[0],
+    bot.api,
+    bot.botInfo,
+  );
   try {
     await bot.middleware()(ctx, async () => {});
   } catch (err) {
-    log(`[ERROR] update=${ctx.updateType} ${err instanceof Error ? err.message : String(err)}`);
-    await ctx.reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.").catch(() => {});
+    log(
+      `[ERROR] update=${ctx.updateType} ${err instanceof Error ? err.message : String(err)}`,
+    );
+    await ctx
+      .reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.")
+      .catch(() => {});
   }
 }
