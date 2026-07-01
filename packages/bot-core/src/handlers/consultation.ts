@@ -1,6 +1,6 @@
 import { type Conversation } from "@grammyjs/conversations";
 import type { ConvContext } from "../types/context.js";
-import { createBitrixLead } from "../utils/bitrix.js";
+import { createBitrixDeal } from "../utils/bitrix.js";
 
 function hasPhoneNumber(text: string): boolean {
   return /[\d\s\+\-\(\)]{7,}/.test(text);
@@ -45,7 +45,7 @@ export async function consultationConversation(
       );
 
       try {
-        await createBitrixLead({
+        await createBitrixDeal({
           name,
           phone: phoneText,
           campaign: sessionData.campaign,

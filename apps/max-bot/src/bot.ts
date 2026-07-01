@@ -1,6 +1,6 @@
 import { Bot, Context, Keyboard, type MiddlewareFn } from "@maxhub/max-bot-api";
 import {
-  createBitrixLead,
+  createBitrixDeal,
   parseUtmParams,
   formatUtmLog,
   type ConsultationSession,
@@ -167,7 +167,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
         );
 
         try {
-          await createBitrixLead({
+          await createBitrixDeal({
             name,
             phone: text,
             campaign,
