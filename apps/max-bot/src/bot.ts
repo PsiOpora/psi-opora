@@ -92,7 +92,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
   bot.command("start", (ctx) => handleStart(ctx, undefined));
 
   bot.action("start_consultation", async (ctx) => {
-    await ctx.answerOnCallback({});
+    await ctx.answerOnCallback({ notification: "Открываем анкету..." });
 
     await ctx.reply(
       "📋 *Согласие на обработку персональных данных*\n\n" +
@@ -133,7 +133,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
   });
 
   bot.action("consent_decline", async (ctx) => {
-    await ctx.answerOnCallback({});
+    await ctx.answerOnCallback({ notification: "Хорошо" });
     log(`[CONSENT] user=${ctx.user?.user_id} отказался`);
     await ctx.reply(
       "Вы отказались от обработки персональных данных.\n\n" +
