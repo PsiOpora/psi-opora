@@ -50,6 +50,7 @@ function hasPhoneNumber(text: string): boolean {
 async function handleStart(ctx: AppContext, startPayload: string | undefined) {
   const utm = parseUtmParams(startPayload);
   if (utm.campaign) ctx.session.campaign = utm.campaign;
+  if (utm.source) ctx.session.source = utm.source;
 
   log(
     `[START] user=${ctx.user?.user_id} chat=${ctx.chatId} ${formatUtmLog(utm)} messenger=max`,
@@ -159,11 +160,12 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
       if (hasPhoneNumber(text)) {
         const name = ctx.session.name ?? "";
         const campaign = ctx.session.campaign;
+        const source = ctx.session.source;
         ctx.session.phone = text;
         ctx.session.step = "done";
 
         log(
-          `[CONSULTATION] name=${name} phone=${text}${campaign ? ` campaign=${campaign}` : ""} user=${ctx.message.sender?.user_id} messenger=max`,
+          `[CONSULTATION] name=${name} phone=${text}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${ctx.message.sender?.user_id} messenger=max`,
         );
 
         try {
@@ -171,6 +173,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
             name,
             phone: text,
             campaign,
+            source,
             telegramUserId: ctx.message.sender?.user_id,
             messenger: "max",
           });

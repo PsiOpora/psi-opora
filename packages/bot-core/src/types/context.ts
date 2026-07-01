@@ -8,6 +8,7 @@ export interface ConsultationSession {
   phone?: string;
   phoneAttempts?: number;
   campaign?: string;
+  source?: string;
 }
 
 type SessionContext = Context & SessionFlavor<ConsultationSession>;

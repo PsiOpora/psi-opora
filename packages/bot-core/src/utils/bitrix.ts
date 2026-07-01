@@ -2,6 +2,7 @@ export interface DealData {
   name: string;
   phone: string;
   campaign?: string;
+  source?: string;
   telegramUserId?: number;
   messenger?: string;
 }
@@ -9,6 +10,10 @@ export interface DealData {
 function getEnv(messenger: string, key: string): string | undefined {
   const prefix = messenger === "telegram" ? "TG" : "MAX";
   return process.env[`${prefix}_${key}`] ?? process.env[key];
+}
+
+function getBotId(messenger: string): string {
+  return getEnv(messenger, "BOT_ID") ?? messenger;
 }
 
 function getWebhookBase(messenger: string): string {
@@ -39,17 +44,23 @@ function buildContactFields(data: DealData) {
 
 function buildDealFields(data: DealData, contactId: number) {
   const messenger = data.messenger ?? "telegram";
+  const botId = getBotId(messenger);
+  const description = [data.source, data.campaign].filter(Boolean).join(" / ");
   return {
-    TITLE: `Заявка с ${messenger}: ${data.name}`,
+    TITLE: `Заявка (${botId}): ${data.name}`,
     CONTACT_IDS: [contactId],
     SOURCE_ID: "WEB",
-    SOURCE_DESCRIPTION: data.campaign ?? `${messenger} бот`,
-    UTM_SOURCE: messenger,
-    UTM_MEDIUM: "bot",
+    SOURCE_DESCRIPTION: description || `${messenger} бот`,
+    UTM_SOURCE: data.source ?? messenger,
+    UTM_MEDIUM: `${messenger}_bot`,
     UTM_CAMPAIGN: data.campaign ?? "",
-    COMMENTS: data.telegramUserId
-      ? `${messenger} user_id: ${data.telegramUserId}`
-      : "",
+    UTM_CONTENT: botId,
+    COMMENTS: [
+      `Бот: ${botId}`,
+      data.telegramUserId ? `${messenger} user_id: ${data.telegramUserId}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
   };
 }
 
@@ -70,7 +81,7 @@ export async function createBitrixDeal(data: DealData): Promise<void> {
     fields: buildDealFields(data, contactId),
   }, messenger);
   console.log(
-    `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.campaign ? ` campaign=${data.campaign}` : ""} messenger=${messenger}`
+    `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`
   );
 }
 

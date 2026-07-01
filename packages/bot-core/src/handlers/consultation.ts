@@ -31,6 +31,7 @@ export async function consultationConversation(
     if (hasPhoneNumber(phoneText)) {
       const sessionData = await conv.external((c) => ({
         campaign: c.session.campaign,
+        source: c.session.source,
         userId: c.from?.id,
       }));
 
@@ -41,7 +42,7 @@ export async function consultationConversation(
       });
 
       console.log(
-        `[CONSULTATION] name=${name} phone=${phoneText}${sessionData.campaign ? ` campaign=${sessionData.campaign}` : ""} user=${sessionData.userId} messenger=${messenger}`
+        `[CONSULTATION] name=${name} phone=${phoneText}${sessionData.source ? ` source=${sessionData.source}` : ""}${sessionData.campaign ? ` campaign=${sessionData.campaign}` : ""} user=${sessionData.userId} messenger=${messenger}`
       );
 
       try {
@@ -49,6 +50,7 @@ export async function consultationConversation(
           name,
           phone: phoneText,
           campaign: sessionData.campaign,
+          source: sessionData.source,
           telegramUserId: sessionData.userId,
           messenger,
         });

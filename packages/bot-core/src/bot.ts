@@ -39,6 +39,9 @@ export function createBot({ storage }: BotOptions = {}) {
     if (utm.campaign) {
       ctx.session.campaign = utm.campaign;
     }
+    if (utm.source) {
+      ctx.session.source = utm.source;
+    }
 
     log(`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)} messenger=telegram`);
 
