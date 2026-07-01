@@ -10,6 +10,7 @@
   "scripts": {
     "dev:tg": "turbo dev --filter=@psi-opora/tg-bot",
     "dev:max": "turbo dev --filter=@psi-opora/max-bot",
+    "dev:dashboard": "turbo dev --filter=@psi-opora/dashboard",
     "build": "turbo run build",
     "postinstall": "turbo run build",
     "typecheck": "turbo typecheck"

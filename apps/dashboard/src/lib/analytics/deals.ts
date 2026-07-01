@@ -1,0 +1,95 @@
+import type { BitrixApi } from "@/lib/bitrix/client";
+import type { DateRange, DealRecord, DealStatus } from "./types";
+
+const DEAL_SELECT = [
+  "ID",
+  "TITLE",
+  "STAGE_ID",
+  "CATEGORY_ID",
+  "CLOSED",
+  "OPPORTUNITY",
+  "CURRENCY_ID",
+  "DATE_CREATE",
+  "SOURCE_ID",
+  "UTM_SOURCE",
+  "UTM_MEDIUM",
+  "UTM_CAMPAIGN",
+  "UTM_CONTENT",
+  "UTM_TERM",
+];
+
+const NOT_SPECIFIED = "(не указано)";
+
+interface RawDeal {
+  ID: string;
+  TITLE: string;
+  STAGE_ID: string;
+  CATEGORY_ID: string;
+  CLOSED: "Y" | "N";
+  OPPORTUNITY: string;
+  CURRENCY_ID: string;
+  DATE_CREATE: string;
+  SOURCE_ID?: string;
+  UTM_SOURCE?: string;
+  UTM_MEDIUM?: string;
+  UTM_CAMPAIGN?: string;
+  UTM_CONTENT?: string;
+  UTM_TERM?: string;
+}
+
+/**
+ * Bitrix24 не отдаёт единый флаг "сделка выиграна" — только STAGE_ID,
+ * специфичный для конкретной воронки (CATEGORY_ID). По соглашению Битрикс24
+ * стадии успеха/провала всегда содержат WON/LOSE в коде (стандартная
+ * воронка: "WON"/"LOSE", остальные: "C{id}:WON"/"C{id}:LOSE").
+ */
+function statusOf(deal: RawDeal): DealStatus {
+  if (deal.CLOSED !== "Y") return "in_progress";
+  if (deal.STAGE_ID.includes("WON")) return "won";
+  if (deal.STAGE_ID.includes("LOSE")) return "lost";
+  return "won";
+}
+
+function normalizeDeal(raw: RawDeal): DealRecord {
+  return {
+    id: raw.ID,
+    title: raw.TITLE,
+    stageId: raw.STAGE_ID,
+    categoryId: raw.CATEGORY_ID,
+    status: statusOf(raw),
+    opportunity: Number(raw.OPPORTUNITY) || 0,
+    currency: raw.CURRENCY_ID,
+    dateCreate: new Date(raw.DATE_CREATE),
+    sourceId: raw.SOURCE_ID || NOT_SPECIFIED,
+    utmSource: raw.UTM_SOURCE || NOT_SPECIFIED,
+    utmMedium: raw.UTM_MEDIUM || NOT_SPECIFIED,
+    utmCampaign: raw.UTM_CAMPAIGN || NOT_SPECIFIED,
+    utmContent: raw.UTM_CONTENT || NOT_SPECIFIED,
+    utmTerm: raw.UTM_TERM || NOT_SPECIFIED,
+  };
+}
+
+export async function fetchDeals(api: BitrixApi, range: DateRange): Promise<DealRecord[]> {
+  const raw = await api.list<RawDeal>("crm.deal.list", {
+    select: DEAL_SELECT,
+    filter: {
+      ">=DATE_CREATE": range.from.toISOString(),
+      "<=DATE_CREATE": range.to.toISOString(),
+    },
+    order: { DATE_CREATE: "ASC" },
+  });
+  return raw.map(normalizeDeal);
+}
+
+export interface SourceName {
+  id: string;
+  name: string;
+}
+
+export async function fetchSourceNames(api: BitrixApi): Promise<Map<string, string>> {
+  const rows = await api.call<Array<{ STATUS_ID: string; NAME: string }>>("crm.status.list", {
+    filter: { ENTITY_ID: "SOURCE" },
+    select: ["STATUS_ID", "NAME"],
+  });
+  return new Map(rows.map((row) => [row.STATUS_ID, row.NAME]));
+}
