@@ -14,13 +14,13 @@ const webhookEndpoint = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
 const res = await fetch(`${MAX_API_ROOT}/subscriptions`, {
   method: "POST",
   headers: {
-    "Authorization": token,
+    Authorization: token,
     "Content-Type": "application/json",
   },
   body: JSON.stringify({ url: webhookEndpoint }),
 });
 
-const json = await res.json() as any;
+const json = (await res.json()) as any;
 
 if (!res.ok) {
   console.error("Ошибка:", JSON.stringify(json, null, 2));
