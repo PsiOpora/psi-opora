@@ -6,6 +6,7 @@ export interface ConsultationSession {
   consentGiven?: boolean;
   name?: string;
   phone?: string;
+  phoneAttempts?: number;
   campaign?: string;
 }
 

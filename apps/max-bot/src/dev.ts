@@ -1,9 +1,7 @@
 import "dotenv/config";
 import { appendFileSync } from "fs";
 import { resolve } from "path";
-import { createBot, log as baseLog } from "@psi-opora/bot-core";
-
-const MAX_API_ROOT = "https://botapi.max.ru";
+import { createMaxBot, log as baseLog } from "./bot.js";
 
 const logPath = resolve("bot.log");
 const log = (msg: string) => {
@@ -11,8 +9,8 @@ const log = (msg: string) => {
   appendFileSync(logPath, `${new Date().toISOString()} ${msg}\n`);
 };
 
-const bot = createBot({ apiRoot: MAX_API_ROOT, messenger: "max" });
+const bot = createMaxBot();
 
-bot.start({
-  onStart: () => log("[BOT] max-bot запущен. Polling..."),
-});
+bot.botInfo = await bot.api.getMyInfo();
+log(`[BOT] max-bot запущен: @${bot.botInfo.username}. Polling...`);
+await bot.start();

@@ -1,5 +1,10 @@
 import { Redis } from "@upstash/redis";
-import type { StorageAdapter } from "grammy";
+
+export interface StorageAdapter<T> {
+  read(key: string): T | undefined | Promise<T | undefined>;
+  write(key: string, value: T): void | Promise<void>;
+  delete(key: string): void | Promise<void>;
+}
 
 export function createRedisStorage<T>(redis: Redis): StorageAdapter<T> {
   return {

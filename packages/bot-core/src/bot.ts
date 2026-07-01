@@ -15,16 +15,11 @@ function createInitialSession(): ConsultationSession {
 
 export interface BotOptions {
   storage?: StorageAdapter<ConsultationSession>;
-  apiRoot?: string;
-  messenger?: string;
 }
 
-export function createBot({ storage, apiRoot, messenger = "telegram" }: BotOptions = {}) {
-  const prefix = messenger === "telegram" ? "TG" : "MAX";
-  const token = process.env[`${prefix}_BOT_TOKEN`] ?? process.env.BOT_TOKEN ?? "";
-  const bot = new Bot<AppContext>(token, {
-    client: apiRoot ? { apiRoot } : undefined,
-  });
+export function createBot({ storage }: BotOptions = {}) {
+  const token = process.env.TG_BOT_TOKEN ?? process.env.BOT_TOKEN ?? "";
+  const bot = new Bot<AppContext>(token);
 
   bot.use(
     session({ initial: createInitialSession, storage }) as Middleware<AppContext>
@@ -32,8 +27,7 @@ export function createBot({ storage, apiRoot, messenger = "telegram" }: BotOptio
   bot.use(conversations() as Middleware<AppContext>);
   bot.use(
     createConversation(
-      (conv: Conversation<ConvContext, ConvContext>, ctx: ConvContext) =>
-        consultationConversation(conv, ctx, messenger),
+      consultationConversation,
       "consultationConversation"
     ) as Middleware<AppContext>
   );
@@ -46,7 +40,7 @@ export function createBot({ storage, apiRoot, messenger = "telegram" }: BotOptio
       ctx.session.campaign = utm.campaign;
     }
 
-    log(`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)} messenger=${messenger}`);
+    log(`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)} messenger=telegram`);
 
     const sourceLabel = utm.campaign
       ? `📌 Вы пришли к нам через: *${utm.campaign}*\n\n`

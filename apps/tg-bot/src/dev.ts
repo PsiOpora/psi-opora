@@ -9,7 +9,7 @@ const log = (msg: string) => {
   appendFileSync(logPath, `${new Date().toISOString()} ${msg}\n`);
 };
 
-const bot = createBot({ messenger: "telegram" });
+const bot = createBot();
 
 bot.start({
   onStart: () => log("[BOT] tg-bot запущен. Polling..."),

@@ -8,9 +8,9 @@ function hasPhoneNumber(text: string): boolean {
 
 export async function consultationConversation(
   conv: Conversation<ConvContext, ConvContext>,
-  ctx: ConvContext,
-  messenger = "telegram"
+  ctx: ConvContext
 ) {
+  const messenger = "telegram";
   const nameCtx = await conv.wait();
   const name = nameCtx.message?.text?.trim() ?? "";
 

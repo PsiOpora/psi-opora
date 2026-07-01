@@ -5,7 +5,7 @@ export const config = { runtime: "edge" };
 
 const redis = createUpstashRedis();
 const storage = createRedisStorage<ConsultationSession>(redis);
-const bot = createBot({ storage, messenger: "telegram" });
+const bot = createBot({ storage });
 const handleUpdate = webhookCallback(bot, "std/http");
 
 export default async function handler(req: Request): Promise<Response> {
