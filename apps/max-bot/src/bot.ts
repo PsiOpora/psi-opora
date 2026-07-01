@@ -11,6 +11,12 @@ export const log = (msg: string) => {
   console.log(`${new Date().toISOString()} ${msg}`);
 };
 
+function describeError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const cause = (err as { cause?: unknown }).cause;
+  return cause ? `${err.message} (cause: ${describeError(cause)})` : err.message;
+}
+
 export class AppContext extends Context {
   session!: ConsultationSession;
 }
@@ -202,9 +208,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
   });
 
   bot.catch((err, ctx) => {
-    log(
-      `[ERROR] update=${ctx.updateType} ${err instanceof Error ? err.message : String(err)}`,
-    );
+    log(`[ERROR] update=${ctx.updateType} ${describeError(err)}`);
     ctx
       .reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.")
       .catch(() => {});
@@ -232,9 +236,7 @@ export async function processUpdate(
   try {
     await bot.middleware()(ctx, async () => {});
   } catch (err) {
-    log(
-      `[ERROR] update=${ctx.updateType} ${err instanceof Error ? err.message : String(err)}`,
-    );
+    log(`[ERROR] update=${ctx.updateType} ${describeError(err)}`);
     await ctx
       .reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.")
       .catch(() => {});
