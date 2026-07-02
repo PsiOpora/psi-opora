@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3Icon, LayoutDashboardIcon, ListIcon, TagsIcon } from "lucide-react";
+import { BarChart3Icon, FilterIcon, LayoutDashboardIcon, ListIcon, TagsIcon } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +17,7 @@ import {
 
 const NAV_ITEMS = [
   { href: "/", label: "Обзор", icon: LayoutDashboardIcon },
+  { href: "/funnel", label: "Воронка", icon: FilterIcon },
   { href: "/utm", label: "UTM-отчёт", icon: TagsIcon },
   { href: "/sources", label: "Источники", icon: BarChart3Icon },
   { href: "/deals", label: "Сделки", icon: ListIcon },

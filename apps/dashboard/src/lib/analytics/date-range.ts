@@ -14,6 +14,13 @@ export function parseDateRange(searchParams: Record<string, string | string[] | 
   return { from, to };
 }
 
+/** Период той же длительности, идущий непосредственно перед заданным. */
+export function previousRange(range: DateRange): DateRange {
+  const span = range.to.getTime() - range.from.getTime();
+  const to = new Date(range.from.getTime() - 1);
+  return { from: new Date(to.getTime() - span), to };
+}
+
 export function formatDateParam(date: Date): string {
   return date.toISOString().slice(0, 10);
 }

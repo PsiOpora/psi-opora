@@ -1,10 +1,16 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { groupByUtmCampaign, groupByUtmSource } from "@/lib/analytics/aggregate";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  groupByUtmCampaign,
+  groupByUtmContent,
+  groupByUtmMedium,
+  groupByUtmSource,
+  groupByUtmTerm,
+} from "@/lib/analytics/aggregate";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import { fetchDeals } from "@/lib/analytics/deals";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import { GroupBarChart } from "@/components/dashboard/group-bar-chart";
-import { GroupStatsTable } from "@/components/dashboard/group-stats-table";
+import { GroupStatsCard } from "@/components/dashboard/group-stats-card";
 import { NotConnected } from "@/components/dashboard/not-connected";
 
 export default async function UtmReportPage({
@@ -17,30 +23,70 @@ export default async function UtmReportPage({
 
   const range = parseDateRange(await searchParams);
   const deals = await fetchDeals(api, range);
-  const bySource = groupByUtmSource(deals);
-  const byCampaign = groupByUtmCampaign(deals);
+
+  const dimensions = [
+    {
+      value: "source",
+      tab: "Source",
+      columnLabel: "UTM source",
+      description: "Разбивка сделок по utm_source за выбранный период",
+      data: groupByUtmSource(deals),
+    },
+    {
+      value: "medium",
+      tab: "Medium",
+      columnLabel: "UTM medium",
+      description: "Разбивка сделок по типу трафика (utm_medium)",
+      data: groupByUtmMedium(deals),
+    },
+    {
+      value: "campaign",
+      tab: "Campaign",
+      columnLabel: "UTM source / campaign",
+      description: "Разбивка сделок по связке utm_source + utm_campaign",
+      data: groupByUtmCampaign(deals),
+    },
+    {
+      value: "content",
+      tab: "Content",
+      columnLabel: "UTM content",
+      description: "Разбивка сделок по объявлению/креативу (utm_content)",
+      data: groupByUtmContent(deals),
+    },
+    {
+      value: "term",
+      tab: "Term",
+      columnLabel: "UTM term",
+      description: "Разбивка сделок по ключевой фразе (utm_term)",
+      data: groupByUtmTerm(deals),
+    },
+  ];
 
   return (
-    <div className="flex flex-col gap-4">
-      <GroupBarChart title="UTM source" description="Сумма выигранных сделок по источнику трафика" data={bySource} />
-      <Card>
-        <CardHeader>
-          <CardTitle>По UTM source</CardTitle>
-          <CardDescription>Разбивка сделок по utm_source за выбранный период</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <GroupStatsTable columnLabel="UTM source" data={bySource} />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>По UTM source / campaign</CardTitle>
-          <CardDescription>Разбивка сделок по связке utm_source + utm_campaign</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <GroupStatsTable columnLabel="UTM source / campaign" data={byCampaign} />
-        </CardContent>
-      </Card>
-    </div>
+    <Tabs defaultValue="source" className="flex flex-col gap-4">
+      <TabsList>
+        {dimensions.map((dim) => (
+          <TabsTrigger key={dim.value} value={dim.value}>
+            {dim.tab}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {dimensions.map((dim) => (
+        <TabsContent key={dim.value} value={dim.value} className="flex flex-col gap-4">
+          <GroupBarChart
+            title={dim.columnLabel}
+            description={`Сумма выигранных сделок — ${dim.tab.toLowerCase()}`}
+            data={dim.data}
+          />
+          <GroupStatsCard
+            title={`По ${dim.columnLabel}`}
+            description={dim.description}
+            columnLabel={dim.columnLabel}
+            csvName={`utm-${dim.value}.csv`}
+            data={dim.data}
+          />
+        </TabsContent>
+      ))}
+    </Tabs>
   );
 }

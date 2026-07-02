@@ -1,10 +1,9 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { groupBySource } from "@/lib/analytics/aggregate";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import { fetchDeals, fetchSourceNames } from "@/lib/analytics/deals";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import { GroupBarChart } from "@/components/dashboard/group-bar-chart";
-import { GroupStatsTable } from "@/components/dashboard/group-stats-table";
+import { GroupStatsCard } from "@/components/dashboard/group-stats-card";
 import { NotConnected } from "@/components/dashboard/not-connected";
 
 export default async function SourcesPage({
@@ -22,15 +21,13 @@ export default async function SourcesPage({
   return (
     <div className="flex flex-col gap-4">
       <GroupBarChart title="Источники CRM" description="Сумма выигранных сделок по источнику (SOURCE_ID)" data={bySource} />
-      <Card>
-        <CardHeader>
-          <CardTitle>По источникам</CardTitle>
-          <CardDescription>Справочник источников CRM (Приложения → CRM → Настройки → Источники)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <GroupStatsTable columnLabel="Источник" data={bySource} />
-        </CardContent>
-      </Card>
+      <GroupStatsCard
+        title="По источникам"
+        description="Справочник источников CRM (Приложения → CRM → Настройки → Источники)"
+        columnLabel="Источник"
+        csvName="crm-sources.csv"
+        data={bySource}
+      />
     </div>
   );
 }

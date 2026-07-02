@@ -14,6 +14,7 @@ export interface DealRecord {
   opportunity: number;
   currency: string;
   dateCreate: Date;
+  closeDate: Date | null;
   sourceId: string;
   utmSource: string;
   utmMedium: string;
@@ -41,6 +42,16 @@ export interface Summary {
   wonSum: number;
   conversionRate: number;
   avgDealSize: number;
+  avgCycleDays: number;
+}
+
+export interface FunnelStage {
+  stageId: string;
+  label: string;
+  deals: number;
+  opportunitySum: number;
+  /** Доля от всех сделок воронки за период. */
+  share: number;
 }
 
 export interface TrendPoint {
