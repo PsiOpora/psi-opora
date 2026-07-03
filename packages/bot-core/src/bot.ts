@@ -47,10 +47,6 @@ export function createBot({ storage }: BotOptions = {}) {
     log(`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)} messenger=telegram`);
     await trackFunnelStep("start", { messenger: "telegram", source: utm.source, campaign: utm.campaign });
 
-    const sourceLabel = utm.campaign
-      ? `📌 Вы пришли к нам через: *${utm.campaign}*\n\n`
-      : "";
-
     const keyboard = new InlineKeyboard().text(
       "📝 Записаться на консультацию",
       "start_consultation"
@@ -58,8 +54,7 @@ export function createBot({ storage }: BotOptions = {}) {
 
     await ctx.reply(
       "👋 Добро пожаловать в центр психологической помощи *Пси-Опора*!\n\n" +
-        sourceLabel +
-        "Мы помогаем найти внутренний баланс и справиться с трудностями.\n\n" +
+        "Первый психологический центр помощи клиентам с психиатрическими расстройствами и зависимостями. Лечение без медикаментов.\n\n" +
         "Нажмите кнопку ниже, чтобы записаться на консультацию 👇",
       { parse_mode: "Markdown", reply_markup: keyboard }
     );

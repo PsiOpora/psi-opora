@@ -58,14 +58,9 @@ async function handleStart(ctx: AppContext, startPayload: string | undefined) {
   );
   await trackFunnelStep("start", { messenger: "max", source: utm.source, campaign: utm.campaign });
 
-  const sourceLabel = utm.campaign
-    ? `📌 Вы пришли к нам через: *${utm.campaign}*\n\n`
-    : "";
-
   await ctx.reply(
     "👋 Добро пожаловать в центр психологической помощи *Пси-Опора*!\n\n" +
-      sourceLabel +
-      "Мы помогаем найти внутренний баланс и справиться с трудностями.\n\n" +
+      "Первый психологический центр помощи клиентам с психиатрическими расстройствами и зависимостями. Лечение без медикаментов.\n\n" +
       "Нажмите кнопку ниже, чтобы записаться на консультацию 👇",
     {
       format: "markdown",
