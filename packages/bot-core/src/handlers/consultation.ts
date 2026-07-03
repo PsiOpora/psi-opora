@@ -1,6 +1,7 @@
 import { type Conversation } from "@grammyjs/conversations";
 import type { ConvContext } from "../types/context.js";
 import { createBitrixDeal } from "../utils/bitrix.js";
+import { trackFunnelStep, type FunnelStep } from "../utils/funnel.js";
 
 function hasPhoneNumber(text: string): boolean {
   return /[\d\s\+\-\(\)]{7,}/.test(text);
@@ -15,6 +16,17 @@ export async function consultationConversation(
   ctx: ConvContext
 ) {
   const messenger = "telegram";
+  const sessionData = await conv.external((c) => ({
+    campaign: c.session.campaign,
+    source: c.session.source,
+    userId: c.from?.id,
+  }));
+  // conv.external — чтобы шаг не задвоился при replay диалога conversations
+  const track = (step: FunnelStep) =>
+    conv.external(() =>
+      trackFunnelStep(step, { messenger, source: sessionData.source, campaign: sessionData.campaign }),
+    );
+
   const nameCtx = await conv.wait();
   const name = nameCtx.message?.text?.trim() ?? "";
 
@@ -23,6 +35,7 @@ export async function consultationConversation(
     return;
   }
 
+  await track("name");
   await nameCtx.reply(
     `Отлично, ${name}! Теперь введите, пожалуйста, ваш номер телефона для связи.`
   );
@@ -53,6 +66,7 @@ export async function consultationConversation(
     );
   }
 
+  await track("phone");
   await ctx.reply(
     "Спасибо! И последний шаг — укажите, пожалуйста, ваш email для связи."
   );
@@ -81,12 +95,6 @@ export async function consultationConversation(
     );
   }
 
-  const sessionData = await conv.external((c) => ({
-    campaign: c.session.campaign,
-    source: c.session.source,
-    userId: c.from?.id,
-  }));
-
   await conv.external((c) => {
     c.session.name = name;
     c.session.phone = phone;
@@ -108,6 +116,7 @@ export async function consultationConversation(
       telegramUserId: sessionData.userId,
       messenger,
     });
+    await track("deal");
   } catch (err: any) {
     console.error("[bitrix] ошибка:", err.message);
   }

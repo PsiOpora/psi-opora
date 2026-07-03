@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Опора — помощь родителям подростков с анорексией</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1c2a2b;--deep:#22484a;--deep-2:#2d5a5c;--deep-3:#1a3a3c;
+  --sand:#f2ebdd;--sand-2:#e8decb;--paper:#fbf7ef;
+  --amber:#c07f24;--amber-2:#a96c17;--amber-soft:#dfb264;
+  --line:#d7ccb8;--line-dark:rgba(255,255,255,0.13);
+  --muted:#586565;--muted-light:rgba(255,255,255,0.83);--white:#fff;
+  --r:14px;--r-sm:10px;--maxw:1080px;--ph:#b9ab90;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:74px;-webkit-text-size-adjust:100%}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{font-family:'Inter',system-ui,sans-serif;color:var(--ink);background:var(--sand);line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:'Spectral',Georgia,serif;font-weight:600;line-height:1.15;letter-spacing:-0.01em}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--amber-2);display:inline-flex;align-items:center;gap:9px}
+.eyebrow::before{content:"";width:22px;height:1.5px;background:var(--amber)}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+/* ---- placeholders под картинки ---- */
+.imgph{border:2px dashed var(--ph);border-radius:var(--r);background:repeating-linear-gradient(45deg,rgba(185,171,144,0.07),rgba(185,171,144,0.07) 10px,transparent 10px,transparent 20px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#7d7157;padding:18px;gap:6px}
+.imgph .ic{width:34px;height:34px;opacity:.5}
+.imgph .t{font-weight:600;font-size:13px;color:#6c6046}
+.imgph .d{font-size:12px;color:#8a7e63;line-height:1.4}
+.imgph .sz{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:rgba(185,171,144,0.2);padding:2px 8px;border-radius:6px;color:#6c6046;margin-top:2px}
+
+/* ---- NAV ---- */
+.nav{position:sticky;top:0;z-index:60;background:rgba(26,58,60,0.97);backdrop-filter:blur(10px);border-bottom:1px solid var(--line-dark)}
+.nav-in{max-width:var(--maxw);margin:0 auto;padding:13px 24px;display:flex;align-items:center;gap:24px}
+.logo{font-family:'Spectral',serif;font-weight:600;font-size:21px;color:var(--white);white-space:nowrap;text-decoration:none}
+.logo b{color:var(--amber-soft)}
+.nav-links{display:flex;gap:22px;margin-left:auto;flex-wrap:wrap}
+.nav-links a{color:var(--muted-light);text-decoration:none;font-size:14px;font-weight:500;padding:3px 0;border-bottom:1.5px solid transparent;transition:.2s;white-space:nowrap}
+.nav-links a:hover,.nav-links a:focus-visible{color:var(--white);border-color:var(--amber-soft)}
+.nav-cta{background:var(--amber);color:var(--white);padding:9px 16px;border-radius:9px;font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;transition:.2s;margin-left:16px}
+.nav-cta:hover,.nav-cta:focus-visible{background:var(--amber-2)}
+/* бургер — скрыт на десктопе */
+#nav-toggle{display:none}
+.burger{display:none;width:40px;height:40px;border:none;background:rgba(255,255,255,0.08);border-radius:9px;align-items:center;justify-content:center;cursor:pointer;flex:none}
+.burger span,.burger span::before,.burger span::after{content:"";display:block;width:18px;height:2px;background:#fff;border-radius:2px;position:relative}
+.burger span::before{position:absolute;top:-6px}
+.burger span::after{position:absolute;top:6px}
+.drawer{display:none}
+
+/* ---- BUTTONS ---- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border-radius:11px;font-weight:600;font-size:16px;text-decoration:none;padding:15px 26px;cursor:pointer;border:none;transition:.2s;font-family:inherit}
+.btn-primary{background:var(--amber);color:var(--white)}
+.btn-primary:hover,.btn-primary:focus-visible{background:var(--amber-2);transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--white);border:1.5px solid rgba(255,255,255,0.32)}
+.btn-ghost:hover,.btn-ghost:focus-visible{border-color:var(--amber-soft);color:var(--amber-soft)}
+.btn-dark{background:var(--deep);color:var(--white)}
+.btn-dark:hover,.btn-dark:focus-visible{background:var(--deep-2);transform:translateY(-1px)}
+:focus-visible{outline:2px solid var(--amber-soft);outline-offset:3px}
+
+/* messenger buttons */
+.msg-btns{display:flex;flex-direction:column;gap:12px}
+.msg-btn{display:flex;align-items:center;gap:13px;padding:16px 22px;border-radius:12px;text-decoration:none;font-weight:600;font-size:16px;transition:.2s;color:var(--white);min-height:56px}
+.msg-btn .mi{width:26px;height:26px;flex:none}
+.msg-btn small{display:block;font-weight:400;font-size:12.5px;opacity:.85;margin-top:1px}
+.msg-max{background:#7b3ff2}
+.msg-max:hover,.msg-max:focus-visible{background:#6a2fd8;transform:translateY(-1px)}
+.msg-tg{background:#2aa5e0}
+.msg-tg:hover,.msg-tg:focus-visible{background:#1f93cc;transform:translateY(-1px)}
+
+/* ---- HERO ---- */
+.hero{background:radial-gradient(1100px 460px at 80% -12%,rgba(192,127,36,0.17),transparent 60%),linear-gradient(180deg,var(--deep),var(--deep-3));color:var(--white);position:relative}
+.hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1.5px;background:linear-gradient(90deg,transparent,rgba(223,178,100,.55),transparent)}
+.hero-in{max-width:var(--maxw);margin:0 auto;padding:78px 24px 86px;display:grid;grid-template-columns:1.06fr .94fr;gap:50px;align-items:center}
+.hero h1{color:var(--white);font-size:clamp(31px,4.4vw,50px);margin:18px 0 20px}
+.hero h1 em{font-style:italic;color:var(--amber-soft);font-weight:500}
+.hero-lead{color:var(--muted-light);font-size:19px;max-width:35ch;margin-bottom:28px}
+.hero-actions{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.hero-note{color:rgba(255,255,255,0.6);font-size:13.5px;margin-top:15px}
+.hero-visual{display:flex;flex-direction:column;gap:14px}
+.hero-img{width:100%;height:440px}
+.hero-card{background:rgba(255,255,255,0.06);border:1px solid var(--line-dark);border-radius:var(--r);padding:22px 24px}
+.hero-card h3{color:var(--white);font-size:17px;margin-bottom:13px}
+.hero-card ul{list-style:none;display:flex;flex-direction:column;gap:11px}
+.hero-card li{color:rgba(255,255,255,0.86);font-size:14px;display:flex;gap:11px;align-items:flex-start}
+.hero-card li::before{content:"";flex:none;width:7px;height:7px;margin-top:7px;border-radius:50%;background:var(--amber-soft)}
+
+/* ---- SECTIONS ---- */
+.sec{padding:80px 0}
+.sec-sand{background:var(--sand)}
+.sec-sand2{background:var(--sand-2)}
+.sec-deep{background:linear-gradient(180deg,var(--deep-2),var(--deep));color:var(--white)}
+.sec-head{max-width:660px;margin-bottom:42px}
+.sec-head h2{font-size:clamp(24px,3.3vw,37px);margin:14px 0 14px;color:var(--ink)}
+.sec-head p{font-size:17px;color:var(--muted)}
+.sec-deep .sec-head h2{color:var(--white)}
+.sec-deep .sec-head p{color:var(--muted-light)}
+.sec-deep .eyebrow{color:var(--amber-soft)}
+.sec-deep .eyebrow::before{background:var(--amber-soft)}
+.step-label{font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--deep);opacity:.5}
+.sec-deep .step-label{color:var(--amber-soft);opacity:.85}
+
+.cards-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:24px}
+.card .qt{font-family:'Spectral',serif;font-size:18px;font-weight:500;color:var(--ink);margin-bottom:9px}
+.card p{font-size:14.5px;color:var(--muted)}
+
+.strip{background:var(--deep);color:var(--white);border-radius:var(--r);padding:32px 36px;display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin-top:34px}
+.strip p{font-family:'Spectral',serif;font-style:italic;font-size:19px;color:rgba(255,255,255,0.92);flex:1;min-width:260px;line-height:1.4}
+
+.alone{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+.alone p{font-size:17px;color:var(--muted)}
+.alone-img{height:300px}
+
+.mech{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.mech-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:28px;position:relative}
+.mech-ic{width:44px;height:44px;border:2px dashed var(--ph);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#8a7e63;text-align:center;line-height:1.1;margin-bottom:16px}
+.mech-card h3{font-size:19px;color:var(--ink);margin-bottom:9px}
+.mech-card p{font-size:14.5px;color:var(--muted)}
+.note-line{margin-top:24px;font-size:14px;color:var(--muted);max-width:64ch;font-style:italic}
+.mech-cta{margin-top:26px}
+
+.search-in{display:grid;grid-template-columns:1fr .92fr;gap:44px;align-items:center}
+.search-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:30px}
+.search-card .strike{color:var(--muted);text-decoration:line-through;font-size:15px;margin-bottom:8px;display:block}
+.search-card .arrow{color:var(--amber-2);font-weight:600;font-size:17px;margin-top:12px}
+.search-img{height:360px;margin-top:22px}
+
+.journey{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.j-card{background:rgba(255,255,255,0.05);border:1px solid var(--line-dark);border-radius:var(--r);padding:22px}
+.j-phase{color:var(--amber-soft);font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:11px}
+.j-card p{color:rgba(255,255,255,0.86);font-size:14.5px}
+.j-disc{margin-top:26px;font-size:13px;color:rgba(255,255,255,0.55);max-width:72ch}
+.journey-cta{margin-top:30px}
+
+.refuse{background:var(--paper);border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:var(--r);padding:40px 42px;max-width:820px}
+.refuse h2{font-size:clamp(22px,3vw,32px);color:var(--ink);margin-bottom:16px}
+.refuse p{font-size:17px;color:var(--muted);margin-bottom:24px;max-width:60ch}
+
+.exp{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.exp-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.exp-photo{height:300px}
+.exp-photo .imgph{height:100%;border-radius:0;border-left:none;border-right:none;border-top:none}
+.exp-body{padding:22px}
+.exp-body h3{font-size:19px;color:var(--ink);margin-bottom:4px}
+.exp-role{color:var(--amber-2);font-size:13.5px;font-weight:600;margin-bottom:12px}
+.exp-body p{font-size:14px;color:var(--muted)}
+.chips{display:flex;gap:13px;flex-wrap:wrap;margin-top:30px}
+.chip{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px 18px;font-size:14px;color:var(--ink);display:flex;gap:10px;align-items:center}
+.chip b{font-family:'Spectral',serif;color:var(--deep);font-size:19px;font-weight:600}
+.exp-sub{margin-top:22px;font-size:14px;color:var(--muted);font-style:italic}
+
+.faq{display:flex;flex-direction:column;gap:12px;max-width:820px}
+.faq-item{background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.faq-q{padding:20px 24px;font-family:'Spectral',serif;font-size:17.5px;color:var(--ink);font-weight:500;cursor:pointer;display:flex;justify-content:space-between;gap:16px;align-items:center;list-style:none}
+.faq-q::-webkit-details-marker{display:none}
+.faq-q::after{content:"+";color:var(--amber);font-size:24px;font-weight:400;flex:none;line-height:1}
+.faq-item[open] .faq-q::after{content:"–"}
+.faq-a{padding:0 24px 22px;font-size:15px;color:var(--muted)}
+
+.ladder{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:end}
+.rung{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:26px}
+.rung-2{margin-bottom:22px}
+.rung-3{margin-bottom:44px}
+.rung .tier{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber-2);margin-bottom:10px}
+.rung h3{font-size:19px;color:var(--ink);margin-bottom:8px}
+.rung p{font-size:14px;color:var(--muted)}
+.ladder-sub{margin-top:24px;font-size:14px;color:var(--muted);font-style:italic}
+
+.final{background:radial-gradient(880px 380px at 18% 120%,rgba(192,127,36,0.2),transparent 55%),linear-gradient(180deg,var(--deep-2),var(--deep-3));color:var(--white)}
+.final-in{display:grid;grid-template-columns:1fr .92fr;gap:50px;align-items:center}
+.final-in h2{color:var(--white);font-size:clamp(24px,3.3vw,39px);margin:14px 0 18px}
+.final-lead{color:var(--muted-light);font-size:18px;margin-bottom:22px}
+.checks{list-style:none;display:flex;flex-direction:column;gap:12px}
+.checks li{color:rgba(255,255,255,0.9);font-size:15px;display:flex;gap:11px;align-items:flex-start}
+.checks li::before{content:"✓";color:var(--amber-soft);font-weight:700;flex:none}
+.contact-card{background:var(--paper);border-radius:16px;padding:30px}
+.contact-card h3{font-size:21px;color:var(--ink);margin-bottom:6px}
+.contact-card .fsub{font-size:14px;color:var(--muted);margin-bottom:20px}
+.contact-note{font-size:12.5px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.5}
+.form-note{font-size:12px;color:var(--muted);text-align:center;margin-top:12px;line-height:1.5}
+
+.foot{background:var(--ink);color:rgba(255,255,255,0.7);padding:44px 0 40px;font-size:13px}
+.foot-in{display:grid;grid-template-columns:1.5fr 1fr;gap:32px}
+.foot .logo{margin-bottom:12px;display:inline-block}
+.foot p{color:rgba(255,255,255,0.55);font-size:12.5px;line-height:1.7;max-width:58ch}
+.foot-legal{border-top:1px solid rgba(255,255,255,0.1);margin-top:26px;padding-top:20px;color:rgba(255,255,255,0.4);font-size:11.5px;line-height:1.7}
+
+/* липкая нижняя кнопка — скрыта на десктопе */
+.mcta{display:none}
+
+/* ============ ПЛАНШЕТ ≤900px ============ */
+@media(max-width:900px){
+  .nav-links{display:none}
+  .nav-cta{margin-left:auto}
+  .burger{display:flex;margin-left:4px}
+  #nav-toggle:checked ~ .nav-in{} /* placeholder */
+  .drawer{display:block;max-height:0;overflow:hidden;background:var(--deep-3);transition:max-height .3s ease}
+  #nav-toggle:checked ~ .drawer{max-height:360px}
+  .drawer a{display:block;padding:13px 24px;color:var(--muted-light);text-decoration:none;font-size:15px;border-bottom:1px solid var(--line-dark)}
+  .drawer a:active{background:rgba(255,255,255,0.05);color:#fff}
+
+  .hero-in{grid-template-columns:1fr;gap:32px;padding:52px 24px 62px}
+  .hero-img{height:320px}
+  .alone,.search-in,.final-in{grid-template-columns:1fr;gap:30px}
+  .foot-in{grid-template-columns:1fr;gap:22px}
+  .cards-3,.mech,.exp{grid-template-columns:1fr}
+  .journey,.ladder{grid-template-columns:1fr 1fr}
+  .rung-2,.rung-3{margin-bottom:0}
+}
+
+/* ============ СМАРТФОН ≤560px ============ */
+@media(max-width:560px){
+  html{scroll-padding-top:60px}
+  .wrap{padding:0 18px}
+  .nav-in{padding:11px 18px;gap:10px}
+  .logo{font-size:19px}
+  .nav-cta{padding:8px 14px;font-size:13.5px}
+
+  .sec{padding:46px 0}
+  .sec-head{margin-bottom:24px}
+  .sec-head h2{font-size:23px}
+  .sec-head p{font-size:15.5px}
+
+  .hero{padding:0}
+  .hero-in{padding:34px 18px 40px;gap:22px}
+  .hero h1{font-size:28px;margin:14px 0 14px}
+  .hero-lead{font-size:16.5px;margin-bottom:20px}
+  .hero-img{height:230px}
+  .hero-actions{flex-direction:column;gap:11px}
+  .hero-actions .btn{width:100%}
+  .hero-note{text-align:center;width:100%}
+  .hero-card{margin-top:4px}
+
+  .journey,.ladder{grid-template-columns:1fr}
+  .journey{gap:11px}
+  .ladder{gap:12px}
+  .rung-2,.rung.rung-2{margin-left:14px}
+  .rung-3,.rung.rung-3{margin-left:28px}
+
+  .btn{width:100%;padding:15px 20px;min-height:52px}
+  .strip{padding:24px 22px}
+  .strip p{font-size:17px}
+  .strip .btn{width:100%}
+  .refuse{padding:26px 22px}
+  .refuse h2{font-size:22px}
+  .mech-cta .btn,.journey-cta .btn,.search-in .btn{width:100%}
+  .alone-img{height:200px}
+  .search-img{height:210px}
+  .exp-photo{height:280px}
+
+  .foot{padding:34px 0 96px}
+
+  /* липкая кнопка снизу */
+  .mcta{display:block;position:fixed;bottom:0;left:0;right:0;z-index:70;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(26,58,60,0.98);backdrop-filter:blur(8px);border-top:1px solid var(--line-dark)}
+  .mcta .btn-primary{width:100%;justify-content:center;padding:14px;min-height:50px}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <input type="checkbox" id="nav-toggle">
+  <div class="nav-in">
+    <a href="#start" class="logo">О<b>·</b>пора</a>
+    <div class="nav-links">
+      <a href="#not-guilty">Вы не одни</a>
+      <a href="#how">Как это работает</a>
+      <a href="#path">Путь родителей</a>
+      <a href="#experts">Специалисты</a>
+      <a href="#faq">Вопросы</a>
+    </div>
+    <a href="#start-now" class="nav-cta">Оставить заявку</a>
+    <label class="burger" for="nav-toggle" aria-label="Меню"><span></span></label>
+  </div>
+  <nav class="drawer">
+    <a href="#not-guilty">Вы не одни</a>
+    <a href="#how">Как это работает</a>
+    <a href="#path">Путь родителей</a>
+    <a href="#refusing">Если ребёнок против</a>
+    <a href="#experts">Специалисты</a>
+    <a href="#faq">Вопросы</a>
+    <a href="#start-now">Оставить заявку</a>
+  </nav>
+</nav>
+
+<!-- 1. HERO -->
+<header class="hero" id="start">
+  <div class="hero-in">
+    <div>
+      <span class="eyebrow">Центр помощи при РПП · работаем с родителями</span>
+      <h1>Ребёнок с анорексией отказывается от помощи? <em>Путь к его выздоровлению начинается с вас.</em></h1>
+      <p class="hero-lead">Когда подросток всё отрицает, уговоры бессильны — и это не ваша вина. Есть другой путь: через родителя.</p>
+      <div class="hero-actions">
+        <a href="#start-now" class="btn btn-primary">Оставить заявку</a>
+        <a href="#how" class="btn btn-ghost">Как это работает</a>
+      </div>
+      <p class="hero-note">Онлайн по всей России · очно в Нижнем Новгороде · конфиденциально</p>
+    </div>
+    <div class="hero-visual">
+      <div class="imgph hero-img">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        <div class="t">Фото: мама и подросток, тёплый момент</div>
+        <div class="d">Промт 1 · спокойная близость у окна, без вида «болезни»</div>
+        <div class="sz">1000 × 880 px</div>
+      </div>
+      <aside class="hero-card">
+        <h3>Знакомо, если:</h3>
+        <ul>
+          <li>вы уговариваете и объясняете, а в ответ — стена</li>
+          <li>ребёнок не считает себя больным и отказывается от помощи</li>
+          <li>вы чувствуете вину и бессилие и не знаете, за что взяться</li>
+        </ul>
+      </aside>
+    </div>
+  </div>
+</header>
+
+<!-- 2. NOT GUILTY -->
+<section class="sec sec-sand" id="not-guilty">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="step-label">Вы не виноваты</span>
+      <h2>Отказ ребёнка — это не ваша ошибка. Это часть болезни.</h2>
+      <p>Сопротивление и отрицание — типичная черта расстройства пищевого поведения, а не признак того, что вы «недоглядели» или «плохо воспитали».</p>
+    </div>
+    <div class="cards-3">
+      <div class="card"><div class="qt">«Я всё перепробовала»</div><p>Разговоры, контроль, просьбы, слёзы — и ничего не меняется. Это тупик, в который попадают очень многие родители.</p></div>
+      <div class="card"><div class="qt">«Он не хочет лечиться»</div><p>Ребёнок не признаёт проблему и отвергает любую помощь. Ждать, пока «сам захочет», — не единственный вариант.</p></div>
+      <div class="card"><div class="qt">«Наверное, это я виновата»</div><p>Чувство вины изматывает и мешает действовать. Но причина болезни не в вас, и выход из тупика существует.</p></div>
+    </div>
+    <div class="strip">
+      <p>«Вы не обязаны справляться в одиночку и не обязаны сначала переубедить ребёнка. Помощь может начаться с вас».</p>
+      <a href="#how" class="btn btn-primary">Показать, как это работает</a>
+    </div>
+  </div>
+</section>
+
+<!-- 3. NOT ALONE -->
+<section class="sec sec-sand2" id="not-alone">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="step-label">Вы не одна такая</span>
+      <h2>За этой проблемой — сотни таких же мам. Вы не одни.</h2>
+    </div>
+    <div class="alone">
+      <div><p>Рядом — родители, которые прошли через то же самое: те же бессонные ночи, тот же страх, та же беспомощность. Здесь вы среди своих, а не наедине с бедой.</p></div>
+      <div class="imgph alone-img">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="9" r="2.5"/><circle cx="17" cy="9" r="2.5"/><circle cx="12" cy="14" r="2.5"/></svg>
+        <div class="t">Графика: общность / «вы не одна»</div>
+        <div class="d">Промт 2 · мягкие круги-«люди», акцент янтарём. Можно SVG</div>
+        <div class="sz">1000 × 600 px</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. HOW -->
+<section class="sec sec-sand" id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="step-label">Шаг 2 · как это работает</span>
+      <h2>Почему помощь начинается с родителя, а не с ребёнка</h2>
+      <p>Ребёнок сопротивляется давлению — но реагирует на то, как ведёт себя семья рядом. Мы работаем с этим.</p>
+    </div>
+    <div class="mech">
+      <div class="mech-card"><div class="mech-ic">икон.<br>48×48</div><h3>Меняется ваша опора</h3><p>Вместо уговоров и контроля, которые усиливают сопротивление, — ясная стратегия поведения от специалиста.</p></div>
+      <div class="mech-card"><div class="mech-ic">икон.<br>48×48</div><h3>Меняется обстановка дома</h3><p>Спокойнее рядом — безопаснее ребёнку. Спадает напряжение вокруг еды и конфликтов.</p></div>
+      <div class="mech-card"><div class="mech-ic">икон.<br>48×48</div><h3>Снижается сопротивление</h3><p>Когда исчезает борьба, у ребёнка появляется место, чтобы принять помощь. Шаг становится возможным.</p></div>
+    </div>
+    <p class="note-line">Это не волшебная таблетка и не обещание быстрого результата. Это работа, где вы становитесь тем, кто меняет ситуацию, пока ребёнок ещё не готов.</p>
+    <div class="mech-cta"><a href="#start-now" class="btn btn-dark">Забрать гайд «3 фразы, которые усиливают сопротивление»</a></div>
+  </div>
+</section>
+
+<!-- 5. NO MORE SEARCH -->
+<section class="sec sec-sand2" id="no-more-search">
+  <div class="wrap">
+    <div class="search-in">
+      <div class="sec-head" style="margin-bottom:0">
+        <span class="step-label">Хватит метаться</span>
+        <h2>Вы год ищете, куда бежать, и всё мимо?</h2>
+        <p>Многие родители до нас обошли всё: психологов, психотерапевтов, врачей — и снова оставались в отчаянии. Здесь вам дадут не ещё одну попытку наугад, а точку опоры и понятное направление.</p>
+        <div style="margin-top:24px"><a href="#start-now" class="btn btn-primary">Оставить заявку</a></div>
+      </div>
+      <div>
+        <div class="search-card">
+          <span class="strike">Психолог — «приходите с ребёнком»</span>
+          <span class="strike">Врач — очередь и направления</span>
+          <span class="strike">Форумы — чужие советы наугад</span>
+          <div class="arrow">→ Здесь начинают с вас и вашей ситуации</div>
+        </div>
+        <div class="imgph search-img">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <div class="t">Фото: обретённая опора (опционально)</div>
+          <div class="d">Промт 3 · женщина у окна, спокойствие после тревоги</div>
+          <div class="sz">960 × 720 px</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. PATH -->
+<section class="sec sec-deep" id="path">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Путь родителей</span>
+      <h2>Из тупика — шаг за шагом</h2>
+      <p>Так выглядит путь родителя, который начал с себя, когда ребёнок отказывался от любой помощи. Без чудес — через последовательные шаги.</p>
+    </div>
+    <div class="journey">
+      <div class="j-card"><div class="j-phase">Точка А</div><p>Полное бессилие: ребёнок отрицает проблему, любая помощь заканчивается конфликтом.</p></div>
+      <div class="j-card"><div class="j-phase">Первый шаг</div><p>Родитель приходит на диагностику один — без ребёнка — и получает понимание, что делать дальше.</p></div>
+      <div class="j-card"><div class="j-phase">Работа</div><p>Вместе со специалистом выстраивается новая стратегия поведения и общения в семье.</p></div>
+      <div class="j-card"><div class="j-phase">Сдвиг</div><p>Напряжение вокруг еды спадает, диалог с ребёнком восстанавливается, появляется опора.</p></div>
+    </div>
+    <p class="j-disc">Путь показывает этапы работы, а не гарантированный результат. Течение и исход в каждой семье индивидуальны и зависят от многих факторов.</p>
+    <div class="journey-cta"><a href="#start-now" class="btn btn-primary">Оставить заявку на бесплатную диагностику</a></div>
+  </div>
+</section>
+
+<!-- 7. REFUSING -->
+<section class="sec sec-sand" id="refusing">
+  <div class="wrap">
+    <span class="step-label" style="display:block;margin-bottom:18px">Ядро нашей работы</span>
+    <div class="refuse">
+      <h2>Ребёнок не хочет лечиться? Вам не нужно его сначала переубеждать.</h2>
+      <p>Ждать, пока ребёнок «сам захочет», — не единственный вариант. Вы можете действовать первой: создать условия, в которых он постепенно примет помощь. Именно с этого мы и начинаем.</p>
+      <a href="#start-now" class="btn btn-primary">Разобрать вашу ситуацию</a>
+    </div>
+  </div>
+</section>
+
+<!-- 8. EXPERTS -->
+<section class="sec sec-sand2" id="experts">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="step-label">Кто будет рядом с вами</span>
+      <h2>Специалисты, которые работают именно с родителями подростков с РПП</h2>
+      <p>Узкая специализация на расстройствах пищевого поведения и на семейной работе — а не «обо всём понемногу».</p>
+    </div>
+    <div class="exp">
+      <div class="exp-card">
+        <div class="exp-photo"><div class="imgph"><div class="t">Фото специалиста</div><div class="d">реальная съёмка</div><div class="sz">760 × 900 px</div></div></div>
+        <div class="exp-body"><h3>Имя Фамилия</h3><div class="exp-role">Клинический психолог, специалист по РПП</div><p>Опыт работы с расстройствами пищевого поведения у подростков. Помогает родителям выстроить стратегию, когда ребёнок отказывается от помощи.</p></div>
+      </div>
+      <div class="exp-card">
+        <div class="exp-photo"><div class="imgph"><div class="t">Фото специалиста</div><div class="d">реальная съёмка</div><div class="sz">760 × 900 px</div></div></div>
+        <div class="exp-body"><h3>Имя Фамилия</h3><div class="exp-role">Психотерапевт, семейная терапия</div><p>Работа с семейной системой и коммуникацией вокруг болезни. Сопровождение родителя на всех этапах.</p></div>
+      </div>
+      <div class="exp-card">
+        <div class="exp-photo"><div class="imgph"><div class="t">Фото специалиста</div><div class="d">реальная съёмка</div><div class="sz">760 × 900 px</div></div></div>
+        <div class="exp-body"><h3>Имя Фамилия</h3><div class="exp-role">Врач-психиатр</div><p>Медицинская оценка состояния и сопровождение при необходимости. Работает в связке с психологами центра.</p></div>
+      </div>
+    </div>
+    <div class="chips">
+      <div class="chip"><b>№ ЛО-…</b> медицинская лицензия</div>
+      <div class="chip"><b>N</b> лет работы с РПП</div>
+      <div class="chip"><b>N</b> семей получили помощь</div>
+      <div class="chip">Онлайн по всей России</div>
+    </div>
+    <p class="exp-sub">Узкая специализация на расстройствах пищевого поведения — а не «обо всём понемногу».</p>
+  </div>
+</section>
+
+<!-- 9. FAQ -->
+<section class="sec sec-sand" id="faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="step-label">Частые сомнения родителей</span>
+      <h2>Отвечаем на то, что вас останавливает</h2>
+    </div>
+    <div class="faq">
+      <details class="faq-item" open><summary class="faq-q">Разве это не работа для ребёнка, а не для меня?</summary><div class="faq-a">Помощь ребёнку остаётся целью. Но когда он отказывается, именно родитель может изменить ситуацию первым — создать условия, в которых ребёнок постепенно примет помощь.</div></details>
+      <details class="faq-item"><summary class="faq-q">Я же не пациент. Зачем работать со мной?</summary><div class="faq-a">Вы не пациент — вы главный ресурс ребёнка. Работа с родителем даёт вам инструменты вместо бессилия и помогает выйти из изматывающей борьбы.</div></details>
+      <details class="faq-item"><summary class="faq-q">А если у нас всё слишком запущено?</summary><div class="faq-a">Именно чтобы это оценить, и нужна первичная диагностика. Специалист разберёт вашу конкретную ситуацию и подскажет, с чего начать — без осуждения.</div></details>
+      <details class="faq-item"><summary class="faq-q">Это конфиденциально? И нужно ли согласие ребёнка?</summary><div class="faq-a">Обращение конфиденциально. На первую диагностику родитель может прийти один — присутствие или согласие ребёнка для этого не требуется.</div></details>
+      <details class="faq-item"><summary class="faq-q">А это не «один курс — и всё решится»?</summary><div class="faq-a">Нет. Мы честно говорим: это процесс, а не обещание мгновенного результата. Мы не даём гарантий излечения — мы системно помогаем родителю менять ситуацию.</div></details>
+      <details class="faq-item"><summary class="faq-q">Сколько это стоит?</summary><div class="faq-a">Первичная диагностика — бесплатна и ни к чему не обязывает. Дальнейший формат и стоимость обсуждаются только после неё, по вашему решению.</div></details>
+    </div>
+  </div>
+</section>
+
+<!-- 10. PRICING -->
+<section class="sec sec-sand2" id="pricing">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="step-label">С чего начать</span>
+      <h2>Начать можно с малого — и бесплатно</h2>
+    </div>
+    <div class="ladder">
+      <div class="rung rung-1"><div class="tier">Ступень 1</div><h3>Бесплатная диагностика</h3><p>Знакомство и разбор вашей ситуации. Без обязательств и осуждения.</p></div>
+      <div class="rung rung-2"><div class="tier">Ступень 2</div><h3>Лёгкий формат</h3><p>Клуб для родителей или разовая встреча по запросу — опора без большого шага.</p></div>
+      <div class="rung rung-3"><div class="tier">Ступень 3</div><h3>Основная программа</h3><p>Системная работа, когда вы готовы идти глубже.</p></div>
+    </div>
+    <p class="ladder-sub">Вы сами выбираете, на какой ступени остановиться. Никто не подталкивает.</p>
+  </div>
+</section>
+
+<!-- 11. FINAL + BOT BUTTONS -->
+<section class="sec final" id="start-now">
+  <div class="wrap">
+    <div class="final-in">
+      <div>
+        <span class="eyebrow">Первый разговор ничего не стоит</span>
+        <h2>Первый шаг — бесплатный. Дальше решаете вы.</h2>
+        <p class="final-lead">Оставьте заявку в удобном мессенджере — бот задаст пару вопросов и передаст вашу ситуацию специалисту. Он свяжется с вами и предложит время бесплатной диагностики.</p>
+        <ul class="checks">
+          <li>Бесплатно и без обязательств</li>
+          <li>Конфиденциально, без осуждения</li>
+          <li>Можно онлайн, из любого города</li>
+          <li>Родитель может обратиться один</li>
+        </ul>
+      </div>
+      <div class="contact-card">
+        <h3>Оставить заявку</h3>
+        <p class="fsub">Выберите мессенджер — дальше всё подскажет бот.</p>
+        <div class="msg-btns">
+          <a href="#" class="msg-btn msg-max">
+            <svg class="mi" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(255,255,255,.18)"/><path d="M7 8h10M7 12h10M7 16h6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span>Оставить заявку в МАКС<small>Ответим в мессенджере МАКС</small></span>
+          </a>
+          <a href="#" class="msg-btn msg-tg">
+            <svg class="mi" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(255,255,255,.18)"/><path d="M6 12l11-4-2 10-3-3-2 2-1-4-3-1z" fill="#fff"/></svg>
+            <span>Оставить заявку в Телеграм<small>Ответим в Telegram</small></span>
+          </a>
+        </div>
+        <p class="contact-note">Бот уточнит имя и контакт, чтобы специалист мог связаться с вами.</p>
+        <p class="form-note">Оставляя заявку, вы соглашаетесь с политикой обработки персональных данных. Имеются противопоказания, необходима консультация специалиста.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-in">
+      <div>
+        <a href="#start" class="logo">О<b>·</b>пора</a>
+        <p>Центр психологической помощи при расстройствах пищевого поведения. Помогаем родителям подростков, столкнувшихся с анорексией и другими РПП. Онлайн по всей России, очный приём в Нижнем Новгороде.</p>
+      </div>
+      <div>
+        <p>Телефон: +7 (___) ___-__-__<br>Почта: help@psi-opora.ru<br>Нижний Новгород, ул. ________, д. __</p>
+      </div>
+    </div>
+    <div class="foot-legal">
+      ООО «________», ИНН ________, ОГРН ________. Медицинская лицензия № ЛО-________ от __.__.____.<br>
+      Имеются противопоказания, необходима консультация специалиста. Информация на сайте не является публичной офертой и не гарантирует результата оказания услуг. Материалы носят информационный характер.
+    </div>
+  </div>
+</footer>
+
+<div class="mcta">
+  <a href="#start-now" class="btn btn-primary">Оставить заявку</a>
+</div>
+
+</body>
+</html>

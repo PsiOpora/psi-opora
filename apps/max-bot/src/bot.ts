@@ -3,6 +3,7 @@ import {
   createBitrixDeal,
   parseUtmParams,
   formatUtmLog,
+  trackFunnelStep,
   type ConsultationSession,
   type StorageAdapter,
 } from "@psi-opora/bot-core";
@@ -55,6 +56,7 @@ async function handleStart(ctx: AppContext, startPayload: string | undefined) {
   log(
     `[START] user=${ctx.user?.user_id} chat=${ctx.chatId} ${formatUtmLog(utm)} messenger=max`,
   );
+  await trackFunnelStep("start", { messenger: "max", source: utm.source, campaign: utm.campaign });
 
   const sourceLabel = utm.campaign
     ? `📌 Вы пришли к нам через: *${utm.campaign}*\n\n`
@@ -94,6 +96,11 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
 
   bot.action("start_consultation", async (ctx) => {
     await ctx.answerOnCallback({ notification: "Открываем анкету..." });
+    await trackFunnelStep("consult_click", {
+      messenger: "max",
+      source: ctx.session.source,
+      campaign: ctx.session.campaign,
+    });
 
     await ctx.reply(
       "📋 *Согласие на обработку персональных данных*\n\n" +
@@ -133,6 +140,11 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
     ctx.session.consentGiven = true;
     ctx.session.step = "name";
     log(`[CONSENT] user=${ctx.user?.user_id} согласился`);
+    await trackFunnelStep("consent", {
+      messenger: "max",
+      source: ctx.session.source,
+      campaign: ctx.session.campaign,
+    });
     await ctx.reply(
       "✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?",
     );
@@ -155,6 +167,11 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
     if (ctx.session.step === "name") {
       ctx.session.name = text;
       ctx.session.step = "phone";
+      await trackFunnelStep("name", {
+        messenger: "max",
+        source: ctx.session.source,
+        campaign: ctx.session.campaign,
+      });
       await ctx.reply(
         `Отлично, ${text}! Теперь введите, пожалуйста, ваш номер телефона для связи.`,
       );
@@ -168,6 +185,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
         const source = ctx.session.source;
         ctx.session.phone = text;
         ctx.session.step = "done";
+        await trackFunnelStep("phone", { messenger: "max", source, campaign });
 
         log(
           `[CONSULTATION] name=${name} phone=${text}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${ctx.message.sender?.user_id} messenger=max`,
@@ -182,6 +200,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
             telegramUserId: ctx.message.sender?.user_id,
             messenger: "max",
           });
+          await trackFunnelStep("deal", { messenger: "max", source, campaign });
         } catch (err: any) {
           console.error("[bitrix] ошибка:", err.message);
         }

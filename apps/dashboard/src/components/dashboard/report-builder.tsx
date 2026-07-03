@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ArrowUpDownIcon, ChevronDownIcon, RotateCcwIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -153,11 +154,42 @@ const EMPTY_FILTERS: Record<FilterId, string[]> = {
 const CHART_TOP_LIMIT = 12;
 
 export function ReportBuilder({ deals, dictionaries }: { deals: DealRecord[]; dictionaries: ReportDictionaries }) {
-  const [dimension, setDimension] = useState<DimensionId>("utmSource");
-  const [metric, setMetric] = useState<MetricId>("deals");
-  const [chartKind, setChartKind] = useState<"bar" | "line">("bar");
-  const [filters, setFilters] = useState<Record<FilterId, string[]>>(EMPTY_FILTERS);
+  // Настройки отчёта живут в URL (?g=, ?m=, ?ch=, ?f_*) — ссылкой можно поделиться
+  const searchParams = useSearchParams();
+  const [dimension, setDimension] = useState<DimensionId>(() => {
+    const value = searchParams.get("g");
+    return DIMENSIONS.some((d) => d.id === value) ? (value as DimensionId) : "utmSource";
+  });
+  const [metric, setMetric] = useState<MetricId>(() => {
+    const value = searchParams.get("m");
+    return METRICS.some((m) => m.id === value) ? (value as MetricId) : "deals";
+  });
+  const [chartKind, setChartKind] = useState<"bar" | "line">(() =>
+    searchParams.get("ch") === "line" ? "line" : "bar",
+  );
+  const [filters, setFilters] = useState<Record<FilterId, string[]>>(() => {
+    const initial = { ...EMPTY_FILTERS };
+    for (const filter of FILTERS) initial[filter.id] = searchParams.getAll(`f_${filter.id}`);
+    return initial;
+  });
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean } | null>(null);
+
+  useEffect(() => {
+    // history.replaceState вместо router.replace — без перезапроса серверной страницы
+    const params = new URLSearchParams(window.location.search);
+    params.delete("g");
+    params.delete("m");
+    params.delete("ch");
+    for (const filter of FILTERS) params.delete(`f_${filter.id}`);
+    if (dimension !== "utmSource") params.set("g", dimension);
+    if (metric !== "deals") params.set("m", metric);
+    if (chartKind !== "bar") params.set("ch", chartKind);
+    for (const filter of FILTERS) {
+      for (const value of filters[filter.id]) params.append(`f_${filter.id}`, value);
+    }
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+  }, [dimension, metric, chartKind, filters]);
 
   const isTime = DIMENSIONS.find((d) => d.id === dimension)?.time ?? false;
   const metricInfo = METRICS.find((m) => m.id === metric)!;

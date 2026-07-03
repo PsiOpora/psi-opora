@@ -3,6 +3,7 @@ import { conversations, createConversation, type Conversation } from "@grammyjs/
 import type { StorageAdapter } from "grammy";
 import type { AppContext, ConsultationSession, ConvContext } from "./types/context.js";
 import { parseUtmParams, formatUtmLog } from "./utils/utm.js";
+import { trackFunnelStep } from "./utils/funnel.js";
 import { consultationConversation } from "./handlers/consultation.js";
 
 export const log = (msg: string) => {
@@ -44,6 +45,7 @@ export function createBot({ storage }: BotOptions = {}) {
     }
 
     log(`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)} messenger=telegram`);
+    await trackFunnelStep("start", { messenger: "telegram", source: utm.source, campaign: utm.campaign });
 
     const sourceLabel = utm.campaign
       ? `📌 Вы пришли к нам через: *${utm.campaign}*\n\n`
@@ -65,6 +67,11 @@ export function createBot({ storage }: BotOptions = {}) {
 
   bot.callbackQuery("start_consultation", async (ctx: AppContext) => {
     await ctx.answerCallbackQuery();
+    await trackFunnelStep("consult_click", {
+      messenger: "telegram",
+      source: ctx.session.source,
+      campaign: ctx.session.campaign,
+    });
 
     const consentKeyboard = new InlineKeyboard()
       .text("✅ Согласен(а) на обработку данных", "consent_agree")
@@ -96,6 +103,11 @@ export function createBot({ storage }: BotOptions = {}) {
     await ctx.answerCallbackQuery("Спасибо! Продолжаем.");
     ctx.session.consentGiven = true;
     log(`[CONSENT] user=${ctx.from?.id} согласился`);
+    await trackFunnelStep("consent", {
+      messenger: "telegram",
+      source: ctx.session.source,
+      campaign: ctx.session.campaign,
+    });
 
     await ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() });
     await ctx.reply("✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?");
