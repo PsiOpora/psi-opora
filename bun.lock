@@ -69,7 +69,7 @@
       "dependencies": {
         "@maxhub/max-bot-api": "^0.2.4",
         "@psi-opora/bot-core": "workspace:*",
-        "dotenv": "^17.4.2",
+        "dotenv": "17.4.2",
       },
       "devDependencies": {
         "typescript": "6.0.3",
@@ -80,7 +80,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@psi-opora/bot-core": "workspace:*",
-        "dotenv": "^17.4.2",
+        "dotenv": "17.4.2",
         "grammy": "^1.44.0",
       },
       "devDependencies": {
