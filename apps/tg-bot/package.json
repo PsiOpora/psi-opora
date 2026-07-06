@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@psi-opora/bitrix-webhook-api": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@upstash/redis": "^1.34.3",
     "dotenv": "17.4.2",
