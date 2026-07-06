@@ -2,6 +2,7 @@ import { Bot, session, InlineKeyboard, type Middleware } from "grammy";
 import { conversations, createConversation, type Conversation } from "@grammyjs/conversations";
 import type { StorageAdapter } from "grammy";
 import type { AppContext, ConsultationSession, ConvContext } from "./types/context.js";
+import type { Redis } from "@upstash/redis";
 import { parseUtmParams, formatUtmLog } from "./utils/utm.js";
 import { trackFunnelStep } from "./utils/funnel.js";
 import { consultationConversation } from "./handlers/consultation.js";
@@ -16,9 +17,10 @@ function createInitialSession(): ConsultationSession {
 
 export interface BotOptions {
   storage?: StorageAdapter<ConsultationSession>;
+  redis?: Redis;
 }
 
-export function createBot({ storage }: BotOptions = {}) {
+export function createBot({ storage, redis }: BotOptions = {}) {
   const token = process.env.TG_BOT_TOKEN ?? process.env.BOT_TOKEN ?? "";
   const bot = new Bot<AppContext>(token);
 

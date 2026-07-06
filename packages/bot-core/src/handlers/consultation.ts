@@ -1,7 +1,21 @@
 import { type Conversation } from "@grammyjs/conversations";
 import type { ConvContext } from "../types/context.js";
 import { createBitrixDeal } from "../utils/bitrix.js";
+import { createUpstashRedis, getBitrixChatInfo } from "../storage/upstash.js";
 import { trackFunnelStep, type FunnelStep } from "../utils/funnel.js";
+
+// Redis-инстанс для получения chatId из Bitrix webhook
+let _redis: ReturnType<typeof createUpstashRedis> | null = null;
+function getRedis() {
+  if (!_redis) {
+    try {
+      _redis = createUpstashRedis();
+    } catch {
+      return null;
+    }
+  }
+  return _redis;
+}
 
 function hasPhoneNumber(text: string): boolean {
   return /[\d\s\+\-\(\)]{7,}/.test(text);
@@ -107,6 +121,19 @@ export async function consultationConversation(
   );
 
   try {
+    let chatId: number | undefined;
+    let operatorId: number | undefined;
+
+    const redis = getRedis();
+    if (redis && sessionData.userId) {
+      const chatInfo = await getBitrixChatInfo(redis, sessionData.userId);
+      if (chatInfo) {
+        chatId = chatInfo.chatId;
+        operatorId = chatInfo.operatorId || undefined;
+        console.log(`[CONSULTATION] найден chatId=${chatId} для userId=${sessionData.userId}`);
+      }
+    }
+
     await createBitrixDeal({
       name,
       phone,
@@ -115,6 +142,8 @@ export async function consultationConversation(
       source: sessionData.source,
       telegramUserId: sessionData.userId,
       messenger,
+      chatId,
+      operatorId,
     });
     await track("deal");
   } catch (err: any) {

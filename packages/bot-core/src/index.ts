@@ -1,5 +1,5 @@
 export { createBot, log, type BotOptions } from "./bot.js";
-export { createRedisStorage, createUpstashRedis, type StorageAdapter } from "./storage/upstash.js";
+export { createRedisStorage, createUpstashRedis, getBitrixChatInfo, type StorageAdapter, type BitrixChatInfo } from "./storage/upstash.js";
 export type { ConsultationSession, AppContext, ConvContext } from "./types/context.js";
 export {
   createBitrixDeal,

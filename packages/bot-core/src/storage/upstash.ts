@@ -6,6 +6,15 @@ export interface StorageAdapter<T> {
   delete(key: string): void | Promise<void>;
 }
 
+export interface BitrixChatInfo {
+  chatId: number;
+  operatorId: number;
+  sessionId: number;
+  ts: number;
+}
+
+const BITRIX_CHAT_KEY_PREFIX = "b24:chat:";
+
 export function createRedisStorage<T>(redis: Redis): StorageAdapter<T> {
   return {
     async read(key: string) {
@@ -18,6 +27,18 @@ export function createRedisStorage<T>(redis: Redis): StorageAdapter<T> {
       await redis.del(key);
     },
   };
+}
+
+export async function getBitrixChatInfo(
+  redis: Redis,
+  telegramUserId: number
+): Promise<BitrixChatInfo | undefined> {
+  const key = `${BITRIX_CHAT_KEY_PREFIX}${telegramUserId}`;
+  const info = await redis.get<BitrixChatInfo>(key);
+  if (info) {
+    await redis.del(key);
+  }
+  return info ?? undefined;
 }
 
 export function createUpstashRedis() {

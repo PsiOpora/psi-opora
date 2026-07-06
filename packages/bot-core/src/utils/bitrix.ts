@@ -6,6 +6,8 @@ export interface DealData {
   source?: string;
   telegramUserId?: number;
   messenger?: string;
+  chatId?: number;
+  operatorId?: number;
 }
 
 function getEnv(messenger: string, key: string): string | undefined {
@@ -54,6 +56,13 @@ function buildContactFields(data: DealData) {
     ...(data.email ? { EMAIL: [{ VALUE: data.email, VALUE_TYPE: "WORK" }] } : {}),
     SOURCE_ID: getSourceId(messenger),
     SOURCE_DESCRIPTION: [data.source, data.campaign].filter(Boolean).join(" / "),
+    ...(data.telegramUserId
+      ? {
+          IM: [
+            { VALUE: String(data.telegramUserId), VALUE_TYPE: "telegram" },
+          ],
+        }
+      : {}),
   };
 }
 
@@ -103,15 +112,14 @@ async function linkBitrixTrace(
   }
 }
 
-export async function createBitrixDeal(data: DealData): Promise<void> {
+export async function createBitrixDeal(data: DealData): Promise<{ contactId: number; dealId: number }> {
   const messenger = data.messenger ?? "telegram";
   const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
   if (!webhookUrl) {
     console.warn(`[bitrix] BITRIX_WEBHOOK_URL не задан для ${messenger}, пропускаем`);
-    return;
+    return { contactId: 0, dealId: 0 };
   }
 
-  // Создаём контакт (имя+телефон) и сделку в CRM
   const contactId = await bitrixPost<number>("crm.contact.add", {
     fields: buildContactFields(data),
   }, messenger);
@@ -123,8 +131,23 @@ export async function createBitrixDeal(data: DealData): Promise<void> {
     `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`
   );
 
-  // Привязываем трейс сквозной аналитики — так у сделки/контакта заполняется TRACKING_SOURCE_ID
   await linkBitrixTrace(messenger, contactId, dealId, data);
+
+  if (data.chatId) {
+    try {
+      await bitrixPost("imopenlines.crm.chat.user.add", {
+        CRM_ENTITY_TYPE: "contact",
+        CRM_ENTITY: contactId,
+        USER_ID: data.operatorId ?? 0,
+        CHAT_ID: data.chatId,
+      }, messenger);
+      console.log(`[bitrix] чат ${data.chatId} привязан к контакту ${contactId}`);
+    } catch (err: any) {
+      console.error(`[bitrix] не удалось привязать чат к контакту: ${err.message}`);
+    }
+  }
+
+  return { contactId, dealId };
 }
 
 export interface BitrixSource {

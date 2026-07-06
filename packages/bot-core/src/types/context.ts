@@ -10,6 +10,8 @@ export interface ConsultationSession {
   email?: string;
   campaign?: string;
   source?: string;
+  chatId?: number;
+  operatorId?: number;
 }
 
 type SessionContext = Context & SessionFlavor<ConsultationSession>;

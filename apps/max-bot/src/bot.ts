@@ -4,6 +4,8 @@ import {
   parseUtmParams,
   formatUtmLog,
   trackFunnelStep,
+  createUpstashRedis,
+  getBitrixChatInfo,
   type ConsultationSession,
   type StorageAdapter,
 } from "@psi-opora/bot-core";
@@ -16,6 +18,18 @@ function describeError(err: unknown): string {
   if (!(err instanceof Error)) return String(err);
   const cause = (err as { cause?: unknown }).cause;
   return cause ? `${err.message} (cause: ${describeError(cause)})` : err.message;
+}
+
+let _redis: ReturnType<typeof createUpstashRedis> | null = null;
+function getRedis() {
+  if (!_redis) {
+    try {
+      _redis = createUpstashRedis();
+    } catch {
+      return null;
+    }
+  }
+  return _redis;
 }
 
 export class AppContext extends Context {
@@ -178,22 +192,38 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
         const name = ctx.session.name ?? "";
         const campaign = ctx.session.campaign;
         const source = ctx.session.source;
+        const telegramUserId = ctx.message.sender?.user_id;
         ctx.session.phone = text;
         ctx.session.step = "done";
         await trackFunnelStep("phone", { messenger: "max", source, campaign });
 
         log(
-          `[CONSULTATION] name=${name} phone=${text}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${ctx.message.sender?.user_id} messenger=max`,
+          `[CONSULTATION] name=${name} phone=${text}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${telegramUserId} messenger=max`,
         );
 
         try {
+          let chatId: number | undefined;
+          let operatorId: number | undefined;
+
+          const redis = getRedis();
+          if (redis && telegramUserId) {
+            const chatInfo = await getBitrixChatInfo(redis, telegramUserId);
+            if (chatInfo) {
+              chatId = chatInfo.chatId;
+              operatorId = chatInfo.operatorId || undefined;
+              console.log(`[CONSULTATION] найден chatId=${chatId} для userId=${telegramUserId}`);
+            }
+          }
+
           await createBitrixDeal({
             name,
             phone: text,
             campaign,
             source,
-            telegramUserId: ctx.message.sender?.user_id,
+            telegramUserId,
             messenger: "max",
+            chatId,
+            operatorId,
           });
           await trackFunnelStep("deal", { messenger: "max", source, campaign });
         } catch (err: any) {
