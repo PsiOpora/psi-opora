@@ -59,7 +59,7 @@ function buildContactFields(data: DealData) {
     ...(data.telegramUserId
       ? {
           IM: [
-            { VALUE: String(data.telegramUserId), VALUE_TYPE: "telegram" },
+            { VALUE: String(data.telegramUserId), VALUE_TYPE: messenger },
           ],
         }
       : {}),
