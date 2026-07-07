@@ -16,6 +16,9 @@
  *   admin.stats.*   – system-wide statistics                   (admin)
  */
 
-export const appRouter = {};
+export { adsRouter } from "./ads";
+export const appRouter = {
+  ads: adsRouter,
+};
 
 export type AppRouter = typeof appRouter;

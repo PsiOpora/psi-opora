@@ -3,11 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fetchAdStats, getCachedAdStats, type AdStatsResult } from "@/lib/marketing/ads-api";
 import { getRedisOrNull } from "@/lib/redis";
-import { getAdStatsSummary, getAdStatsByDateRange } from "@psi-opora/db/queries";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { AdRefreshButton } from "./refresh-button";
 import { AdStatsError } from "@/components/dashboard/ad-stats-error";
 import { AdTrendChart } from "./trend-chart";
+import { orpc } from "@/lib/orpc-client";
 
 function formatCtr(clicks: number, impressions: number): string {
   if (impressions === 0) return "—";
@@ -60,10 +60,10 @@ export default async function AdsPage() {
   // data is guaranteed non-null here — we returned early if both loadError and redis are falsy
   const liveData = data!;
 
-  const [dbSummary, dbRows] = await Promise.all([
-    getAdStatsSummary(dateFrom, dateTo),
-    getAdStatsByDateRange(dateFrom, dateTo),
-  ]);
+  const dbStats = await orpc.ads.stats({ dateFrom, dateTo }).catch(() => ({
+    summary: { totalSpend: 0, totalImpressions: 0, totalClicks: 0 },
+    rows: [],
+  }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -85,7 +85,7 @@ export default async function AdsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatMoney(liveData.totalSpend)}</div>
-            {dbSummary.totalSpend > 0 && dbSummary.totalSpend !== liveData.totalSpend && (
+            {dbStats.summary.totalSpend > 0 && dbStats.summary.totalSpend !== liveData.totalSpend && (
               <p className="text-xs text-muted-foreground mt-1">
                 БД: {formatMoney(dbSummary.totalSpend)}
               </p>
@@ -117,7 +117,7 @@ export default async function AdsPage() {
             <CardDescription>Агрегированные данные из PostgreSQL</CardDescription>
           </CardHeader>
           <CardContent>
-            <AdTrendChart rows={dbRows} />
+            <AdTrendChart rows={dbStats.rows} />
           </CardContent>
         </Card>
       )}

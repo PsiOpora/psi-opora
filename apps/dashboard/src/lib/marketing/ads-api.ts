@@ -1,5 +1,15 @@
 import type { RedisClient } from "@/lib/redis";
-import { getAdCredentials, upsertAdDailyStats, type NewAdDailyStats } from "@psi-opora/db/queries";
+
+export type NewAdDailyStats = {
+  id: string;
+  platform: string;
+  campaignId: string;
+  campaignName: string;
+  date: string;
+  impressions: number;
+  clicks: number;
+  spend: number;
+};
 
 const API_URL = "https://api.vk.com/method";
 
@@ -237,7 +247,7 @@ export async function fetchAdStats(redis: RedisClient | null): Promise<AdStatsRe
   let totalClicks = 0;
   const dbRows: NewAdDailyStats[] = [];
 
-  const creds = await getAdCredentials();
+  const creds = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/ads/credentials`).then((r) => r.json()).catch(() => null);
 
   if (creds?.yandexClientId && creds?.yandexClientSecret && creds?.yandexRefreshToken) {
     try {
@@ -331,7 +341,11 @@ export async function fetchAdStats(redis: RedisClient | null): Promise<AdStatsRe
     }
   }
 
-  await upsertAdDailyStats(dbRows);
+  await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/ads/stats`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dbRows),
+  });
 
   const result: AdStatsResult = {
     campaigns,
