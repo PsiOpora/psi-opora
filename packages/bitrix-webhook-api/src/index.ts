@@ -7,7 +7,10 @@ export interface BitrixChatInfo {
 
 export interface BitrixWebhookPayload {
   event: string;
-  data: {
+  auth?: {
+    application_token?: string;
+  };
+  data?: {
     CONNECTOR?: string;
     LINE?: number;
     DATA?: Array<{
@@ -46,7 +49,7 @@ export async function handleBitrixWebhook(
 
   const { data } = payload;
 
-  if (!data.DATA || data.DATA.length === 0) {
+  if (!data?.DATA || data.DATA.length === 0) {
     return;
   }
 
@@ -87,10 +90,16 @@ export function bitrixWebhookHandler() {
 
     const redisUrl = process.env.KV_REST_API_URL;
     const redisToken = process.env.KV_REST_API_TOKEN;
+    const webhookToken = process.env.BITRIX_WEBHOOK_TOKEN;
 
     if (!redisUrl || !redisToken) {
       console.error("[bitrix-webhook] KV_REST_API_URL или KV_REST_API_TOKEN не заданы");
-      return new Response("ok");
+      return new Response("Internal Server Error", { status: 500 });
+    }
+
+    if (!webhookToken) {
+      console.error("[bitrix-webhook] BITRIX_WEBHOOK_TOKEN не задан");
+      return new Response("Internal Server Error", { status: 500 });
     }
 
     let payload: BitrixWebhookPayload;
@@ -98,6 +107,13 @@ export function bitrixWebhookHandler() {
       payload = await req.json();
     } catch {
       return new Response("Invalid JSON", { status: 400 });
+    }
+
+    if (payload.auth?.application_token !== webhookToken) {
+      console.warn(
+        `[bitrix-webhook] неверный токен: получено=${payload.auth?.application_token} ожидалось=${webhookToken}`
+      );
+      return new Response("Unauthorized", { status: 401 });
     }
 
     await handleBitrixWebhook(payload, { redisUrl, redisToken });
