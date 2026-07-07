@@ -8,6 +8,7 @@ import {
   FilterIcon,
   LayoutDashboardIcon,
   ListIcon,
+  MegaphoneIcon,
   SlidersHorizontalIcon,
   TagsIcon,
   WalletIcon,
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { href: "/sources", label: "Источники", icon: BarChart3Icon },
   { href: "/bot-funnel", label: "Бот-воронка", icon: BotIcon },
   { href: "/costs", label: "Расходы", icon: WalletIcon },
+  { href: "/ads", label: "Реклама", icon: MegaphoneIcon },
   { href: "/deals", label: "Сделки", icon: ListIcon },
   { href: "/builder", label: "Конструктор", icon: SlidersHorizontalIcon },
 ];
