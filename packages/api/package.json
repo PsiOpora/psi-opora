@@ -1,0 +1,37 @@
+{
+  "name": "@psi-opora/api",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsc",
+    "format": "biome format .",
+    "lint": "biome lint .",
+    "check": "biome check .",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@psi-opora/auth": "workspace:*",
+    "@psi-opora/config": "workspace:*",
+    "@psi-opora/db": "workspace:*",
+    "@psi-opora/validators": "workspace:*",
+    "@orpc/contract": "^1.14.7",
+    "@orpc/server": "^1.14.7",
+    "better-auth": "1.6.23",
+    "superjson": "2.2.6",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@psi-opora/tsconfig": "workspace:*",
+    "@types/node": "26.1.0",
+    "typescript": "6.0.3"
+  }
+}
