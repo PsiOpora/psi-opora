@@ -1,5 +1,5 @@
 {
-  "name": "@psi-opora/api",
+  "name": "@psi-opora/validators",
   "private": true,
   "type": "module",
   "exports": {
@@ -16,21 +16,15 @@
     "format": "biome format .",
     "lint": "biome lint .",
     "check": "biome check .",
+    "test": "bun test",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@psi-opora/config": "workspace:*",
-    "@psi-opora/db": "workspace:*",
-    "@psi-opora/validators": "workspace:*",
-    "@orpc/contract": "^1.14.7",
-    "@orpc/server": "^1.14.7",
-    "better-auth": "1.6.23",
-    "superjson": "2.2.6",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
-    "@types/node": "26.1.0",
+    "@types/bun": "1.3.14",
     "typescript": "6.0.3"
   }
 }

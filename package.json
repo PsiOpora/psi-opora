@@ -5,7 +5,8 @@
   "packageManager": "bun@1.3.14",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "tooling/*"
   ],
   "scripts": {
     "dev:tg": "turbo dev --filter=@psi-opora/tg-bot",

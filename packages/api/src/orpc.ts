@@ -16,7 +16,6 @@
  * @see https://orpc.dev/docs/server/context
  */
 
-import type { Session } from "@psi-opora/auth";
 import { logger } from "@psi-opora/config";
 import { db } from "@psi-opora/db";
 import { ORPCError, os } from "@orpc/server";
@@ -25,7 +24,7 @@ export interface CreateORPCContextOptions {
   /** Request headers, kept on the context for procedures that need them. */
   headers: Headers;
   /** Pre-resolved session (or `null` for anonymous requests). */
-  session: Session | null;
+  session: null;
 }
 
 export function createORPCContext(opts: CreateORPCContextOptions) {
