@@ -1,5 +1,5 @@
 import type { RedisClient } from "@/lib/redis";
-import { getAdCredentials, upsertAdDailyStats, type NewAdDailyStats } from "@/lib/db/ads-queries";
+import { getAdCredentials, upsertAdDailyStats, type NewAdDailyStats } from "@psi-opora/db/queries";
 
 const API_URL = "https://api.vk.com/method";
 

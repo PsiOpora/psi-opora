@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { upsertAdCredentials } from "@/lib/db/ads-queries";
+import { upsertAdCredentials } from "@psi-opora/db/queries";
 
 export async function saveAdCredentialsAction(formData: FormData): Promise<void> {
   const yandexClientId = String(formData.get("yandexClientId") ?? "").trim() || null;

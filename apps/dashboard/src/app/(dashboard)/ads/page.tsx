@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fetchAdStats, getCachedAdStats, type AdStatsResult } from "@/lib/marketing/ads-api";
 import { getRedisOrNull } from "@/lib/redis";
-import { getAdStatsSummary, getAdStatsByDateRange } from "@/lib/db/ads-queries";
+import { getAdStatsSummary, getAdStatsByDateRange } from "@psi-opora/db/queries";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { AdRefreshButton } from "./refresh-button";
 import { AdStatsError } from "@/components/dashboard/ad-stats-error";

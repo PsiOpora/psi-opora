@@ -1,19 +1,18 @@
-import { eq, and, sql } from "drizzle-orm";
-import { db, schema } from "./index";
-import type { adCredentials, adDailyStats } from "./schema";
+import { and, eq, sql } from "drizzle-orm";
 
-const { adCredentials: adCredsTable, adDailyStats: adStatsTable } = schema;
+import { db, type Database } from "../client";
+import { adCredentials, adDailyStats } from "../schema/ads";
 
-export type AdCredentials = typeof adCredsTable.$inferSelect;
-export type NewAdCredentials = typeof adCredsTable.$inferInsert;
-export type AdDailyStats = typeof adStatsTable.$inferSelect;
-export type NewAdDailyStats = typeof adStatsTable.$inferInsert;
+export type AdCredentials = typeof adCredentials.$inferSelect;
+export type NewAdCredentials = typeof adCredentials.$inferInsert;
+export type AdDailyStats = typeof adDailyStats.$inferSelect;
+export type NewAdDailyStats = typeof adDailyStats.$inferInsert;
 
 // ── Credentials ────────────────────────────────────────────────────────────────
 
 export async function getAdCredentials(): Promise<AdCredentials | null> {
   if (!db) return null;
-  const rows = await db.select().from(adCredsTable).limit(1);
+  const rows = await db.select().from(adCredentials).limit(1);
   return rows[0] ?? null;
 }
 
@@ -26,9 +25,9 @@ export async function upsertAdCredentials(data: {
 }): Promise<void> {
   if (!db) return;
   await db
-    .insert(adCredsTable)
+    .insert(adCredentials)
     .values({ id: "singleton", ...data })
-    .onConflictDoUpdate({ target: adCredsTable.id, set: data });
+    .onConflictDoUpdate({ target: adCredentials.id, set: data });
 }
 
 // ── Daily Stats ───────────────────────────────────────────────────────────────
@@ -36,10 +35,10 @@ export async function upsertAdCredentials(data: {
 export async function upsertAdDailyStats(rows: NewAdDailyStats[]): Promise<void> {
   if (!db || rows.length === 0) return;
   await db
-    .insert(adStatsTable)
+    .insert(adDailyStats)
     .values(rows)
     .onConflictDoUpdate({
-      target: adStatsTable.id,
+      target: adDailyStats.id,
       set: {
         impressions: sql`excluded.impressions`,
         clicks: sql`excluded.clicks`,
@@ -56,23 +55,35 @@ export async function getAdStatsByDateRange(
   if (!db) return [];
   return db
     .select()
-    .from(adStatsTable)
-    .where(and(sql`${adStatsTable.date} >= ${fromDate}`, sql`${adStatsTable.date} <= ${toDate}`))
-    .orderBy(adStatsTable.date);
+    .from(adDailyStats)
+    .where(
+      and(
+        sql`${adDailyStats.date} >= ${fromDate}`,
+        sql`${adDailyStats.date} <= ${toDate}`,
+      ),
+    )
+    .orderBy(adDailyStats.date);
 }
 
-export async function getAdStatsSummary(
-  fromDate: string,
-  toDate: string,
-): Promise<{ totalSpend: number; totalImpressions: number; totalClicks: number }> {
-  if (!db) return { totalSpend: 0, totalImpressions: 0, totalClicks: 0 };
+export async function getAdStatsSummary(fromDate: string, toDate: string): Promise<{
+  totalSpend: number;
+  totalImpressions: number;
+  totalClicks: number;
+}> {
+  if (!db)
+    return { totalSpend: 0, totalImpressions: 0, totalClicks: 0 };
   const result = await db
     .select({
-      totalSpend: sql<number>`coalesce(sum(${adStatsTable.spend}), 0) / 100.0`,
-      totalImpressions: sql<number>`coalesce(sum(${adStatsTable.impressions}), 0)`,
-      totalClicks: sql<number>`coalesce(sum(${adStatsTable.clicks}), 0)`,
+      totalSpend: sql<number>`coalesce(sum(${adDailyStats.spend}), 0) / 100.0`,
+      totalImpressions: sql<number>`coalesce(sum(${adDailyStats.impressions}), 0)`,
+      totalClicks: sql<number>`coalesce(sum(${adDailyStats.clicks}), 0)`,
     })
-    .from(adStatsTable)
-    .where(and(sql`${adStatsTable.date} >= ${fromDate}`, sql`${adStatsTable.date} <= ${toDate}`));
+    .from(adDailyStats)
+    .where(
+      and(
+        sql`${adDailyStats.date} >= ${fromDate}`,
+        sql`${adDailyStats.date} <= ${toDate}`,
+      ),
+    );
   return result[0] ?? { totalSpend: 0, totalImpressions: 0, totalClicks: 0 };
 }

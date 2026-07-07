@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import type { AdDailyStats } from "@/lib/db/ads-queries";
+import type { AdDailyStats } from "@psi-opora/db/queries";
 
 interface Props {
   rows: AdDailyStats[];

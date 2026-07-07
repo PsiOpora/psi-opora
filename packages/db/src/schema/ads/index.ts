@@ -1,4 +1,4 @@
-import { pgTable, text, integer, bigint, timestamp } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 export const adCredentials = pgTable("ad_credentials", {
   id: text("id").primaryKey().default("singleton"),

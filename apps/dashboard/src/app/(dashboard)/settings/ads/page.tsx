@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { getAdCredentials } from "@/lib/db/ads-queries";
+import { getAdCredentials } from "@psi-opora/db/queries";
 import { saveAdCredentialsAction } from "./actions";
 
 export default async function AdSettingsPage() {

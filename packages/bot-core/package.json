@@ -19,9 +19,10 @@
     "list:bitrix-sources": "bun run --env-file=../../.env scripts/list-bitrix-sources.ts"
   },
   "dependencies": {
-    "@grammyjs/conversations": "^2.1.1",
+    "@psi-opora/db": "workspace:*",
     "@upstash/redis": "^1.38.0",
-    "grammy": "^1.44.0"
+    "grammy": "^1.44.0",
+    "@grammyjs/conversations": "^2.1.1"
   },
   "devDependencies": {
     "tsdown": "^0.22.3"
