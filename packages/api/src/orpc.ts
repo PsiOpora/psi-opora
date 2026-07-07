@@ -24,7 +24,7 @@ export interface CreateORPCContextOptions {
   /** Request headers, kept on the context for procedures that need them. */
   headers: Headers;
   /** Pre-resolved session (or `null` for anonymous requests). */
-  session: null;
+  session: { user: { id: string; email: string; name: string } } | null;
 }
 
 export function createORPCContext(opts: CreateORPCContextOptions) {
@@ -84,7 +84,8 @@ export const protectedProcedure = publicProcedure.use(({ context, next }) => {
 
   return next({
     context: {
-      session: { ...context.session, user: context.session.user },
+      ...context,
+      session: context.session as { user: { id: string; email: string; name: string } },
     },
   });
 });

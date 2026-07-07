@@ -17,12 +17,8 @@
  */
 
 import { adminRouter } from "./admin";
-import { postRouter } from "./post";
-import { userRouter } from "./user";
 
 export const appRouter = {
-  user: userRouter,
-  post: postRouter,
   admin: adminRouter,
 };
 
