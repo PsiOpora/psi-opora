@@ -62,6 +62,10 @@ function hasPhoneNumber(text: string): boolean {
   return /[\d\s\+\-\(\)]{7,}/.test(text);
 }
 
+function isValidEmail(text: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text);
+}
+
 async function handleStart(ctx: AppContext, startPayload: string | undefined) {
   const utm = parseUtmParams(startPayload);
   if (utm.campaign) ctx.session.campaign = utm.campaign;
@@ -116,7 +120,8 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
         "В соответствии с Федеральным законом №152-ФЗ «О персональных данных» " +
         "для записи на консультацию нам необходимо обработать ваши персональные данные:\n\n" +
         "• Имя\n" +
-        "• Номер телефона\n\n" +
+        "• Номер телефона\n" +
+        "• Email\n\n" +
         "*Цель обработки:* запись на психологическую консультацию и обратная связь.\n" +
         "*Оператор:* Центр психологической помощи «Пси-Опора».\n" +
         "*Срок хранения:* до отзыва согласия.\n\n" +
@@ -194,11 +199,45 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
         const source = ctx.session.source;
         const telegramUserId = ctx.message.sender?.user_id;
         ctx.session.phone = text;
-        ctx.session.step = "done";
+        ctx.session.step = "email";
         await trackFunnelStep("phone", { messenger: "max", source, campaign });
 
+        await ctx.reply(
+          "Спасибо! И последний шаг — укажите, пожалуйста, ваш email для связи.",
+        );
+        return;
+      }
+
+      ctx.session.phoneAttempts = (ctx.session.phoneAttempts ?? 0) + 1;
+      if (ctx.session.phoneAttempts >= 3) {
+        ctx.session.step = "done";
+        await ctx.reply(
+          "😔 К сожалению, мы не смогли распознать номер. " +
+            "Напишите, пожалуйста, номер в любом формате: +7 999 123-45-67, " +
+            "8 999 123 45 67 и т.д. Мы свяжемся с вами для уточнения.",
+        );
+        return;
+      }
+
+      await ctx.reply(
+        "Не удалось распознать номер телефона. Введите, пожалуйста, номер в любом формате, например: +7 (999) 123-45-67",
+      );
+      return;
+    }
+
+    if (ctx.session.step === "email") {
+      const emailText = text.trim();
+      if (isValidEmail(emailText)) {
+        const name = ctx.session.name ?? "";
+        const phone = ctx.session.phone ?? "";
+        const campaign = ctx.session.campaign;
+        const source = ctx.session.source;
+        const telegramUserId = ctx.message.sender?.user_id;
+        ctx.session.email = emailText;
+        ctx.session.step = "done";
+
         log(
-          `[CONSULTATION] name=${name} phone=${text}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${telegramUserId} messenger=max`,
+          `[CONSULTATION] name=${name} phone=${phone} email=${emailText}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${telegramUserId} messenger=max`,
         );
 
         try {
@@ -217,7 +256,8 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
 
           await createBitrixDeal({
             name,
-            phone: text,
+            phone,
+            email: emailText,
             campaign,
             source,
             telegramUserId,
@@ -242,20 +282,62 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
         return;
       }
 
-      ctx.session.phoneAttempts = (ctx.session.phoneAttempts ?? 0) + 1;
-      if (ctx.session.phoneAttempts >= 3) {
+      ctx.session.emailAttempts = (ctx.session.emailAttempts ?? 0) + 1;
+      if (ctx.session.emailAttempts >= 3) {
+        const name = ctx.session.name ?? "";
+        const phone = ctx.session.phone ?? "";
+        const campaign = ctx.session.campaign;
+        const source = ctx.session.source;
+        const telegramUserId = ctx.message.sender?.user_id;
         ctx.session.step = "done";
         await ctx.reply(
-          "😔 К сожалению, мы не смогли распознать номер. " +
-            "Напишите, пожалуйста, номер в любом формате: +7 999 123-45-67, " +
-            "8 999 123 45 67 и т.д. Мы свяжемся с вами для уточнения.",
+          "😔 Не удалось распознать email, продолжим без него — уточним при звонке.",
+        );
+
+        try {
+          let chatId: number | undefined;
+          let operatorId: number | undefined;
+
+          const redis = getRedis();
+          if (redis && telegramUserId) {
+            const chatInfo = await getBitrixChatInfo(redis, telegramUserId);
+            if (chatInfo) {
+              chatId = chatInfo.chatId;
+              operatorId = chatInfo.operatorId || undefined;
+            }
+          }
+
+          await createBitrixDeal({
+            name,
+            phone,
+            campaign,
+            source,
+            telegramUserId,
+            messenger: "max",
+            chatId,
+            operatorId,
+          });
+          await trackFunnelStep("deal", { messenger: "max", source, campaign });
+        } catch (err: any) {
+          console.error("[bitrix] ошибка:", err.message);
+        }
+
+        await ctx.reply(
+          "✅ *Заявка принята!*\n\n" +
+            `${name}, наш администратор свяжется с вами в ближайшие 30 минут, чтобы подтвердить запись на консультацию.\n\n` +
+            "А пока вы можете:\n" +
+            "📖 Узнать больше о наших специалистах: https://psi-opora.ru/services\n" +
+            "💬 Задать вопрос в чат\n\n" +
+            "Хорошего дня! 🌿",
+          { format: "markdown" },
         );
         return;
       }
 
       await ctx.reply(
-        "Не удалось распознать номер телефона. Введите, пожалуйста, номер в любом формате, например: +7 (999) 123-45-67",
+        "Не удалось распознать email. Введите, пожалуйста, адрес в формате: example@mail.ru",
       );
+      return;
     }
   });
 

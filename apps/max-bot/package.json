@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@maxhub/max-bot-api": "^0.2.4",
-    "@psi-opora/bitrix-webhook-api": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "dotenv": "17.4.2"
   },

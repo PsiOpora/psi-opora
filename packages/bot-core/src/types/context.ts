@@ -2,11 +2,12 @@ import type { Context, SessionFlavor } from "grammy";
 import type { ConversationFlavor } from "@grammyjs/conversations";
 
 export interface ConsultationSession {
-  step: "name" | "phone" | "done";
+  step: "name" | "phone" | "email" | "done";
   consentGiven?: boolean;
   name?: string;
   phone?: string;
   phoneAttempts?: number;
+  emailAttempts?: number;
   email?: string;
   campaign?: string;
   source?: string;
