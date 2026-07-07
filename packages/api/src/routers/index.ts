@@ -16,10 +16,6 @@
  *   admin.stats.*   – system-wide statistics                   (admin)
  */
 
-import { adminRouter } from "./admin";
-
-export const appRouter = {
-  admin: adminRouter,
-};
+export const appRouter = {};
 
 export type AppRouter = typeof appRouter;
