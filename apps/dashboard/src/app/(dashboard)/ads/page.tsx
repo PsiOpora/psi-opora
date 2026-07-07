@@ -3,9 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fetchAdStats, getCachedAdStats, type AdStatsResult } from "@/lib/marketing/ads-api";
 import { getRedisOrNull } from "@/lib/redis";
+import { getAdStatsSummary, getAdStatsByDateRange } from "@/lib/db/ads-queries";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { AdRefreshButton } from "./refresh-button";
 import { AdStatsError } from "@/components/dashboard/ad-stats-error";
+import { AdTrendChart } from "./trend-chart";
 
 function formatCtr(clicks: number, impressions: number): string {
   if (impressions === 0) return "—";
@@ -24,6 +26,9 @@ function StatusBadge({ status, platform }: { status: string; platform: string })
 
 export default async function AdsPage() {
   const redis = getRedisOrNull();
+  const today = new Date();
+  const dateTo = today.toISOString().split("T")[0]!;
+  const dateFrom = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!;
 
   let data: AdStatsResult | null = null;
   let loadError = false;
@@ -52,18 +57,22 @@ export default async function AdsPage() {
     );
   }
 
-  return <AdsContent data={data!} redis={redis} />;
-}
+  // data is guaranteed non-null here — we returned early if both loadError and redis are falsy
+  const liveData = data!;
 
-async function AdsContent({ data, redis }: { data: AdStatsResult; redis: ReturnType<typeof getRedisOrNull> }) {
+  const [dbSummary, dbRows] = await Promise.all([
+    getAdStatsSummary(dateFrom, dateTo),
+    getAdStatsByDateRange(dateFrom, dateTo),
+  ]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Рекламные кампании</h1>
           <p className="text-sm text-muted-foreground">
-            Live-данные из Яндекс.Директ и VK Ads
-            {data.lastUpdated && ` · обновлено ${new Date(data.lastUpdated).toLocaleString("ru-RU")}`}
+            Данные из Яндекс.Директ и VK Ads
+            {liveData.lastUpdated && ` · обновлено ${new Date(liveData.lastUpdated).toLocaleString("ru-RU")}`}
           </p>
         </div>
         <AdRefreshButton />
@@ -75,7 +84,12 @@ async function AdsContent({ data, redis }: { data: AdStatsResult; redis: ReturnT
             <CardTitle className="text-sm font-medium text-muted-foreground">Расход за 7 дней</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatMoney(data.totalSpend)}</div>
+            <div className="text-2xl font-bold">{formatMoney(liveData.totalSpend)}</div>
+            {dbSummary.totalSpend > 0 && dbSummary.totalSpend !== liveData.totalSpend && (
+              <p className="text-xs text-muted-foreground mt-1">
+                БД: {formatMoney(dbSummary.totalSpend)}
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -83,7 +97,7 @@ async function AdsContent({ data, redis }: { data: AdStatsResult; redis: ReturnT
             <CardTitle className="text-sm font-medium text-muted-foreground">Показы</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(data.totalImpressions)}</div>
+            <div className="text-2xl font-bold">{formatNumber(liveData.totalImpressions)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -91,20 +105,35 @@ async function AdsContent({ data, redis }: { data: AdStatsResult; redis: ReturnT
             <CardTitle className="text-sm font-medium text-muted-foreground">Клики</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(data.totalClicks)}</div>
+            <div className="text-2xl font-bold">{formatNumber(liveData.totalClicks)}</div>
           </CardContent>
         </Card>
       </div>
 
+      {dbRows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Динамика за 7 дней</CardTitle>
+            <CardDescription>Агрегированные данные из PostgreSQL</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AdTrendChart rows={dbRows} />
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Кампании</CardTitle>
-          <CardDescription>Данные за последние 7 дней. Кеш хранится 1 час.</CardDescription>
+          <CardDescription>Данные за последние 7 дней</CardDescription>
         </CardHeader>
         <CardContent>
-          {data.campaigns.length === 0 ? (
+          {liveData.campaigns.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Нет активных кампаний или не настроены API-ключи
+              Нет активных кампаний или не настроены API-ключи.{" "}
+              <a href="/settings/ads" className="underline underline-offset-2">
+                Настроить
+              </a>
             </p>
           ) : (
             <Table>
@@ -120,7 +149,7 @@ async function AdsContent({ data, redis }: { data: AdStatsResult; redis: ReturnT
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.campaigns.map((c) => (
+                {liveData.campaigns.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell>{c.platform === "vk" ? "VK Ads" : "Яндекс.Директ"}</TableCell>

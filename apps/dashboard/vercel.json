@@ -1,4 +1,10 @@
 {
   "installCommand": "cd ../.. && bun install",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/ad-stats-sync",
+      "schedule": "0 */6 * * *"
+    }
+  ]
 }

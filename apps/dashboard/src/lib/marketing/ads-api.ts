@@ -1,5 +1,5 @@
-import { getRedisOrNull } from "@/lib/redis";
 import type { RedisClient } from "@/lib/redis";
+import { getAdCredentials, upsertAdDailyStats, type NewAdDailyStats } from "@/lib/db/ads-queries";
 
 const API_URL = "https://api.vk.com/method";
 
@@ -35,12 +35,8 @@ interface VkApiResponse {
 async function vkRequest<T>(
   method: string,
   params: Record<string, string | number>,
+  accessToken: string,
 ): Promise<T> {
-  const accessToken = process.env.VK_ACCESS_TOKEN;
-  if (!accessToken) {
-    throw new Error("VK_ACCESS_TOKEN не задан");
-  }
-
   const url = new URL(`${API_URL}/${method}`);
   url.searchParams.set("access_token", accessToken);
   url.searchParams.set("v", "5.131");
@@ -56,35 +52,37 @@ async function vkRequest<T>(
   return json.response as T;
 }
 
-export async function getVkCampaigns(): Promise<VkCampaign[]> {
-  const accountId = process.env.VK_ADS_ACCOUNT_ID;
-  if (!accountId) return [];
-
-  const data = await vkRequest<{ items: VkCampaign[] }>("ads.getCampaigns", {
-    account_id: Number(accountId),
-  });
+async function getVkCampaigns(accountId: string, accessToken: string): Promise<VkCampaign[]> {
+  const data = await vkRequest<{ items: VkCampaign[] }>(
+    "ads.getCampaigns",
+    { account_id: Number(accountId) },
+    accessToken,
+  );
   return data.items ?? [];
 }
 
-export async function getVkStats(
+async function getVkStats(
+  accountId: string,
+  accessToken: string,
   campaignIds: number[],
   dateFrom: string,
   dateTo: string,
 ): Promise<Map<number, VkCampaignStats>> {
-  const accountId = process.env.VK_ADS_ACCOUNT_ID;
-  if (!accountId || campaignIds.length === 0) return new Map();
-
   const results = new Map<number, VkCampaignStats>();
   for (const id of campaignIds) {
     try {
-      const data = await vkRequest<{ items: VkCampaignStats[] }>("ads.getStatistics", {
-        account_id: Number(accountId),
-        ids_type: "campaign",
-        ids: String(id),
-        period: 1,
-        date_from: dateFrom,
-        date_to: dateTo,
-      });
+      const data = await vkRequest<{ items: VkCampaignStats[] }>(
+        "ads.getStatistics",
+        {
+          account_id: Number(accountId),
+          ids_type: "campaign",
+          ids: String(id),
+          period: 1,
+          date_from: dateFrom,
+          date_to: dateTo,
+        },
+        accessToken,
+      );
       if (data.items?.[0]) results.set(id, data.items[0]);
     } catch {
       // skip failed campaigns
@@ -110,15 +108,12 @@ interface YandexApiResponse {
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0;
 
-async function getYandexToken(): Promise<string> {
+async function getYandexToken(
+  clientId: string,
+  clientSecret: string,
+  refreshToken: string,
+): Promise<string> {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
-
-  const clientId = process.env.YANDEX_CLIENT_ID;
-  const clientSecret = process.env.YANDEX_CLIENT_SECRET;
-  const refreshToken = process.env.YANDEX_REFRESH_TOKEN;
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error("Yandex Direct credentials не заданы");
-  }
 
   const res = await fetch(YANDEX_TOKEN_URL, {
     method: "POST",
@@ -138,8 +133,11 @@ async function getYandexToken(): Promise<string> {
   return cachedToken;
 }
 
-async function yandexRequest<T>(method: string, body: Record<string, unknown>): Promise<T> {
-  const token = await getYandexToken();
+async function yandexRequest<T>(
+  method: string,
+  body: Record<string, unknown>,
+  token: string,
+): Promise<T> {
   const res = await fetch(`${YANDEX_API_URL}/${method}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -168,32 +166,39 @@ export interface YandexReportRow {
   Date: string;
 }
 
-export async function getYandexCampaigns(): Promise<YandexCampaign[]> {
-  if (!process.env.YANDEX_CLIENT_ID) return [];
-  const data = await yandexRequest<{ Campaigns: YandexCampaign[] }>("campaigns", {
-    method: "GetCampaigns",
-    params: {
-      SelectionCriteria: {},
-      FieldNames: ["Id", "Name", "Status", "Type"],
+async function getYandexCampaigns(token: string): Promise<YandexCampaign[]> {
+  const data = await yandexRequest<{ Campaigns: YandexCampaign[] }>(
+    "campaigns",
+    {
+      method: "GetCampaigns",
+      params: {
+        SelectionCriteria: {},
+        FieldNames: ["Id", "Name", "Status", "Type"],
+      },
     },
-  });
+    token,
+  );
   return data.Campaigns ?? [];
 }
 
-export async function getYandexReport(
+async function getYandexReport(
+  token: string,
   campaignIds: number[],
   dateFrom: string,
   dateTo: string,
 ): Promise<YandexReportRow[]> {
-  if (!process.env.YANDEX_CLIENT_ID || campaignIds.length === 0) return [];
-  const data = await yandexRequest<{ Rows: YandexReportRow[] }>("reports", {
-    reportType: "CAMPAIGN_PERFORMANCE_REPORT",
-    dateRangeType: "CUSTOM_DATE",
-    params: {
-      SelectionCriteria: { CampaignIds: campaignIds, DateFrom: dateFrom, DateTo: dateTo },
-      Columns: ["CampaignId", "CampaignName", "Impressions", "Clicks", "Cost"],
+  const data = await yandexRequest<{ Rows: YandexReportRow[] }>(
+    "reports",
+    {
+      reportType: "CAMPAIGN_PERFORMANCE_REPORT",
+      dateRangeType: "CUSTOM_DATE",
+      params: {
+        SelectionCriteria: { CampaignIds: campaignIds, DateFrom: dateFrom, DateTo: dateTo },
+        Columns: ["CampaignId", "CampaignName", "Impressions", "Clicks", "Cost"],
+      },
     },
-  });
+    token,
+  );
   return data.Rows ?? [];
 }
 
@@ -222,64 +227,111 @@ const CACHE_TTL = 3600;
 export async function fetchAdStats(redis: RedisClient | null): Promise<AdStatsResult> {
   const today = new Date();
   const dateTo: string = today.toISOString().split("T")[0]!;
-  const dateFrom: string = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!;
+  const dateFrom: string = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0]!;
 
   const campaigns: AdCampaign[] = [];
   let totalSpend = 0;
   let totalImpressions = 0;
   let totalClicks = 0;
+  const dbRows: NewAdDailyStats[] = [];
 
-  try {
-    const yandexCampaigns = await getYandexCampaigns();
-    if (yandexCampaigns.length > 0) {
-      const report = await getYandexReport(yandexCampaigns.map((c) => c.Id), dateFrom, dateTo);
-      for (const row of report) {
-        totalSpend += row.Cost;
-        totalImpressions += row.Impressions;
-        totalClicks += row.Clicks;
-        campaigns.push({
-          id: `yandex_${row.CampaignId}`,
-          name: row.CampaignName,
-          platform: "yandex",
-          status: yandexCampaigns.find((c) => c.Id === row.CampaignId)?.Status ?? "UNKNOWN",
-          impressions: row.Impressions,
-          clicks: row.Clicks,
-          spend: row.Cost,
-          date: row.Date,
-        });
+  const creds = await getAdCredentials();
+
+  if (creds?.yandexClientId && creds?.yandexClientSecret && creds?.yandexRefreshToken) {
+    try {
+      const token = await getYandexToken(
+        creds.yandexClientId,
+        creds.yandexClientSecret,
+        creds.yandexRefreshToken,
+      );
+      const yandexCampaigns = await getYandexCampaigns(token);
+      if (yandexCampaigns.length > 0) {
+        const report = await getYandexReport(
+          token,
+          yandexCampaigns.map((c) => c.Id),
+          dateFrom,
+          dateTo,
+        );
+        for (const row of report) {
+          totalSpend += row.Cost;
+          totalImpressions += row.Impressions;
+          totalClicks += row.Clicks;
+          campaigns.push({
+            id: `yandex_${row.CampaignId}`,
+            name: row.CampaignName,
+            platform: "yandex",
+            status: yandexCampaigns.find((c) => c.Id === row.CampaignId)?.Status ?? "UNKNOWN",
+            impressions: row.Impressions,
+            clicks: row.Clicks,
+            spend: row.Cost,
+            date: row.Date,
+          });
+          dbRows.push({
+            id: `yandex_${row.CampaignId}_${row.Date}`,
+            platform: "yandex",
+            campaignId: String(row.CampaignId),
+            campaignName: row.CampaignName,
+            date: row.Date,
+            impressions: row.Impressions,
+            clicks: row.Clicks,
+            spend: Math.round(row.Cost * 100),
+          });
+        }
       }
+    } catch (err) {
+      console.warn("[ads] Yandex error:", (err as Error).message);
     }
-  } catch (err) {
-    console.warn("[ads] Yandex error:", (err as Error).message);
   }
 
-  try {
-    const vkCampaigns = await getVkCampaigns();
-    if (vkCampaigns.length > 0) {
-      const stats = await getVkStats(vkCampaigns.map((c) => c.id), dateFrom, dateTo);
-      for (const campaign of vkCampaigns) {
-        const s = stats.get(campaign.id);
-        const impressions = s?.stats.reduce((sum, d) => sum + d.impressions, 0) ?? 0;
-        const clicks = s?.stats.reduce((sum, d) => sum + d.clicks, 0) ?? 0;
-        const spend = s?.stats.reduce((sum, d) => sum + d.spend, 0) ?? 0;
-        totalSpend += spend;
-        totalImpressions += impressions;
-        totalClicks += clicks;
-        campaigns.push({
-          id: `vk_${campaign.id}`,
-          name: campaign.name,
-          platform: "vk",
-          status: String(campaign.status),
-          impressions,
-          clicks,
-          spend,
-          date: dateTo,
-        });
+  if (creds?.vkAccessToken && creds?.vkAdsAccountId) {
+    try {
+      const vkCampaigns = await getVkCampaigns(creds.vkAdsAccountId, creds.vkAccessToken);
+      if (vkCampaigns.length > 0) {
+        const stats = await getVkStats(
+          creds.vkAdsAccountId,
+          creds.vkAccessToken,
+          vkCampaigns.map((c) => c.id),
+          dateFrom,
+          dateTo,
+        );
+        for (const campaign of vkCampaigns) {
+          const s = stats.get(campaign.id);
+          const impressions = s?.stats.reduce((sum, d) => sum + d.impressions, 0) ?? 0;
+          const clicks = s?.stats.reduce((sum, d) => sum + d.clicks, 0) ?? 0;
+          const spend = s?.stats.reduce((sum, d) => sum + d.spend, 0) ?? 0;
+          totalSpend += spend;
+          totalImpressions += impressions;
+          totalClicks += clicks;
+          campaigns.push({
+            id: `vk_${campaign.id}`,
+            name: campaign.name,
+            platform: "vk",
+            status: String(campaign.status),
+            impressions,
+            clicks,
+            spend,
+            date: dateTo,
+          });
+          dbRows.push({
+            id: `vk_${campaign.id}_${dateTo}`,
+            platform: "vk",
+            campaignId: String(campaign.id),
+            campaignName: campaign.name,
+            date: dateTo,
+            impressions,
+            clicks,
+            spend: Math.round(spend * 100),
+          });
+        }
       }
+    } catch (err) {
+      console.warn("[ads] VK error:", (err as Error).message);
     }
-  } catch (err) {
-    console.warn("[ads] VK error:", (err as Error).message);
   }
+
+  await upsertAdDailyStats(dbRows);
 
   const result: AdStatsResult = {
     campaigns,

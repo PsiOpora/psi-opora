@@ -12,6 +12,7 @@ import {
   SlidersHorizontalIcon,
   TagsIcon,
   WalletIcon,
+  SettingsIcon,
 } from "lucide-react";
 import {
   Sidebar,
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
   { href: "/ads", label: "Реклама", icon: MegaphoneIcon },
   { href: "/deals", label: "Сделки", icon: ListIcon },
   { href: "/builder", label: "Конструктор", icon: SlidersHorizontalIcon },
+  { href: "/settings/ads", label: "Настройки", icon: SettingsIcon },
 ];
 
 export function AppSidebar() {
