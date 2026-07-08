@@ -1,8 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-// platform-api2.max.ru использует Russian Trusted Root CA, отсутствующий
-// в доверенном хранилище Node.js — отключаем проверку сертификатов.
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+export const config = { runtime: "edge" };
 
 import {
   createUpstashRedis,
