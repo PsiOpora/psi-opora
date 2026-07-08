@@ -6,8 +6,4 @@ export default defineConfig({
   dts: true,
   clean: true,
   outDir: "dist",
-  deps: {
-    alwaysBundle: [/@psi-opora/],
-    skipNodeModulesBundle: false,
-  },
 });
