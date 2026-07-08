@@ -91,7 +91,7 @@
       "name": "@psi-opora/max-bot",
       "version": "0.0.1",
       "dependencies": {
-        "@maxhub/max-bot-api": "^0.2.4",
+        "@maxhub/max-bot-api": "0.2.4",
         "@psi-opora/bot-core": "workspace:*",
       },
       "devDependencies": {
