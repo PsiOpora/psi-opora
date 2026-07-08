@@ -1,7 +1,24 @@
 import { publicProcedure, router } from "../orpc";
-import { getAdStatsSummary, getAdStatsByDateRange } from "@psi-opora/db/queries";
+import { getAdCredentials, upsertAdCredentials, getAdStatsSummary, getAdStatsByDateRange, upsertAdDailyStats, type NewAdDailyStats } from "@psi-opora/db/queries";
 
 export const adsRouter = router({
+  getCredentials: publicProcedure.handler(async () => {
+    return getAdCredentials();
+  }),
+
+  upsertCredentials: publicProcedure
+    .input({
+      yandexClientId: { type: "string", optional: true },
+      yandexClientSecret: { type: "string", optional: true },
+      yandexRefreshToken: { type: "string", optional: true },
+      vkAccessToken: { type: "string", optional: true },
+      vkAdsAccountId: { type: "string", optional: true },
+    })
+    .handler(async ({ input }) => {
+      await upsertAdCredentials(input);
+      return { ok: true };
+    }),
+
   stats: publicProcedure
     .input(
       {
@@ -24,5 +41,12 @@ export const adsRouter = router({
       ]);
 
       return { summary, rows };
+    }),
+
+  upsertStats: publicProcedure
+    .input({ rows: { type: "array", items: {} } })
+    .handler(async ({ input }) => {
+      await upsertAdDailyStats(input.rows as NewAdDailyStats[]);
+      return { ok: true };
     }),
 });

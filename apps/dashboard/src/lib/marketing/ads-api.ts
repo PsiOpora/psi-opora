@@ -234,7 +234,10 @@ export interface AdStatsResult {
 const CACHE_KEY = "ad_stats:live";
 const CACHE_TTL = 3600;
 
-export async function fetchAdStats(redis: RedisClient | null): Promise<AdStatsResult> {
+export async function fetchAdStats(
+  redis: RedisClient | null,
+  creds: { yandexClientId?: string; yandexClientSecret?: string; yandexRefreshToken?: string; vkAccessToken?: string; vkAdsAccountId?: string } | null,
+): Promise<AdStatsResult> {
   const today = new Date();
   const dateTo: string = today.toISOString().split("T")[0]!;
   const dateFrom: string = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -246,8 +249,6 @@ export async function fetchAdStats(redis: RedisClient | null): Promise<AdStatsRe
   let totalImpressions = 0;
   let totalClicks = 0;
   const dbRows: NewAdDailyStats[] = [];
-
-  const creds = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/ads/credentials`).then((r) => r.json()).catch(() => null);
 
   if (creds?.yandexClientId && creds?.yandexClientSecret && creds?.yandexRefreshToken) {
     try {
@@ -341,11 +342,14 @@ export async function fetchAdStats(redis: RedisClient | null): Promise<AdStatsRe
     }
   }
 
-  await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/ads/stats`, {
+  await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/orpc`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(dbRows),
-  });
+    body: JSON.stringify({
+      method: "ads.upsertStats",
+      params: { rows: dbRows },
+    }),
+  }).catch(() => {});
 
   const result: AdStatsResult = {
     campaigns,

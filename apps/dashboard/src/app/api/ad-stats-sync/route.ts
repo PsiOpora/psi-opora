@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRedisOrNull } from "@/lib/redis";
 import { fetchAdStats } from "@/lib/marketing/ads-api";
+import { orpc } from "@/lib/orpc-client";
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -12,7 +13,8 @@ export async function GET(request: Request) {
 
   try {
     const redis = getRedisOrNull();
-    const result = await fetchAdStats(redis);
+    const creds = await orpc.ads.getCredentials().catch(() => null);
+    const result = await fetchAdStats(redis, creds);
     return NextResponse.json({
       ok: true,
       campaigns: result.campaigns.length,

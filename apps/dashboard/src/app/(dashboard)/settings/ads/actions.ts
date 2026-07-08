@@ -1,16 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { upsertAdCredentials } from "@psi-opora/db/queries";
+import { orpc } from "@/lib/orpc-client";
 
 export async function saveAdCredentialsAction(formData: FormData): Promise<void> {
-  const yandexClientId = String(formData.get("yandexClientId") ?? "").trim() || null;
-  const yandexClientSecret = String(formData.get("yandexClientSecret") ?? "").trim() || null;
-  const yandexRefreshToken = String(formData.get("yandexRefreshToken") ?? "").trim() || null;
-  const vkAccessToken = String(formData.get("vkAccessToken") ?? "").trim() || null;
-  const vkAdsAccountId = String(formData.get("vkAdsAccountId") ?? "").trim() || null;
+  const yandexClientId = String(formData.get("yandexClientId") ?? "").trim() || undefined;
+  const yandexClientSecret = String(formData.get("yandexClientSecret") ?? "").trim() || undefined;
+  const yandexRefreshToken = String(formData.get("yandexRefreshToken") ?? "").trim() || undefined;
+  const vkAccessToken = String(formData.get("vkAccessToken") ?? "").trim() || undefined;
+  const vkAdsAccountId = String(formData.get("vkAdsAccountId") ?? "").trim() || undefined;
 
-  await upsertAdCredentials({
+  await orpc.ads.upsertCredentials({
     yandexClientId,
     yandexClientSecret,
     yandexRefreshToken,

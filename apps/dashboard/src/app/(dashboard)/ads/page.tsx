@@ -39,7 +39,8 @@ export default async function AdsPage() {
 
   if (!data) {
     try {
-      data = await fetchAdStats(redis);
+      const creds = await orpc.ads.getCredentials().catch(() => null);
+      data = await fetchAdStats(redis, creds);
     } catch (err) {
       loadError = true;
     }
@@ -87,7 +88,7 @@ export default async function AdsPage() {
             <div className="text-2xl font-bold">{formatMoney(liveData.totalSpend)}</div>
             {dbStats.summary.totalSpend > 0 && dbStats.summary.totalSpend !== liveData.totalSpend && (
               <p className="text-xs text-muted-foreground mt-1">
-                БД: {formatMoney(dbSummary.totalSpend)}
+                БД: {formatMoney(dbStats.summary.totalSpend)}
               </p>
             )}
           </CardContent>
@@ -110,7 +111,7 @@ export default async function AdsPage() {
         </Card>
       </div>
 
-      {dbRows.length > 0 && (
+      {dbStats.rows.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Динамика за 7 дней</CardTitle>
