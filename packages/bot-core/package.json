@@ -11,9 +11,11 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "bun scripts/build.mjs",
+    "build": "tsdown",
     "setup:bitrix": "bun run --env-file=../../.env scripts/setup-bitrix-connector.ts",
     "setup:bitrix-source": "bun run --env-file=../../.env scripts/setup-bitrix-source.ts",
     "list:bitrix-sources": "bun run --env-file=../../.env scripts/list-bitrix-sources.ts"
@@ -25,6 +27,6 @@
     "@grammyjs/conversations": "^2.1.1"
   },
   "devDependencies": {
-    "tsdown": "^0.22.3"
+    "tsdown": "^0.22.4"
   }
 }

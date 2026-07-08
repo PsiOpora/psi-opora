@@ -104,7 +104,7 @@ export function bitrixWebhookHandler() {
 
     let payload: BitrixWebhookPayload;
     try {
-      payload = await req.json();
+      payload = await req.json() as BitrixWebhookPayload;
     } catch {
       return new Response("Invalid JSON", { status: 400 });
     }

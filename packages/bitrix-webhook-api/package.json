@@ -3,20 +3,30 @@
   "version": "0.0.1",
   "type": "module",
   "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "bun scripts/build.mjs"
+    "build": "tsdown",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0"
   },
   "devDependencies": {
-    "tsdown": "^0.22.3"
+    "@psi-opora/tsconfig": "workspace:*",
+    "@types/node": "26.1.1",
+    "tsdown": "^0.22.4",
+    "typescript": "6.0.3"
   }
 }
