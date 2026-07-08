@@ -1,6 +1,6 @@
 import { appendFileSync } from "fs";
 import { resolve } from "path";
-import { createMaxBot, log as baseLog } from "./bot";
+import { createMaxBot, log as baseLog } from "./bot.js";
 
 const logPath = resolve("bot.log");
 const log = (msg: string) => {
