@@ -1,11 +1,11 @@
 import { Bot, session, InlineKeyboard, type Middleware } from "grammy";
 import { conversations, createConversation } from "@grammyjs/conversations";
 import type { StorageAdapter } from "grammy";
-import type { AppContext, ConsultationSession } from "./types/context.js";
+import type { AppContext, ConsultationSession } from "./types/context";
 import type { Redis } from "@upstash/redis";
-import { parseUtmParams, formatUtmLog } from "./utils/utm.js";
-import { trackFunnelStep } from "./utils/funnel.js";
-import { consultationConversation } from "./handlers/consultation.js";
+import { parseUtmParams, formatUtmLog } from "./utils/utm";
+import { trackFunnelStep } from "./utils/funnel";
+import { consultationConversation } from "./handlers/consultation";
 
 export const log = (msg: string) => {
   console.log(`${new Date().toISOString()} ${msg}`);

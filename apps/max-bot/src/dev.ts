@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { appendFileSync } from "fs";
 import { resolve } from "path";
-import { createMaxBot, log as baseLog } from "./bot.js";
+import { createMaxBot, log as baseLog } from "./bot";
 
 const logPath = resolve("bot.log");
 const log = (msg: string) => {

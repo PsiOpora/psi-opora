@@ -1,4 +1,4 @@
-import { SITE_CODES } from "./site-codes.js";
+import { SITE_CODES } from "./site-codes";
 
 export interface UtmParams {
   source?: string;

@@ -1,8 +1,8 @@
 import { type Conversation } from "@grammyjs/conversations";
-import type { ConvContext } from "../types/context.js";
-import { createBitrixDeal } from "../utils/bitrix.js";
-import { createUpstashRedis, getBitrixChatInfo } from "../storage/upstash.js";
-import { trackFunnelStep, type FunnelStep } from "../utils/funnel.js";
+import type { ConvContext } from "../types/context";
+import { createBitrixDeal } from "../utils/bitrix";
+import { createUpstashRedis, getBitrixChatInfo } from "../storage/upstash";
+import { trackFunnelStep, type FunnelStep } from "../utils/funnel";
 
 // Redis-инстанс для получения chatId из Bitrix webhook
 let _redis: ReturnType<typeof createUpstashRedis> | null = null;
@@ -27,7 +27,7 @@ function isValidEmail(text: string): boolean {
 
 export async function consultationConversation(
   conv: Conversation<ConvContext, ConvContext>,
-  ctx: ConvContext
+  ctx: ConvContext,
 ) {
   const messenger = "telegram";
   const sessionData = await conv.external((c) => ({
@@ -38,7 +38,11 @@ export async function consultationConversation(
   // conv.external — чтобы шаг не задвоился при replay диалога conversations
   const track = (step: FunnelStep) =>
     conv.external(() =>
-      trackFunnelStep(step, { messenger, source: sessionData.source, campaign: sessionData.campaign }),
+      trackFunnelStep(step, {
+        messenger,
+        source: sessionData.source,
+        campaign: sessionData.campaign,
+      }),
     );
 
   const nameCtx = await conv.wait();
@@ -51,7 +55,7 @@ export async function consultationConversation(
 
   await track("name");
   await nameCtx.reply(
-    `Отлично, ${name}! Теперь введите, пожалуйста, ваш номер телефона для связи.`
+    `Отлично, ${name}! Теперь введите, пожалуйста, ваш номер телефона для связи.`,
   );
 
   let phone = "";
@@ -70,19 +74,19 @@ export async function consultationConversation(
       await phoneCtx.reply(
         "😔 К сожалению, мы не смогли распознать номер. " +
           "Напишите, пожалуйста, номер в любом формате: +7 999 123-45-67, " +
-          "8 999 123 45 67 и т.д. Мы свяжемся с вами для уточнения."
+          "8 999 123 45 67 и т.д. Мы свяжемся с вами для уточнения.",
       );
       return;
     }
 
     await phoneCtx.reply(
-      "Не удалось распознать номер телефона. Введите, пожалуйста, номер в любом формате, например: +7 (999) 123-45-67"
+      "Не удалось распознать номер телефона. Введите, пожалуйста, номер в любом формате, например: +7 (999) 123-45-67",
     );
   }
 
   await track("phone");
   await ctx.reply(
-    "Спасибо! И последний шаг — укажите, пожалуйста, ваш email для связи."
+    "Спасибо! И последний шаг — укажите, пожалуйста, ваш email для связи.",
   );
 
   let email = "";
@@ -99,13 +103,13 @@ export async function consultationConversation(
     emailAttempts++;
     if (emailAttempts >= 3) {
       await emailCtx.reply(
-        "😔 Не удалось распознать email, продолжим без него — уточним при звонке."
+        "😔 Не удалось распознать email, продолжим без него — уточним при звонке.",
       );
       break;
     }
 
     await emailCtx.reply(
-      "Не удалось распознать email. Введите, пожалуйста, адрес в формате: example@mail.ru"
+      "Не удалось распознать email. Введите, пожалуйста, адрес в формате: example@mail.ru",
     );
   }
 
@@ -117,7 +121,7 @@ export async function consultationConversation(
   });
 
   console.log(
-    `[CONSULTATION] name=${name} phone=${phone}${email ? ` email=${email}` : ""}${sessionData.source ? ` source=${sessionData.source}` : ""}${sessionData.campaign ? ` campaign=${sessionData.campaign}` : ""} user=${sessionData.userId} messenger=${messenger}`
+    `[CONSULTATION] name=${name} phone=${phone}${email ? ` email=${email}` : ""}${sessionData.source ? ` source=${sessionData.source}` : ""}${sessionData.campaign ? ` campaign=${sessionData.campaign}` : ""} user=${sessionData.userId} messenger=${messenger}`,
   );
 
   try {
@@ -130,7 +134,9 @@ export async function consultationConversation(
       if (chatInfo) {
         chatId = chatInfo.chatId;
         operatorId = chatInfo.operatorId || undefined;
-        console.log(`[CONSULTATION] найден chatId=${chatId} для userId=${sessionData.userId}`);
+        console.log(
+          `[CONSULTATION] найден chatId=${chatId} для userId=${sessionData.userId}`,
+        );
       }
     }
 
@@ -157,6 +163,6 @@ export async function consultationConversation(
       "📖 Узнать больше о наших специалистах: https://psi-opora.ru/services\n" +
       "💬 Задать вопрос в чат\n\n" +
       "Хорошего дня! 🌿",
-    { parse_mode: "Markdown" }
+    { parse_mode: "Markdown" },
   );
 }

@@ -1,6 +1,16 @@
-export { createBot, log, type BotOptions } from "./bot.js";
-export { createRedisStorage, createUpstashRedis, getBitrixChatInfo, type StorageAdapter, type BitrixChatInfo } from "./storage/upstash.js";
-export type { ConsultationSession, AppContext, ConvContext } from "./types/context.js";
+export { createBot, log, type BotOptions } from "./bot";
+export {
+  createRedisStorage,
+  createUpstashRedis,
+  getBitrixChatInfo,
+  type StorageAdapter,
+  type BitrixChatInfo,
+} from "./storage/upstash";
+export type {
+  ConsultationSession,
+  AppContext,
+  ConvContext,
+} from "./types/context";
 export {
   createBitrixDeal,
   registerBitrixConnector,
@@ -8,7 +18,7 @@ export {
   listBitrixSources,
   type DealData,
   type BitrixSource,
-} from "./utils/bitrix.js";
+} from "./utils/bitrix";
 export {
   FUNNEL_STEPS,
   funnelDayKey,
@@ -16,6 +26,11 @@ export {
   trackFunnelStep,
   type FunnelStep,
   type FunnelEventContext,
-} from "./utils/funnel.js";
-export { parseUtmParams, formatUtmLog, buildStartLink, type UtmParams } from "./utils/utm.js";
-export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes.js";
+} from "./utils/funnel";
+export {
+  parseUtmParams,
+  formatUtmLog,
+  buildStartLink,
+  type UtmParams,
+} from "./utils/utm";
+export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes";

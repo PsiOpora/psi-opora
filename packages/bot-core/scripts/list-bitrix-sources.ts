@@ -1,4 +1,4 @@
-import { listBitrixSources } from "../src/utils/bitrix.js";
+import { listBitrixSources } from "../src/utils/bitrix";
 
 const messenger = process.argv[2] ?? "telegram";
 if (messenger !== "telegram" && messenger !== "max") {

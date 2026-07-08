@@ -1,4 +1,4 @@
-import { registerBitrixConnector } from "../src/utils/bitrix.js";
+import { registerBitrixConnector } from "../src/utils/bitrix";
 
 const messenger = process.argv[2] ?? "telegram";
 if (messenger !== "telegram" && messenger !== "max") {
@@ -7,9 +7,15 @@ if (messenger !== "telegram" && messenger !== "max") {
 }
 
 const prefix = messenger === "telegram" ? "TG" : "MAX";
-console.log(`=== Регистрация коннектора Bitrix24 Open Lines (${messenger}) ===`);
-console.log(`${prefix}_BITRIX_CONNECTOR_ID: ${process.env[`${prefix}_BITRIX_CONNECTOR_ID`] ?? `psiopora_${messenger}_bot (по умолчанию)`}`);
-console.log(`${prefix}_BITRIX_OPEN_LINE_ID: ${process.env[`${prefix}_BITRIX_OPEN_LINE_ID`] ?? "(не задан)"}`);
+console.log(
+  `=== Регистрация коннектора Bitrix24 Open Lines (${messenger}) ===`,
+);
+console.log(
+  `${prefix}_BITRIX_CONNECTOR_ID: ${process.env[`${prefix}_BITRIX_CONNECTOR_ID`] ?? `psiopora_${messenger}_bot (по умолчанию)`}`,
+);
+console.log(
+  `${prefix}_BITRIX_OPEN_LINE_ID: ${process.env[`${prefix}_BITRIX_OPEN_LINE_ID`] ?? "(не задан)"}`,
+);
 console.log("");
 
 await registerBitrixConnector(messenger);
