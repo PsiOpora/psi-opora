@@ -1,6 +1,8 @@
 import { RPCHandler } from "@orpc/server/fetch";
 import { appRouter, createORPCContext } from "@psi-opora/api";
 
+export const dynamic = "force-dynamic";
+
 const handler = new RPCHandler(appRouter);
 
 export const GET = async (req: Request) => {

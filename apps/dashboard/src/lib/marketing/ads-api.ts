@@ -236,7 +236,7 @@ const CACHE_TTL = 3600;
 
 export async function fetchAdStats(
   redis: RedisClient | null,
-  creds: { yandexClientId?: string; yandexClientSecret?: string; yandexRefreshToken?: string; vkAccessToken?: string; vkAdsAccountId?: string } | null,
+  creds: { yandexClientId?: string | null; yandexClientSecret?: string | null; yandexRefreshToken?: string | null; vkAccessToken?: string | null; vkAdsAccountId?: string | null } | null,
 ): Promise<AdStatsResult> {
   const today = new Date();
   const dateTo: string = today.toISOString().split("T")[0]!;

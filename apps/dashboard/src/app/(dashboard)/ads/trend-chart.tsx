@@ -12,7 +12,7 @@ import {
 interface AdDailyStats {
   date: string;
   platform: string;
-  spend: number;
+  spend: number | null;
   impressions: number | null;
   clicks: number | null;
 }
