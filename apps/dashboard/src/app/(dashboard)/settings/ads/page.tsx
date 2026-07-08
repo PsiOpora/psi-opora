@@ -3,11 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { getAdCredentials } from "@psi-opora/db/queries";
 import { saveAdCredentialsAction } from "./actions";
+import { orpc } from "@/lib/orpc-client";
 
 export default async function AdSettingsPage() {
-  const creds = await getAdCredentials();
+  const creds = await orpc.ads.getCredentials().catch(() => null);
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl">

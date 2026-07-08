@@ -1,16 +1,24 @@
-import { fetchRequestHandler } from "@orpc/server/adapters/fetch";
+import { RPCHandler } from "@orpc/server/fetch";
 import { appRouter, createORPCContext } from "@psi-opora/api";
 
-const handler = (req: Request) =>
-  fetchRequestHandler({
-    endpoint: "/api/orpc",
-    router: appRouter,
-    createContext: () =>
-      createORPCContext({
-        headers: req.headers,
-        session: null,
-      }),
-    getRawRequest: () => req,
-  });
+const handler = new RPCHandler(appRouter);
 
-export { handler as GET, handler as POST };
+export const GET = async (req: Request) => {
+  const { response } = await handler.handle(req, {
+    context: createORPCContext({
+      headers: req.headers,
+      session: null,
+    }),
+  });
+  return response ?? new Response("Not found", { status: 404 });
+};
+
+export const POST = async (req: Request) => {
+  const { response } = await handler.handle(req, {
+    context: createORPCContext({
+      headers: req.headers,
+      session: null,
+    }),
+  });
+  return response ?? new Response("Not found", { status: 404 });
+};

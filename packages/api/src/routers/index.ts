@@ -16,7 +16,9 @@
  *   admin.stats.*   – system-wide statistics                   (admin)
  */
 
-export { adsRouter } from "./ads";
+import { adsRouter } from "./ads";
+
+export { adsRouter };
 export const appRouter = {
   ads: adsRouter,
 };

@@ -13,6 +13,7 @@
     "@bitrix24/b24jssdk": "^2.0.0",
     "@orpc/client": "^1.14.7",
     "@orpc/react-query": "^1.14.7",
+    "@orpc/server": "^1.14.7",
     "@psi-opora/api": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/db": "workspace:*",

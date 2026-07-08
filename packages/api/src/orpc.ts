@@ -68,6 +68,7 @@ const timingMiddleware = o.middleware(async ({ next, path }) => {
  * are logged in.
  */
 export const publicProcedure = o.use(timingMiddleware);
+export const router = o.router;
 
 /**
  * Protected (authenticated) procedure
