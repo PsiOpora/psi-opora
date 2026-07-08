@@ -1,7 +1,7 @@
 import { Bot, session, InlineKeyboard, type Middleware } from "grammy";
-import { conversations, createConversation, type Conversation } from "@grammyjs/conversations";
+import { conversations, createConversation } from "@grammyjs/conversations";
 import type { StorageAdapter } from "grammy";
-import type { AppContext, ConsultationSession, ConvContext } from "./types/context.js";
+import type { AppContext, ConsultationSession } from "./types/context.js";
 import type { Redis } from "@upstash/redis";
 import { parseUtmParams, formatUtmLog } from "./utils/utm.js";
 import { trackFunnelStep } from "./utils/funnel.js";
@@ -25,14 +25,17 @@ export function createBot({ storage, redis }: BotOptions = {}) {
   const bot = new Bot<AppContext>(token);
 
   bot.use(
-    session({ initial: createInitialSession, storage }) as Middleware<AppContext>
+    session({
+      initial: createInitialSession,
+      storage,
+    }) as Middleware<AppContext>,
   );
   bot.use(conversations() as Middleware<AppContext>);
   bot.use(
     createConversation(
       consultationConversation,
-      "consultationConversation"
-    ) as Middleware<AppContext>
+      "consultationConversation",
+    ) as Middleware<AppContext>,
   );
 
   bot.command("start", async (ctx: AppContext) => {
@@ -46,19 +49,25 @@ export function createBot({ storage, redis }: BotOptions = {}) {
       ctx.session.source = utm.source;
     }
 
-    log(`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)} messenger=telegram`);
-    await trackFunnelStep("start", { messenger: "telegram", source: utm.source, campaign: utm.campaign });
+    log(
+      `[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)} messenger=telegram`,
+    );
+    await trackFunnelStep("start", {
+      messenger: "telegram",
+      source: utm.source,
+      campaign: utm.campaign,
+    });
 
     const keyboard = new InlineKeyboard().text(
       "📝 Записаться на консультацию",
-      "start_consultation"
+      "start_consultation",
     );
 
     await ctx.reply(
       "👋 Добро пожаловать в центр психологической помощи *Пси-Опора*!\n\n" +
         "Первый психологический центр помощи клиентам с психиатрическими расстройствами и зависимостями. Лечение без медикаментов.\n\n" +
         "Нажмите кнопку ниже, чтобы записаться на консультацию 👇",
-      { parse_mode: "Markdown", reply_markup: keyboard }
+      { parse_mode: "Markdown", reply_markup: keyboard },
     );
   });
 
@@ -92,7 +101,11 @@ export function createBot({ storage, redis }: BotOptions = {}) {
         "• [Согласие на рекламную рассылку](https://psi-opora.ru/reklama/)\n\n" +
         "Вы можете отозвать согласие в любой момент, написав нам.\n\n" +
         "Подтвердите согласие, чтобы продолжить 👇",
-      { parse_mode: "Markdown", reply_markup: consentKeyboard, link_preview_options: { is_disabled: true } }
+      {
+        parse_mode: "Markdown",
+        reply_markup: consentKeyboard,
+        link_preview_options: { is_disabled: true },
+      },
     );
   });
 
@@ -107,7 +120,9 @@ export function createBot({ storage, redis }: BotOptions = {}) {
     });
 
     await ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() });
-    await ctx.reply("✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?");
+    await ctx.reply(
+      "✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?",
+    );
     await ctx.conversation.enter("consultationConversation");
   });
 
@@ -119,14 +134,16 @@ export function createBot({ storage, redis }: BotOptions = {}) {
     await ctx.reply(
       "Вы отказались от обработки персональных данных.\n\n" +
         "Без согласия мы не можем принять заявку. " +
-        "Если передумаете — нажмите /start."
+        "Если передумаете — нажмите /start.",
     );
   });
 
   bot.catch((err) => {
     const ctx = err.ctx as AppContext;
     log(`[ERROR] update_id=${ctx.update.update_id} ${err.error}`);
-    ctx.reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.");
+    ctx.reply(
+      "⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.",
+    );
   });
 
   return bot;
