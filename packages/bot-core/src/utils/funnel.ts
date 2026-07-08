@@ -1,12 +1,19 @@
 import { Redis } from "@upstash/redis";
-import { upsertBotFunnelEvent } from "@psi-opora/db/queries";
+import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
 
 /**
  * Шаги воронки бота в порядке прохождения. Email не трекается отдельно —
  * он есть только в Telegram-сценарии и необязателен, воронки мессенджеров
  * должны быть сравнимы между собой.
  */
-export const FUNNEL_STEPS = ["start", "consult_click", "consent", "name", "phone", "deal"] as const;
+export const FUNNEL_STEPS = [
+  "start",
+  "consult_click",
+  "consent",
+  "name",
+  "phone",
+  "deal",
+] as const;
 export type FunnelStep = (typeof FUNNEL_STEPS)[number];
 
 export interface FunnelEventContext {
@@ -40,9 +47,15 @@ export function funnelDayKey(day: string): string {
 }
 
 /** Поле хеша: messenger|step|source|campaign — парсится parseFunnelField. */
-export function parseFunnelField(field: string): { messenger: string; step: string; source: string; campaign: string } | null {
+export function parseFunnelField(field: string): {
+  messenger: string;
+  step: string;
+  source: string;
+  campaign: string;
+} | null {
   const [messenger, step, source, campaign] = field.split(FIELD_SEP);
-  if (!messenger || !step || source === undefined || campaign === undefined) return null;
+  if (!messenger || !step || source === undefined || campaign === undefined)
+    return null;
   return { messenger, step, source, campaign };
 }
 
@@ -51,7 +64,10 @@ export function parseFunnelField(field: string): { messenger: string; step: stri
  * ломать диалог с клиентом — логируются и глотаются.
  * Записывает в PostgreSQL как основное хранилище, и в Redis как резерв.
  */
-export async function trackFunnelStep(step: FunnelStep, ctx: FunnelEventContext): Promise<void> {
+export async function trackFunnelStep(
+  step: FunnelStep,
+  ctx: FunnelEventContext,
+): Promise<void> {
   const day = new Date().toISOString().slice(0, 10);
   const source = sanitize(ctx.source);
   const campaign = sanitize(ctx.campaign);
@@ -66,7 +82,9 @@ export async function trackFunnelStep(step: FunnelStep, ctx: FunnelEventContext)
       campaign,
     });
   } catch (err) {
-    console.error(`[funnel] не удалось записать событие ${step} в Postgres: ${(err as Error).message}`);
+    console.error(
+      `[funnel] не удалось записать событие ${step} в Postgres: ${(err as Error).message}`,
+    );
   }
 
   // 2. Записываем в Redis (резерв, для обратной совместимости)
@@ -78,7 +96,9 @@ export async function trackFunnelStep(step: FunnelStep, ctx: FunnelEventContext)
       await client.hincrby(key, field, 1);
       await client.expire(key, TTL_SECONDS);
     } catch (err) {
-      console.error(`[funnel] не удалось записать событие ${step} в Redis: ${(err as Error).message}`);
+      console.error(
+        `[funnel] не удалось записать событие ${step} в Redis: ${(err as Error).message}`,
+      );
     }
   }
 }

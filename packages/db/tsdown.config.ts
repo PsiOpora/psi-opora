@@ -8,6 +8,7 @@ export default defineConfig({
     "src/client.ws.ts",
     "src/driver.ts",
     "src/queries/index.ts",
+    "src/queries/index.edge.ts",
     "src/schema/index.ts",
   ],
   format: ["esm"],

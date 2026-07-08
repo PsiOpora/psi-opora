@@ -22,6 +22,10 @@
     "./queries": {
       "types": "./dist/queries/index.d.mts",
       "default": "./dist/queries/index.mjs"
+    },
+    "./queries.edge": {
+      "types": "./dist/queries/index.edge.d.mts",
+      "default": "./dist/queries/index.edge.mjs"
     }
   },
   "license": "MIT",

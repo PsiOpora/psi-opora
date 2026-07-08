@@ -1,21 +1,30 @@
-import { and, eq, sql } from "drizzle-orm";
-import { db, type Database } from "../client";
+import { sql } from "drizzle-orm";
+import type { Database } from "../client";
 import { botFunnelEvents } from "../schema/bot-funnel";
 
 export type BotFunnelEvent = typeof botFunnelEvents.$inferSelect;
 export type NewBotFunnelEvent = typeof botFunnelEvents.$inferInsert;
 
-function makeId(day: string, messenger: string, step: string, source: string, campaign: string): string {
+function makeId(
+  day: string,
+  messenger: string,
+  step: string,
+  source: string,
+  campaign: string,
+): string {
   return `${day}:${messenger}:${step}:${source}:${campaign}`;
 }
 
-export async function upsertBotFunnelEvent(data: {
-  day: string;
-  messenger: string;
-  step: string;
-  source?: string;
-  campaign?: string;
-}): Promise<void> {
+export async function upsertBotFunnelEvent(
+  db: Database,
+  data: {
+    day: string;
+    messenger: string;
+    step: string;
+    source?: string;
+    campaign?: string;
+  },
+): Promise<void> {
   if (!db) return;
 
   const source = data.source || "-";
@@ -43,6 +52,7 @@ export async function upsertBotFunnelEvent(data: {
 }
 
 export async function getBotFunnelEventsByDateRange(
+  db: Database,
   fromDate: string,
   toDate: string,
 ): Promise<BotFunnelEvent[]> {
@@ -51,10 +61,11 @@ export async function getBotFunnelEventsByDateRange(
     .select()
     .from(botFunnelEvents)
     .where(
-      and(
-        sql`${botFunnelEvents.day} >= ${fromDate}`,
-        sql`${botFunnelEvents.day} <= ${toDate}`,
-      ),
+      sql`${botFunnelEvents.day} >= ${fromDate} AND ${botFunnelEvents.day} <= ${toDate}`,
     )
-    .orderBy(botFunnelEvents.day, botFunnelEvents.messenger, botFunnelEvents.step);
+    .orderBy(
+      botFunnelEvents.day,
+      botFunnelEvents.messenger,
+      botFunnelEvents.step,
+    );
 }
