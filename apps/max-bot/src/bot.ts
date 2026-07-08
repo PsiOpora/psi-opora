@@ -72,19 +72,27 @@ async function handleStart(ctx: AppContext, startPayload: string | undefined) {
     campaign: utm.campaign,
   });
 
-  await ctx.reply(WELCOME_TEXT, {
-    format: "markdown",
-    attachments: [
-      Keyboard.inlineKeyboard([
-        [
-          Keyboard.button.callback(
-            "📝 Записаться на консультацию",
-            "start_consultation",
-          ),
-        ],
-      ]),
+  const keyboard = Keyboard.inlineKeyboard([
+    [
+      Keyboard.button.callback(
+        "📝 Записаться на консультацию",
+        "start_consultation",
+      ),
     ],
-  });
+  ]);
+
+  const replyOptions = {
+    format: "markdown" as const,
+    attachments: [keyboard],
+  };
+
+  // При bot_started чат может ещё не существовать (404),
+  // поэтому отправляем сообщение через user_id
+  if (ctx.updateType === "bot_started" && ctx.user?.user_id) {
+    await ctx.api.sendMessageToUser(ctx.user.user_id, WELCOME_TEXT, replyOptions);
+  } else {
+    await ctx.reply(WELCOME_TEXT, replyOptions);
+  }
 }
 
 export function createMaxBot({ storage }: MaxBotOptions = {}) {
