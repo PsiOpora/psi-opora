@@ -1,5 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -14,7 +20,7 @@ export default async function AdSettingsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Настройки рекламы</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Введите ключи из рекламных кабинетов. Данные сохраняются в базе данных Neon PostgreSQL.
+          Введите ключи из рекламных кабинетов.
         </p>
       </div>
 
@@ -35,10 +41,16 @@ export default async function AdSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={saveAdCredentialsAction} className="flex flex-col gap-4">
+          <form
+            action={saveAdCredentialsAction}
+            className="flex flex-col gap-4"
+          >
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="yandexClientId" className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor="yandexClientId"
+                  className="text-xs text-muted-foreground"
+                >
                   Client ID
                 </Label>
                 <Input
@@ -50,7 +62,10 @@ export default async function AdSettingsPage() {
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="yandexClientSecret" className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor="yandexClientSecret"
+                  className="text-xs text-muted-foreground"
+                >
                   Client Secret
                 </Label>
                 <Input
@@ -64,7 +79,10 @@ export default async function AdSettingsPage() {
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="yandexRefreshToken" className="text-xs text-muted-foreground">
+              <Label
+                htmlFor="yandexRefreshToken"
+                className="text-xs text-muted-foreground"
+              >
                 Refresh Token
               </Label>
               <Input
@@ -79,9 +97,28 @@ export default async function AdSettingsPage() {
 
             <Separator />
 
+            <div className="flex flex-col gap-1">
+              <h3 className="text-lg font-medium">VK Реклама</h3>
+              <p className="text-sm text-muted-foreground">
+                Получите токен в{" "}
+                <a
+                  href="https://ads.vk.com/hq/settings"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  кабинете VK Реклама
+                </a>
+                {" "}(раздел Настройки → Доступ к API).
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="vkAccessToken" className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor="vkAccessToken"
+                  className="text-xs text-muted-foreground"
+                >
                   Access Token
                 </Label>
                 <Input
@@ -94,7 +131,10 @@ export default async function AdSettingsPage() {
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="vkAdsAccountId" className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor="vkAdsAccountId"
+                  className="text-xs text-muted-foreground"
+                >
                   Ads Account ID
                 </Label>
                 <Input
