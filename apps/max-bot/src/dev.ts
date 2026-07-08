@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { appendFileSync } from "fs";
 import { resolve } from "path";
 import { createMaxBot, log as baseLog } from "./bot";

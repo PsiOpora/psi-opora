@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { appendFileSync } from "fs";
 import { resolve } from "path";
 import { createBot, log as baseLog } from "@psi-opora/bot-core";

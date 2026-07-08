@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 const token = process.env.MAX_BOT_TOKEN;
 const webhookUrl = process.env.MAX_WEBHOOK_URL;
 const MAX_API_ROOT = "https://platform-api2.max.ru";
