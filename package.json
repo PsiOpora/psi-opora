@@ -13,8 +13,8 @@
     "dev:max": "turbo dev --filter=@psi-opora/max-bot",
     "dev:dashboard": "turbo dev --filter=@psi-opora/dashboard",
     "dev:landing": "turbo dev --filter=@psi-opora/landing",
-    "build": "turbo run build",
-    "postinstall": "turbo run build",
+    "build": "bun --env-file=.env turbo run build",
+    "postinstall": "bun --env-file=.env turbo run build",
     "typecheck": "turbo typecheck"
   },
   "devDependencies": {
