@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bitrix24/b24jssdk": "^2.0.0",
+    "@bitrix24/b24jssdk": "2.0.0",
     "@orpc/client": "^1.14.7",
     "@orpc/react-query": "^1.14.7",
     "@orpc/server": "^1.14.7",
