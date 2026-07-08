@@ -1,8 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle as drizzleNeonHttp } from "drizzle-orm/neon-http";
-import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
-import { Pool } from "pg";
 import { selectDbDriver } from "./driver";
 import * as schema from "./schema";
 
@@ -35,6 +33,11 @@ function createDatabase(): Database {
     });
   }
 
+  // Lazy-import node-postgres so that the `pg` native module is not loaded
+  // in edge runtimes (e.g. Vercel Edge Functions) when the neon-http driver
+  // is used.
+  const { Pool } = require("pg");
+  const { drizzle: drizzlePg } = require("drizzle-orm/node-postgres");
   const pool = new Pool({ connectionString });
   return drizzlePg({ client: pool, schema, casing: "snake_case" });
 }
