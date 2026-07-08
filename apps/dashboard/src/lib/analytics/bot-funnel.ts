@@ -1,5 +1,5 @@
 import { FUNNEL_STEPS, funnelDayKey, parseFunnelField, type FunnelStep } from "@psi-opora/bot-core";
-import { getRedisOrNull } from "@/lib/redis";
+import { getBotFunnelEventsByDateRange } from "@psi-opora/db/queries";
 import type { DateRange } from "./types";
 
 export interface BotFunnelEvent {
@@ -44,31 +44,21 @@ function eachDay(range: DateRange): string[] {
 }
 
 export async function fetchBotFunnelEvents(range: DateRange): Promise<BotFunnelEvent[]> {
-  const redis = getRedisOrNull();
-  const days = eachDay(range);
-  if (!redis || days.length === 0) return [];
+  const rows = await getBotFunnelEventsByDateRange(
+    range.from.toISOString().slice(0, 10),
+    range.to.toISOString().slice(0, 10),
+  );
 
-  const pipeline = redis.pipeline();
-  for (const day of days) pipeline.hgetall(funnelDayKey(day));
-  const results = await pipeline.exec<Array<Record<string, number> | null>>();
-
-  const events: BotFunnelEvent[] = [];
-  results.forEach((hash, i) => {
-    if (!hash) return;
-    for (const [field, count] of Object.entries(hash)) {
-      const parsed = parseFunnelField(field);
-      if (!parsed || !(FUNNEL_STEPS as readonly string[]).includes(parsed.step)) continue;
-      events.push({
-        day: days[i]!,
-        messenger: parsed.messenger,
-        step: parsed.step as FunnelStep,
-        source: parsed.source,
-        campaign: parsed.campaign,
-        count: Number(count) || 0,
-      });
-    }
-  });
-  return events;
+  return rows
+    .filter((row) => (FUNNEL_STEPS as readonly string[]).includes(row.step))
+    .map((row) => ({
+      day: row.day,
+      messenger: row.messenger,
+      step: row.step as FunnelStep,
+      source: row.source,
+      campaign: row.campaign,
+      count: row.count,
+    }));
 }
 
 function stepTotals(events: BotFunnelEvent[]): Map<FunnelStep, number> {

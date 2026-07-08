@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { upsertBotFunnelEvent } from "@psi-opora/db/queries";
 
 /**
  * Шаги воронки бота в порядке прохождения. Email не трекается отдельно —
@@ -46,20 +47,38 @@ export function parseFunnelField(field: string): { messenger: string; step: stri
 }
 
 /**
- * Инкремент счётчика шага воронки за сегодня. Ошибки Redis не должны
+ * Инкремент счётчика шага воронки за сегодня. Ошибки не должны
  * ломать диалог с клиентом — логируются и глотаются.
+ * Записывает в PostgreSQL как основное хранилище, и в Redis как резерв.
  */
 export async function trackFunnelStep(step: FunnelStep, ctx: FunnelEventContext): Promise<void> {
-  const client = getRedis();
-  if (!client) return;
-
   const day = new Date().toISOString().slice(0, 10);
-  const field = [ctx.messenger, step, sanitize(ctx.source), sanitize(ctx.campaign)].join(FIELD_SEP);
+  const source = sanitize(ctx.source);
+  const campaign = sanitize(ctx.campaign);
+
+  // 1. Записываем в PostgreSQL (основное хранилище)
   try {
-    const key = funnelDayKey(day);
-    await client.hincrby(key, field, 1);
-    await client.expire(key, TTL_SECONDS);
+    await upsertBotFunnelEvent({
+      day,
+      messenger: ctx.messenger,
+      step,
+      source,
+      campaign,
+    });
   } catch (err) {
-    console.error(`[funnel] не удалось записать событие ${step}: ${(err as Error).message}`);
+    console.error(`[funnel] не удалось записать событие ${step} в Postgres: ${(err as Error).message}`);
+  }
+
+  // 2. Записываем в Redis (резерв, для обратной совместимости)
+  const client = getRedis();
+  if (client) {
+    const field = [ctx.messenger, step, source, campaign].join(FIELD_SEP);
+    try {
+      const key = funnelDayKey(day);
+      await client.hincrby(key, field, 1);
+      await client.expire(key, TTL_SECONDS);
+    } catch (err) {
+      console.error(`[funnel] не удалось записать событие ${step} в Redis: ${(err as Error).message}`);
+    }
   }
 }
