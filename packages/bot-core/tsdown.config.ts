@@ -7,6 +7,7 @@ export default defineConfig({
   clean: true,
   outDir: "dist",
   deps: {
-    alwaysBundle: ["@psi-opora/db"],
+    alwaysBundle: [/@psi-opora/],
+    skipNodeModulesBundle: false,
   },
 });
