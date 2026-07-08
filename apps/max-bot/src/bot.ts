@@ -4,7 +4,6 @@ import {
   formatUtmLog,
   trackFunnelStep,
   setFunnelUpsert,
-  createUpstashRedis,
   submitConsultationDeal,
   hasPhoneNumber,
   isValidEmail,
@@ -15,9 +14,10 @@ import {
   type ConsultationSession,
   type StorageAdapter,
 } from "@psi-opora/bot-core";
-import { upsertBotFunnelEvent } from "@psi-opora/db/queries";
+import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
 
-// MAX-бот работает на Node.js runtime — используем node-postgres вместо edge neon-http.
+// MAX-бот деплоится на Vercel Edge Runtime — используем neon-http через @psi-opora/db/queries.edge
+// (node-postgres недоступен в Edge, т.к. требует Node.js API: net, tls, dns)
 setFunnelUpsert(upsertBotFunnelEvent);
 
 export const log = (msg: string) => {
@@ -89,7 +89,11 @@ async function handleStart(ctx: AppContext, startPayload: string | undefined) {
   // При bot_started чат может ещё не существовать (404),
   // поэтому отправляем сообщение через user_id
   if (ctx.updateType === "bot_started" && ctx.user?.user_id) {
-    await ctx.api.sendMessageToUser(ctx.user.user_id, WELCOME_TEXT, replyOptions);
+    await ctx.api.sendMessageToUser(
+      ctx.user.user_id,
+      WELCOME_TEXT,
+      replyOptions,
+    );
   } else {
     await ctx.reply(WELCOME_TEXT, replyOptions);
   }
