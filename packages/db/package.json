@@ -4,31 +4,31 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
     },
     "./client": {
-      "types": "./dist/client.d.ts",
-      "default": "./dist/client.js"
+      "types": "./dist/client.d.mts",
+      "default": "./dist/client.mjs"
     },
     "./client.ws": {
-      "types": "./dist/client.ws.d.ts",
-      "default": "./dist/client.ws.js"
+      "types": "./dist/client.ws.d.mts",
+      "default": "./dist/client.ws.mjs"
     },
     "./schema": {
-      "types": "./dist/schema/index.d.ts",
-      "default": "./dist/schema/index.js"
+      "types": "./dist/schema/index.d.mts",
+      "default": "./dist/schema/index.mjs"
     },
     "./queries": {
-      "types": "./dist/queries/index.d.ts",
-      "default": "./dist/queries/index.js"
+      "types": "./dist/queries/index.d.mts",
+      "default": "./dist/queries/index.mjs"
     }
   },
   "license": "MIT",
   "scripts": {
-    "build": "tsc",
+    "build": "tsdown",
     "clean": "git clean -xdf .cache .turbo dist node_modules",
-    "dev": "tsc",
+    "dev": "tsdown",
     "format": "biome format .",
     "lint": "biome lint .",
     "check": "biome check .",
@@ -56,6 +56,7 @@
     "@types/pg": "^8.20.0",
     "@types/ws": "^8.18.1",
     "drizzle-kit": "^0.31.10",
+    "tsdown": "^0.22.4",
     "typescript": "6.0.3"
   }
 }
