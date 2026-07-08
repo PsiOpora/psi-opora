@@ -1,5 +1,37 @@
 import { Redis } from "@upstash/redis";
-import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
+import { upsertBotFunnelEvent as upsertEdge } from "@psi-opora/db/queries.edge";
+
+/**
+ * Тип функции upsert для событий воронки.
+ * Позволяет подменять реализацию (edge vs node) через setFunnelUpsert.
+ */
+export type UpsertFunnelFn = (data: {
+  day: string;
+  messenger: string;
+  step: string;
+  source?: string;
+  campaign?: string;
+}) => Promise<void>;
+
+/**
+ * По умолчанию используется edge-версия (neon-http) — подходит для TG webhook.
+ * MAX-бот (Node.js runtime) вызывает setFunnelUpsert с node-версией при старте.
+ */
+let _upsertFn: UpsertFunnelFn = upsertEdge;
+
+/**
+ * Устанавливает функцию upsert для событий воронки.
+ * Вызывайте один раз при инициализации бота в Node.js окружении:
+ *
+ * ```ts
+ * import { upsertBotFunnelEvent } from "@psi-opora/db/queries";
+ * import { setFunnelUpsert } from "@psi-opora/bot-core";
+ * setFunnelUpsert(upsertBotFunnelEvent);
+ * ```
+ */
+export function setFunnelUpsert(fn: UpsertFunnelFn): void {
+  _upsertFn = fn;
+}
 
 /**
  * Шаги воронки бота в порядке прохождения. Email не трекается отдельно —
@@ -74,7 +106,7 @@ export async function trackFunnelStep(
 
   // 1. Записываем в PostgreSQL (основное хранилище)
   try {
-    await upsertBotFunnelEvent({
+    await _upsertFn({
       day,
       messenger: ctx.messenger,
       step,

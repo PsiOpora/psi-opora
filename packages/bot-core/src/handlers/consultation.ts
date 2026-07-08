@@ -1,29 +1,9 @@
 import { type Conversation } from "@grammyjs/conversations";
 import type { ConvContext } from "../types/context";
-import { createBitrixDeal } from "../utils/bitrix";
-import { createUpstashRedis, getBitrixChatInfo } from "../storage/upstash";
 import { trackFunnelStep, type FunnelStep } from "../utils/funnel";
-
-// Redis-инстанс для получения chatId из Bitrix webhook
-let _redis: ReturnType<typeof createUpstashRedis> | null = null;
-function getRedis() {
-  if (!_redis) {
-    try {
-      _redis = createUpstashRedis();
-    } catch {
-      return null;
-    }
-  }
-  return _redis;
-}
-
-function hasPhoneNumber(text: string): boolean {
-  return /[\d\s\+\-\(\)]{7,}/.test(text);
-}
-
-function isValidEmail(text: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text);
-}
+import { hasPhoneNumber, isValidEmail } from "../utils/validation";
+import { submitConsultationDeal } from "../utils/consultation-deal";
+import { successReply } from "../utils/messages";
 
 export async function consultationConversation(
   conv: Conversation<ConvContext, ConvContext>,
@@ -124,45 +104,17 @@ export async function consultationConversation(
     `[CONSULTATION] name=${name} phone=${phone}${email ? ` email=${email}` : ""}${sessionData.source ? ` source=${sessionData.source}` : ""}${sessionData.campaign ? ` campaign=${sessionData.campaign}` : ""} user=${sessionData.userId} messenger=${messenger}`,
   );
 
-  try {
-    let chatId: number | undefined;
-    let operatorId: number | undefined;
-
-    const redis = getRedis();
-    if (redis && sessionData.userId) {
-      const chatInfo = await getBitrixChatInfo(redis, sessionData.userId);
-      if (chatInfo) {
-        chatId = chatInfo.chatId;
-        operatorId = chatInfo.operatorId || undefined;
-        console.log(
-          `[CONSULTATION] найден chatId=${chatId} для userId=${sessionData.userId}`,
-        );
-      }
-    }
-
-    await createBitrixDeal({
+  await conv.external(() =>
+    submitConsultationDeal({
       name,
       phone,
       email: email || undefined,
-      campaign: sessionData.campaign,
-      source: sessionData.source,
-      telegramUserId: sessionData.userId,
       messenger,
-      chatId,
-      operatorId,
-    });
-    await track("deal");
-  } catch (err: any) {
-    console.error("[bitrix] ошибка:", err.message);
-  }
-
-  await ctx.reply(
-    "✅ *Заявка принята!*\n\n" +
-      `${name}, наш администратор свяжется с вами в ближайшие 30 минут, чтобы подтвердить запись на консультацию.\n\n` +
-      "А пока вы можете:\n" +
-      "📖 Узнать больше о наших специалистах: https://psi-opora.ru/services\n" +
-      "💬 Задать вопрос в чат\n\n" +
-      "Хорошего дня! 🌿",
-    { parse_mode: "Markdown" },
+      userId: sessionData.userId,
+      source: sessionData.source,
+      campaign: sessionData.campaign,
+    }),
   );
+
+  await ctx.reply(successReply(name), { parse_mode: "Markdown" });
 }

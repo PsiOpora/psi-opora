@@ -1,14 +1,24 @@
 import { Bot, Context, Keyboard, type MiddlewareFn } from "@maxhub/max-bot-api";
 import {
-  createBitrixDeal,
   parseUtmParams,
   formatUtmLog,
   trackFunnelStep,
+  setFunnelUpsert,
   createUpstashRedis,
-  getBitrixChatInfo,
+  submitConsultationDeal,
+  hasPhoneNumber,
+  isValidEmail,
+  WELCOME_TEXT,
+  CONSENT_TEXT,
+  CONSENT_DECLINED_TEXT,
+  successReply,
   type ConsultationSession,
   type StorageAdapter,
 } from "@psi-opora/bot-core";
+import { upsertBotFunnelEvent } from "@psi-opora/db/queries";
+
+// MAX-бот работает на Node.js runtime — используем node-postgres вместо edge neon-http.
+setFunnelUpsert(upsertBotFunnelEvent);
 
 export const log = (msg: string) => {
   console.log(`${new Date().toISOString()} ${msg}`);
@@ -17,19 +27,9 @@ export const log = (msg: string) => {
 function describeError(err: unknown): string {
   if (!(err instanceof Error)) return String(err);
   const cause = (err as { cause?: unknown }).cause;
-  return cause ? `${err.message} (cause: ${describeError(cause)})` : err.message;
-}
-
-let _redis: ReturnType<typeof createUpstashRedis> | null = null;
-function getRedis() {
-  if (!_redis) {
-    try {
-      _redis = createUpstashRedis();
-    } catch {
-      return null;
-    }
-  }
-  return _redis;
+  return cause
+    ? `${err.message} (cause: ${describeError(cause)})`
+    : err.message;
 }
 
 export class AppContext extends Context {
@@ -58,14 +58,6 @@ function sessionMiddleware(
   };
 }
 
-function hasPhoneNumber(text: string): boolean {
-  return /[\d\s\+\-\(\)]{7,}/.test(text);
-}
-
-function isValidEmail(text: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text);
-}
-
 async function handleStart(ctx: AppContext, startPayload: string | undefined) {
   const utm = parseUtmParams(startPayload);
   if (utm.campaign) ctx.session.campaign = utm.campaign;
@@ -74,26 +66,25 @@ async function handleStart(ctx: AppContext, startPayload: string | undefined) {
   log(
     `[START] user=${ctx.user?.user_id} chat=${ctx.chatId} ${formatUtmLog(utm)} messenger=max`,
   );
-  await trackFunnelStep("start", { messenger: "max", source: utm.source, campaign: utm.campaign });
+  await trackFunnelStep("start", {
+    messenger: "max",
+    source: utm.source,
+    campaign: utm.campaign,
+  });
 
-  await ctx.reply(
-    "👋 Добро пожаловать в центр психологической помощи *Пси-Опора*!\n\n" +
-      "Первый психологический центр помощи клиентам с психиатрическими расстройствами и зависимостями. Лечение без медикаментов.\n\n" +
-      "Нажмите кнопку ниже, чтобы записаться на консультацию 👇",
-    {
-      format: "markdown",
-      attachments: [
-        Keyboard.inlineKeyboard([
-          [
-            Keyboard.button.callback(
-              "📝 Записаться на консультацию",
-              "start_consultation",
-            ),
-          ],
-        ]),
-      ],
-    },
-  );
+  await ctx.reply(WELCOME_TEXT, {
+    format: "markdown",
+    attachments: [
+      Keyboard.inlineKeyboard([
+        [
+          Keyboard.button.callback(
+            "📝 Записаться на консультацию",
+            "start_consultation",
+          ),
+        ],
+      ]),
+    ],
+  });
 }
 
 export function createMaxBot({ storage }: MaxBotOptions = {}) {
@@ -115,38 +106,20 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
       campaign: ctx.session.campaign,
     });
 
-    await ctx.reply(
-      "📋 *Согласие на обработку персональных данных*\n\n" +
-        "В соответствии с Федеральным законом №152-ФЗ «О персональных данных» " +
-        "для записи на консультацию нам необходимо обработать ваши персональные данные:\n\n" +
-        "• Имя\n" +
-        "• Номер телефона\n" +
-        "• Email\n\n" +
-        "*Цель обработки:* запись на психологическую консультацию и обратная связь.\n" +
-        "*Оператор:* Центр психологической помощи «Пси-Опора».\n" +
-        "*Срок хранения:* до отзыва согласия.\n\n" +
-        "Нажимая «Согласен(а)», вы принимаете условия следующих документов:\n" +
-        "• [Политика конфиденциальности](https://psi-opora.ru/private-policy/)\n" +
-        "• [Согласие на обработку персональных данных](https://psi-opora.ru/personal-data/)\n" +
-        "• [Публичная оферта](https://psi-opora.ru/oferta-kurs-rod/)\n" +
-        "• [Согласие на рекламную рассылку](https://psi-opora.ru/reklama/)\n\n" +
-        "Вы можете отозвать согласие в любой момент, написав нам.\n\n" +
-        "Подтвердите согласие, чтобы продолжить 👇",
-      {
-        format: "markdown",
-        attachments: [
-          Keyboard.inlineKeyboard([
-            [
-              Keyboard.button.callback(
-                "✅ Согласен(а) на обработку данных",
-                "consent_agree",
-              ),
-            ],
-            [Keyboard.button.callback("❌ Не согласен(а)", "consent_decline")],
-          ]),
-        ],
-      },
-    );
+    await ctx.reply(CONSENT_TEXT, {
+      format: "markdown",
+      attachments: [
+        Keyboard.inlineKeyboard([
+          [
+            Keyboard.button.callback(
+              "✅ Согласен(а) на обработку данных",
+              "consent_agree",
+            ),
+          ],
+          [Keyboard.button.callback("❌ Не согласен(а)", "consent_decline")],
+        ]),
+      ],
+    });
   });
 
   bot.action("consent_agree", async (ctx) => {
@@ -167,11 +140,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
   bot.action("consent_decline", async (ctx) => {
     await ctx.answerOnCallback({ notification: "Хорошо" });
     log(`[CONSENT] user=${ctx.user?.user_id} отказался`);
-    await ctx.reply(
-      "Вы отказались от обработки персональных данных.\n\n" +
-        "Без согласия мы не можем принять заявку. " +
-        "Если передумаете — нажмите /start.",
-    );
+    await ctx.reply(CONSENT_DECLINED_TEXT);
   });
 
   bot.on("message_created", async (ctx) => {
@@ -194,14 +163,13 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
 
     if (ctx.session.step === "phone") {
       if (hasPhoneNumber(text)) {
-        const name = ctx.session.name ?? "";
-        const campaign = ctx.session.campaign;
-        const source = ctx.session.source;
-        const telegramUserId = ctx.message.sender?.user_id;
         ctx.session.phone = text;
         ctx.session.step = "email";
-        await trackFunnelStep("phone", { messenger: "max", source, campaign });
-
+        await trackFunnelStep("phone", {
+          messenger: "max",
+          source: ctx.session.source,
+          campaign: ctx.session.campaign,
+        });
         await ctx.reply(
           "Спасибо! И последний шаг — укажите, пожалуйста, ваш email для связи.",
         );
@@ -226,111 +194,53 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
     }
 
     if (ctx.session.step === "email") {
-      const emailText = text.trim();
-      if (isValidEmail(emailText)) {
-        const name = ctx.session.name ?? "";
-        const phone = ctx.session.phone ?? "";
-        const campaign = ctx.session.campaign;
-        const source = ctx.session.source;
-        const telegramUserId = ctx.message.sender?.user_id;
-        ctx.session.email = emailText;
+      const name = ctx.session.name ?? "";
+      const phone = ctx.session.phone ?? "";
+      const source = ctx.session.source;
+      const campaign = ctx.session.campaign;
+      const userId = ctx.message.sender?.user_id;
+
+      if (isValidEmail(text)) {
+        ctx.session.email = text;
         ctx.session.step = "done";
 
         log(
-          `[CONSULTATION] name=${name} phone=${phone} email=${emailText}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${telegramUserId} messenger=max`,
+          `[CONSULTATION] name=${name} phone=${phone} email=${text}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${userId} messenger=max`,
         );
 
-        try {
-          let chatId: number | undefined;
-          let operatorId: number | undefined;
-
-          const redis = getRedis();
-          if (redis && telegramUserId) {
-            const chatInfo = await getBitrixChatInfo(redis, telegramUserId);
-            if (chatInfo) {
-              chatId = chatInfo.chatId;
-              operatorId = chatInfo.operatorId || undefined;
-              console.log(`[CONSULTATION] найден chatId=${chatId} для userId=${telegramUserId}`);
-            }
-          }
-
-          await createBitrixDeal({
-            name,
-            phone,
-            email: emailText,
-            campaign,
-            source,
-            telegramUserId,
-            messenger: "max",
-            chatId,
-            operatorId,
-          });
-          await trackFunnelStep("deal", { messenger: "max", source, campaign });
-        } catch (err: any) {
-          console.error("[bitrix] ошибка:", err.message);
-        }
-
-        await ctx.reply(
-          "✅ *Заявка принята!*\n\n" +
-            `${name}, наш администратор свяжется с вами в ближайшие 30 минут, чтобы подтвердить запись на консультацию.\n\n` +
-            "А пока вы можете:\n" +
-            "📖 Узнать больше о наших специалистах: https://psi-opora.ru/services\n" +
-            "💬 Задать вопрос в чат\n\n" +
-            "Хорошего дня! 🌿",
-          { format: "markdown" },
-        );
+        await submitConsultationDeal({
+          name,
+          phone,
+          email: text,
+          messenger: "max",
+          userId,
+          source,
+          campaign,
+        });
+        await ctx.reply(successReply(name), { format: "markdown" });
         return;
       }
 
       ctx.session.emailAttempts = (ctx.session.emailAttempts ?? 0) + 1;
       if (ctx.session.emailAttempts >= 3) {
-        const name = ctx.session.name ?? "";
-        const phone = ctx.session.phone ?? "";
-        const campaign = ctx.session.campaign;
-        const source = ctx.session.source;
-        const telegramUserId = ctx.message.sender?.user_id;
         ctx.session.step = "done";
         await ctx.reply(
           "😔 Не удалось распознать email, продолжим без него — уточним при звонке.",
         );
 
-        try {
-          let chatId: number | undefined;
-          let operatorId: number | undefined;
-
-          const redis = getRedis();
-          if (redis && telegramUserId) {
-            const chatInfo = await getBitrixChatInfo(redis, telegramUserId);
-            if (chatInfo) {
-              chatId = chatInfo.chatId;
-              operatorId = chatInfo.operatorId || undefined;
-            }
-          }
-
-          await createBitrixDeal({
-            name,
-            phone,
-            campaign,
-            source,
-            telegramUserId,
-            messenger: "max",
-            chatId,
-            operatorId,
-          });
-          await trackFunnelStep("deal", { messenger: "max", source, campaign });
-        } catch (err: any) {
-          console.error("[bitrix] ошибка:", err.message);
-        }
-
-        await ctx.reply(
-          "✅ *Заявка принята!*\n\n" +
-            `${name}, наш администратор свяжется с вами в ближайшие 30 минут, чтобы подтвердить запись на консультацию.\n\n` +
-            "А пока вы можете:\n" +
-            "📖 Узнать больше о наших специалистах: https://psi-opora.ru/services\n" +
-            "💬 Задать вопрос в чат\n\n" +
-            "Хорошего дня! 🌿",
-          { format: "markdown" },
+        log(
+          `[CONSULTATION] name=${name} phone=${phone}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${userId} messenger=max`,
         );
+
+        await submitConsultationDeal({
+          name,
+          phone,
+          messenger: "max",
+          userId,
+          source,
+          campaign,
+        });
+        await ctx.reply(successReply(name), { format: "markdown" });
         return;
       }
 

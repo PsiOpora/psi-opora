@@ -24,8 +24,10 @@ export {
   funnelDayKey,
   parseFunnelField,
   trackFunnelStep,
+  setFunnelUpsert,
   type FunnelStep,
   type FunnelEventContext,
+  type UpsertFunnelFn,
 } from "./utils/funnel";
 export {
   parseUtmParams,
@@ -34,3 +36,14 @@ export {
   type UtmParams,
 } from "./utils/utm";
 export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes";
+export { hasPhoneNumber, isValidEmail } from "./utils/validation";
+export {
+  successReply,
+  WELCOME_TEXT,
+  CONSENT_TEXT,
+  CONSENT_DECLINED_TEXT,
+} from "./utils/messages";
+export {
+  submitConsultationDeal,
+  type SubmitDealParams,
+} from "./utils/consultation-deal";

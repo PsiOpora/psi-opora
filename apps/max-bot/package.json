@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@maxhub/max-bot-api": "0.2.4",
-    "@psi-opora/bot-core": "workspace:*"
+    "@psi-opora/bot-core": "workspace:*",
+    "@psi-opora/db": "workspace:*"
   },
   "devDependencies": {
     "typescript": "6.0.3"

@@ -6,6 +6,11 @@ import type { Redis } from "@upstash/redis";
 import { parseUtmParams, formatUtmLog } from "./utils/utm";
 import { trackFunnelStep } from "./utils/funnel";
 import { consultationConversation } from "./handlers/consultation";
+import {
+  WELCOME_TEXT,
+  CONSENT_TEXT,
+  CONSENT_DECLINED_TEXT,
+} from "./utils/messages";
 
 export const log = (msg: string) => {
   console.log(`${new Date().toISOString()} ${msg}`);
@@ -63,12 +68,10 @@ export function createBot({ storage, redis }: BotOptions = {}) {
       "start_consultation",
     );
 
-    await ctx.reply(
-      "👋 Добро пожаловать в центр психологической помощи *Пси-Опора*!\n\n" +
-        "Первый психологический центр помощи клиентам с психиатрическими расстройствами и зависимостями. Лечение без медикаментов.\n\n" +
-        "Нажмите кнопку ниже, чтобы записаться на консультацию 👇",
-      { parse_mode: "Markdown", reply_markup: keyboard },
-    );
+    await ctx.reply(WELCOME_TEXT, {
+      parse_mode: "Markdown",
+      reply_markup: keyboard,
+    });
   });
 
   bot.callbackQuery("start_consultation", async (ctx: AppContext) => {
@@ -84,29 +87,11 @@ export function createBot({ storage, redis }: BotOptions = {}) {
       .row()
       .text("❌ Не согласен(а)", "consent_decline");
 
-    await ctx.reply(
-      "📋 *Согласие на обработку персональных данных*\n\n" +
-        "В соответствии с Федеральным законом №152-ФЗ «О персональных данных» " +
-        "для записи на консультацию нам необходимо обработать ваши персональные данные:\n\n" +
-        "• Имя\n" +
-        "• Номер телефона\n" +
-        "• Email\n\n" +
-        "*Цель обработки:* запись на психологическую консультацию и обратная связь.\n" +
-        "*Оператор:* Центр психологической помощи «Пси-Опора».\n" +
-        "*Срок хранения:* до отзыва согласия.\n\n" +
-        "Нажимая «Согласен(а)», вы принимаете условия следующих документов:\n" +
-        "• [Политика конфиденциальности](https://psi-opora.ru/private-policy/)\n" +
-        "• [Согласие на обработку персональных данных](https://psi-opora.ru/personal-data/)\n" +
-        "• [Публичная оферта](https://psi-opora.ru/oferta-kurs-rod/)\n" +
-        "• [Согласие на рекламную рассылку](https://psi-opora.ru/reklama/)\n\n" +
-        "Вы можете отозвать согласие в любой момент, написав нам.\n\n" +
-        "Подтвердите согласие, чтобы продолжить 👇",
-      {
-        parse_mode: "Markdown",
-        reply_markup: consentKeyboard,
-        link_preview_options: { is_disabled: true },
-      },
-    );
+    await ctx.reply(CONSENT_TEXT, {
+      parse_mode: "Markdown",
+      reply_markup: consentKeyboard,
+      link_preview_options: { is_disabled: true },
+    });
   });
 
   bot.callbackQuery("consent_agree", async (ctx: AppContext) => {
@@ -131,11 +116,7 @@ export function createBot({ storage, redis }: BotOptions = {}) {
     log(`[CONSENT] user=${ctx.from?.id} отказался`);
 
     await ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() });
-    await ctx.reply(
-      "Вы отказались от обработки персональных данных.\n\n" +
-        "Без согласия мы не можем принять заявку. " +
-        "Если передумаете — нажмите /start.",
-    );
+    await ctx.reply(CONSENT_DECLINED_TEXT);
   });
 
   bot.catch((err) => {
