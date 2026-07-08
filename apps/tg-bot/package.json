@@ -11,7 +11,7 @@
   "dependencies": {
     "@psi-opora/bot-core": "workspace:*",
     "@upstash/redis": "^1.38.0",
-    "grammy": "^1.44.0"
+    "grammy": "1.44.0"
   },
   "devDependencies": {
     "typescript": "6.0.3"
