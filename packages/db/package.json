@@ -36,11 +36,12 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@psi-opora/config": "workspace:*",
     "@neondatabase/serverless": "^1.1.0",
+    "@psi-opora/config": "workspace:*",
     "@vercel/postgres": "0.10.0",
     "drizzle-orm": "0.45.2",
     "drizzle-zod": "0.8.3",
+    "pg": "^8.22.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
