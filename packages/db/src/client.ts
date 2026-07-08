@@ -15,7 +15,7 @@ import * as schema from "./schema";
  */
 export type Database = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-function createDatabase(): Database {
+async function createDatabase(): Promise<Database> {
   const connectionString = process.env.POSTGRES_URL;
   if (!connectionString) {
     throw new Error(
@@ -33,13 +33,16 @@ function createDatabase(): Database {
     });
   }
 
-  // Lazy-import node-postgres so that the `pg` native module is not loaded
-  // in edge runtimes (e.g. Vercel Edge Functions) when the neon-http driver
-  // is used.
-  const { Pool } = require("pg");
-  const { drizzle: drizzlePg } = require("drizzle-orm/node-postgres");
+  // Dynamically import node-postgres so that the `pg` native module (and the
+  // `node:module`/`createRequire` interop it otherwise needs) is not loaded
+  // or bundled in edge runtimes (e.g. Vercel Edge Functions) when the
+  // neon-http driver is used.
+  const [{ Pool }, { drizzle: drizzlePg }] = await Promise.all([
+    import("pg"),
+    import("drizzle-orm/node-postgres"),
+  ]);
   const pool = new Pool({ connectionString });
   return drizzlePg({ client: pool, schema, casing: "snake_case" });
 }
 
-export const db: Database = createDatabase();
+export const db: Database = await createDatabase();
