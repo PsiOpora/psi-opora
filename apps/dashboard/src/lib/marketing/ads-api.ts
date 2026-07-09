@@ -1,4 +1,5 @@
 import type { RedisClient } from "@/lib/redis";
+import { env } from "@psi-opora/config";
 
 export type NewAdDailyStats = {
   id: string;
@@ -342,7 +343,7 @@ export async function fetchAdStats(
     }
   }
 
-  await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/orpc`, {
+  await fetch(`${env.BASE_URL ?? env.NEXT_PUBLIC_APP_URL ?? ""}/api/orpc`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

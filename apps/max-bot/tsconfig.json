@@ -4,7 +4,8 @@
     "composite": true,
     "outDir": "dist",
     "lib": ["ES2022", "dom", "dom.iterable"],
-    "paths": { "@/*": ["./src/*"] }
+    "paths": { "@/*": ["./src/*"] },
+    "types": ["node"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

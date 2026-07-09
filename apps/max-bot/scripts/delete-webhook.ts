@@ -1,5 +1,7 @@
-const token = process.env.MAX_BOT_TOKEN;
-const webhookUrl = process.env.MAX_WEBHOOK_URL;
+import { env } from "@psi-opora/config";
+
+const token = env.MAX_BOT_TOKEN;
+const webhookUrl = env.MAX_WEBHOOK_URL;
 const MAX_API_ROOT = "https://platform-api2.max.ru";
 
 if (!token || !webhookUrl) {

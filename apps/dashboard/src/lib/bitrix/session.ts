@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { env } from "@psi-opora/config";
 import { createOAuthApi, createWebhookApi, type BitrixApi } from "./client";
 import { getPortalTokens } from "./tokens";
 
@@ -18,7 +19,7 @@ export async function getBitrixApi(): Promise<BitrixApi | null> {
     if (tokens) return createOAuthApi(memberId);
   }
 
-  const devWebhook = process.env.DASHBOARD_BITRIX_WEBHOOK_URL;
+  const devWebhook = env.DASHBOARD_BITRIX_WEBHOOK_URL;
   if (devWebhook) return createWebhookApi(devWebhook);
 
   return null;

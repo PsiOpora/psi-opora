@@ -1,3 +1,4 @@
+import { env } from "@psi-opora/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle as drizzleNeonHttp } from "drizzle-orm/neon-http";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
@@ -16,7 +17,7 @@ import * as schema from "./schema";
 export type Database = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 async function createDatabase(): Promise<Database> {
-  const connectionString = process.env.POSTGRES_URL;
+  const connectionString = env.POSTGRES_URL;
   if (!connectionString) {
     throw new Error(
       "POSTGRES_URL environment variable is not set. Please configure it in your environment.",

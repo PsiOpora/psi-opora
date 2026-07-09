@@ -1,16 +1,17 @@
 import { getPortalTokens, savePortalTokens, type PortalTokens } from "./tokens";
+import { env } from "@psi-opora/config";
 
 // @link https://apidocs.bitrix24.ru/api-reference/oauth/index.html
 const OAUTH_SERVER = "https://oauth.bitrix24.tech/oauth/token/";
 
 function getClientId(): string {
-  const id = process.env.DASHBOARD_BITRIX_CLIENT_ID;
+  const id = env.DASHBOARD_BITRIX_CLIENT_ID;
   if (!id) throw new Error("DASHBOARD_BITRIX_CLIENT_ID не задан");
   return id;
 }
 
 function getClientSecret(): string {
-  const secret = process.env.DASHBOARD_BITRIX_CLIENT_SECRET;
+  const secret = env.DASHBOARD_BITRIX_CLIENT_SECRET;
   if (!secret) throw new Error("DASHBOARD_BITRIX_CLIENT_SECRET не задан");
   return secret;
 }

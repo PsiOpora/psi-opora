@@ -1,7 +1,8 @@
 import { Bot } from "grammy";
+import { env } from "@psi-opora/config";
 
-const token = process.env.TG_BOT_TOKEN;
-const webhookUrl = process.env.TG_WEBHOOK_URL;
+const token = env.TG_BOT_TOKEN;
+const webhookUrl = env.TG_WEBHOOK_URL;
 
 if (!token || !webhookUrl) {
   console.error("Нужны TG_BOT_TOKEN и TG_WEBHOOK_URL в .env");

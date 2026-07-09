@@ -21,6 +21,7 @@
     "list:bitrix-sources": "bun run --env-file=../../.env scripts/list-bitrix-sources.ts"
   },
   "dependencies": {
+    "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@upstash/redis": "^1.38.0",
     "grammy": "^1.44.0",

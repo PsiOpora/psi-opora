@@ -3,6 +3,7 @@ import { conversations, createConversation } from "@grammyjs/conversations";
 import type { StorageAdapter } from "grammy";
 import type { AppContext, ConsultationSession } from "./types/context";
 import type { Redis } from "@upstash/redis";
+import { env } from "@psi-opora/config";
 import { parseUtmParams, formatUtmLog } from "./utils/utm";
 import { trackFunnelStep } from "./utils/funnel";
 import { consultationConversation } from "./handlers/consultation";
@@ -26,7 +27,7 @@ export interface BotOptions {
 }
 
 export function createBot({ storage, redis }: BotOptions = {}) {
-  const token = process.env.TG_BOT_TOKEN ?? process.env.BOT_TOKEN ?? "";
+  const token = env.TG_BOT_TOKEN ?? env.BOT_TOKEN ?? "";
   const bot = new Bot<AppContext>(token);
 
   bot.use(

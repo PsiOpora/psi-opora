@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { env } from "@psi-opora/config";
 
 export interface StorageAdapter<T> {
   read(key: string): T | undefined | Promise<T | undefined>;
@@ -42,8 +43,8 @@ export async function getBitrixChatInfo(
 }
 
 export function createUpstashRedis() {
-  const url = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
+  const url = env.KV_REST_API_URL;
+  const token = env.KV_REST_API_TOKEN;
   if (!url || !token) {
     throw new Error("KV_REST_API_URL и KV_REST_API_TOKEN не заданы");
   }

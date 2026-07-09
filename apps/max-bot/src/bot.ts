@@ -14,6 +14,7 @@ import {
   type ConsultationSession,
   type StorageAdapter,
 } from "@psi-opora/bot-core";
+import { env } from "@psi-opora/config";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
 
 // MAX-бот деплоится на Vercel Edge Runtime — используем neon-http через @psi-opora/db/queries.edge
@@ -100,7 +101,7 @@ async function handleStart(ctx: AppContext, startPayload: string | undefined) {
 }
 
 export function createMaxBot({ storage }: MaxBotOptions = {}) {
-  const token = process.env.MAX_BOT_TOKEN ?? process.env.BOT_TOKEN ?? "";
+  const token = env.MAX_BOT_TOKEN ?? env.BOT_TOKEN ?? "";
   const bot = new Bot<AppContext>(token, { contextType: AppContext });
 
   bot.use(sessionMiddleware(storage));
@@ -276,25 +277,14 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
 export type MaxBot = ReturnType<typeof createMaxBot>;
 
 /**
- * Ручная прогонка апдейта через middleware — используется в webhook-обработчике,
- * т.к. у Bot нет публичного webhookCallback (в отличие от grammy), а внутренний
- * handleUpdate приватный.
+ * Обработка webhook-апдейта через внутренний метод Bot.
+ * handleUpdate приватный, но доступен через (bot as any).handleUpdate.
+ * Это корректнее ручного создания контекста, т.к. использует
+ * ту же логику, что и при long-polling.
  */
 export async function processUpdate(
   bot: MaxBot,
   update: unknown,
 ): Promise<void> {
-  const ctx = new AppContext(
-    update as ConstructorParameters<typeof AppContext>[0],
-    bot.api,
-    bot.botInfo,
-  );
-  try {
-    await bot.middleware()(ctx, async () => {});
-  } catch (err) {
-    log(`[ERROR] update=${ctx.updateType} ${describeError(err)}`);
-    await ctx
-      .reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.")
-      .catch(() => {});
-  }
+  await (bot as unknown as { handleUpdate(update: unknown): Promise<void> }).handleUpdate(update);
 }

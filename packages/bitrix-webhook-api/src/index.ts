@@ -1,3 +1,5 @@
+import { env } from "@psi-opora/config";
+
 export interface BitrixChatInfo {
   chatId: number;
   operatorId: number;
@@ -88,9 +90,9 @@ export function bitrixWebhookHandler() {
       return new Response("ok");
     }
 
-    const redisUrl = process.env.KV_REST_API_URL;
-    const redisToken = process.env.KV_REST_API_TOKEN;
-    const webhookToken = process.env.BITRIX_WEBHOOK_TOKEN;
+    const redisUrl = env.KV_REST_API_URL;
+    const redisToken = env.KV_REST_API_TOKEN;
+    const webhookToken = env.BITRIX_WEBHOOK_TOKEN;
 
     if (!redisUrl || !redisToken) {
       console.error("[bitrix-webhook] KV_REST_API_URL или KV_REST_API_TOKEN не заданы");

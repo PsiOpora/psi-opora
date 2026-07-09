@@ -1,5 +1,5 @@
-import { appendFileSync } from "fs";
-import { resolve } from "path";
+import { appendFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createBot, log as baseLog } from "@psi-opora/bot-core";
 
 const logPath = resolve("bot.log");

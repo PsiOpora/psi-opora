@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { env } from "@psi-opora/config";
 import { getRedisOrNull } from "@/lib/redis";
 import { fetchAdStats } from "@/lib/marketing/ads-api";
 import { orpc } from "@/lib/orpc-client";
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
+  const cronSecret = env.CRON_SECRET;
 
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

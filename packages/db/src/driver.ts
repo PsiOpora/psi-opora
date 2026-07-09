@@ -1,3 +1,5 @@
+import { env } from "@psi-opora/config";
+
 export type DbDriver = "node" | "neon-http";
 
 /**
@@ -13,7 +15,7 @@ export type DbDriver = "node" | "neon-http";
  */
 export function selectDbDriver(
   connectionString: string | undefined,
-  override: string | undefined = process.env.DB_DRIVER,
+  override: string | undefined = env.DB_DRIVER,
 ): DbDriver {
   if (override === "node" || override === "neon-http") {
     return override;

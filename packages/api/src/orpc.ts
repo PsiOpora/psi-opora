@@ -16,7 +16,7 @@
  * @see https://orpc.dev/docs/server/context
  */
 
-import { logger } from "@psi-opora/config";
+import { env, logger } from "@psi-opora/config";
 import { db } from "@psi-opora/db";
 import { ORPCError, os } from "@orpc/server";
 
@@ -103,7 +103,7 @@ export const protectedProcedure = publicProcedure.use(({ context, next }) => {
  * @example ADMIN_EMAILS=admin@example.com,ops@example.com
  */
 export const adminProcedure = protectedProcedure.use(({ context, next }) => {
-  const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+  const adminEmails = (env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);

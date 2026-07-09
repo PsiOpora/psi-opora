@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { env } from "@psi-opora/config";
 import { upsertBotFunnelEvent as upsertEdge } from "@psi-opora/db/queries.edge";
 
 /**
@@ -62,8 +63,8 @@ let redis: Redis | null | undefined;
 
 function getRedis(): Redis | null {
   if (redis === undefined) {
-    const url = process.env.KV_REST_API_URL;
-    const token = process.env.KV_REST_API_TOKEN;
+    const url = env.KV_REST_API_URL;
+    const token = env.KV_REST_API_TOKEN;
     redis = url && token ? new Redis({ url, token }) : null;
   }
   return redis;
