@@ -1,16 +1,11 @@
 {
   "extends": "@psi-opora/tsconfig/base.json",
   "compilerOptions": {
+    "composite": true,
+    "outDir": "dist",
     "lib": ["ES2022", "dom", "dom.iterable"],
-    "jsx": "preserve",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "paths": {
-      "~/*": ["./src/*"],
-      "@/*": ["./src/*"]
-    },
-    "plugins": [{ "name": "next" }]
+    "paths": { "@/*": ["./src/*"] }
   },
-  "include": [".", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
 }
