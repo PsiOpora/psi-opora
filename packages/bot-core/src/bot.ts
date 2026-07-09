@@ -24,11 +24,12 @@ function createInitialSession(): ConsultationSession {
 export interface BotOptions {
   storage?: StorageAdapter<ConsultationSession>;
   redis?: Redis;
+  client?: ConstructorParameters<typeof Bot>[1]["client"];
 }
 
-export function createBot({ storage, redis }: BotOptions = {}) {
+export function createBot({ storage, redis, client }: BotOptions = {}) {
   const token = env.TG_BOT_TOKEN ?? env.BOT_TOKEN ?? "";
-  const bot = new Bot<AppContext>(token);
+  const bot = new Bot<AppContext>(token, client ? { client } : undefined);
 
   bot.use(
     session({

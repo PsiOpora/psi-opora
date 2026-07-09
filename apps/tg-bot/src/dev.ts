@@ -8,7 +8,9 @@ const log = (msg: string) => {
   appendFileSync(logPath, `${new Date().toISOString()} ${msg}\n`);
 };
 
-const bot = createBot();
+const bot = createBot({
+  client: process.env.TG_BOT_PROXY ? { apiRoot: process.env.TG_BOT_PROXY } : undefined,
+});
 
 bot.start({
   onStart: () => log("[BOT] tg-bot запущен. Polling..."),
