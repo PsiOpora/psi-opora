@@ -5,7 +5,7 @@ import {
   createRedisStorage,
   createUpstashRedis,
 } from "@psi-opora/bot-core";
-import { createMaxBot, processUpdate } from "../src/bot";
+import { createMaxBot, processUpdate } from "../src/bot.js";
 
 const redis = createUpstashRedis();
 const storage = createRedisStorage<ConsultationSession>(redis);

@@ -100,7 +100,9 @@ async function handleStart(ctx: AppContext, startPayload: string | undefined) {
   }
 }
 
-export function createMaxBot({ storage }: MaxBotOptions = {}) {
+export type MaxBot = Bot<AppContext>;
+
+export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
   const token = env.MAX_BOT_TOKEN ?? env.BOT_TOKEN ?? "";
   const bot = new Bot<AppContext>(token, { contextType: AppContext });
 
@@ -112,14 +114,15 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
   bot.command("start", (ctx) => handleStart(ctx, undefined));
 
   bot.action("start_consultation", async (ctx) => {
-    await ctx.answerOnCallback({ notification: "Открываем анкету..." });
+    const appCtx = ctx as AppContext;
+    await appCtx.answerOnCallback({ notification: "Открываем анкету..." });
     await trackFunnelStep("consult_click", {
       messenger: "max",
-      source: ctx.session.source,
-      campaign: ctx.session.campaign,
+      source: appCtx.session.source,
+      campaign: appCtx.session.campaign,
     });
 
-    await ctx.reply(CONSENT_TEXT, {
+    await appCtx.reply(CONSENT_TEXT, {
       format: "markdown",
       attachments: [
         Keyboard.inlineKeyboard([
@@ -136,63 +139,66 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
   });
 
   bot.action("consent_agree", async (ctx) => {
-    await ctx.answerOnCallback({ notification: "Спасибо! Продолжаем." });
-    ctx.session.consentGiven = true;
-    ctx.session.step = "name";
-    log(`[CONSENT] user=${ctx.user?.user_id} согласился`);
+    const appCtx = ctx as AppContext;
+    await appCtx.answerOnCallback({ notification: "Спасибо! Продолжаем." });
+    appCtx.session.consentGiven = true;
+    appCtx.session.step = "name";
+    log(`[CONSENT] user=${appCtx.user?.user_id} согласился`);
     await trackFunnelStep("consent", {
       messenger: "max",
-      source: ctx.session.source,
-      campaign: ctx.session.campaign,
+      source: appCtx.session.source,
+      campaign: appCtx.session.campaign,
     });
-    await ctx.reply(
+    await appCtx.reply(
       "✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?",
     );
   });
 
   bot.action("consent_decline", async (ctx) => {
-    await ctx.answerOnCallback({ notification: "Хорошо" });
-    log(`[CONSENT] user=${ctx.user?.user_id} отказался`);
-    await ctx.reply(CONSENT_DECLINED_TEXT);
+    const appCtx = ctx as AppContext;
+    await appCtx.answerOnCallback({ notification: "Хорошо" });
+    log(`[CONSENT] user=${appCtx.user?.user_id} отказался`);
+    await appCtx.reply(CONSENT_DECLINED_TEXT);
   });
 
   bot.on("message_created", async (ctx) => {
-    const text = ctx.message.body.text?.trim() ?? "";
+    const appCtx = ctx as unknown as AppContext;
+    const text = appCtx.message?.body.text?.trim() ?? "";
     if (!text || text.startsWith("/")) return;
 
-    if (ctx.session.step === "name") {
-      ctx.session.name = text;
-      ctx.session.step = "phone";
+    if (appCtx.session.step === "name") {
+      appCtx.session.name = text;
+      appCtx.session.step = "phone";
       await trackFunnelStep("name", {
         messenger: "max",
-        source: ctx.session.source,
-        campaign: ctx.session.campaign,
+        source: appCtx.session.source,
+        campaign: appCtx.session.campaign,
       });
-      await ctx.reply(
+      await appCtx.reply(
         `Отлично, ${text}! Теперь введите, пожалуйста, ваш номер телефона для связи.`,
       );
       return;
     }
 
-    if (ctx.session.step === "phone") {
+    if (appCtx.session.step === "phone") {
       if (hasPhoneNumber(text)) {
-        ctx.session.phone = text;
-        ctx.session.step = "email";
+        appCtx.session.phone = text;
+        appCtx.session.step = "email";
         await trackFunnelStep("phone", {
           messenger: "max",
-          source: ctx.session.source,
-          campaign: ctx.session.campaign,
+          source: appCtx.session.source,
+          campaign: appCtx.session.campaign,
         });
-        await ctx.reply(
+        await appCtx.reply(
           "Спасибо! И последний шаг — укажите, пожалуйста, ваш email для связи.",
         );
         return;
       }
 
-      ctx.session.phoneAttempts = (ctx.session.phoneAttempts ?? 0) + 1;
-      if (ctx.session.phoneAttempts >= 3) {
-        ctx.session.step = "done";
-        await ctx.reply(
+      appCtx.session.phoneAttempts = (appCtx.session.phoneAttempts ?? 0) + 1;
+      if (appCtx.session.phoneAttempts >= 3) {
+        appCtx.session.step = "done";
+        await appCtx.reply(
           "😔 К сожалению, мы не смогли распознать номер. " +
             "Напишите, пожалуйста, номер в любом формате: +7 999 123-45-67, " +
             "8 999 123 45 67 и т.д. Мы свяжемся с вами для уточнения.",
@@ -200,22 +206,22 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
         return;
       }
 
-      await ctx.reply(
+      await appCtx.reply(
         "Не удалось распознать номер телефона. Введите, пожалуйста, номер в любом формате, например: +7 (999) 123-45-67",
       );
       return;
     }
 
-    if (ctx.session.step === "email") {
-      const name = ctx.session.name ?? "";
-      const phone = ctx.session.phone ?? "";
-      const source = ctx.session.source;
-      const campaign = ctx.session.campaign;
-      const userId = ctx.message.sender?.user_id;
+    if (appCtx.session.step === "email") {
+      const name = appCtx.session.name ?? "";
+      const phone = appCtx.session.phone ?? "";
+      const source = appCtx.session.source;
+      const campaign = appCtx.session.campaign;
+      const userId = appCtx.message?.sender?.user_id;
 
       if (isValidEmail(text)) {
-        ctx.session.email = text;
-        ctx.session.step = "done";
+        appCtx.session.email = text;
+        appCtx.session.step = "done";
 
         log(
           `[CONSULTATION] name=${name} phone=${phone} email=${text}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${userId} messenger=max`,
@@ -230,14 +236,14 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
           source,
           campaign,
         });
-        await ctx.reply(successReply(name), { format: "markdown" });
+        await appCtx.reply(successReply(name), { format: "markdown" });
         return;
       }
 
-      ctx.session.emailAttempts = (ctx.session.emailAttempts ?? 0) + 1;
-      if (ctx.session.emailAttempts >= 3) {
-        ctx.session.step = "done";
-        await ctx.reply(
+      appCtx.session.emailAttempts = (appCtx.session.emailAttempts ?? 0) + 1;
+      if (appCtx.session.emailAttempts >= 3) {
+        appCtx.session.step = "done";
+        await appCtx.reply(
           "😔 Не удалось распознать email, продолжим без него — уточним при звонке.",
         );
 
@@ -253,11 +259,11 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
           source,
           campaign,
         });
-        await ctx.reply(successReply(name), { format: "markdown" });
+        await appCtx.reply(successReply(name), { format: "markdown" });
         return;
       }
 
-      await ctx.reply(
+      await appCtx.reply(
         "Не удалось распознать email. Введите, пожалуйста, адрес в формате: example@mail.ru",
       );
       return;
@@ -274,7 +280,6 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
   return bot;
 }
 
-export type MaxBot = ReturnType<typeof createMaxBot>;
 
 /**
  * Обработка webhook-апдейта через внутренний метод Bot.
