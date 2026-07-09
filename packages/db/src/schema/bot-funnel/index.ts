@@ -1,4 +1,10 @@
-import { integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 export const botFunnelEvents = pgTable(
   "bot_funnel_events",

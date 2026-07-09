@@ -26,7 +26,9 @@ interface UseDataRefreshReturn {
  * - Обновляет данные при возвращении фокуса (если прошло достаточно времени)
  * - Предоставляет ручную кнопку обновления для пользователя
  */
-export function useDataRefresh(options: UseDataRefreshOptions = {}): UseDataRefreshReturn {
+export function useDataRefresh(
+  options: UseDataRefreshOptions = {},
+): UseDataRefreshReturn {
   const { minInterval = FOCUS_REFRESH_DELAY, refreshOnFocus = true } = options;
   const router = useRouter();
   const [isRefreshing, setIsRefreshing] = useState(false);

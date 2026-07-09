@@ -2,7 +2,11 @@
 
 import { RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useState } from "react";
 import { refreshAdStatsAction } from "./actions";
 
@@ -21,8 +25,16 @@ export function AdRefreshButton() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading} className="gap-2">
-          <RefreshCwIcon className={`size-4 ${loading ? "animate-spin" : ""}`} />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={loading}
+          className="gap-2"
+        >
+          <RefreshCwIcon
+            className={`size-4 ${loading ? "animate-spin" : ""}`}
+          />
           <span>{loading ? "Обновление..." : "Обновить"}</span>
         </Button>
       </TooltipTrigger>

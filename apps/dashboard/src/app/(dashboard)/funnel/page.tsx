@@ -1,7 +1,17 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { funnelByStage, groupDealsByCategory } from "@/lib/analytics/aggregate";
 import { parseDateRange } from "@/lib/analytics/date-range";
-import { fetchCategoryNames, fetchDeals, fetchStageNames } from "@/lib/analytics/deals";
+import {
+  fetchCategoryNames,
+  fetchDeals,
+  fetchStageNames,
+} from "@/lib/analytics/deals";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import { FunnelStages } from "@/components/dashboard/funnel-stages";
 import { NotConnected } from "@/components/dashboard/not-connected";
@@ -21,7 +31,9 @@ export default async function FunnelPage({
     fetchCategoryNames(api),
   ]);
 
-  const byCategory = [...groupDealsByCategory(deals).entries()].sort(([, a], [, b]) => b.length - a.length);
+  const byCategory = [...groupDealsByCategory(deals).entries()].sort(
+    ([, a], [, b]) => b.length - a.length,
+  );
 
   if (byCategory.length === 0) {
     return (
@@ -39,7 +51,9 @@ export default async function FunnelPage({
       {byCategory.map(([categoryId, categoryDeals]) => (
         <Card key={categoryId}>
           <CardHeader>
-            <CardTitle>{categoryNames.get(categoryId) ?? `Воронка ${categoryId}`}</CardTitle>
+            <CardTitle>
+              {categoryNames.get(categoryId) ?? `Воронка ${categoryId}`}
+            </CardTitle>
             <CardDescription>
               Стадии сделок, созданных за период · {categoryDeals.length} сделок
             </CardDescription>

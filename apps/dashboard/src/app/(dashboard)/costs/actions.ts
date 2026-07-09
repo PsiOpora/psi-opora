@@ -10,7 +10,13 @@ export async function addCostAction(formData: FormData): Promise<void> {
   const amount = Number(String(formData.get("amount") ?? "").replace(",", "."));
   const note = String(formData.get("note") ?? "").trim();
 
-  if (!/^\d{4}-\d{2}$/.test(month) || !utmSource || !Number.isFinite(amount) || amount <= 0) return;
+  if (
+    !/^\d{4}-\d{2}$/.test(month) ||
+    !utmSource ||
+    !Number.isFinite(amount) ||
+    amount <= 0
+  )
+    return;
 
   await addCost({ month, utmSource, utmCampaign, amount, note });
   revalidatePath("/costs");

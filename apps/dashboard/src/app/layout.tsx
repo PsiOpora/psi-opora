@@ -9,12 +9,21 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "Пси-Опора — CRM аналитика",
-  description: "Аналитика CRM и маркетинга для Битрикс24: UTM-отчёты, воронка, источники.",
+  description:
+    "Аналитика CRM и маркетинга для Битрикс24: UTM-отчёты, воронка, источники.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="ru" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
+    <html
+      lang="ru"
+      suppressHydrationWarning
+      className={cn("font-sans", geist.variable)}
+    >
       <body>
         <TooltipProvider>
           <BitrixFrameProvider>{children}</BitrixFrameProvider>

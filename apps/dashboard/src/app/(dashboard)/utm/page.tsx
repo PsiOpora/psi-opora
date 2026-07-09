@@ -72,7 +72,11 @@ export default async function UtmReportPage({
         ))}
       </TabsList>
       {dimensions.map((dim) => (
-        <TabsContent key={dim.value} value={dim.value} className="flex flex-col gap-4">
+        <TabsContent
+          key={dim.value}
+          value={dim.value}
+          className="flex flex-col gap-4"
+        >
           <GroupBarChart
             title={dim.columnLabel}
             description={`Сумма выигранных сделок — ${dim.tab.toLowerCase()}`}

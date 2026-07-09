@@ -45,7 +45,7 @@ export interface BitrixWebhookHandlerOptions {
 
 export async function handleBitrixWebhook(
   payload: BitrixWebhookPayload,
-  options: BitrixWebhookHandlerOptions
+  options: BitrixWebhookHandlerOptions,
 ): Promise<void> {
   const { redisUrl, redisToken, prefix = CHAT_KEY_PREFIX } = options;
 
@@ -63,7 +63,7 @@ export async function handleBitrixWebhook(
   const sessionId = item.session?.id;
 
   console.log(
-    `[bitrix-webhook] event=${payload.event} chatId=${chatId} userId=${userId} sessionId=${sessionId}`
+    `[bitrix-webhook] event=${payload.event} chatId=${chatId} userId=${userId} sessionId=${sessionId}`,
   );
 
   if (!chatId) return;
@@ -80,7 +80,9 @@ export async function handleBitrixWebhook(
       ts: Date.now(),
     });
 
-    console.log(`[bitrix-webhook] сохранён chatId=${chatId} для userId=${userId}`);
+    console.log(
+      `[bitrix-webhook] сохранён chatId=${chatId} для userId=${userId}`,
+    );
   }
 }
 
@@ -95,7 +97,9 @@ export function bitrixWebhookHandler() {
     const webhookToken = env.BITRIX_WEBHOOK_TOKEN;
 
     if (!redisUrl || !redisToken) {
-      console.error("[bitrix-webhook] KV_REST_API_URL или KV_REST_API_TOKEN не заданы");
+      console.error(
+        "[bitrix-webhook] KV_REST_API_URL или KV_REST_API_TOKEN не заданы",
+      );
       return new Response("Internal Server Error", { status: 500 });
     }
 
@@ -106,14 +110,14 @@ export function bitrixWebhookHandler() {
 
     let payload: BitrixWebhookPayload;
     try {
-      payload = await req.json() as BitrixWebhookPayload;
+      payload = (await req.json()) as BitrixWebhookPayload;
     } catch {
       return new Response("Invalid JSON", { status: 400 });
     }
 
     if (payload.auth?.application_token !== webhookToken) {
       console.warn(
-        `[bitrix-webhook] неверный токен: получено=${payload.auth?.application_token} ожидалось=${webhookToken}`
+        `[bitrix-webhook] неверный токен: получено=${payload.auth?.application_token} ожидалось=${webhookToken}`,
       );
       return new Response("Unauthorized", { status: 401 });
     }

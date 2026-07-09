@@ -108,8 +108,8 @@ export default async function AdSettingsPage() {
                   className="underline underline-offset-2"
                 >
                   кабинете VK Реклама
-                </a>
-                {" "}(раздел Настройки → Доступ к API).
+                </a>{" "}
+                (раздел Настройки → Доступ к API).
               </p>
             </div>
 

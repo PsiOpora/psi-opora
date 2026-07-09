@@ -18,7 +18,10 @@ export type SiteCodeKey = keyof typeof SITE_CODE;
  * (?utm_campaign=... или ?ref=...), она приоритетнее дефолтного кода блока —
  * так рекламный трафик не обезличивается дефолтным кодом секции.
  */
-export function resolveStartCode(defaultCode: SiteCodeKey, searchParams: URLSearchParams): string {
+export function resolveStartCode(
+  defaultCode: SiteCodeKey,
+  searchParams: URLSearchParams,
+): string {
   const override = searchParams.get("utm_campaign") ?? searchParams.get("ref");
   return override || SITE_CODE[defaultCode];
 }

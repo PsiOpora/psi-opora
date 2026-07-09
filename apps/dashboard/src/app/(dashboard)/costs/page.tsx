@@ -1,14 +1,32 @@
 import { Trash2Icon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import { fetchDeals } from "@/lib/analytics/deals";
 import type { DealRecord } from "@/lib/analytics/types";
-import { listCosts, monthIntersectsRange, type CostEntry } from "@/lib/marketing/costs";
+import {
+  listCosts,
+  monthIntersectsRange,
+  type CostEntry,
+} from "@/lib/marketing/costs";
 import { isRedisConfigured } from "@/lib/redis";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
@@ -28,24 +46,42 @@ interface RoiRow {
   romi: number | null;
 }
 
-function matchesEntry(deal: DealRecord, utmSource: string, utmCampaign: string): boolean {
+function matchesEntry(
+  deal: DealRecord,
+  utmSource: string,
+  utmCampaign: string,
+): boolean {
   if (deal.utmSource !== utmSource) return false;
   return utmCampaign === "" || deal.utmCampaign === utmCampaign;
 }
 
-function buildRoiRows(costs: CostEntry[], deals: DealRecord[], from: Date, to: Date): RoiRow[] {
+function buildRoiRows(
+  costs: CostEntry[],
+  deals: DealRecord[],
+  from: Date,
+  to: Date,
+): RoiRow[] {
   const inRange = costs.filter((c) => monthIntersectsRange(c.month, from, to));
-  const spendByKey = new Map<string, { utmSource: string; utmCampaign: string; spend: number }>();
+  const spendByKey = new Map<
+    string,
+    { utmSource: string; utmCampaign: string; spend: number }
+  >();
   for (const cost of inRange) {
     const key = `${cost.utmSource}|${cost.utmCampaign}`;
-    const row = spendByKey.get(key) ?? { utmSource: cost.utmSource, utmCampaign: cost.utmCampaign, spend: 0 };
+    const row = spendByKey.get(key) ?? {
+      utmSource: cost.utmSource,
+      utmCampaign: cost.utmCampaign,
+      spend: 0,
+    };
     row.spend += cost.amount;
     spendByKey.set(key, row);
   }
 
   return [...spendByKey.values()]
     .map(({ utmSource, utmCampaign, spend }) => {
-      const matched = deals.filter((d) => matchesEntry(d, utmSource, utmCampaign));
+      const matched = deals.filter((d) =>
+        matchesEntry(d, utmSource, utmCampaign),
+      );
       const won = matched.filter((d) => d.status === "won");
       const revenue = won.reduce((sum, d) => sum + d.opportunity, 0);
       return {
@@ -77,8 +113,9 @@ export default async function CostsPage({
         <CardHeader>
           <CardTitle>Расходы</CardTitle>
           <CardDescription>
-            Хранилище расходов недоступно: переменные KV_REST_API_URL и KV_REST_API_TOKEN не заданы. На проде (Vercel)
-            они настроены — локально страница работает только с подключённым Redis.
+            Хранилище расходов недоступно: переменные KV_REST_API_URL и
+            KV_REST_API_TOKEN не заданы. На проде (Vercel) они настроены —
+            локально страница работает только с подключённым Redis.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -86,7 +123,10 @@ export default async function CostsPage({
   }
 
   const range = parseDateRange(await searchParams);
-  const [costs, deals] = await Promise.all([listCosts(), fetchDeals(api, range)]);
+  const [costs, deals] = await Promise.all([
+    listCosts(),
+    fetchDeals(api, range),
+  ]);
   const roiRows = buildRoiRows(costs, deals, range.from, range.to);
   const currentMonth = new Date().toISOString().slice(0, 7);
 
@@ -96,13 +136,23 @@ export default async function CostsPage({
         <CardHeader>
           <CardTitle>Эффективность каналов</CardTitle>
           <CardDescription>
-            Расходы сопоставляются со сделками по utm_source (+ utm_campaign, если указана). Расход учитывается за
-            целые месяцы, пересекающиеся с выбранным периодом.
+            Расходы сопоставляются со сделками по utm_source (+ utm_campaign,
+            если указана). Расход учитывается за целые месяцы, пересекающиеся с
+            выбранным периодом.
           </CardDescription>
           <CardAction>
             <ExportCsvButton
               filename="channel-roi.csv"
-              headers={["Источник", "Кампания", "Расход", "Сделок", "CPL", "Выиграно", "Выручка", "ROMI, %"]}
+              headers={[
+                "Источник",
+                "Кампания",
+                "Расход",
+                "Сделок",
+                "CPL",
+                "Выиграно",
+                "Выручка",
+                "ROMI, %",
+              ]}
               rows={roiRows.map((row) => [
                 row.utmSource,
                 row.utmCampaign,
@@ -138,16 +188,30 @@ export default async function CostsPage({
               <TableBody>
                 {roiRows.map((row) => (
                   <TableRow key={row.key}>
-                    <TableCell className="font-medium">{row.utmSource}</TableCell>
+                    <TableCell className="font-medium">
+                      {row.utmSource}
+                    </TableCell>
                     <TableCell>{row.utmCampaign || "(все кампании)"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMoney(row.spend)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.deals)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{row.cpl !== null ? formatMoney(row.cpl) : "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.won)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMoney(row.revenue)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(row.spend)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(row.deals)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.cpl !== null ? formatMoney(row.cpl) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(row.won)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(row.revenue)}
+                    </TableCell>
                     <TableCell className="text-right">
                       {row.romi !== null ? (
-                        <Badge variant={row.romi >= 0 ? "default" : "destructive"}>
+                        <Badge
+                          variant={row.romi >= 0 ? "default" : "destructive"}
+                        >
                           {row.romi >= 0 ? "+" : ""}
                           {formatPercent(row.romi)}
                         </Badge>
@@ -167,40 +231,90 @@ export default async function CostsPage({
         <CardHeader>
           <CardTitle>Добавить расход</CardTitle>
           <CardDescription>
-            Суммы из рекламных кабинетов (Яндекс.Директ, VK Ads, Telegram Ads) вносятся вручную помесячно
+            Суммы из рекламных кабинетов (Яндекс.Директ, VK Ads, Telegram Ads)
+            вносятся вручную помесячно
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={addCostAction} className="flex flex-wrap items-end gap-3">
+          <form
+            action={addCostAction}
+            className="flex flex-wrap items-end gap-3"
+          >
             <div className="flex flex-col gap-1">
-              <Label htmlFor="cost-month" className="text-xs text-muted-foreground">
+              <Label
+                htmlFor="cost-month"
+                className="text-xs text-muted-foreground"
+              >
                 Месяц
               </Label>
-              <Input id="cost-month" name="month" type="month" defaultValue={currentMonth} required className="w-40" />
+              <Input
+                id="cost-month"
+                name="month"
+                type="month"
+                defaultValue={currentMonth}
+                required
+                className="w-40"
+              />
             </div>
             <div className="flex flex-col gap-1">
-              <Label htmlFor="cost-source" className="text-xs text-muted-foreground">
+              <Label
+                htmlFor="cost-source"
+                className="text-xs text-muted-foreground"
+              >
                 UTM source
               </Label>
-              <Input id="cost-source" name="utmSource" placeholder="yandex" required className="w-40" />
+              <Input
+                id="cost-source"
+                name="utmSource"
+                placeholder="yandex"
+                required
+                className="w-40"
+              />
             </div>
             <div className="flex flex-col gap-1">
-              <Label htmlFor="cost-campaign" className="text-xs text-muted-foreground">
+              <Label
+                htmlFor="cost-campaign"
+                className="text-xs text-muted-foreground"
+              >
                 UTM campaign (не обязательно)
               </Label>
-              <Input id="cost-campaign" name="utmCampaign" placeholder="promo-june" className="w-44" />
+              <Input
+                id="cost-campaign"
+                name="utmCampaign"
+                placeholder="promo-june"
+                className="w-44"
+              />
             </div>
             <div className="flex flex-col gap-1">
-              <Label htmlFor="cost-amount" className="text-xs text-muted-foreground">
+              <Label
+                htmlFor="cost-amount"
+                className="text-xs text-muted-foreground"
+              >
                 Сумма, ₽
               </Label>
-              <Input id="cost-amount" name="amount" type="number" min="1" step="0.01" required className="w-32" />
+              <Input
+                id="cost-amount"
+                name="amount"
+                type="number"
+                min="1"
+                step="0.01"
+                required
+                className="w-32"
+              />
             </div>
             <div className="flex flex-col gap-1">
-              <Label htmlFor="cost-note" className="text-xs text-muted-foreground">
+              <Label
+                htmlFor="cost-note"
+                className="text-xs text-muted-foreground"
+              >
                 Заметка
               </Label>
-              <Input id="cost-note" name="note" placeholder="кабинет Директа" className="w-48" />
+              <Input
+                id="cost-note"
+                name="note"
+                placeholder="кабинет Директа"
+                className="w-48"
+              />
             </div>
             <Button type="submit">Добавить</Button>
           </form>
@@ -210,11 +324,15 @@ export default async function CostsPage({
       <Card>
         <CardHeader>
           <CardTitle>Внесённые расходы</CardTitle>
-          <CardDescription>{formatNumber(costs.length)} записей за всё время</CardDescription>
+          <CardDescription>
+            {formatNumber(costs.length)} записей за всё время
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {costs.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Расходов пока нет</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Расходов пока нет
+            </p>
           ) : (
             <Table>
               <TableHeader>
@@ -230,15 +348,28 @@ export default async function CostsPage({
               <TableBody>
                 {costs.map((cost) => (
                   <TableRow key={cost.id}>
-                    <TableCell className="font-medium tabular-nums">{cost.month}</TableCell>
+                    <TableCell className="font-medium tabular-nums">
+                      {cost.month}
+                    </TableCell>
                     <TableCell>{cost.utmSource}</TableCell>
-                    <TableCell>{cost.utmCampaign || "(все кампании)"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMoney(cost.amount)}</TableCell>
-                    <TableCell className="text-muted-foreground">{cost.note}</TableCell>
+                    <TableCell>
+                      {cost.utmCampaign || "(все кампании)"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(cost.amount)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {cost.note}
+                    </TableCell>
                     <TableCell>
                       <form action={deleteCostAction}>
                         <input type="hidden" name="id" value={cost.id} />
-                        <Button type="submit" variant="ghost" size="sm" aria-label="Удалить расход">
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Удалить расход"
+                        >
                           <Trash2Icon />
                         </Button>
                       </form>

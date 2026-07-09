@@ -1,4 +1,8 @@
-import { createRedisStorage, createUpstashRedis, type StorageAdapter } from "@psi-opora/bot-core";
+import {
+  createRedisStorage,
+  createUpstashRedis,
+  type StorageAdapter,
+} from "@psi-opora/bot-core";
 
 export interface PortalTokens {
   memberId: string;
@@ -22,7 +26,9 @@ function redisKey(memberId: string): string {
   return `bitrix24:dashboard:portal:${memberId}`;
 }
 
-export async function getPortalTokens(memberId: string): Promise<PortalTokens | undefined> {
+export async function getPortalTokens(
+  memberId: string,
+): Promise<PortalTokens | undefined> {
   return getStorage().read(redisKey(memberId));
 }
 

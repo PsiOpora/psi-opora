@@ -1,4 +1,9 @@
-import { groupBySource, groupByUtmSource, summarize, trendByDay } from "@/lib/analytics/aggregate";
+import {
+  groupBySource,
+  groupByUtmSource,
+  summarize,
+  trendByDay,
+} from "@/lib/analytics/aggregate";
 import { parseDateRange, previousRange } from "@/lib/analytics/date-range";
 import { fetchDeals, fetchSourceNames } from "@/lib/analytics/deals";
 import { getBitrixApi } from "@/lib/bitrix/session";

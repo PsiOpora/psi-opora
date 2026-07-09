@@ -20,8 +20,14 @@ export function ExportCsvButton({
   function download() {
     // BOM + ";" — чтобы русский Excel открывал файл без настройки импорта
     const bom = String.fromCharCode(0xfeff);
-    const csv = bom + [headers, ...rows].map((row) => row.map(escapeCell).join(";")).join("\r\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const csv =
+      bom +
+      [headers, ...rows]
+        .map((row) => row.map(escapeCell).join(";"))
+        .join("\r\n");
+    const url = URL.createObjectURL(
+      new Blob([csv], { type: "text/csv;charset=utf-8" }),
+    );
     const link = document.createElement("a");
     link.href = url;
     link.download = filename;

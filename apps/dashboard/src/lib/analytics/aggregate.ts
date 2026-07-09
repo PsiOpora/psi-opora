@@ -1,4 +1,10 @@
-import type { DealRecord, FunnelStage, GroupStats, Summary, TrendPoint } from "./types";
+import type {
+  DealRecord,
+  FunnelStage,
+  GroupStats,
+  Summary,
+  TrendPoint,
+} from "./types";
 import type { StageInfo } from "./deals";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -23,11 +29,17 @@ export function summarize(deals: DealRecord[]): Summary {
     wonSum,
     conversionRate: closed > 0 ? wonDeals.length / closed : 0,
     avgDealSize: wonDeals.length > 0 ? wonSum / wonDeals.length : 0,
-    avgCycleDays: cycles.length > 0 ? cycles.reduce((sum, d) => sum + d, 0) / cycles.length : 0,
+    avgCycleDays:
+      cycles.length > 0
+        ? cycles.reduce((sum, d) => sum + d, 0) / cycles.length
+        : 0,
   };
 }
 
-export function bucketBy(deals: DealRecord[], keyOf: (deal: DealRecord) => string): Map<string, DealRecord[]> {
+export function bucketBy(
+  deals: DealRecord[],
+  keyOf: (deal: DealRecord) => string,
+): Map<string, DealRecord[]> {
   const groups = new Map<string, DealRecord[]>();
   for (const deal of deals) {
     const key = keyOf(deal);
@@ -62,8 +74,14 @@ export function computeGroupStats(
   return stats;
 }
 
-function groupBy(deals: DealRecord[], keyOf: (deal: DealRecord) => string, labelOf?: (key: string) => string): GroupStats[] {
-  return computeGroupStats(bucketBy(deals, keyOf), labelOf).sort((a, b) => b.deals - a.deals);
+function groupBy(
+  deals: DealRecord[],
+  keyOf: (deal: DealRecord) => string,
+  labelOf?: (key: string) => string,
+): GroupStats[] {
+  return computeGroupStats(bucketBy(deals, keyOf), labelOf).sort(
+    (a, b) => b.deals - a.deals,
+  );
 }
 
 export function groupByUtmSource(deals: DealRecord[]): GroupStats[] {
@@ -86,7 +104,10 @@ export function groupByUtmTerm(deals: DealRecord[]): GroupStats[] {
   return groupBy(deals, (d) => d.utmTerm);
 }
 
-export function groupBySource(deals: DealRecord[], names: Map<string, string>): GroupStats[] {
+export function groupBySource(
+  deals: DealRecord[],
+  names: Map<string, string>,
+): GroupStats[] {
   return groupBy(
     deals,
     (d) => d.sourceId,
@@ -95,7 +116,10 @@ export function groupBySource(deals: DealRecord[], names: Map<string, string>): 
 }
 
 /** Разбивка сделок одной воронки по стадиям в порядке SORT справочника стадий. */
-export function funnelByStage(deals: DealRecord[], stages: Map<string, StageInfo>): FunnelStage[] {
+export function funnelByStage(
+  deals: DealRecord[],
+  stages: Map<string, StageInfo>,
+): FunnelStage[] {
   const byStage = bucketBy(deals, (d) => d.stageId);
   const total = deals.length;
   return [...byStage.entries()]
@@ -113,7 +137,9 @@ export function funnelByStage(deals: DealRecord[], stages: Map<string, StageInfo
     );
 }
 
-export function groupDealsByCategory(deals: DealRecord[]): Map<string, DealRecord[]> {
+export function groupDealsByCategory(
+  deals: DealRecord[],
+): Map<string, DealRecord[]> {
   return bucketBy(deals, (d) => d.categoryId);
 }
 

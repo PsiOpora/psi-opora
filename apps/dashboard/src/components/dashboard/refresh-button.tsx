@@ -2,7 +2,11 @@
 
 import { RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useDataRefresh } from "@/hooks/use-data-refresh";
 
 interface RefreshButtonProps {
@@ -12,7 +16,10 @@ interface RefreshButtonProps {
   showCountdown?: boolean;
 }
 
-export function RefreshButton({ showLabel = true, showCountdown = true }: RefreshButtonProps) {
+export function RefreshButton({
+  showLabel = true,
+  showCountdown = true,
+}: RefreshButtonProps) {
   const { isRefreshing, nextRefreshIn, refresh } = useDataRefresh();
 
   return (

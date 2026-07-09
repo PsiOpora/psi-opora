@@ -123,9 +123,7 @@ export function createBot({ storage, redis }: BotOptions = {}) {
   bot.catch((err) => {
     const ctx = err.ctx as AppContext;
     log(`[ERROR] update_id=${ctx.update.update_id} ${err.error}`);
-    ctx.reply(
-      "⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.",
-    );
+    ctx.reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.");
   });
 
   return bot;

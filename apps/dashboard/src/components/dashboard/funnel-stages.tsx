@@ -18,7 +18,8 @@ export function FunnelStages({ stages }: { stages: FunnelStage[] }) {
           <div className="flex items-baseline justify-between gap-2 text-sm">
             <span className="font-medium">{stage.label}</span>
             <span className="whitespace-nowrap text-muted-foreground">
-              {formatNumber(stage.deals)} · {formatMoney(stage.opportunitySum)} · {formatPercent(stage.share)}
+              {formatNumber(stage.deals)} · {formatMoney(stage.opportunitySum)}{" "}
+              · {formatPercent(stage.share)}
             </span>
           </div>
           <div className="h-2 w-full rounded-full bg-muted">

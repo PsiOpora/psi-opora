@@ -24,7 +24,9 @@ export function FunnelChart({ steps, title, className }: FunnelChartProps) {
   return (
     <div className={cn("flex flex-col", className)}>
       {title && (
-        <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">{title}</h3>
+        <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          {title}
+        </h3>
       )}
       <div className="flex flex-col gap-0">
         {steps.map((step, i) => {
@@ -40,15 +42,19 @@ export function FunnelChart({ steps, title, className }: FunnelChartProps) {
                 <div className="relative flex-1 min-w-0">
                   {/* Trapezoid shape using CSS clip-path */}
                   <div
-                    className={cn("h-10 rounded-r-md flex items-center px-3 transition-all duration-500", color)}
+                    className={cn(
+                      "h-10 rounded-r-md flex items-center px-3 transition-all duration-500",
+                      color,
+                    )}
                     style={{
                       width: `${Math.max(widthPct, 4)}%`,
                       minWidth: "40px",
-                      clipPath: i === 0
-                        ? "polygon(0 0, 100% 15%, 100% 85%, 0 100%)"
-                        : isLast
-                          ? "polygon(0 15%, 100% 0%, 100% 100%, 0 100%)"
-                          : "polygon(0 15%, 100% 0%, 100% 100%, 0 100%)",
+                      clipPath:
+                        i === 0
+                          ? "polygon(0 0, 100% 15%, 100% 85%, 0 100%)"
+                          : isLast
+                            ? "polygon(0 15%, 100% 0%, 100% 100%, 0 100%)"
+                            : "polygon(0 15%, 100% 0%, 100% 100%, 0 100%)",
                     }}
                   >
                     <span className="text-white text-xs font-medium truncate drop-shadow-sm">
@@ -59,7 +65,9 @@ export function FunnelChart({ steps, title, className }: FunnelChartProps) {
 
                 {/* Right: labels */}
                 <div className="flex flex-col items-end gap-0.5 min-w-0 pl-2">
-                  <span className="text-sm font-medium leading-tight text-right">{step.label}</span>
+                  <span className="text-sm font-medium leading-tight text-right">
+                    {step.label}
+                  </span>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap">
                     <span>{formatPercent(step.shareOfStart)} от старта</span>
                     {i > 0 && (
@@ -78,13 +86,27 @@ export function FunnelChart({ steps, title, className }: FunnelChartProps) {
               {!isLast && (
                 <div className="flex items-center justify-start pl-4 pb-1">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <svg width="12" height="16" viewBox="0 0 12 16" fill="none" className="shrink-0">
-                      <path d="M6 0v12M1 7l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <svg
+                      width="12"
+                      height="16"
+                      viewBox="0 0 12 16"
+                      fill="none"
+                      className="shrink-0"
+                    >
+                      <path
+                        d="M6 0v12M1 7l5 5 5-5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                     <span className="font-medium text-foreground">
                       {formatPercent(steps[i + 1]!.stepConversion)} конверсия
                     </span>
-                    <span className="text-muted-foreground">({formatNumber(step.count - steps[i + 1]!.count)} потерь)</span>
+                    <span className="text-muted-foreground">
+                      ({formatNumber(step.count - steps[i + 1]!.count)} потерь)
+                    </span>
                   </div>
                 </div>
               )}
@@ -101,7 +123,8 @@ export function FunnelChart({ steps, title, className }: FunnelChartProps) {
             {formatPercent(steps[steps.length - 1]?.shareOfStart ?? 0)}
           </span>
           <span className="text-muted-foreground text-xs">
-            ({formatNumber(steps[0]?.count ?? 0)} → {formatNumber(steps[steps.length - 1]?.count ?? 0)})
+            ({formatNumber(steps[0]?.count ?? 0)} →{" "}
+            {formatNumber(steps[steps.length - 1]?.count ?? 0)})
           </span>
         </div>
       </div>

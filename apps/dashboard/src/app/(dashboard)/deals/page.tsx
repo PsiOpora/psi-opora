@@ -1,4 +1,10 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import { fetchDeals } from "@/lib/analytics/deals";
 import { getBitrixApi } from "@/lib/bitrix/session";
@@ -20,7 +26,9 @@ export default async function DealsPage({
     <Card>
       <CardHeader>
         <CardTitle>Сделки</CardTitle>
-        <CardDescription>{deals.length} сделок за выбранный период</CardDescription>
+        <CardDescription>
+          {deals.length} сделок за выбранный период
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <DealsTable deals={deals} />

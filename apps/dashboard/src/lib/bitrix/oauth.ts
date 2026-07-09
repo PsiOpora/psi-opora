@@ -31,7 +31,9 @@ interface OAuthTokenResponse {
  * Продлевает access_token по refresh_token.
  * @link https://apidocs.bitrix24.ru/api-reference/oauth/index.html
  */
-export async function refreshPortalTokens(tokens: PortalTokens): Promise<PortalTokens> {
+export async function refreshPortalTokens(
+  tokens: PortalTokens,
+): Promise<PortalTokens> {
   const url = new URL(OAUTH_SERVER);
   url.searchParams.set("grant_type", "refresh_token");
   url.searchParams.set("client_id", getClientId());
@@ -41,7 +43,9 @@ export async function refreshPortalTokens(tokens: PortalTokens): Promise<PortalT
   const res = await fetch(url, { method: "GET" });
   const json = (await res.json()) as OAuthTokenResponse;
   if (json.error) {
-    throw new Error(`Bitrix24 OAuth refresh: ${json.error} — ${json.error_description ?? ""}`);
+    throw new Error(
+      `Bitrix24 OAuth refresh: ${json.error} — ${json.error_description ?? ""}`,
+    );
   }
 
   const updated: PortalTokens = {
@@ -57,7 +61,9 @@ export async function refreshPortalTokens(tokens: PortalTokens): Promise<PortalT
 }
 
 /** Возвращает актуальные токены портала, обновляя их при необходимости. */
-export async function getValidPortalTokens(memberId: string): Promise<PortalTokens | undefined> {
+export async function getValidPortalTokens(
+  memberId: string,
+): Promise<PortalTokens | undefined> {
   const tokens = await getPortalTokens(memberId);
   if (!tokens) return undefined;
 

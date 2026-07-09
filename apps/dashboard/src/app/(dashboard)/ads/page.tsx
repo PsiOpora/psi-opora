@@ -1,7 +1,24 @@
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fetchAdStats, getCachedAdStats, type AdStatsResult } from "@/lib/marketing/ads-api";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  fetchAdStats,
+  getCachedAdStats,
+  type AdStatsResult,
+} from "@/lib/marketing/ads-api";
 import { getRedisOrNull } from "@/lib/redis";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { AdRefreshButton } from "./refresh-button";
@@ -14,9 +31,19 @@ function formatCtr(clicks: number, impressions: number): string {
   return ((clicks / impressions) * 100).toFixed(2) + "%";
 }
 
-function StatusBadge({ status, platform }: { status: string; platform: string }) {
+function StatusBadge({
+  status,
+  platform,
+}: {
+  status: string;
+  platform: string;
+}) {
   const isActive = status === "RUNNING" || status === "1";
-  const label = isActive ? "Активна" : status === "SUSPENDED" || status === "0" ? "Приостановлена" : status;
+  const label = isActive
+    ? "Активна"
+    : status === "SUSPENDED" || status === "0"
+      ? "Приостановлена"
+      : status;
   return (
     <Badge variant={isActive ? "default" : "secondary"}>
       {platform === "vk" ? "🔵" : "🔴"} {label}
@@ -28,7 +55,9 @@ export default async function AdsPage() {
   const redis = getRedisOrNull();
   const today = new Date();
   const dateTo = today.toISOString().split("T")[0]!;
-  const dateFrom = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!;
+  const dateFrom = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0]!;
 
   let data: AdStatsResult | null = null;
   let loadError = false;
@@ -73,7 +102,8 @@ export default async function AdsPage() {
           <h1 className="text-2xl font-semibold">Рекламные кампании</h1>
           <p className="text-sm text-muted-foreground">
             Данные из Яндекс.Директ и VK Ads
-            {liveData.lastUpdated && ` · обновлено ${new Date(liveData.lastUpdated).toLocaleString("ru-RU")}`}
+            {liveData.lastUpdated &&
+              ` · обновлено ${new Date(liveData.lastUpdated).toLocaleString("ru-RU")}`}
           </p>
         </div>
         <AdRefreshButton />
@@ -82,31 +112,44 @@ export default async function AdsPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Расход за 7 дней</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Расход за 7 дней
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatMoney(liveData.totalSpend)}</div>
-            {dbStats.summary.totalSpend > 0 && dbStats.summary.totalSpend !== liveData.totalSpend && (
-              <p className="text-xs text-muted-foreground mt-1">
-                БД: {formatMoney(dbStats.summary.totalSpend)}
-              </p>
-            )}
+            <div className="text-2xl font-bold">
+              {formatMoney(liveData.totalSpend)}
+            </div>
+            {dbStats.summary.totalSpend > 0 &&
+              dbStats.summary.totalSpend !== liveData.totalSpend && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  БД: {formatMoney(dbStats.summary.totalSpend)}
+                </p>
+              )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Показы</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Показы
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(liveData.totalImpressions)}</div>
+            <div className="text-2xl font-bold">
+              {formatNumber(liveData.totalImpressions)}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Клики</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Клики
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(liveData.totalClicks)}</div>
+            <div className="text-2xl font-bold">
+              {formatNumber(liveData.totalClicks)}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -115,7 +158,9 @@ export default async function AdsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Динамика за 7 дней</CardTitle>
-            <CardDescription>Агрегированные данные из PostgreSQL</CardDescription>
+            <CardDescription>
+              Агрегированные данные из PostgreSQL
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <AdTrendChart rows={dbStats.rows} />
@@ -153,14 +198,24 @@ export default async function AdsPage() {
                 {liveData.campaigns.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell>{c.platform === "vk" ? "VK Ads" : "Яндекс.Директ"}</TableCell>
+                    <TableCell>
+                      {c.platform === "vk" ? "VK Ads" : "Яндекс.Директ"}
+                    </TableCell>
                     <TableCell>
                       <StatusBadge status={c.status} platform={c.platform} />
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(c.impressions)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(c.clicks)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatCtr(c.clicks, c.impressions)}</TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">{formatMoney(c.spend)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(c.impressions)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(c.clicks)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatCtr(c.clicks, c.impressions)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">
+                      {formatMoney(c.spend)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

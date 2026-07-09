@@ -15,12 +15,19 @@ export default async function SourcesPage({
   if (!api) return <NotConnected />;
 
   const range = parseDateRange(await searchParams);
-  const [deals, sourceNames] = await Promise.all([fetchDeals(api, range), fetchSourceNames(api)]);
+  const [deals, sourceNames] = await Promise.all([
+    fetchDeals(api, range),
+    fetchSourceNames(api),
+  ]);
   const bySource = groupBySource(deals, sourceNames);
 
   return (
     <div className="flex flex-col gap-4">
-      <GroupBarChart title="Источники CRM" description="Сумма выигранных сделок по источнику (SOURCE_ID)" data={bySource} />
+      <GroupBarChart
+        title="Источники CRM"
+        description="Сумма выигранных сделок по источнику (SOURCE_ID)"
+        data={bySource}
+      />
       <GroupStatsCard
         title="По источникам"
         description="Справочник источников CRM (Приложения → CRM → Настройки → Источники)"

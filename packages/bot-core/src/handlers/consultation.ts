@@ -1,4 +1,4 @@
-import { type Conversation } from "@grammyjs/conversations";
+import type { Conversation } from "@grammyjs/conversations";
 import type { ConvContext } from "../types/context";
 import { trackFunnelStep, type FunnelStep } from "../utils/funnel";
 import { hasPhoneNumber, isValidEmail } from "../utils/validation";

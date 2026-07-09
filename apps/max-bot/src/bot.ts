@@ -1,18 +1,18 @@
 import { Bot, Context, Keyboard, type MiddlewareFn } from "@maxhub/max-bot-api";
 import {
-  parseUtmParams,
+  CONSENT_DECLINED_TEXT,
+  CONSENT_TEXT,
+  type ConsultationSession,
   formatUtmLog,
-  trackFunnelStep,
-  setFunnelUpsert,
-  submitConsultationDeal,
   hasPhoneNumber,
   isValidEmail,
-  WELCOME_TEXT,
-  CONSENT_TEXT,
-  CONSENT_DECLINED_TEXT,
-  successReply,
-  type ConsultationSession,
+  parseUtmParams,
   type StorageAdapter,
+  setFunnelUpsert,
+  submitConsultationDeal,
+  successReply,
+  trackFunnelStep,
+  WELCOME_TEXT,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
@@ -107,7 +107,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}) {
   bot.use(sessionMiddleware(storage));
 
   bot.on("bot_started", (ctx) =>
-    handleStart(ctx, ctx.startPayload ?? undefined),
+    handleStart(ctx as AppContext, (ctx as unknown as { startPayload?: string | null }).startPayload ?? undefined),
   );
   bot.command("start", (ctx) => handleStart(ctx, undefined));
 
@@ -286,5 +286,7 @@ export async function processUpdate(
   bot: MaxBot,
   update: unknown,
 ): Promise<void> {
-  await (bot as unknown as { handleUpdate(update: unknown): Promise<void> }).handleUpdate(update);
+  await (
+    bot as unknown as { handleUpdate(update: unknown): Promise<void> }
+  ).handleUpdate(update);
 }

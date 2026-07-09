@@ -35,15 +35,21 @@ function getWebhookBase(messenger: string): string {
   return url.replace(/\/$/, "");
 }
 
-async function bitrixPost<T = unknown>(method: string, body: unknown, messenger: string): Promise<T> {
+async function bitrixPost<T = unknown>(
+  method: string,
+  body: unknown,
+  messenger: string,
+): Promise<T> {
   const res = await fetch(`${getWebhookBase(messenger)}/${method}.json`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const json = await res.json() as any;
+  const json = (await res.json()) as any;
   if (json.error) {
-    throw new Error(`Bitrix24 [${method}]: ${json.error} — ${json.error_description ?? ""}`);
+    throw new Error(
+      `Bitrix24 [${method}]: ${json.error} — ${json.error_description ?? ""}`,
+    );
   }
   return json.result as T;
 }
@@ -53,14 +59,16 @@ function buildContactFields(data: DealData) {
   return {
     NAME: data.name,
     PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
-    ...(data.email ? { EMAIL: [{ VALUE: data.email, VALUE_TYPE: "WORK" }] } : {}),
+    ...(data.email
+      ? { EMAIL: [{ VALUE: data.email, VALUE_TYPE: "WORK" }] }
+      : {}),
     SOURCE_ID: getSourceId(messenger),
-    SOURCE_DESCRIPTION: [data.source, data.campaign].filter(Boolean).join(" / "),
+    SOURCE_DESCRIPTION: [data.source, data.campaign]
+      .filter(Boolean)
+      .join(" / "),
     ...(data.telegramUserId
       ? {
-          IM: [
-            { VALUE: String(data.telegramUserId), VALUE_TYPE: messenger },
-          ],
+          IM: [{ VALUE: String(data.telegramUserId), VALUE_TYPE: messenger }],
         }
       : {}),
   };
@@ -96,54 +104,82 @@ async function linkBitrixTrace(
 ): Promise<void> {
   const trace = {
     SOURCE_ID: getSourceId(messenger),
-    SOURCE_DESC: [data.source, data.campaign].filter(Boolean).join(" / ") || `${messenger} бот`,
+    SOURCE_DESC:
+      [data.source, data.campaign].filter(Boolean).join(" / ") ||
+      `${messenger} бот`,
   };
 
   try {
-    await bitrixPost("crm.tracking.trace.add", {
-      TRACE: JSON.stringify(trace),
-      ENTITIES: [
-        { TYPE: "CONTACT", ID: contactId },
-        { TYPE: "DEAL", ID: dealId },
-      ],
-    }, messenger);
+    await bitrixPost(
+      "crm.tracking.trace.add",
+      {
+        TRACE: JSON.stringify(trace),
+        ENTITIES: [
+          { TYPE: "CONTACT", ID: contactId },
+          { TYPE: "DEAL", ID: dealId },
+        ],
+      },
+      messenger,
+    );
   } catch (err: any) {
-    console.error(`[bitrix] не удалось привязать трейс сквозной аналитики: ${err.message}`);
+    console.error(
+      `[bitrix] не удалось привязать трейс сквозной аналитики: ${err.message}`,
+    );
   }
 }
 
-export async function createBitrixDeal(data: DealData): Promise<{ contactId: number; dealId: number }> {
+export async function createBitrixDeal(
+  data: DealData,
+): Promise<{ contactId: number; dealId: number }> {
   const messenger = data.messenger ?? "telegram";
   const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
   if (!webhookUrl) {
-    console.warn(`[bitrix] BITRIX_WEBHOOK_URL не задан для ${messenger}, пропускаем`);
+    console.warn(
+      `[bitrix] BITRIX_WEBHOOK_URL не задан для ${messenger}, пропускаем`,
+    );
     return { contactId: 0, dealId: 0 };
   }
 
-  const contactId = await bitrixPost<number>("crm.contact.add", {
-    fields: buildContactFields(data),
-  }, messenger);
+  const contactId = await bitrixPost<number>(
+    "crm.contact.add",
+    {
+      fields: buildContactFields(data),
+    },
+    messenger,
+  );
 
-  const dealId = await bitrixPost<number>("crm.deal.add", {
-    fields: buildDealFields(data, contactId),
-  }, messenger);
+  const dealId = await bitrixPost<number>(
+    "crm.deal.add",
+    {
+      fields: buildDealFields(data, contactId),
+    },
+    messenger,
+  );
   console.log(
-    `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`
+    `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
   );
 
   await linkBitrixTrace(messenger, contactId, dealId, data);
 
   if (data.chatId) {
     try {
-      await bitrixPost("imopenlines.crm.chat.user.add", {
-        CRM_ENTITY_TYPE: "contact",
-        CRM_ENTITY: contactId,
-        USER_ID: data.operatorId ?? 0,
-        CHAT_ID: data.chatId,
-      }, messenger);
-      console.log(`[bitrix] чат ${data.chatId} привязан к контакту ${contactId}`);
+      await bitrixPost(
+        "imopenlines.crm.chat.user.add",
+        {
+          CRM_ENTITY_TYPE: "contact",
+          CRM_ENTITY: contactId,
+          USER_ID: data.operatorId ?? 0,
+          CHAT_ID: data.chatId,
+        },
+        messenger,
+      );
+      console.log(
+        `[bitrix] чат ${data.chatId} привязан к контакту ${contactId}`,
+      );
     } catch (err: any) {
-      console.error(`[bitrix] не удалось привязать чат к контакту: ${err.message}`);
+      console.error(
+        `[bitrix] не удалось привязать чат к контакту: ${err.message}`,
+      );
     }
   }
 
@@ -155,27 +191,39 @@ export interface BitrixSource {
   NAME: string;
 }
 
-export async function listBitrixSources(messenger: string): Promise<BitrixSource[]> {
+export async function listBitrixSources(
+  messenger: string,
+): Promise<BitrixSource[]> {
   const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
-  if (!webhookUrl) throw new Error(`BITRIX_WEBHOOK_URL не задан для ${messenger}`);
+  if (!webhookUrl)
+    throw new Error(`BITRIX_WEBHOOK_URL не задан для ${messenger}`);
 
-  return bitrixPost<BitrixSource[]>("crm.status.list", {
-    filter: { ENTITY_ID: "SOURCE" },
-    select: ["STATUS_ID", "NAME"],
-  }, messenger);
+  return bitrixPost<BitrixSource[]>(
+    "crm.status.list",
+    {
+      filter: { ENTITY_ID: "SOURCE" },
+      select: ["STATUS_ID", "NAME"],
+    },
+    messenger,
+  );
 }
 
 export async function registerBitrixSource(messenger: string): Promise<void> {
   const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
-  if (!webhookUrl) throw new Error(`BITRIX_WEBHOOK_URL не задан для ${messenger}`);
+  if (!webhookUrl)
+    throw new Error(`BITRIX_WEBHOOK_URL не задан для ${messenger}`);
 
   const sourceId = getSourceId(messenger);
   const sourceName = getSourceName(messenger);
 
   try {
-    await bitrixPost("crm.status.add", {
-      fields: { ENTITY_ID: "SOURCE", STATUS_ID: sourceId, NAME: sourceName },
-    }, messenger);
+    await bitrixPost(
+      "crm.status.add",
+      {
+        fields: { ENTITY_ID: "SOURCE", STATUS_ID: sourceId, NAME: sourceName },
+      },
+      messenger,
+    );
     console.log(`[bitrix] источник создан: ${sourceId} (${sourceName})`);
   } catch (err: any) {
     if (String(err.message).includes("Duplicate")) {
@@ -186,26 +234,40 @@ export async function registerBitrixSource(messenger: string): Promise<void> {
   }
 }
 
-export async function registerBitrixConnector(messenger: string): Promise<void> {
+export async function registerBitrixConnector(
+  messenger: string,
+): Promise<void> {
   const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
-  if (!webhookUrl) throw new Error(`BITRIX_WEBHOOK_URL не задан для ${messenger}`);
+  if (!webhookUrl)
+    throw new Error(`BITRIX_WEBHOOK_URL не задан для ${messenger}`);
 
-  const connectorId = getEnv(messenger, "BITRIX_CONNECTOR_ID") ?? `psiopora_${messenger}_bot`;
+  const connectorId =
+    getEnv(messenger, "BITRIX_CONNECTOR_ID") ?? `psiopora_${messenger}_bot`;
   const openLineId = getEnv(messenger, "BITRIX_OPEN_LINE_ID");
 
-  await bitrixPost("imconnector.register", {
-    ID: connectorId,
-    NAME: `Пси-Опора ${messenger === "telegram" ? "Telegram" : "MAX"} Бот`,
-    ICON: { DATA_IMAGE: "" },
-  }, messenger);
+  await bitrixPost(
+    "imconnector.register",
+    {
+      ID: connectorId,
+      NAME: `Пси-Опора ${messenger === "telegram" ? "Telegram" : "MAX"} Бот`,
+      ICON: { DATA_IMAGE: "" },
+    },
+    messenger,
+  );
   console.log(`[bitrix] коннектор зарегистрирован: ${connectorId}`);
 
   if (openLineId) {
-    await bitrixPost("imconnector.activate", {
-      CONNECTOR: connectorId,
-      LINE: openLineId,
-      ACTIVE: "Y",
-    }, messenger);
-    console.log(`[bitrix] коннектор активирован для линии: ${openLineId} (${messenger})`);
+    await bitrixPost(
+      "imconnector.activate",
+      {
+        CONNECTOR: connectorId,
+        LINE: openLineId,
+        ACTIVE: "Y",
+      },
+      messenger,
+    );
+    console.log(
+      `[bitrix] коннектор активирован для линии: ${openLineId} (${messenger})`,
+    );
   }
 }

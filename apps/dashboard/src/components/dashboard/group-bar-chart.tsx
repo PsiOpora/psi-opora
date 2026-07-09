@@ -1,8 +1,19 @@
 "use client";
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 import type { GroupStats } from "@/lib/analytics/types";
 
 const chartConfig = {
@@ -37,7 +48,9 @@ export function GroupBarChart({
               tickLine={false}
               axisLine={false}
               width={140}
-              tickFormatter={(value: string) => (value.length > 20 ? `${value.slice(0, 20)}…` : value)}
+              tickFormatter={(value: string) =>
+                value.length > 20 ? `${value.slice(0, 20)}…` : value
+              }
             />
             <ChartTooltip content={<ChartTooltipContent />} />
             <Bar dataKey="wonSum" fill="var(--color-wonSum)" radius={4} />

@@ -79,7 +79,9 @@ export async function submitConsultationDeal(
     await trackFunnelStep("deal", funnelCtx);
     return true;
   } catch (err: any) {
-    console.error(`[bitrix] ошибка создания сделки (${messenger}): ${err.message}`);
+    console.error(
+      `[bitrix] ошибка создания сделки (${messenger}): ${err.message}`,
+    );
     return false;
   }
 }

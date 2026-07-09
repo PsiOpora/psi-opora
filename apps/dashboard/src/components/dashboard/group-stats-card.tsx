@@ -1,4 +1,11 @@
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import type { GroupStats } from "@/lib/analytics/types";
 import { ExportCsvButton } from "./export-csv-button";
 import { GroupStatsTable } from "./group-stats-table";
@@ -33,7 +40,14 @@ export function GroupStatsCard({
         <CardAction>
           <ExportCsvButton
             filename={csvName}
-            headers={[columnLabel, "Сделок", "Выиграно", "Конверсия, %", "Сумма выигранных", "Сумма в воронке"]}
+            headers={[
+              columnLabel,
+              "Сделок",
+              "Выиграно",
+              "Конверсия, %",
+              "Сумма выигранных",
+              "Сумма в воронке",
+            ]}
             rows={csvRows}
           />
         </CardAction>

@@ -1,8 +1,19 @@
 "use client";
 
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 import type { TrendPoint } from "@/lib/analytics/types";
 
 const chartConfig = {
@@ -15,7 +26,9 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
     <Card>
       <CardHeader>
         <CardTitle>Динамика сделок</CardTitle>
-        <CardDescription>Количество новых и выигранных сделок по дням</CardDescription>
+        <CardDescription>
+          Количество новых и выигранных сделок по дням
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">
@@ -30,8 +43,20 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
             />
             <YAxis tickLine={false} axisLine={false} width={32} />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Area dataKey="deals" type="monotone" fill="var(--color-deals)" fillOpacity={0.2} stroke="var(--color-deals)" />
-            <Area dataKey="won" type="monotone" fill="var(--color-won)" fillOpacity={0.4} stroke="var(--color-won)" />
+            <Area
+              dataKey="deals"
+              type="monotone"
+              fill="var(--color-deals)"
+              fillOpacity={0.2}
+              stroke="var(--color-deals)"
+            />
+            <Area
+              dataKey="won"
+              type="monotone"
+              fill="var(--color-won)"
+              fillOpacity={0.4}
+              stroke="var(--color-won)"
+            />
           </AreaChart>
         </ChartContainer>
       </CardContent>

@@ -23,7 +23,11 @@ export const metadata: Metadata = {
     "Когда подросток отказывается от помощи, путь к его выздоровлению начинается с родителя. Бесплатная диагностика для родителей — онлайн по всей России и очно в Нижнем Новгороде.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="ru" className={`${spectral.variable} ${inter.variable}`}>
       <body>{children}</body>

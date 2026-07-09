@@ -1,5 +1,10 @@
 import { parseDateRange } from "@/lib/analytics/date-range";
-import { fetchCategoryNames, fetchDeals, fetchSourceNames, fetchStageNames } from "@/lib/analytics/deals";
+import {
+  fetchCategoryNames,
+  fetchDeals,
+  fetchSourceNames,
+  fetchStageNames,
+} from "@/lib/analytics/deals";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { ReportBuilder } from "@/components/dashboard/report-builder";
@@ -26,7 +31,9 @@ export default async function BuilderPage({
       dictionaries={{
         sources: Object.fromEntries(sourceNames),
         categories: Object.fromEntries(categoryNames),
-        stages: Object.fromEntries([...stageNames].map(([id, stage]) => [id, stage.name])),
+        stages: Object.fromEntries(
+          [...stageNames].map(([id, stage]) => [id, stage.name]),
+        ),
       }}
     />
   );

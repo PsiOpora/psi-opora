@@ -1,6 +1,20 @@
 import { Badge } from "@/components/ui/badge";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   fetchBotFunnelEvents,
@@ -48,7 +62,11 @@ export default async function BotFunnelPage({
   const byMessenger = funnelByMessenger(events);
   const bySource = funnelBySourceCampaign(events);
 
-  const messengerTabs: Array<{ value: string; label: string; data: BotFunnelStepStats[] }> = [
+  const messengerTabs: Array<{
+    value: string;
+    label: string;
+    data: BotFunnelStepStats[];
+  }> = [
     { value: "all", label: "Все мессенджеры", data: steps },
     ...byMessenger.map(({ messenger, steps: ms }) => ({
       value: messenger,
@@ -63,7 +81,8 @@ export default async function BotFunnelPage({
         <CardHeader>
           <CardTitle>Воронка бота</CardTitle>
           <CardDescription>
-            Путь пользователя от запуска бота до заявки в CRM за выбранный период
+            Путь пользователя от запуска бота до заявки в CRM за выбранный
+            период
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -90,13 +109,23 @@ export default async function BotFunnelPage({
             <div>
               <CardTitle>По источникам и кампаниям</CardTitle>
               <CardDescription className="mt-1">
-                Параметры из deep-link бота (?start=utm_source=…&amp;utm_campaign=…) — где теряются лиды до попадания в CRM
+                Параметры из deep-link бота
+                (?start=utm_source=…&amp;utm_campaign=…) — где теряются лиды до
+                попадания в CRM
               </CardDescription>
             </div>
             <CardAction>
               <ExportCsvButton
                 filename="bot-funnel-sources.csv"
-                headers={["Источник", "Кампания", "Стартов", "Записаться", "Телефонов", "Заявок", "Конверсия, %"]}
+                headers={[
+                  "Источник",
+                  "Кампания",
+                  "Стартов",
+                  "Записаться",
+                  "Телефонов",
+                  "Заявок",
+                  "Конверсия, %",
+                ]}
                 rows={bySource.map((row) => [
                   row.source,
                   row.campaign,
@@ -118,9 +147,17 @@ export default async function BotFunnelPage({
   );
 }
 
-function SourceTable({ rows }: { rows: ReturnType<typeof funnelBySourceCampaign> }) {
+function SourceTable({
+  rows,
+}: {
+  rows: ReturnType<typeof funnelBySourceCampaign>;
+}) {
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground py-4">Нет данных по источникам за этот период.</p>;
+    return (
+      <p className="text-sm text-muted-foreground py-4">
+        Нет данных по источникам за этот период.
+      </p>
+    );
   }
   return (
     <div className="overflow-x-auto">
@@ -140,15 +177,29 @@ function SourceTable({ rows }: { rows: ReturnType<typeof funnelBySourceCampaign>
           {rows.map((row) => (
             <TableRow key={row.key}>
               <TableCell className="font-medium">{row.source}</TableCell>
-              <TableCell className="text-muted-foreground">{row.campaign}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatNumber(row.starts)}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatNumber(row.clicks)}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatNumber(row.phones)}</TableCell>
-              <TableCell className="text-right tabular-nums font-medium">{formatNumber(row.deals)}</TableCell>
+              <TableCell className="text-muted-foreground">
+                {row.campaign}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatNumber(row.starts)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatNumber(row.clicks)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatNumber(row.phones)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums font-medium">
+                {formatNumber(row.deals)}
+              </TableCell>
               <TableCell className="text-right">
                 <Badge
                   variant="secondary"
-                  className={row.conversion >= 0.05 ? "bg-emerald-100 text-emerald-700" : undefined}
+                  className={
+                    row.conversion >= 0.05
+                      ? "bg-emerald-100 text-emerald-700"
+                      : undefined
+                  }
                 >
                   {formatPercent(row.conversion)}
                 </Badge>

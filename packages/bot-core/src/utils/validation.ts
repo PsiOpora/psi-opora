@@ -5,7 +5,7 @@
 
 /** Проверяет, содержит ли строка что-то похожее на номер телефона. */
 export function hasPhoneNumber(text: string): boolean {
-  return /[\d\s\+\-\(\)]{7,}/.test(text);
+  return /[\d\s+\-()]{7,}/.test(text);
 }
 
 /** Проверяет корректность email-адреса. */

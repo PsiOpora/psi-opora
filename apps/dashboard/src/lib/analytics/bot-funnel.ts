@@ -1,4 +1,9 @@
-import { FUNNEL_STEPS, funnelDayKey, parseFunnelField, type FunnelStep } from "@psi-opora/bot-core";
+import {
+  FUNNEL_STEPS,
+  funnelDayKey,
+  parseFunnelField,
+  type FunnelStep,
+} from "@psi-opora/bot-core";
 import { getBotFunnelEventsByDateRange } from "@psi-opora/db/queries";
 import type { DateRange } from "./types";
 
@@ -43,7 +48,9 @@ function eachDay(range: DateRange): string[] {
   return days;
 }
 
-export async function fetchBotFunnelEvents(range: DateRange): Promise<BotFunnelEvent[]> {
+export async function fetchBotFunnelEvents(
+  range: DateRange,
+): Promise<BotFunnelEvent[]> {
   const rows = await getBotFunnelEventsByDateRange(
     range.from.toISOString().slice(0, 10),
     range.to.toISOString().slice(0, 10),
@@ -69,7 +76,9 @@ function stepTotals(events: BotFunnelEvent[]): Map<FunnelStep, number> {
   return totals;
 }
 
-export function funnelStepStats(events: BotFunnelEvent[]): BotFunnelStepStats[] {
+export function funnelStepStats(
+  events: BotFunnelEvent[],
+): BotFunnelStepStats[] {
   const totals = stepTotals(events);
   const start = totals.get("start") ?? 0;
   return FUNNEL_STEPS.map((step, i) => {
@@ -97,13 +106,24 @@ export interface BotFunnelSourceRow {
   conversion: number;
 }
 
-export function funnelBySourceCampaign(events: BotFunnelEvent[]): BotFunnelSourceRow[] {
+export function funnelBySourceCampaign(
+  events: BotFunnelEvent[],
+): BotFunnelSourceRow[] {
   const rows = new Map<string, BotFunnelSourceRow>();
   for (const event of events) {
     const key = `${event.source}|${event.campaign}`;
     let row = rows.get(key);
     if (!row) {
-      row = { key, source: event.source, campaign: event.campaign, starts: 0, clicks: 0, phones: 0, deals: 0, conversion: 0 };
+      row = {
+        key,
+        source: event.source,
+        campaign: event.campaign,
+        starts: 0,
+        clicks: 0,
+        phones: 0,
+        deals: 0,
+        conversion: 0,
+      };
       rows.set(key, row);
     }
     if (event.step === "start") row.starts += event.count;
@@ -112,11 +132,16 @@ export function funnelBySourceCampaign(events: BotFunnelEvent[]): BotFunnelSourc
     if (event.step === "deal") row.deals += event.count;
   }
   return [...rows.values()]
-    .map((row) => ({ ...row, conversion: row.starts > 0 ? row.deals / row.starts : 0 }))
+    .map((row) => ({
+      ...row,
+      conversion: row.starts > 0 ? row.deals / row.starts : 0,
+    }))
     .sort((a, b) => b.starts - a.starts);
 }
 
-export function funnelByMessenger(events: BotFunnelEvent[]): Array<{ messenger: string; steps: BotFunnelStepStats[] }> {
+export function funnelByMessenger(
+  events: BotFunnelEvent[],
+): Array<{ messenger: string; steps: BotFunnelStepStats[] }> {
   const byMessenger = new Map<string, BotFunnelEvent[]>();
   for (const event of events) {
     const bucket = byMessenger.get(event.messenger);

@@ -32,7 +32,9 @@ export async function upsertAdCredentials(data: {
 
 // ── Daily Stats ───────────────────────────────────────────────────────────────
 
-export async function upsertAdDailyStats(rows: NewAdDailyStats[]): Promise<void> {
+export async function upsertAdDailyStats(
+  rows: NewAdDailyStats[],
+): Promise<void> {
   if (!db || rows.length === 0) return;
   await db
     .insert(adDailyStats)
@@ -65,13 +67,15 @@ export async function getAdStatsByDateRange(
     .orderBy(adDailyStats.date);
 }
 
-export async function getAdStatsSummary(fromDate: string, toDate: string): Promise<{
+export async function getAdStatsSummary(
+  fromDate: string,
+  toDate: string,
+): Promise<{
   totalSpend: number;
   totalImpressions: number;
   totalClicks: number;
 }> {
-  if (!db)
-    return { totalSpend: 0, totalImpressions: 0, totalClicks: 0 };
+  if (!db) return { totalSpend: 0, totalImpressions: 0, totalClicks: 0 };
   const result = await db
     .select({
       totalSpend: sql<number>`coalesce(sum(${adDailyStats.spend}), 0) / 100.0`,

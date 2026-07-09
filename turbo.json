@@ -4,7 +4,16 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
-      "passThroughEnv": ["POSTGRES_URL", "KV_REST_API_URL", "KV_REST_API_TOKEN", "NEXT_PUBLIC_BASE_URL", "CRON_SECRET", "DASHBOARD_BITRIX_CLIENT_ID", "DASHBOARD_BITRIX_CLIENT_SECRET", "DASHBOARD_BITRIX_WEBHOOK_URL"]
+      "passThroughEnv": [
+        "POSTGRES_URL",
+        "KV_REST_API_URL",
+        "KV_REST_API_TOKEN",
+        "NEXT_PUBLIC_BASE_URL",
+        "CRON_SECRET",
+        "DASHBOARD_BITRIX_CLIENT_ID",
+        "DASHBOARD_BITRIX_CLIENT_SECRET",
+        "DASHBOARD_BITRIX_WEBHOOK_URL"
+      ]
     },
     "typecheck": {
       "dependsOn": ["^typecheck", "^build"]

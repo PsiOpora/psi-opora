@@ -59,11 +59,17 @@ async function vkRequest<T>(
   if (!res.ok) throw new Error(`VK API error: ${res.status}`);
 
   const json = (await res.json()) as VkApiResponse;
-  if (json.error) throw new Error(`VK error ${json.error.error_code}: ${json.error.error_msg}`);
+  if (json.error)
+    throw new Error(
+      `VK error ${json.error.error_code}: ${json.error.error_msg}`,
+    );
   return json.response as T;
 }
 
-async function getVkCampaigns(accountId: string, accessToken: string): Promise<VkCampaign[]> {
+async function getVkCampaigns(
+  accountId: string,
+  accessToken: string,
+): Promise<VkCampaign[]> {
   const data = await vkRequest<{ items: VkCampaign[] }>(
     "ads.getCampaigns",
     { account_id: Number(accountId) },
@@ -151,13 +157,17 @@ async function yandexRequest<T>(
 ): Promise<T> {
   const res = await fetch(`${YANDEX_API_URL}/${method}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Yandex API error: ${res.status}`);
 
   const json = (await res.json()) as YandexApiResponse;
-  if (json.error_code) throw new Error(`Yandex error ${json.error_code}: ${json.error_detail}`);
+  if (json.error_code)
+    throw new Error(`Yandex error ${json.error_code}: ${json.error_detail}`);
   return json.data as T;
 }
 
@@ -204,8 +214,18 @@ async function getYandexReport(
       reportType: "CAMPAIGN_PERFORMANCE_REPORT",
       dateRangeType: "CUSTOM_DATE",
       params: {
-        SelectionCriteria: { CampaignIds: campaignIds, DateFrom: dateFrom, DateTo: dateTo },
-        Columns: ["CampaignId", "CampaignName", "Impressions", "Clicks", "Cost"],
+        SelectionCriteria: {
+          CampaignIds: campaignIds,
+          DateFrom: dateFrom,
+          DateTo: dateTo,
+        },
+        Columns: [
+          "CampaignId",
+          "CampaignName",
+          "Impressions",
+          "Clicks",
+          "Cost",
+        ],
       },
     },
     token,
@@ -237,7 +257,13 @@ const CACHE_TTL = 3600;
 
 export async function fetchAdStats(
   redis: RedisClient | null,
-  creds: { yandexClientId?: string | null; yandexClientSecret?: string | null; yandexRefreshToken?: string | null; vkAccessToken?: string | null; vkAdsAccountId?: string | null } | null,
+  creds: {
+    yandexClientId?: string | null;
+    yandexClientSecret?: string | null;
+    yandexRefreshToken?: string | null;
+    vkAccessToken?: string | null;
+    vkAdsAccountId?: string | null;
+  } | null,
 ): Promise<AdStatsResult> {
   const today = new Date();
   const dateTo: string = today.toISOString().split("T")[0]!;
@@ -251,7 +277,11 @@ export async function fetchAdStats(
   let totalClicks = 0;
   const dbRows: NewAdDailyStats[] = [];
 
-  if (creds?.yandexClientId && creds?.yandexClientSecret && creds?.yandexRefreshToken) {
+  if (
+    creds?.yandexClientId &&
+    creds?.yandexClientSecret &&
+    creds?.yandexRefreshToken
+  ) {
     try {
       const token = await getYandexToken(
         creds.yandexClientId,
@@ -274,7 +304,9 @@ export async function fetchAdStats(
             id: `yandex_${row.CampaignId}`,
             name: row.CampaignName,
             platform: "yandex",
-            status: yandexCampaigns.find((c) => c.Id === row.CampaignId)?.Status ?? "UNKNOWN",
+            status:
+              yandexCampaigns.find((c) => c.Id === row.CampaignId)?.Status ??
+              "UNKNOWN",
             impressions: row.Impressions,
             clicks: row.Clicks,
             spend: row.Cost,
@@ -299,7 +331,10 @@ export async function fetchAdStats(
 
   if (creds?.vkAccessToken && creds?.vkAdsAccountId) {
     try {
-      const vkCampaigns = await getVkCampaigns(creds.vkAdsAccountId, creds.vkAccessToken);
+      const vkCampaigns = await getVkCampaigns(
+        creds.vkAdsAccountId,
+        creds.vkAccessToken,
+      );
       if (vkCampaigns.length > 0) {
         const stats = await getVkStats(
           creds.vkAdsAccountId,
@@ -310,7 +345,8 @@ export async function fetchAdStats(
         );
         for (const campaign of vkCampaigns) {
           const s = stats.get(campaign.id);
-          const impressions = s?.stats.reduce((sum, d) => sum + d.impressions, 0) ?? 0;
+          const impressions =
+            s?.stats.reduce((sum, d) => sum + d.impressions, 0) ?? 0;
           const clicks = s?.stats.reduce((sum, d) => sum + d.clicks, 0) ?? 0;
           const spend = s?.stats.reduce((sum, d) => sum + d.spend, 0) ?? 0;
           totalSpend += spend;
@@ -367,7 +403,9 @@ export async function fetchAdStats(
   return result;
 }
 
-export async function getCachedAdStats(redis: RedisClient | null): Promise<AdStatsResult | null> {
+export async function getCachedAdStats(
+  redis: RedisClient | null,
+): Promise<AdStatsResult | null> {
   if (!redis) return null;
   return redis.get<AdStatsResult>(CACHE_KEY);
 }

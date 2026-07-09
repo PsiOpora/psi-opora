@@ -7,7 +7,11 @@ import { ru } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { formatDateParam } from "@/lib/analytics/date-range";
 
 const PRESETS = [
@@ -22,7 +26,9 @@ function currentRange(searchParams: URLSearchParams): { from: Date; to: Date } {
   const toParam = searchParams.get("to");
   const fromParam = searchParams.get("from");
   const to = toParam ? new Date(toParam) : new Date();
-  const from = fromParam ? new Date(fromParam) : new Date(to.getTime() - 30 * DAY_MS);
+  const from = fromParam
+    ? new Date(fromParam)
+    : new Date(to.getTime() - 30 * DAY_MS);
   return { from, to };
 }
 
@@ -61,7 +67,12 @@ export function DateRangePicker() {
         <div className="flex flex-col gap-2 p-3 sm:flex-row">
           <div className="flex flex-row gap-1 sm:flex-col">
             {PRESETS.map((preset) => (
-              <Button key={preset.days} variant="ghost" size="sm" onClick={() => applyPreset(preset.days)}>
+              <Button
+                key={preset.days}
+                variant="ghost"
+                size="sm"
+                onClick={() => applyPreset(preset.days)}
+              >
                 {preset.label}
               </Button>
             ))}

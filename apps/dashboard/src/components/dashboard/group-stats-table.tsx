@@ -1,9 +1,22 @@
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { GroupStats } from "@/lib/analytics/types";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 
-export function GroupStatsTable({ columnLabel, data }: { columnLabel: string; data: GroupStats[] }) {
+export function GroupStatsTable({
+  columnLabel,
+  data,
+}: {
+  columnLabel: string;
+  data: GroupStats[];
+}) {
   return (
     <Table>
       <TableHeader>
@@ -19,12 +32,20 @@ export function GroupStatsTable({ columnLabel, data }: { columnLabel: string; da
         {data.map((row) => (
           <TableRow key={row.key}>
             <TableCell className="font-medium">{row.label}</TableCell>
-            <TableCell className="text-right tabular-nums">{formatNumber(row.deals)}</TableCell>
-            <TableCell className="text-right tabular-nums">{formatNumber(row.won)}</TableCell>
-            <TableCell className="text-right">
-              <Badge variant="secondary">{formatPercent(row.conversionRate)}</Badge>
+            <TableCell className="text-right tabular-nums">
+              {formatNumber(row.deals)}
             </TableCell>
-            <TableCell className="text-right tabular-nums">{formatMoney(row.wonSum)}</TableCell>
+            <TableCell className="text-right tabular-nums">
+              {formatNumber(row.won)}
+            </TableCell>
+            <TableCell className="text-right">
+              <Badge variant="secondary">
+                {formatPercent(row.conversionRate)}
+              </Badge>
+            </TableCell>
+            <TableCell className="text-right tabular-nums">
+              {formatMoney(row.wonSum)}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>

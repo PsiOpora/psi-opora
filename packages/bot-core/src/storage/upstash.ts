@@ -32,7 +32,7 @@ export function createRedisStorage<T>(redis: Redis): StorageAdapter<T> {
 
 export async function getBitrixChatInfo(
   redis: Redis,
-  telegramUserId: number
+  telegramUserId: number,
 ): Promise<BitrixChatInfo | undefined> {
   const key = `${BITRIX_CHAT_KEY_PREFIX}${telegramUserId}`;
   const info = await redis.get<BitrixChatInfo>(key);

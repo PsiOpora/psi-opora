@@ -15,7 +15,11 @@ type Status = "connecting" | "ready" | "standalone" | "error";
  * /api/bitrix/session), после чего router.refresh() перезапускает серверные
  * компоненты дашборда уже с доступом к CRM.
  */
-export function BitrixFrameProvider({ children }: { children: React.ReactNode }) {
+export function BitrixFrameProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>("connecting");
   const [error, setError] = useState<string | null>(null);
@@ -35,10 +39,12 @@ export function BitrixFrameProvider({ children }: { children: React.ReactNode })
       try {
         const b24 = await initializeB24Frame();
         const authData = b24.auth.getAuthData();
-        if (!authData) throw new Error("Битрикс24 не передал данные авторизации");
+        if (!authData)
+          throw new Error("Битрикс24 не передал данные авторизации");
 
         const clientEndpoint =
-          b24.getTargetOriginWithPath().get(ApiVersion.v2) ?? `https://${authData.domain}/rest/`;
+          b24.getTargetOriginWithPath().get(ApiVersion.v2) ??
+          `https://${authData.domain}/rest/`;
 
         const res = await fetch("/api/bitrix/session", {
           method: "POST",

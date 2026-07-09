@@ -1,6 +1,13 @@
 import { TrendingDownIcon, TrendingUpIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import type { Summary } from "@/lib/analytics/types";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -15,7 +22,10 @@ function DeltaBadge({ delta }: { delta: number | null }) {
   const positive = delta >= 0;
   const Icon = positive ? TrendingUpIcon : TrendingDownIcon;
   return (
-    <Badge variant="outline" className={cn(positive ? "text-emerald-600" : "text-red-600")}>
+    <Badge
+      variant="outline"
+      className={cn(positive ? "text-emerald-600" : "text-red-600")}
+    >
       <Icon data-icon="inline-start" />
       {positive ? "+" : ""}
       {formatPercent(delta)}
@@ -23,7 +33,13 @@ function DeltaBadge({ delta }: { delta: number | null }) {
   );
 }
 
-export function KpiCards({ summary, previous }: { summary: Summary; previous?: Summary }) {
+export function KpiCards({
+  summary,
+  previous,
+}: {
+  summary: Summary;
+  previous?: Summary;
+}) {
   const items = [
     {
       label: "Всего сделок",
@@ -36,7 +52,9 @@ export function KpiCards({ summary, previous }: { summary: Summary; previous?: S
       value: formatNumber(summary.wonDeals),
       hint:
         `Конверсия ${formatPercent(summary.conversionRate)}` +
-        (summary.avgCycleDays > 0 ? ` · цикл ${Math.round(summary.avgCycleDays)} дн.` : ""),
+        (summary.avgCycleDays > 0
+          ? ` · цикл ${Math.round(summary.avgCycleDays)} дн.`
+          : ""),
       delta: previous ? deltaOf(summary.wonDeals, previous.wonDeals) : null,
     },
     {
@@ -49,7 +67,9 @@ export function KpiCards({ summary, previous }: { summary: Summary; previous?: S
       label: "Сумма в воронке",
       value: formatMoney(summary.opportunitySum),
       hint: `${formatNumber(summary.lostDeals)} проиграно`,
-      delta: previous ? deltaOf(summary.opportunitySum, previous.opportunitySum) : null,
+      delta: previous
+        ? deltaOf(summary.opportunitySum, previous.opportunitySum)
+        : null,
     },
   ];
 
@@ -59,12 +79,16 @@ export function KpiCards({ summary, previous }: { summary: Summary; previous?: S
         <Card key={item.label}>
           <CardHeader>
             <CardDescription>{item.label}</CardDescription>
-            <CardTitle className="text-2xl tabular-nums">{item.value}</CardTitle>
+            <CardTitle className="text-2xl tabular-nums">
+              {item.value}
+            </CardTitle>
             <CardAction>
               <DeltaBadge delta={item.delta} />
             </CardAction>
           </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">{item.hint}</CardContent>
+          <CardContent className="text-xs text-muted-foreground">
+            {item.hint}
+          </CardContent>
         </Card>
       ))}
     </div>

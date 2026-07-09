@@ -1,1 +1,13 @@
-{"result":63,"time":{"start":1782901579,"finish":1782901580.595477,"duration":1.5954771041870117,"processing":0,"date_start":"2026-07-01T13:26:19+03:00","date_finish":"2026-07-01T13:26:20+03:00","operating_reset_at":1782902180,"operating":0.5456550121307373}}
+{
+  "result": 63,
+  "time": {
+    "start": 1782901579,
+    "finish": 1782901580.595477,
+    "duration": 1.5954771041870117,
+    "processing": 0,
+    "date_start": "2026-07-01T13:26:19+03:00",
+    "date_finish": "2026-07-01T13:26:20+03:00",
+    "operating_reset_at": 1782902180,
+    "operating": 0.5456550121307373
+  }
+}

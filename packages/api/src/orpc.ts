@@ -86,7 +86,9 @@ export const protectedProcedure = publicProcedure.use(({ context, next }) => {
   return next({
     context: {
       ...context,
-      session: context.session as { user: { id: string; email: string; name: string } },
+      session: context.session as {
+        user: { id: string; email: string; name: string };
+      },
     },
   });
 });

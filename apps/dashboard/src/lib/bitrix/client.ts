@@ -2,9 +2,15 @@ import { getValidPortalTokens } from "./oauth";
 
 export interface BitrixApi {
   /** Произвольный вызов метода REST API, возвращает "result" из ответа. */
-  call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
+  call<T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<T>;
   /** Полная выборка списочного метода (crm.deal.list и т.п.) с автопагинацией. */
-  list<T = Record<string, unknown>>(method: string, params?: Record<string, unknown>): Promise<T[]>;
+  list<T = Record<string, unknown>>(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<T[]>;
 }
 
 interface RawResponse {
@@ -19,7 +25,9 @@ const MAX_LIST_PAGES = 400; // защита от бесконечного цик
 
 function unwrap(json: RawResponse, method: string): unknown {
   if (json.error) {
-    throw new Error(`Bitrix24 [${method}]: ${json.error} — ${json.error_description ?? ""}`);
+    throw new Error(
+      `Bitrix24 [${method}]: ${json.error} — ${json.error_description ?? ""}`,
+    );
   }
   return json.result;
 }
@@ -42,15 +50,26 @@ async function paginate<T>(
 
 /** REST-клиент по OAuth-токенам локального приложения (из Redis, с автопродлением). */
 export function createOAuthApi(memberId: string): BitrixApi {
-  async function request(method: string, params: Record<string, unknown>, start?: number): Promise<RawResponse> {
+  async function request(
+    method: string,
+    params: Record<string, unknown>,
+    start?: number,
+  ): Promise<RawResponse> {
     const tokens = await getValidPortalTokens(memberId);
-    if (!tokens) throw new Error(`Нет сохранённой авторизации Bitrix24 для портала ${memberId}`);
+    if (!tokens)
+      throw new Error(
+        `Нет сохранённой авторизации Bitrix24 для портала ${memberId}`,
+      );
 
     const base = tokens.clientEndpoint.replace(/\/$/, "");
     const res = await fetch(`${base}/${method}.json`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...params, ...(start ? { start } : {}), auth: tokens.accessToken }),
+      body: JSON.stringify({
+        ...params,
+        ...(start ? { start } : {}),
+        auth: tokens.accessToken,
+      }),
     });
     return (await res.json()) as RawResponse;
   }
@@ -70,7 +89,11 @@ export function createOAuthApi(memberId: string): BitrixApi {
 export function createWebhookApi(webhookUrl: string): BitrixApi {
   const base = webhookUrl.replace(/\/$/, "");
 
-  async function request(method: string, params: Record<string, unknown>, start?: number): Promise<RawResponse> {
+  async function request(
+    method: string,
+    params: Record<string, unknown>,
+    start?: number,
+  ): Promise<RawResponse> {
     const res = await fetch(`${base}/${method}.json`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
