@@ -1,6 +1,6 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, sql } from "drizzle-orm";
+import { db } from "../client";
 
-import { db, type Database } from "../client";
 import { adCredentials, adDailyStats } from "../schema/ads";
 
 export type AdCredentials = typeof adCredentials.$inferSelect;

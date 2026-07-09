@@ -1,6 +1,6 @@
-import { Redis } from "@upstash/redis";
 import { env } from "@psi-opora/config";
 import { upsertBotFunnelEvent as upsertEdge } from "@psi-opora/db/queries.edge";
+import { Redis } from "@upstash/redis";
 
 /**
  * Тип функции upsert для событий воронки.

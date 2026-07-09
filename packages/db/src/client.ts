@@ -1,7 +1,7 @@
-import { env } from "@psi-opora/config";
 import { neon } from "@neondatabase/serverless";
+import { env } from "@psi-opora/config";
 import { drizzle as drizzleNeonHttp } from "drizzle-orm/neon-http";
-import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
+import type { Database } from "./client.types";
 import { selectDbDriver } from "./driver";
 import * as schema from "./schema";
 
@@ -14,7 +14,6 @@ import * as schema from "./schema";
  * double-casting while keeping full access to select/insert/update/delete and
  * the relational `query` builder.
  */
-export type Database = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 async function createDatabase(): Promise<Database> {
   const connectionString = env.POSTGRES_URL;

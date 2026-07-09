@@ -1,5 +1,5 @@
-import { env } from "@psi-opora/config";
 import { neon } from "@neondatabase/serverless";
+import { env } from "@psi-opora/config";
 import { drizzle } from "drizzle-orm/neon-http";
 
 import * as schema from "./schema";

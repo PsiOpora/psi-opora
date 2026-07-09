@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { Database } from "../client";
+import type { Database } from "../client.types";
 import { botFunnelEvents } from "../schema/bot-funnel";
 
 export type BotFunnelEvent = typeof botFunnelEvents.$inferSelect;

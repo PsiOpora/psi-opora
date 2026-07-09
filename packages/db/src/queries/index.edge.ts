@@ -4,8 +4,8 @@
  */
 import { db } from "../client.edge";
 import {
-  upsertBotFunnelEvent as _upsertBotFunnelEvent,
   getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
+  upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
 
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";

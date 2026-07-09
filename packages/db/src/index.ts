@@ -1,7 +1,7 @@
 export { alias } from "drizzle-orm/pg-core";
 export * from "drizzle-orm/sql";
-export { type Database, db } from "./client";
-export { db as dbEdge } from "./client.edge";
+export { db } from "./client";
+export type { Database } from "./client.types";
 export { type DbDriver, selectDbDriver } from "./driver";
-export * from "./schema";
 export * from "./queries";
+export * from "./schema";

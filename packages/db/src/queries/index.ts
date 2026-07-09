@@ -4,13 +4,12 @@
  */
 import { db } from "../client";
 import {
-  upsertBotFunnelEvent as _upsertBotFunnelEvent,
   getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
+  upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
 
-export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
-
 export * from "./ads";
+export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
 
 export async function upsertBotFunnelEvent(
   data: Parameters<typeof _upsertBotFunnelEvent>[1],
