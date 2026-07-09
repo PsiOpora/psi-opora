@@ -5,8 +5,6 @@ import {
 } from "@psi-opora/bot-core";
 import { createMaxBot, processUpdate } from "../src/bot.js";
 
-export const config = { runtime: "edge" };
-
 const redis = createUpstashRedis();
 const storage = createRedisStorage<ConsultationSession>(redis);
 const bot = createMaxBot({ storage });
