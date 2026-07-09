@@ -33,6 +33,34 @@ function describeError(err: unknown): string {
     : err.message;
 }
 
+function isChatNotFoundError(err: unknown): boolean {
+  return (err as { status?: number } | null)?.status === 404;
+}
+
+// Общий хелпер: отправка ответа с fallback на user_id,
+// если чат не существует (404) — например, пользователь удалил
+// переписку с ботом или это устаревший апдейт.
+async function replyWithFallback(
+  ctx: AppContext,
+  text: string,
+  options?: Parameters<AppContext["reply"]>[1],
+): Promise<void> {
+  const userId = ctx.user?.user_id;
+  if (!ctx.chatId && userId) {
+    await ctx.api.sendMessageToUser(userId, text, options);
+    return;
+  }
+  try {
+    await ctx.reply(text, options);
+  } catch (err) {
+    if (isChatNotFoundError(err) && userId) {
+      await ctx.api.sendMessageToUser(userId, text, options);
+      return;
+    }
+    throw err;
+  }
+}
+
 export class AppContext extends Context {
   session!: ConsultationSession;
 }
@@ -87,17 +115,7 @@ async function handleStart(ctx: AppContext, startPayload: string | undefined) {
     attachments: [keyboard],
   };
 
-  // При bot_started чат может ещё не существовать (404),
-  // поэтому отправляем сообщение через user_id
-  if (ctx.updateType === "bot_started" && ctx.user?.user_id) {
-    await ctx.api.sendMessageToUser(
-      ctx.user.user_id,
-      WELCOME_TEXT,
-      replyOptions,
-    );
-  } else {
-    await ctx.reply(WELCOME_TEXT, replyOptions);
-  }
+  await replyWithFallback(ctx, WELCOME_TEXT, replyOptions);
 }
 
 export type MaxBot = Bot<AppContext>;
@@ -126,7 +144,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
       campaign: appCtx.session.campaign,
     });
 
-    await appCtx.reply(CONSENT_TEXT, {
+    await replyWithFallback(appCtx, CONSENT_TEXT, {
       format: "markdown",
       attachments: [
         Keyboard.inlineKeyboard([
@@ -153,7 +171,8 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
       source: appCtx.session.source,
       campaign: appCtx.session.campaign,
     });
-    await appCtx.reply(
+    await replyWithFallback(
+      appCtx,
       "✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?",
     );
   });
@@ -162,7 +181,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
     const appCtx = ctx as AppContext;
     await appCtx.answerOnCallback({ notification: "Хорошо" });
     log(`[CONSENT] user=${appCtx.user?.user_id} отказался`);
-    await appCtx.reply(CONSENT_DECLINED_TEXT);
+    await replyWithFallback(appCtx, CONSENT_DECLINED_TEXT);
   });
 
   bot.on("message_created", async (ctx) => {
@@ -170,18 +189,8 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
     const text = appCtx.message?.body.text?.trim() ?? "";
     if (!text || text.startsWith("/")) return;
 
-    // Хелпер: отправка с fallback на user_id если чат не существует
-    async function safeReply(replyText: string, options?: any) {
-      if (!appCtx.chatId && appCtx.user?.user_id) {
-        await appCtx.api.sendMessageToUser(
-          appCtx.user.user_id,
-          replyText,
-          options,
-        );
-      } else {
-        await appCtx.reply(replyText, options);
-      }
-    }
+    const safeReply = (replyText: string, options?: Parameters<AppContext["reply"]>[1]) =>
+      replyWithFallback(appCtx, replyText, options);
 
     if (appCtx.session.step === "name") {
       appCtx.session.name = text;
@@ -289,9 +298,10 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
 
   bot.catch((err, ctx) => {
     log(`[ERROR] update=${ctx.updateType} ${describeError(err)}`);
-    ctx
-      .reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.")
-      .catch(() => {});
+    replyWithFallback(
+      ctx as AppContext,
+      "⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.",
+    ).catch(() => {});
   });
 
   return bot;
