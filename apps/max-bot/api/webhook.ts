@@ -9,9 +9,12 @@ const redis = createUpstashRedis();
 const storage = createRedisStorage<ConsultationSession>(redis);
 const bot = createMaxBot({ storage });
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method === "GET") return new Response("ok");
+export async function POST(request: Request): Promise<Response> {
+  const body = await request.json();
+  await processUpdate(bot, body);
+  return new Response("ok");
+}
 
-  await processUpdate(bot, req.body);
+export function GET(): Response {
   return new Response("ok");
 }

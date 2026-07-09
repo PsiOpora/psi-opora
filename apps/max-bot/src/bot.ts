@@ -109,7 +109,11 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
   bot.use(sessionMiddleware(storage));
 
   bot.on("bot_started", (ctx) =>
-    handleStart(ctx as AppContext, (ctx as unknown as { startPayload?: string | null }).startPayload ?? undefined),
+    handleStart(
+      ctx as AppContext,
+      (ctx as unknown as { startPayload?: string | null }).startPayload ??
+        undefined,
+    ),
   );
   bot.command("start", (ctx) => handleStart(ctx, undefined));
 
@@ -166,6 +170,19 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
     const text = appCtx.message?.body.text?.trim() ?? "";
     if (!text || text.startsWith("/")) return;
 
+    // Хелпер: отправка с fallback на user_id если чат не существует
+    async function safeReply(replyText: string, options?: any) {
+      if (!appCtx.chatId && appCtx.user?.user_id) {
+        await appCtx.api.sendMessageToUser(
+          appCtx.user.user_id,
+          replyText,
+          options,
+        );
+      } else {
+        await appCtx.reply(replyText, options);
+      }
+    }
+
     if (appCtx.session.step === "name") {
       appCtx.session.name = text;
       appCtx.session.step = "phone";
@@ -174,7 +191,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
         source: appCtx.session.source,
         campaign: appCtx.session.campaign,
       });
-      await appCtx.reply(
+      await safeReply(
         `Отлично, ${text}! Теперь введите, пожалуйста, ваш номер телефона для связи.`,
       );
       return;
@@ -189,7 +206,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
           source: appCtx.session.source,
           campaign: appCtx.session.campaign,
         });
-        await appCtx.reply(
+        await safeReply(
           "Спасибо! И последний шаг — укажите, пожалуйста, ваш email для связи.",
         );
         return;
@@ -198,7 +215,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
       appCtx.session.phoneAttempts = (appCtx.session.phoneAttempts ?? 0) + 1;
       if (appCtx.session.phoneAttempts >= 3) {
         appCtx.session.step = "done";
-        await appCtx.reply(
+        await safeReply(
           "😔 К сожалению, мы не смогли распознать номер. " +
             "Напишите, пожалуйста, номер в любом формате: +7 999 123-45-67, " +
             "8 999 123 45 67 и т.д. Мы свяжемся с вами для уточнения.",
@@ -206,7 +223,7 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
         return;
       }
 
-      await appCtx.reply(
+      await safeReply(
         "Не удалось распознать номер телефона. Введите, пожалуйста, номер в любом формате, например: +7 (999) 123-45-67",
       );
       return;
@@ -236,14 +253,14 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
           source,
           campaign,
         });
-        await appCtx.reply(successReply(name), { format: "markdown" });
+        await safeReply(successReply(name), { format: "markdown" });
         return;
       }
 
       appCtx.session.emailAttempts = (appCtx.session.emailAttempts ?? 0) + 1;
       if (appCtx.session.emailAttempts >= 3) {
         appCtx.session.step = "done";
-        await appCtx.reply(
+        await safeReply(
           "😔 Не удалось распознать email, продолжим без него — уточним при звонке.",
         );
 
@@ -259,11 +276,11 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
           source,
           campaign,
         });
-        await appCtx.reply(successReply(name), { format: "markdown" });
+        await safeReply(successReply(name), { format: "markdown" });
         return;
       }
 
-      await appCtx.reply(
+      await safeReply(
         "Не удалось распознать email. Введите, пожалуйста, адрес в формате: example@mail.ru",
       );
       return;
@@ -279,7 +296,6 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
 
   return bot;
 }
-
 
 /**
  * Обработка webhook-апдейта через внутренний метод Bot.
