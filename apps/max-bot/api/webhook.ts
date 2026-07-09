@@ -1,9 +1,9 @@
 export const config = { runtime: "edge" };
 
 import {
-  createUpstashRedis,
-  createRedisStorage,
   type ConsultationSession,
+  createRedisStorage,
+  createUpstashRedis,
 } from "@psi-opora/bot-core";
 import { createMaxBot, processUpdate } from "../src/bot";
 

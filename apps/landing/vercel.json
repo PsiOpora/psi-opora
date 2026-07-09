@@ -1,4 +1,0 @@
-{
-  "installCommand": "cd ../.. && bun install",
-  "framework": "nextjs"
-}

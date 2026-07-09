@@ -78,20 +78,6 @@
         "typescript": "6.0.3",
       },
     },
-    "apps/landing": {
-      "name": "@psi-opora/landing",
-      "version": "0.0.1",
-      "dependencies": {
-        "next": "^16.2.10",
-        "react": "^19.2.7",
-        "react-dom": "^19.2.7",
-      },
-      "devDependencies": {
-        "@types/react": "^19.2.17",
-        "@types/react-dom": "^19.2.3",
-        "typescript": "6.0.3",
-      },
-    },
     "apps/max-bot": {
       "name": "@psi-opora/max-bot",
       "version": "0.0.1",
@@ -558,8 +544,6 @@
     "@psi-opora/db": ["@psi-opora/db@workspace:packages/db"],
 
     "@psi-opora/github": ["@psi-opora/github@workspace:tooling/github"],
-
-    "@psi-opora/landing": ["@psi-opora/landing@workspace:apps/landing"],
 
     "@psi-opora/max-bot": ["@psi-opora/max-bot@workspace:apps/max-bot"],
 
