@@ -5,9 +5,9 @@
  * Используется в TG и MAX ботах.
  */
 
+import { createUpstashRedis, getBitrixChatInfo } from "../storage/upstash";
 import { createBitrixDeal, type DealData } from "./bitrix";
-import { getBitrixChatInfo, createUpstashRedis } from "../storage/upstash";
-import { trackFunnelStep, type FunnelEventContext } from "./funnel";
+import { type FunnelEventContext, trackFunnelStep } from "./funnel";
 
 // Ленивый синглтон Redis — инициализируется при первом вызове.
 let _redis: ReturnType<typeof createUpstashRedis> | null = null;

@@ -1,17 +1,17 @@
-import { Bot, session, InlineKeyboard, type Middleware } from "grammy";
 import { conversations, createConversation } from "@grammyjs/conversations";
-import type { StorageAdapter } from "grammy";
-import type { AppContext, ConsultationSession } from "./types/context";
-import type { Redis } from "@upstash/redis";
 import { env } from "@psi-opora/config";
-import { parseUtmParams, formatUtmLog } from "./utils/utm";
-import { trackFunnelStep } from "./utils/funnel";
+import type { Redis } from "@upstash/redis";
+import type { StorageAdapter } from "grammy";
+import { Bot, InlineKeyboard, type Middleware, session } from "grammy";
 import { consultationConversation } from "./handlers/consultation";
+import type { AppContext, ConsultationSession } from "./types/context";
+import { trackFunnelStep } from "./utils/funnel";
 import {
-  WELCOME_TEXT,
-  CONSENT_TEXT,
   CONSENT_DECLINED_TEXT,
+  CONSENT_TEXT,
+  WELCOME_TEXT,
 } from "./utils/messages";
+import { formatUtmLog, parseUtmParams } from "./utils/utm";
 
 export const log = (msg: string) => {
   console.log(`${new Date().toISOString()} ${msg}`);
@@ -123,7 +123,9 @@ export function createBot({ storage, redis }: BotOptions = {}) {
   bot.catch((err) => {
     const ctx = err.ctx as AppContext;
     log(`[ERROR] update_id=${ctx.update.update_id} ${err.error}`);
-    ctx.reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.");
+    ctx.reply(
+      "⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.",
+    );
   });
 
   return bot;

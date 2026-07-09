@@ -1,5 +1,5 @@
-import { Redis } from "@upstash/redis";
 import { env } from "@psi-opora/config";
+import { Redis } from "@upstash/redis";
 
 export interface StorageAdapter<T> {
   read(key: string): T | undefined | Promise<T | undefined>;

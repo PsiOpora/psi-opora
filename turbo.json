@@ -12,7 +12,18 @@
         "CRON_SECRET",
         "DASHBOARD_BITRIX_CLIENT_ID",
         "DASHBOARD_BITRIX_CLIENT_SECRET",
-        "DASHBOARD_BITRIX_WEBHOOK_URL"
+        "DASHBOARD_BITRIX_WEBHOOK_URL",
+        "KV_REST_API_READ_ONLY_TOKEN",
+        "REDIS_URL",
+        "KV_URL",
+        "MAX_BOT_TOKEN",
+        "MAX_WEBHOOK_URL",
+        "BOT_TOKEN",
+        "NODE_TLS_REJECT_UNAUTHORIZED",
+        "BITRIX_WEBHOOK_URL",
+        "MAX_BOT_ID",
+        "MAX_BITRIX_SOURCE_ID",
+        "MAX_BITRIX_SOURCE_NAME"
       ]
     },
     "typecheck": {

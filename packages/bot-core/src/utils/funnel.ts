@@ -24,11 +24,6 @@ let _upsertFn: UpsertFunnelFn = upsertEdge;
  * Устанавливает функцию upsert для событий воронки.
  * Вызывайте один раз при инициализации бота в Node.js окружении:
  *
- * ```ts
- * import { upsertBotFunnelEvent } from "@psi-opora/db/queries";
- * import { setFunnelUpsert } from "@psi-opora/bot-core";
- * setFunnelUpsert(upsertBotFunnelEvent);
- * ```
  */
 export function setFunnelUpsert(fn: UpsertFunnelFn): void {
   _upsertFn = fn;

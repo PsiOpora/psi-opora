@@ -1,9 +1,9 @@
 import type { Conversation } from "@grammyjs/conversations";
 import type { ConvContext } from "../types/context";
-import { trackFunnelStep, type FunnelStep } from "../utils/funnel";
-import { hasPhoneNumber, isValidEmail } from "../utils/validation";
 import { submitConsultationDeal } from "../utils/consultation-deal";
+import { type FunnelStep, trackFunnelStep } from "../utils/funnel";
 import { successReply } from "../utils/messages";
+import { hasPhoneNumber, isValidEmail } from "../utils/validation";
 
 export async function consultationConversation(
   conv: Conversation<ConvContext, ConvContext>,

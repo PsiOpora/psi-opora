@@ -1,9 +1,4 @@
-import {
-  FUNNEL_STEPS,
-  funnelDayKey,
-  parseFunnelField,
-  type FunnelStep,
-} from "@psi-opora/bot-core";
+import { FUNNEL_STEPS, type FunnelStep } from "@psi-opora/bot-core";
 import { getBotFunnelEventsByDateRange } from "@psi-opora/db/queries";
 import type { DateRange } from "./types";
 
@@ -34,19 +29,6 @@ export const STEP_LABELS: Record<FunnelStep, string> = {
   phone: "Оставили телефон",
   deal: "Заявка создана в CRM",
 };
-
-const MAX_DAYS = 366;
-
-function eachDay(range: DateRange): string[] {
-  const days: string[] = [];
-  const cursor = new Date(range.from);
-  cursor.setHours(12, 0, 0, 0);
-  for (let i = 0; i < MAX_DAYS && cursor <= range.to; i++) {
-    days.push(cursor.toISOString().slice(0, 10));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return days;
-}
 
 export async function fetchBotFunnelEvents(
   range: DateRange,
