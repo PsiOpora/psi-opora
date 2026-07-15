@@ -19,6 +19,12 @@ export function createBackupS3Client(
     throw new Error("Не заданы настройки S3-хранилища для бэкапа");
   }
 
+  // MinIO (локальная разработка) не резолвит поддомены вида bucket.host,
+  // поэтому для локальных эндпоинтов используем path-style обращение к бакету.
+  const isLocalEndpoint = /localhost|127\.0\.0\.1|minio/i.test(
+    creds.s3Endpoint,
+  );
+
   const client = new S3Client({
     endpoint: creds.s3Endpoint,
     region: creds.s3Region || "ru-central1",
@@ -26,7 +32,7 @@ export function createBackupS3Client(
       accessKeyId: creds.s3AccessKeyId,
       secretAccessKey: creds.s3SecretAccessKey,
     },
-    forcePathStyle: false,
+    forcePathStyle: isLocalEndpoint,
   });
 
   return { bucket: creds.s3Bucket, client };
