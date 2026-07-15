@@ -29,12 +29,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  LARGE_AUDIENCE_THRESHOLD,
+  MESSAGE_MAX_LENGTH,
+} from "@/lib/broadcast/constants";
 import type {
   BroadcastChannel,
   BroadcastRecipient,
   BroadcastReport,
 } from "@/lib/broadcast/send";
-import { sendBroadcastAction, sendTestMessageAction } from "./actions";
+import {
+  type RecentBroadcastInfo,
+  sendBroadcastAction,
+  sendTestMessageAction,
+} from "./actions";
 
 export interface StageOption {
   stageId: string;
@@ -85,6 +93,22 @@ function messengerLabel(messenger: BroadcastRecipient["messenger"]): string {
   return "—";
 }
 
+function formatDateTime(date: Date | null): string {
+  if (!date) return "—";
+  return new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(date));
+}
+
+function WarningBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm">
+      ⚠️ {children}
+    </div>
+  );
+}
+
 function RecipientsReport({
   report,
   message,
@@ -132,15 +156,15 @@ function RecipientsReport({
   );
 
   const sendTest = (recipient: BroadcastRecipient) => {
-    if (!recipient.messenger || !recipient.userId) return;
+    const { messenger, userId, contactId } = recipient;
+    if (!messenger || !userId) return;
     if (
       !window.confirm(
-        `Отправить тестовое сообщение контакту «${recipient.contactName}» в ${messengerLabel(recipient.messenger)}?`,
+        `Отправить ТЕСТОВОЕ сообщение одному контакту «${recipient.contactName}» в ${messengerLabel(messenger)}?\n\nЭто реальное сообщение реальному человеку. Остальные получатели ничего не получат.`,
       )
     ) {
       return;
     }
-    const { messenger, userId, contactId } = recipient;
     setTestingId(contactId);
     startTransition(async () => {
       const result = await sendTestMessageAction({ messenger, userId, message });
@@ -334,7 +358,12 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
   const [channel, setChannel] = useState<BroadcastChannel>("auto");
   const [message, setMessage] = useState("");
   const [report, setReport] = useState<BroadcastReport | null>(null);
+  const [recentBroadcast, setRecentBroadcast] =
+    useState<RecentBroadcastInfo | null>(null);
+  const [previewSig, setPreviewSig] = useState<string | null>(null);
   const [reportKey, setReportKey] = useState(0);
+  const [confirming, setConfirming] = useState(false);
+  const [ackChecked, setAckChecked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -345,32 +374,82 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
     categories.set(stage.categoryName, list);
   }
 
-  const run = (dryRun: boolean) => {
-    if (
-      !dryRun &&
-      !window.confirm(
-        "Отправить рассылку? Сообщения уйдут реальным клиентам, отменить будет нельзя.",
-      )
-    ) {
-      return;
-    }
-    const stage = stages.find((s) => s.stageId === stageId);
+  const selectedStage = stages.find((s) => s.stageId === stageId);
+  const stageLabel = selectedStage
+    ? `${selectedStage.categoryName} — ${selectedStage.stageName}`
+    : stageId;
+
+  const trimmed = message.trim();
+  const overLimit = trimmed.length > MESSAGE_MAX_LENGTH;
+  const currentSig = JSON.stringify([stageId, channel, trimmed]);
+  const previewFresh =
+    report !== null && report.dryRun && previewSig === currentSig;
+  const sendableCount = report
+    ? report.recipients.filter((r) => r.status === "pending").length
+    : 0;
+  const canSend =
+    previewFresh && sendableCount > 0 && trimmed.length > 0 && !overLimit;
+
+  const sendHint = !stageId
+    ? "Выберите стадию сделки."
+    : overLimit
+      ? `Сообщение слишком длинное: ${trimmed.length} из ${MESSAGE_MAX_LENGTH} символов.`
+      : !trimmed
+        ? "Введите текст сообщения."
+        : !previewFresh
+          ? report
+            ? "Параметры изменились после предпросмотра — нажмите «Показать получателей» ещё раз."
+            : "Отправка откроется после предпросмотра: нажмите «Показать получателей» и проверьте список."
+          : sendableCount === 0
+            ? "Среди получателей нет ни одного с привязанным Telegram или MAX."
+            : null;
+
+  const runPreview = () => {
+    setConfirming(false);
+    setAckChecked(false);
     startTransition(async () => {
       setError(null);
       const result = await sendBroadcastAction({
         stageId,
-        stageName: stage
-          ? `${stage.categoryName} — ${stage.stageName}`
-          : undefined,
+        stageName: stageLabel,
         channel,
         message,
-        dryRun,
+        dryRun: true,
       });
       if (result.error) {
         setError(result.error);
         setReport(null);
+        setPreviewSig(null);
+        setRecentBroadcast(null);
       } else {
         setReport(result.report ?? null);
+        setRecentBroadcast(result.recentBroadcast ?? null);
+        setPreviewSig(currentSig);
+        setReportKey((k) => k + 1);
+      }
+    });
+  };
+
+  const runSend = () => {
+    if (!report) return;
+    const expectedRecipients = report.recipients.length;
+    setConfirming(false);
+    setAckChecked(false);
+    startTransition(async () => {
+      setError(null);
+      const result = await sendBroadcastAction({
+        stageId,
+        stageName: stageLabel,
+        channel,
+        message,
+        dryRun: false,
+        expectedRecipients,
+      });
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setReport(result.report ?? null);
+        setPreviewSig(null);
         setReportKey((k) => k + 1);
       }
     });
@@ -383,7 +462,8 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
           <CardTitle>Параметры рассылки</CardTitle>
           <CardDescription>
             Сообщение получит контакт каждой сделки на выбранной стадии — один
-            раз, даже если сделок у контакта несколько.
+            раз, даже если сделок у контакта несколько. Отправка возможна
+            только после предпросмотра списка получателей.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -447,23 +527,32 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
               placeholder="Здравствуйте! Напоминаем о записи на консультацию…"
               className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
             />
+            <span
+              className={`text-xs ${overLimit ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {trimmed.length} / {MESSAGE_MAX_LENGTH}
+              {overLimit && " — мессенджеры не примут такое длинное сообщение"}
+            </span>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               disabled={!stageId || isPending}
-              onClick={() => run(true)}
+              onClick={runPreview}
             >
               {isPending ? "Загрузка…" : "Показать получателей"}
             </Button>
             <Button
-              disabled={!stageId || !message.trim() || isPending}
-              onClick={() => run(false)}
+              disabled={!canSend || isPending || confirming}
+              onClick={() => setConfirming(true)}
             >
-              {isPending ? "Отправка…" : "Отправить рассылку"}
+              Отправить рассылку…
             </Button>
           </div>
+          {sendHint && !confirming && (
+            <p className="text-xs text-muted-foreground">{sendHint}</p>
+          )}
 
           {error && (
             <p className="text-sm text-destructive" role="alert">
@@ -472,6 +561,94 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
           )}
         </CardContent>
       </Card>
+
+      {confirming && previewFresh && report && (
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle>Подтверждение отправки</CardTitle>
+            <CardDescription>
+              Проверьте всё ещё раз — отменить рассылку после запуска
+              невозможно.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <div className="text-sm">
+              <p>
+                <span className="text-muted-foreground">Стадия:</span>{" "}
+                {stageLabel}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Канал:</span>{" "}
+                {CHANNEL_LABEL[channel]}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Получат сообщение:</span>{" "}
+                {sendableCount} контактов
+                {report.skipped > 0 &&
+                  ` (ещё ${report.skipped} будут пропущены — нет мессенджера)`}
+              </p>
+            </div>
+
+            {recentBroadcast && (
+              <WarningBox>
+                По этой стадии уже была рассылка{" "}
+                {formatDateTime(recentBroadcast.startedAt)} (отправлено:{" "}
+                {recentBroadcast.sentCount}). Убедитесь, что не отправляете
+                то же самое повторно.
+              </WarningBox>
+            )}
+            {sendableCount > LARGE_AUDIENCE_THRESHOLD && (
+              <WarningBox>
+                Большая аудитория: {sendableCount} получателей. Отправка займёт
+                несколько минут, не закрывайте страницу. Рекомендуем сначала
+                отправить тест себе кнопкой «Тест» в предпросмотре.
+              </WarningBox>
+            )}
+
+            <div className="rounded-md border px-3 py-2">
+              <p className="text-xs text-muted-foreground mb-1">
+                Текст, который получат клиенты:
+              </p>
+              <p className="text-sm whitespace-pre-wrap">{trimmed}</p>
+            </div>
+
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={ackChecked}
+                onChange={(e) => setAckChecked(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Я проверил(а) список получателей и текст сообщения. Понимаю,
+                что сообщение уйдёт реальным клиентам.
+              </span>
+            </label>
+
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                disabled={!ackChecked || isPending}
+                onClick={runSend}
+              >
+                {isPending
+                  ? "Отправка…"
+                  : `Отправить ${sendableCount} сообщений`}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={isPending}
+                onClick={() => {
+                  setConfirming(false);
+                  setAckChecked(false);
+                }}
+              >
+                Отмена
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {report && (
         <RecipientsReport key={reportKey} report={report} message={message} />

@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "../history";
+import { ResendFailed } from "./resend-failed";
 
 const CHANNEL_LABEL: Record<string, string> = {
   auto: "Авто (Telegram или MAX)",
@@ -89,6 +90,12 @@ export default async function BroadcastDetailsPage({
             Telegram и MAX не сообщают ботам о прочтении, поэтому статус
             «Просмотрено» недоступен.
           </CardDescription>
+          {broadcast.failedCount > 0 && broadcast.status !== "running" && (
+            <ResendFailed
+              broadcastId={broadcast.id}
+              failedCount={broadcast.failedCount}
+            />
+          )}
         </CardHeader>
         <CardContent>
           {recipients.length === 0 ? (

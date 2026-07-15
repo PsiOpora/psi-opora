@@ -1,22 +1,38 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import {
   createBroadcast,
   finishBroadcast,
+  getBroadcast,
+  getLastBroadcastForStage,
   insertBroadcastRecipients,
+  listBroadcastRecipients,
+  updateBroadcastCounters,
+  updateBroadcastRecipient,
 } from "@psi-opora/db/queries";
+import { revalidatePath } from "next/cache";
+import { MESSAGE_MAX_LENGTH } from "@/lib/broadcast/constants";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import {
   type BroadcastChannel,
   type BroadcastReport,
   type Messenger,
-  runBroadcast,
+  buildReport,
+  collectRecipients,
+  deliverToRecipients,
+  sendDelay,
   sendMessengerMessage,
 } from "@/lib/broadcast/send";
 
+export interface RecentBroadcastInfo {
+  startedAt: Date | null;
+  sentCount: number;
+}
+
 export interface BroadcastActionResult {
   report?: BroadcastReport;
+  /** Последняя рассылка по этой же стадии — предупреждение о возможном дубле. */
+  recentBroadcast?: RecentBroadcastInfo | null;
   error?: string;
 }
 
@@ -28,6 +44,12 @@ export async function sendTestMessageAction(input: {
 }): Promise<{ ok: boolean; error?: string }> {
   const message = input.message.trim();
   if (!message) return { ok: false, error: "Текст сообщения пуст" };
+  if (message.length > MESSAGE_MAX_LENGTH) {
+    return {
+      ok: false,
+      error: `Сообщение длиннее ${MESSAGE_MAX_LENGTH} символов`,
+    };
+  }
   if (!input.userId) return { ok: false, error: "У контакта нет ID мессенджера" };
 
   try {
@@ -44,19 +66,57 @@ export async function sendBroadcastAction(input: {
   channel: BroadcastChannel;
   message: string;
   dryRun: boolean;
+  /**
+   * Число получателей из предпросмотра. Для реальной отправки обязательно:
+   * если состав изменился с момента предпросмотра — рассылка не запускается.
+   */
+  expectedRecipients?: number;
 }): Promise<BroadcastActionResult> {
   const api = await getBitrixApi();
   if (!api) return { error: "Bitrix24 не подключён" };
 
   if (!input.stageId) return { error: "Не выбрана стадия" };
-  if (!input.dryRun && !input.message.trim()) {
-    return { error: "Текст сообщения пуст" };
-  }
 
   const message = input.message.trim();
-  const broadcastId = crypto.randomUUID();
+  if (!input.dryRun && !message) return { error: "Текст сообщения пуст" };
+  if (message.length > MESSAGE_MAX_LENGTH) {
+    return {
+      error: `Сообщение длиннее ${MESSAGE_MAX_LENGTH} символов — Telegram и MAX его не примут`,
+    };
+  }
+  if (!input.dryRun && input.expectedRecipients === undefined) {
+    return {
+      error:
+        "Отправка без предпросмотра запрещена — сначала нажмите «Показать получателей»",
+    };
+  }
 
-  if (!input.dryRun) {
+  try {
+    const { totalDeals, recipients } = await collectRecipients(
+      api,
+      input.stageId,
+      input.channel,
+    );
+
+    if (input.dryRun) {
+      const recent = await getLastBroadcastForStage(input.stageId).catch(
+        () => null,
+      );
+      return {
+        report: buildReport(totalDeals, recipients, true),
+        recentBroadcast: recent
+          ? { startedAt: recent.startedAt, sentCount: recent.sentCount }
+          : null,
+      };
+    }
+
+    if (input.expectedRecipients !== recipients.length) {
+      return {
+        error: `Состав получателей изменился с момента предпросмотра (было ${input.expectedRecipients}, стало ${recipients.length}). Обновите предпросмотр и проверьте список ещё раз.`,
+      };
+    }
+
+    const broadcastId = crypto.randomUUID();
     await createBroadcast({
       id: broadcastId,
       stageId: input.stageId,
@@ -64,17 +124,11 @@ export async function sendBroadcastAction(input: {
       channel: input.channel,
       message,
     });
-  }
 
-  try {
-    const report = await runBroadcast(api, {
-      stageId: input.stageId,
-      channel: input.channel,
-      message,
-      dryRun: input.dryRun,
-    });
+    try {
+      await deliverToRecipients(recipients, message);
+      const report = buildReport(totalDeals, recipients, false);
 
-    if (!input.dryRun) {
       await insertBroadcastRecipients(
         report.recipients.map((r) => ({
           id: crypto.randomUUID(),
@@ -98,17 +152,86 @@ export async function sendBroadcastAction(input: {
         failedCount: report.failed,
       });
       revalidatePath("/broadcast");
-    }
 
-    return { report };
-  } catch (err) {
-    if (!input.dryRun) {
+      return { report };
+    } catch (err) {
       await finishBroadcast(broadcastId, {
         status: "error",
         error: (err as Error).message,
       });
       revalidatePath("/broadcast");
+      throw err;
     }
+  } catch (err) {
     return { error: (err as Error).message };
   }
+}
+
+export interface ResendResult {
+  resent: number;
+  stillFailed: number;
+  error?: string;
+}
+
+/**
+ * Досылка сообщения получателям рассылки, у которых была ошибка отправки.
+ * Использует сохранённый текст рассылки; успешные и пропущенные не трогаются.
+ */
+export async function resendFailedAction(
+  broadcastId: string,
+): Promise<ResendResult> {
+  const broadcast = await getBroadcast(broadcastId);
+  if (!broadcast) {
+    return { resent: 0, stillFailed: 0, error: "Рассылка не найдена" };
+  }
+  if (broadcast.status === "running") {
+    return {
+      resent: 0,
+      stillFailed: 0,
+      error: "Рассылка ещё выполняется — дождитесь завершения",
+    };
+  }
+
+  const failed = (await listBroadcastRecipients(broadcastId)).filter(
+    (r) =>
+      r.status === "error" &&
+      (r.messenger === "telegram" || r.messenger === "max") &&
+      r.messengerUserId,
+  );
+  if (failed.length === 0) {
+    return { resent: 0, stillFailed: 0, error: "Нет получателей с ошибкой" };
+  }
+
+  let resent = 0;
+  for (const recipient of failed) {
+    try {
+      await sendMessengerMessage(
+        recipient.messenger as Messenger,
+        recipient.messengerUserId as string,
+        broadcast.message,
+      );
+      await updateBroadcastRecipient(recipient.id, {
+        status: "sent",
+        error: null,
+        sentAt: new Date(),
+      });
+      resent++;
+    } catch (err) {
+      await updateBroadcastRecipient(recipient.id, {
+        status: "error",
+        error: (err as Error).message,
+        sentAt: null,
+      });
+    }
+    await sendDelay();
+  }
+
+  await updateBroadcastCounters(broadcastId, {
+    sentCount: broadcast.sentCount + resent,
+    failedCount: broadcast.failedCount - resent,
+  });
+  revalidatePath("/broadcast");
+  revalidatePath(`/broadcast/${broadcastId}`);
+
+  return { resent, stillFailed: failed.length - resent };
 }

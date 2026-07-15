@@ -167,54 +167,46 @@ export async function collectRecipients(
 }
 
 /**
- * Рассылка по сделкам стадии. При dryRun только собирает получателей,
- * ничего не отправляя — для предпросмотра перед реальной отправкой.
+ * Доставка сообщения собранным получателям: мутирует status/error каждого.
+ * Ошибка отправки одному получателю не прерывает рассылку остальным.
  */
-export async function runBroadcast(
-  api: BitrixApi,
-  options: {
-    stageId: string;
-    channel: BroadcastChannel;
-    message: string;
-    dryRun: boolean;
-  },
-): Promise<BroadcastReport> {
-  const { totalDeals, recipients } = await collectRecipients(
-    api,
-    options.stageId,
-    options.channel,
-  );
-
-  if (!options.dryRun) {
-    for (const recipient of recipients) {
-      if (
-        recipient.status !== "pending" ||
-        !recipient.userId ||
-        !recipient.messenger
-      ) {
-        continue;
-      }
-      try {
-        await sendMessengerMessage(
-          recipient.messenger,
-          recipient.userId,
-          options.message,
-        );
-        recipient.status = "sent";
-      } catch (err) {
-        recipient.status = "error";
-        recipient.error = (err as Error).message;
-      }
-      await sleep(SEND_DELAY_MS);
+export async function deliverToRecipients(
+  recipients: BroadcastRecipient[],
+  message: string,
+): Promise<void> {
+  for (const recipient of recipients) {
+    if (
+      recipient.status !== "pending" ||
+      !recipient.userId ||
+      !recipient.messenger
+    ) {
+      continue;
     }
+    try {
+      await sendMessengerMessage(recipient.messenger, recipient.userId, message);
+      recipient.status = "sent";
+    } catch (err) {
+      recipient.status = "error";
+      recipient.error = (err as Error).message;
+    }
+    await sleep(SEND_DELAY_MS);
   }
+}
 
+export function buildReport(
+  totalDeals: number,
+  recipients: BroadcastRecipient[],
+  dryRun: boolean,
+): BroadcastReport {
   return {
     totalDeals,
     recipients,
     sent: recipients.filter((r) => r.status === "sent").length,
     skipped: recipients.filter((r) => r.status === "skipped").length,
     failed: recipients.filter((r) => r.status === "error").length,
-    dryRun: options.dryRun,
+    dryRun,
   };
 }
+
+/** Пауза между отправками при досылке — та же, что и в основной рассылке. */
+export const sendDelay = (): Promise<void> => sleep(SEND_DELAY_MS);
