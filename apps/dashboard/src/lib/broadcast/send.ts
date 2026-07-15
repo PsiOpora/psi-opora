@@ -95,6 +95,16 @@ async function sendMax(userId: string, text: string): Promise<void> {
   }
 }
 
+/** Отправка одного сообщения пользователю мессенджера (используется и для теста). */
+export async function sendMessengerMessage(
+  messenger: Messenger,
+  userId: string,
+  text: string,
+): Promise<void> {
+  if (messenger === "telegram") await sendTelegram(userId, text);
+  else await sendMax(userId, text);
+}
+
 const SEND_DELAY_MS = 100; // ~10 сообщений/сек — с запасом до лимитов Telegram
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -177,13 +187,19 @@ export async function runBroadcast(
 
   if (!options.dryRun) {
     for (const recipient of recipients) {
-      if (recipient.status !== "pending" || !recipient.userId) continue;
+      if (
+        recipient.status !== "pending" ||
+        !recipient.userId ||
+        !recipient.messenger
+      ) {
+        continue;
+      }
       try {
-        if (recipient.messenger === "telegram") {
-          await sendTelegram(recipient.userId, options.message);
-        } else if (recipient.messenger === "max") {
-          await sendMax(recipient.userId, options.message);
-        }
+        await sendMessengerMessage(
+          recipient.messenger,
+          recipient.userId,
+          options.message,
+        );
         recipient.status = "sent";
       } catch (err) {
         recipient.status = "error";

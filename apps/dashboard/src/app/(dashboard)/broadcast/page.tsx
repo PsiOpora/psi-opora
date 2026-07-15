@@ -5,6 +5,7 @@ import {
 } from "@/lib/analytics/deals";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import { BroadcastForm, type StageOption } from "./broadcast-form";
+import { BroadcastHistory } from "./history";
 
 /** CATEGORY_ID из STAGE_ID: "C5:NEW" → "5", "NEW" (основная воронка) → "0". */
 function categoryOfStage(stageId: string): string {
@@ -51,6 +52,7 @@ export default async function BroadcastPage() {
         </p>
       </div>
       <BroadcastForm stages={options} />
+      <BroadcastHistory />
     </div>
   );
 }

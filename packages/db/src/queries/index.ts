@@ -10,6 +10,7 @@ import {
 
 export * from "./ads";
 export * from "./backup";
+export * from "./broadcast";
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
 
 export async function upsertBotFunnelEvent(
