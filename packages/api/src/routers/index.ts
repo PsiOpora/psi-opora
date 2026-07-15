@@ -17,10 +17,12 @@
  */
 
 import { adsRouter } from "./ads";
+import { backupRouter } from "./backup";
 
-export { adsRouter };
+export { adsRouter, backupRouter };
 export const appRouter = {
   ads: adsRouter,
+  backup: backupRouter,
 };
 
 export type AppRouter = typeof appRouter;

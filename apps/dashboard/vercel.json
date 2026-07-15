@@ -4,6 +4,10 @@
     {
       "path": "/api/ad-stats-sync",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/crm-backup",
+      "schedule": "0 0 * * *"
     }
   ]
 }

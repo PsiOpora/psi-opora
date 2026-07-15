@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3Icon,
   BotIcon,
+  DatabaseBackupIcon,
   FilterIcon,
   LayoutDashboardIcon,
   ListIcon,
@@ -37,6 +38,7 @@ const NAV_ITEMS = [
   { href: "/deals", label: "Сделки", icon: ListIcon },
   { href: "/builder", label: "Конструктор", icon: SlidersHorizontalIcon },
   { href: "/settings/ads", label: "Настройки", icon: SettingsIcon },
+  { href: "/settings/backup", label: "Бэкап CRM", icon: DatabaseBackupIcon },
 ];
 
 export function AppSidebar() {

@@ -8,6 +8,12 @@
       "when": 1783504659830,
       "tag": "0000_long_menace",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "when": 1784102400000,
+      "tag": "0001_wandering_paladin",
+      "breakpoints": true
     }
   ]
 }
