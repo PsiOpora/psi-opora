@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { orpc } from "@/lib/orpc-client";
 import { runCrmBackup } from "@/lib/backup/crm-backup";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import {
   createBackupRun,
   finishBackupRun,
   getBackupCredentials,
+  upsertBackupCredentials,
 } from "@psi-opora/db/queries";
 
 export async function saveBackupCredentialsAction(
@@ -21,7 +21,7 @@ export async function saveBackupCredentialsAction(
   const s3SecretAccessKey =
     String(formData.get("s3SecretAccessKey") ?? "").trim() || undefined;
 
-  await orpc.backup.upsertCredentials({
+  await upsertBackupCredentials({
     s3Endpoint,
     s3Region,
     s3Bucket,

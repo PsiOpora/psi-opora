@@ -25,7 +25,10 @@ export async function upsertBackupCredentials(data: {
   await db
     .insert(backupCredentials)
     .values({ id: "singleton", ...data })
-    .onConflictDoUpdate({ target: backupCredentials.id, set: data });
+    .onConflictDoUpdate({
+      target: backupCredentials.id,
+      set: { ...data, updatedAt: new Date() },
+    });
 }
 
 // ── Runs ─────────────────────────────────────────────────────────────────

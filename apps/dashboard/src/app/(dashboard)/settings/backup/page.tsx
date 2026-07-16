@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { orpc } from "@/lib/orpc-client";
+import { getBackupCredentials, listBackupRuns } from "@psi-opora/db/queries";
 import { saveBackupCredentialsAction, runBackupNowAction } from "./actions";
 
 function formatBytes(bytes: number | null): string {
@@ -33,8 +33,8 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default async function BackupSettingsPage() {
   const [creds, runs] = await Promise.all([
-    orpc.backup.getCredentials().catch(() => null),
-    orpc.backup.listRuns().catch(() => []),
+    getBackupCredentials().catch(() => null),
+    listBackupRuns().catch(() => [] as Awaited<ReturnType<typeof listBackupRuns>>),
   ]);
 
   return (
