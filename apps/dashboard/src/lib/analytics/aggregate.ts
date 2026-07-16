@@ -18,7 +18,7 @@ export function summarize(deals: DealRecord[]): Summary {
   const closed = wonDeals.length + lostDeals.length;
   const cycles = wonDeals
     .filter((d) => d.closeDate)
-    .map((d) => (d.closeDate?.getTime() - d.dateCreate.getTime()) / DAY_MS);
+    .map((d) => (d.closeDate!.getTime() - d.dateCreate.getTime()) / DAY_MS);
 
   return {
     totalDeals: deals.length,

@@ -54,11 +54,11 @@ function StatusBadge({
 export default async function AdsPage() {
   const redis = getRedisOrNull();
   const today = new Date();
-  const dateTo = today.toISOString().split("T")[0] ?? localDate(today);
+  const dateTo = today.toISOString().split("T")[0];
   const dateFrom =
     new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
       .toISOString()
-      .split("T")[0] ?? localDate(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000));
+      .split("T")[0];
 
   let data: AdStatsResult | null = null;
   let loadError = false;
@@ -89,7 +89,7 @@ export default async function AdsPage() {
   }
 
   // data is guaranteed non-null here — we returned early if both loadError and redis are falsy
-  const liveData = data;
+  const liveData = data!;
 
   const dbStats = await orpc.ads.stats({ dateFrom, dateTo }).catch(() => ({
     summary: { totalSpend: 0, totalImpressions: 0, totalClicks: 0 },
