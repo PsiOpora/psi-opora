@@ -138,8 +138,10 @@ export default async function BroadcastDetailsPage({
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
                           <Badge variant={badge.variant}>{badge.label}</Badge>
-                          {r.error && r.status === "error" && (
-                            <span className="text-xs text-destructive">
+                          {r.error && (
+                            <span
+                              className={`text-xs ${r.status === "error" ? "text-destructive" : "text-muted-foreground"}`}
+                            >
                               {r.error}
                             </span>
                           )}
