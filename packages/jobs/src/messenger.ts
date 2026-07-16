@@ -19,17 +19,28 @@ const RATE_LIMIT_ATTEMPTS = 3;
 export const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Сообщения отправляются с Markdown-разметкой (легаси-режим Telegram:
+ * *жирный*, _курсив_, `код`, [ссылка](url); MAX — format "markdown").
+ * Если мессенджер отклоняет разметку (400, например непарные символы),
+ * сообщение повторно уходит обычным текстом — рассылка не падает.
+ */
 async function sendTelegram(userId: string, text: string): Promise<void> {
   const token = process.env.TG_BOT_TOKEN ?? process.env.BOT_TOKEN;
   if (!token) throw new Error("TG_BOT_TOKEN не задан");
 
-  for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS; attempt++) {
+  let withMarkdown = true;
+  for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS + 1; attempt++) {
     const res = await fetch(
       `https://api.telegram.org/bot${token}/sendMessage`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: userId, text }),
+        body: JSON.stringify({
+          chat_id: userId,
+          text,
+          ...(withMarkdown ? { parse_mode: "Markdown" } : {}),
+        }),
       },
     );
     const json = (await res.json()) as {
@@ -38,6 +49,14 @@ async function sendTelegram(userId: string, text: string): Promise<void> {
       parameters?: { retry_after?: number };
     };
     if (json.ok) return;
+    if (
+      res.status === 400 &&
+      withMarkdown &&
+      /parse entities/i.test(json.description ?? "")
+    ) {
+      withMarkdown = false;
+      continue;
+    }
     if (res.status === 429) {
       // Telegram сам говорит, сколько ждать; добавляем секунду сверху
       await sleep(((json.parameters?.retry_after ?? 2) + 1) * 1000);
@@ -54,15 +73,23 @@ async function sendMax(userId: string, text: string): Promise<void> {
   const token = process.env.MAX_BOT_TOKEN;
   if (!token) throw new Error("MAX_BOT_TOKEN не задан");
 
-  for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS; attempt++) {
+  let withMarkdown = true;
+  for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS + 1; attempt++) {
     const url = new URL("https://platform-api2.max.ru/messages");
     url.searchParams.set("user_id", userId);
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: token },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({
+        text,
+        ...(withMarkdown ? { format: "markdown" } : {}),
+      }),
     });
     if (res.ok) return;
+    if (res.status === 400 && withMarkdown) {
+      withMarkdown = false;
+      continue;
+    }
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get("retry-after"));
       const waitSec =

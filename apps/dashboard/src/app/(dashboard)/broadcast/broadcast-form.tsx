@@ -1,7 +1,8 @@
 "use client";
 
+import { BoldIcon, CodeIcon, ItalicIcon, LinkIcon } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +55,7 @@ import {
   sendBroadcastAction,
   sendTestMessageAction,
 } from "./actions";
+import { TelegramPreview } from "./telegram-preview";
 
 export interface StageOption {
   stageId: string;
@@ -405,6 +407,7 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const messageRef = useRef<HTMLTextAreaElement>(null);
 
   const categories = new Map<string, StageOption[]>();
   for (const stage of stages) {
@@ -442,6 +445,42 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
           : sendableCount === 0
             ? "Среди получателей нет ни одного с привязанным Telegram или MAX."
             : null;
+
+  // Оборачивает выделенный текст в разметку Telegram (легаси-Markdown,
+  // тот же режим используют боты проекта: *…*, _…_, `…`, [текст](url))
+  const applyFormat = (kind: "bold" | "italic" | "code" | "link") => {
+    const el = messageRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? message.length;
+    const end = el.selectionEnd ?? message.length;
+    const selected = message.slice(start, end);
+
+    let inserted: string;
+    let selectFrom: number;
+    let selectTo: number;
+    if (kind === "link") {
+      const label = selected || "текст ссылки";
+      const url = "https://";
+      inserted = `[${label}](${url})`;
+      // выделяем URL-заглушку, чтобы сразу вписать адрес
+      selectFrom = start + label.length + 3;
+      selectTo = selectFrom + url.length;
+    } else {
+      const marker = kind === "bold" ? "*" : kind === "italic" ? "_" : "`";
+      const label =
+        selected ||
+        (kind === "bold" ? "жирный" : kind === "italic" ? "курсив" : "код");
+      inserted = `${marker}${label}${marker}`;
+      selectFrom = start + 1;
+      selectTo = selectFrom + label.length;
+    }
+
+    setMessage(message.slice(0, start) + inserted + message.slice(end));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(selectFrom, selectTo);
+    });
+  };
 
   const runPreview = () => {
     setConfirming(false);
@@ -558,24 +597,81 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="message" className="text-xs text-muted-foreground">
-              Текст сообщения
-            </Label>
-            <textarea
-              id="message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={5}
-              placeholder="Здравствуйте! Напоминаем о записи на консультацию…"
-              className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
-            />
-            <span
-              className={`text-xs ${overLimit ? "text-destructive" : "text-muted-foreground"}`}
-            >
-              {trimmed.length} / {MESSAGE_MAX_LENGTH}
-              {overLimit && " — мессенджеры не примут такое длинное сообщение"}
-            </span>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label
+                  htmlFor="message"
+                  className="text-xs text-muted-foreground"
+                >
+                  Текст сообщения
+                </Label>
+                <div className="flex items-center gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    title="Жирный — *текст*"
+                    onClick={() => applyFormat("bold")}
+                  >
+                    <BoldIcon className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    title="Курсив — _текст_"
+                    onClick={() => applyFormat("italic")}
+                  >
+                    <ItalicIcon className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    title="Моноширинный — `текст`"
+                    onClick={() => applyFormat("code")}
+                  >
+                    <CodeIcon className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    title="Ссылка — [текст](https://…)"
+                    onClick={() => applyFormat("link")}
+                  >
+                    <LinkIcon className="size-4" />
+                  </Button>
+                </div>
+              </div>
+              <textarea
+                id="message"
+                ref={messageRef}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={8}
+                placeholder="Здравствуйте! Напоминаем о записи на консультацию…"
+                className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex w-full flex-1 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <span
+                className={`text-xs ${overLimit ? "text-destructive" : "text-muted-foreground"}`}
+              >
+                {trimmed.length} / {MESSAGE_MAX_LENGTH}
+                {overLimit &&
+                  " — мессенджеры не примут такое длинное сообщение"}
+              </span>
+              <p className="text-xs text-muted-foreground">
+                Разметка Telegram: *жирный* _курсив_ `код`{" "}
+                [ссылка](https://…). MAX получит то же форматирование.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs text-muted-foreground">
+                Как увидит клиент в Telegram
+              </Label>
+              <TelegramPreview text={message} />
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -668,11 +764,11 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
               </WarningBox>
             )}
 
-            <div className="rounded-md border px-3 py-2">
-              <p className="text-xs text-muted-foreground mb-1">
-                Текст, который получат клиенты:
+            <div className="flex flex-col gap-1">
+              <p className="text-xs text-muted-foreground">
+                Сообщение, которое получат клиенты:
               </p>
-              <p className="text-sm whitespace-pre-wrap">{trimmed}</p>
+              <TelegramPreview text={trimmed} />
             </div>
 
             <label className="flex items-start gap-2 text-sm">

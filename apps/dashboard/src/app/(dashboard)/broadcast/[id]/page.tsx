@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "../history";
+import { TelegramPreview } from "../telegram-preview";
 import { AutoRefresh } from "./auto-refresh";
 import { ResendFailed } from "./resend-failed";
 
@@ -100,7 +101,7 @@ export default async function BroadcastDetailsPage({
           <CardTitle>Текст сообщения</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm whitespace-pre-wrap">{broadcast.message}</p>
+          <TelegramPreview text={broadcast.message} />
         </CardContent>
       </Card>
 
