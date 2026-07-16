@@ -214,7 +214,7 @@ export async function sendMessengerMessage(
 
 const SEND_DELAY_MS = 100; // ~10 сообщений/сек — с запасом до лимитов Telegram
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Собирает получателей рассылки по сделкам выбранной стадии: у каждой сделки
