@@ -42,7 +42,7 @@ export default async function BroadcastPage() {
     );
 
   return (
-    <div className="flex flex-col gap-6 max-w-3xl">
+    <div className="flex w-full flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Рассылка по сделкам</h1>
         <p className="text-sm text-muted-foreground mt-1">

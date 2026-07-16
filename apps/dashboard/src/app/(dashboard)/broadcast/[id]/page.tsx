@@ -67,7 +67,7 @@ export default async function BroadcastDetailsPage({
   const isRunning = broadcast.status === "running";
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl">
+    <div className="flex w-full flex-col gap-6">
       <AutoRefresh enabled={isRunning} />
       <div>
         <Link
@@ -96,6 +96,7 @@ export default async function BroadcastDetailsPage({
         )}
       </div>
 
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(300px,400px)_1fr]">
       <Card>
         <CardHeader>
           <CardTitle>Текст сообщения</CardTitle>
@@ -178,6 +179,7 @@ export default async function BroadcastDetailsPage({
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

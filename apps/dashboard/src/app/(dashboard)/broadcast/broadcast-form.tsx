@@ -205,7 +205,7 @@ function RecipientsReport({
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(200px,2fr)_minmax(160px,1fr)_minmax(160px,1fr)]">
               <Input
                 value={search}
                 onChange={(e) => {
@@ -549,13 +549,13 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto]">
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs text-muted-foreground">
                 Стадия сделки
               </Label>
               <Select value={stageId} onValueChange={setStageId}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Выберите стадию" />
                 </SelectTrigger>
                 <SelectContent>
@@ -578,7 +578,7 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
                 value={channel}
                 onValueChange={(v) => setChannel(v as BroadcastChannel)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -594,6 +594,21 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                disabled={!stageId || isPending}
+                onClick={runPreview}
+              >
+                {isPending ? "Загрузка…" : "Показать получателей"}
+              </Button>
+              <Button
+                disabled={!canSend || isPending || confirming}
+                onClick={() => setConfirming(true)}
+              >
+                Отправить рассылку…
+              </Button>
             </div>
           </div>
 
@@ -674,21 +689,6 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              disabled={!stageId || isPending}
-              onClick={runPreview}
-            >
-              {isPending ? "Загрузка…" : "Показать получателей"}
-            </Button>
-            <Button
-              disabled={!canSend || isPending || confirming}
-              onClick={() => setConfirming(true)}
-            >
-              Отправить рассылку…
-            </Button>
-          </div>
           {sendHint && !confirming && (
             <p className="text-xs text-muted-foreground">{sendHint}</p>
           )}
