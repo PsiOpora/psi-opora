@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
+import { tasks } from "@trigger.dev/sdk";
 import { env } from "@psi-opora/config";
-import {
-  createBackupRun,
-  finishBackupRun,
-  getBackupCredentials,
-} from "@psi-opora/db/queries";
-import { runCrmBackup } from "@/lib/backup/crm-backup";
+import type { crmBackup } from "@psi-opora/jobs";
+import { executeCrmBackup } from "@psi-opora/jobs";
 import { getBitrixApi } from "@/lib/bitrix/session";
 
 export const dynamic = "force-dynamic";
@@ -19,41 +16,29 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const runId = crypto.randomUUID();
-
   try {
-    const [api, creds] = await Promise.all([
-      getBitrixApi(),
-      getBackupCredentials(),
-    ]);
+    // Основной путь — ставим фоновое задание trigger.dev и сразу отвечаем.
+    if (env.TRIGGER_SECRET_KEY) {
+      const handle = await tasks.trigger<typeof crmBackup>("crm-backup", {});
+      return NextResponse.json({ ok: true, triggered: true, id: handle.id });
+    }
 
+    // Fallback без trigger.dev — выполняем инлайн (в пределах maxDuration).
+    const api = await getBitrixApi();
     if (!api) {
       return NextResponse.json(
         { ok: false, error: "Bitrix24 не подключён" },
         { status: 400 },
       );
     }
-    if (!creds) {
-      return NextResponse.json(
-        { ok: false, error: "Не настроено S3-хранилище для бэкапа" },
-        { status: 400 },
-      );
-    }
 
-    await createBackupRun(runId);
-    const result = await runCrmBackup(api, creds);
-    await finishBackupRun(runId, {
-      status: "success",
-      entities: result.entities,
-      objectKey: result.objectKey,
-      sizeBytes: result.sizeBytes,
-    });
-
-    return NextResponse.json({ ok: true, runId, ...result });
+    const result = await executeCrmBackup(api);
+    return NextResponse.json({ ok: true, ...result });
   } catch (err) {
-    const error = (err as Error).message;
     console.error("[crm-backup] error:", err);
-    await finishBackupRun(runId, { status: "error", error });
-    return NextResponse.json({ ok: false, error }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: (err as Error).message },
+      { status: 500 },
+    );
   }
 }

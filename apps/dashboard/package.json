@@ -10,12 +10,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.751.0",
     "@bitrix24/b24jssdk": "2.0.0",
     "@orpc/client": "^1.14.8",
     "@orpc/react-query": "^1.14.8",
     "@orpc/server": "^1.14.8",
     "@psi-opora/api": "workspace:*",
+    "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",

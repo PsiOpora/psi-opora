@@ -173,8 +173,9 @@ export default async function BackupSettingsPage() {
         <CardHeader>
           <CardTitle>Запуск бэкапа</CardTitle>
           <CardDescription>
-            Бэкап также выполняется автоматически каждую ночь по расписанию
-            (Vercel Cron, 03:00). Здесь можно запустить его вручную.
+            Бэкап выполняется фоновым заданием trigger.dev — кнопка лишь
+            ставит его в очередь, статус появится в таблице ниже. Ночной
+            запуск по расписанию делает Vercel Cron.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

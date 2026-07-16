@@ -1,4 +1,11 @@
 export {
+  type BackupS3Credentials,
+  type CrmBackupResult,
+  type ExecutedBackup,
+  executeCrmBackup,
+  runCrmBackup,
+} from "./backup";
+export {
   type Messenger,
   SEND_INTERVAL_MS,
   sendMessengerMessage,
@@ -7,3 +14,4 @@ export {
   type DeliverBroadcastPayload,
   deliverBroadcast,
 } from "./trigger/broadcast";
+export { type CrmBackupPayload, crmBackup } from "./trigger/crm-backup";

@@ -1,14 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { runCrmBackup } from "@/lib/backup/crm-backup";
-import { getBitrixApi } from "@/lib/bitrix/session";
+import { cookies } from "next/headers";
+import { tasks } from "@trigger.dev/sdk";
+import { env } from "@psi-opora/config";
 import {
   createBackupRun,
   finishBackupRun,
-  getBackupCredentials,
   upsertBackupCredentials,
 } from "@psi-opora/db/queries";
+import type { crmBackup } from "@psi-opora/jobs";
+import { executeCrmBackup } from "@psi-opora/jobs";
+import { MEMBER_ID_COOKIE, getBitrixApi } from "@/lib/bitrix/session";
 
 export async function saveBackupCredentialsAction(
   formData: FormData,
@@ -33,29 +36,29 @@ export async function saveBackupCredentialsAction(
 }
 
 export async function runBackupNowAction(): Promise<void> {
-  const [api, creds] = await Promise.all([
-    getBitrixApi(),
-    getBackupCredentials(),
-  ]);
-
-  if (!api) throw new Error("Bitrix24 не подключён");
-  if (!creds) throw new Error("Не настроено S3-хранилище для бэкапа");
-
-  const runId = crypto.randomUUID();
-  await createBackupRun(runId);
-
-  try {
-    const result = await runCrmBackup(api, creds);
-    await finishBackupRun(runId, {
-      status: "success",
-      entities: result.entities,
-      objectKey: result.objectKey,
-      sizeBytes: result.sizeBytes,
-    });
-  } catch (err) {
-    await finishBackupRun(runId, {
-      status: "error",
-      error: (err as Error).message,
+  // Основной путь — фоновое задание trigger.dev: экшен только ставит его
+  // в очередь, сам бэкап идёт вне лимитов serverless-функции.
+  if (env.TRIGGER_SECRET_KEY) {
+    const store = await cookies();
+    const memberId = store.get(MEMBER_ID_COOKIE)?.value;
+    try {
+      await tasks.trigger<typeof crmBackup>("crm-backup", { memberId });
+    } catch (err) {
+      // Задание не поставлено — фиксируем в истории, чтобы ошибка
+      // была видна в таблице запусков.
+      const runId = crypto.randomUUID();
+      await createBackupRun(runId);
+      await finishBackupRun(runId, {
+        status: "error",
+        error: `Не удалось запустить фоновое задание: ${(err as Error).message}`,
+      });
+    }
+  } else {
+    // Fallback без trigger.dev (локальная разработка) — инлайн.
+    const api = await getBitrixApi();
+    if (!api) throw new Error("Bitrix24 не подключён");
+    await executeCrmBackup(api).catch(() => {
+      // Ошибка уже записана в backup_runs — покажется в таблице истории.
     });
   }
 
