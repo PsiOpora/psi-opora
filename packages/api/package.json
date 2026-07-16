@@ -22,8 +22,8 @@
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@psi-opora/validators": "workspace:*",
-    "@orpc/contract": "^1.14.7",
-    "@orpc/server": "^1.14.7",
+    "@orpc/contract": "^1.14.8",
+    "@orpc/server": "^1.14.8",
     "better-auth": "1.6.23",
     "superjson": "2.2.6",
     "zod": "4.4.3"
