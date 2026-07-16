@@ -2,6 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { resendFailedAction } from "../actions";
 
@@ -16,14 +27,7 @@ export function ResendFailed({
   const [result, setResult] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const onClick = () => {
-    if (
-      !window.confirm(
-        `Дослать сообщение ${failedCount} получателям, у которых была ошибка отправки?\n\nБудет отправлен тот же текст этой рассылки. Те, кто уже получил сообщение, повторно его НЕ получат.`,
-      )
-    ) {
-      return;
-    }
+  const onConfirm = () => {
     startTransition(async () => {
       const res = await resendFailedAction(broadcastId);
       setResult(
@@ -36,9 +40,27 @@ export function ResendFailed({
 
   return (
     <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" disabled={isPending} onClick={onClick}>
-        {isPending ? "Отправка…" : `Дослать (${failedCount})`}
-      </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" size="sm" disabled={isPending}>
+            {isPending ? "Отправка…" : `Дослать (${failedCount})`}
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Дослать сообщение?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Сообщение этой рассылки будет повторно отправлено{" "}
+              {failedCount} получателям, у которых была ошибка отправки. Те,
+              кто уже получил сообщение, повторно его не получат.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirm}>Дослать</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {result && (
         <span className="text-xs text-muted-foreground">{result}</span>
       )}

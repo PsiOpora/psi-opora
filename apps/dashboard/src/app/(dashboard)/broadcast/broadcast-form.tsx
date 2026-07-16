@@ -1,6 +1,16 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -124,6 +134,8 @@ function RecipientsReport({
     {},
   );
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [testCandidate, setTestCandidate] =
+    useState<BroadcastRecipient | null>(null);
   const [, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
@@ -155,16 +167,10 @@ function RecipientsReport({
     (currentPage + 1) * PAGE_SIZE,
   );
 
-  const sendTest = (recipient: BroadcastRecipient) => {
-    const { messenger, userId, contactId } = recipient;
+  const confirmTest = () => {
+    if (!testCandidate) return;
+    const { messenger, userId, contactId } = testCandidate;
     if (!messenger || !userId) return;
-    if (
-      !window.confirm(
-        `Отправить ТЕСТОВОЕ сообщение одному контакту «${recipient.contactName}» в ${messengerLabel(messenger)}?\n\nЭто реальное сообщение реальному человеку. Остальные получатели ничего не получат.`,
-      )
-    ) {
-      return;
-    }
     setTestingId(contactId);
     startTransition(async () => {
       const result = await sendTestMessageAction({ messenger, userId, message });
@@ -291,7 +297,7 @@ function RecipientsReport({
                                   disabled={
                                     !message.trim() || testingId !== null
                                   }
-                                  onClick={() => sendTest(r)}
+                                  onClick={() => setTestCandidate(r)}
                                 >
                                   {testingId === r.contactId
                                     ? "Отправка…"
@@ -350,6 +356,32 @@ function RecipientsReport({
             )}
           </>
         )}
+
+        <AlertDialog
+          open={testCandidate !== null}
+          onOpenChange={(open) => {
+            if (!open) setTestCandidate(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Отправить тестовое сообщение?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Текущий текст сообщения получит один контакт «
+                {testCandidate?.contactName}» в{" "}
+                {messengerLabel(testCandidate?.messenger ?? null)}. Это
+                реальное сообщение реальному человеку — остальные получатели
+                ничего не получат.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Отмена</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmTest}>
+                Отправить тест
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
