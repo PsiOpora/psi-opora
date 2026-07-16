@@ -1,5 +1,5 @@
 import { env } from "@psi-opora/config";
-import { getValidPortalTokens } from "./oauth";
+import { forceRefreshPortalTokens, getValidPortalTokens } from "./oauth";
 
 export interface BitrixApi {
   /** Произвольный вызов метода REST API, возвращает "result" из ответа. */
@@ -23,6 +23,11 @@ interface RawResponse {
 }
 
 const MAX_LIST_PAGES = 400; // защита от бесконечного цикла — до 20000 записей
+const MAX_RETRIES = 1;
+
+function isTokenError(error?: string): boolean {
+  return error === "expired_token" || error === "invalid_token";
+}
 
 function unwrap(json: RawResponse, method: string): unknown {
   if (json.error) {
@@ -55,6 +60,7 @@ export function createOAuthApi(memberId: string): BitrixApi {
     method: string,
     params: Record<string, unknown>,
     start?: number,
+    attempt = 0,
   ): Promise<RawResponse> {
     const tokens = await getValidPortalTokens(memberId);
     if (!tokens)
@@ -72,7 +78,17 @@ export function createOAuthApi(memberId: string): BitrixApi {
         auth: tokens.accessToken,
       }),
     });
-    return (await res.json()) as RawResponse;
+    const json = (await res.json()) as RawResponse;
+
+    // Если Битрикс24 ответил, что токен протух — принудительно обновляем и
+    // повторяем запрос один раз. Это защищает от clock skew и от ситуаций,
+    // когда токен истёк между проверкой и фактическим вызовом.
+    if (isTokenError(json.error) && attempt < MAX_RETRIES) {
+      await forceRefreshPortalTokens(memberId);
+      return request(method, params, start, attempt + 1);
+    }
+
+    return json;
   }
 
   return {

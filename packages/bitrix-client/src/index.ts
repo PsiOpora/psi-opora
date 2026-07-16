@@ -4,10 +4,14 @@ export {
   createWebhookApi,
   resolveBitrixApi,
 } from "./client";
-export { getValidPortalTokens, refreshPortalTokens } from "./oauth";
 export {
-  type PortalTokens,
+  forceRefreshPortalTokens,
+  getValidPortalTokens,
+  refreshPortalTokens,
+} from "./oauth";
+export {
   deletePortalTokens,
   getPortalTokens,
+  type PortalTokens,
   savePortalTokens,
 } from "./tokens";
