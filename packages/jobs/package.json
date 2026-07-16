@@ -17,8 +17,8 @@
   "scripts": {
     "build": "tsdown",
     "clean": "git clean -xdf .cache .turbo dist node_modules",
-    "dev:trigger": "bunx --env-file=../../.env trigger.dev dev",
-    "deploy:trigger": "bunx --env-file=../../.env trigger.dev deploy",
+    "dev": "bunx trigger.dev@latest dev --env-file ../../.env",
+    "deploy": "bunx trigger.dev@latest deploy --env-file ../../.env",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
