@@ -1,5 +1,3 @@
-import { env } from "@psi-opora/config";
-
 export type Messenger = "telegram" | "max";
 
 /**
@@ -22,7 +20,7 @@ export const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 async function sendTelegram(userId: string, text: string): Promise<void> {
-  const token = env.TG_BOT_TOKEN ?? env.BOT_TOKEN;
+  const token = process.env.TG_BOT_TOKEN ?? process.env.BOT_TOKEN;
   if (!token) throw new Error("TG_BOT_TOKEN не задан");
 
   for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS; attempt++) {
@@ -53,7 +51,7 @@ async function sendTelegram(userId: string, text: string): Promise<void> {
 }
 
 async function sendMax(userId: string, text: string): Promise<void> {
-  const token = env.MAX_BOT_TOKEN;
+  const token = process.env.MAX_BOT_TOKEN;
   if (!token) throw new Error("MAX_BOT_TOKEN не задан");
 
   for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS; attempt++) {

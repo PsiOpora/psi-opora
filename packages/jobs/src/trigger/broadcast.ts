@@ -1,9 +1,3 @@
-import {
-  finishBroadcast,
-  getBroadcast,
-  listBroadcastRecipients,
-  updateBroadcastRecipient,
-} from "@psi-opora/db/queries";
 import { queue, task } from "@trigger.dev/sdk";
 import {
   type Messenger,
@@ -30,6 +24,16 @@ export const deliverBroadcast = task({
   queue: broadcastQueue,
   maxDuration: 3600,
   run: async (payload: DeliverBroadcastPayload) => {
+    // Ленивый импорт: клиент БД подключается на верхнем уровне модуля
+    // (top-level await + проверка POSTGRES_URL), поэтому статический импорт
+    // ронял бы индексацию задач при деплое, где БД недоступна.
+    const {
+      finishBroadcast,
+      getBroadcast,
+      listBroadcastRecipients,
+      updateBroadcastRecipient,
+    } = await import("@psi-opora/db/queries");
+
     const broadcast = await getBroadcast(payload.broadcastId);
     if (!broadcast) {
       throw new Error(`Рассылка ${payload.broadcastId} не найдена`);

@@ -22,7 +22,6 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@trigger.dev/sdk": "4.5.4"
   },

@@ -198,7 +198,6 @@
       "name": "@psi-opora/jobs",
       "version": "0.0.1",
       "dependencies": {
-        "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
         "@trigger.dev/sdk": "4.5.4",
       },
