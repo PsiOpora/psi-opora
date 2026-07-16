@@ -417,7 +417,7 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
   const overLimit = trimmed.length > MESSAGE_MAX_LENGTH;
   const currentSig = JSON.stringify([stageId, channel, trimmed]);
   const previewFresh =
-    report !== null && report.dryRun && previewSig === currentSig;
+    report?.dryRun && previewSig === currentSig;
   const sendableCount = report
     ? report.recipients.filter((r) => r.status === "pending").length
     : 0;

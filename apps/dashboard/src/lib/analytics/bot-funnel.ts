@@ -65,7 +65,7 @@ export function funnelStepStats(
   const start = totals.get("start") ?? 0;
   return FUNNEL_STEPS.map((step, i) => {
     const count = totals.get(step) ?? 0;
-    const prev = i === 0 ? count : (totals.get(FUNNEL_STEPS[i - 1]!) ?? 0);
+    const prev = i === 0 ? count : (totals.get(FUNNEL_STEPS[i - 1] ?? "start") ?? 0);
     return {
       step,
       label: STEP_LABELS[step],

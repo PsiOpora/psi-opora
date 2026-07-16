@@ -1,0 +1,35 @@
+{
+  "name": "@psi-opora/jobs",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev:trigger": "bunx trigger.dev@v4 dev",
+    "deploy:trigger": "bunx trigger.dev@v4 deploy",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@psi-opora/config": "workspace:*",
+    "@psi-opora/db": "workspace:*",
+    "@trigger.dev/sdk": "^4.5.4"
+  },
+  "devDependencies": {
+    "@psi-opora/tsconfig": "workspace:*",
+    "@types/node": "26.1.1",
+    "tsdown": "^0.22.4",
+    "typescript": "6.0.3"
+  }
+}

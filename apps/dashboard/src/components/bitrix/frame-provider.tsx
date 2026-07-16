@@ -78,8 +78,7 @@ export function BitrixFrameProvider({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [router]);
 
   if (status === "connecting") {
     return (

@@ -24,7 +24,7 @@ const res = await fetch(
 if (res.status === 204 || res.status === 200) {
   console.log("✓ MAX webhook удалён");
 } else {
-  const json = (await res.json().catch(() => null)) as any;
+  const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
   console.error(`Ошибка ${res.status}:`, JSON.stringify(json, null, 2));
   process.exit(1);
 }

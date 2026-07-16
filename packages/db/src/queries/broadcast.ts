@@ -12,9 +12,19 @@ export async function createBroadcast(data: {
   stageName?: string;
   channel: string;
   message: string;
+  totalDeals?: number;
 }): Promise<void> {
   if (!db) return;
   await db.insert(broadcasts).values({ ...data, status: "running" });
+}
+
+/** Возврат рассылки в статус running — перед фоновой досылкой по ошибкам. */
+export async function markBroadcastRunning(id: string): Promise<void> {
+  if (!db) return;
+  await db
+    .update(broadcasts)
+    .set({ status: "running", error: null, finishedAt: null })
+    .where(eq(broadcasts.id, id));
 }
 
 export async function finishBroadcast(

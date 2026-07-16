@@ -73,7 +73,7 @@ export function AdTrendChart({ rows }: Props) {
         <XAxis
           dataKey="date"
           tickFormatter={(v) => {
-            const d = new Date(v + "T00:00:00");
+            const d = new Date(`${v}T00:00:00`);
             return d.toLocaleDateString("ru-RU", {
               day: "numeric",
               month: "short",
@@ -95,7 +95,7 @@ export function AdTrendChart({ rows }: Props) {
             fontSize: 12,
           }}
           labelFormatter={(v) => {
-            const d = new Date(String(v) + "T00:00:00");
+            const d = new Date(`${String(v)}T00:00:00`);
             return d.toLocaleDateString("ru-RU", {
               day: "numeric",
               month: "long",

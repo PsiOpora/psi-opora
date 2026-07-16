@@ -35,7 +35,7 @@ export function useDataRefresh(
   const [nextRefreshIn, setNextRefreshIn] = useState<number | null>(null);
 
   const lastRefreshRef = useRef<number>(Date.now());
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const _intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Функция обновления

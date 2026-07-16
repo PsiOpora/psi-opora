@@ -64,6 +64,9 @@ export const env = createEnv({
 
     // Cron
     CRON_SECRET: z.string().optional(),
+
+    // Trigger.dev (фоновые задания — рассылки)
+    TRIGGER_SECRET_KEY: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_APP_NAME: z.string().default("Acme Inc."),
@@ -106,6 +109,7 @@ export const env = createEnv({
     DASHBOARD_BITRIX_WEBHOOK_URL: process.env.DASHBOARD_BITRIX_WEBHOOK_URL,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     CRON_SECRET: process.env.CRON_SECRET,
+    TRIGGER_SECRET_KEY: process.env.TRIGGER_SECRET_KEY,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_APP_SHORT_NAME: process.env.NEXT_PUBLIC_APP_SHORT_NAME,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,

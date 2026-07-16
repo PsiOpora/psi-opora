@@ -45,7 +45,7 @@ async function bitrixPost<T = unknown>(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const json = (await res.json()) as any;
+  const json = (await res.json()) as Record<string, unknown>;
   if (json.error) {
     throw new Error(
       `Bitrix24 [${method}]: ${json.error} — ${json.error_description ?? ""}`,
@@ -121,9 +121,10 @@ async function linkBitrixTrace(
       },
       messenger,
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error(
-      `[bitrix] не удалось привязать трейс сквозной аналитики: ${err.message}`,
+      `[bitrix] не удалось привязать трейс сквозной аналитики: ${message}`,
     );
   }
 }
@@ -176,9 +177,10 @@ export async function createBitrixDeal(
       console.log(
         `[bitrix] чат ${data.chatId} привязан к контакту ${contactId}`,
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       console.error(
-        `[bitrix] не удалось привязать чат к контакту: ${err.message}`,
+        `[bitrix] не удалось привязать чат к контакту: ${message}`,
       );
     }
   }
@@ -225,8 +227,9 @@ export async function registerBitrixSource(messenger: string): Promise<void> {
       messenger,
     );
     console.log(`[bitrix] источник создан: ${sourceId} (${sourceName})`);
-  } catch (err: any) {
-    if (String(err.message).includes("Duplicate")) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (String(message).includes("Duplicate")) {
       console.log(`[bitrix] источник уже существует: ${sourceId}`);
       return;
     }

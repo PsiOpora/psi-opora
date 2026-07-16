@@ -1,8 +1,8 @@
-import { env } from "@psi-opora/config";
+import type { Messenger } from "@psi-opora/jobs";
 import type { BitrixApi } from "@/lib/bitrix/client";
 
 export type BroadcastChannel = "auto" | "telegram" | "max";
-export type Messenger = "telegram" | "max";
+export type { Messenger };
 
 export interface BroadcastRecipient {
   contactId: string;
@@ -167,54 +167,6 @@ function resolveMessenger(
   }
   return { messenger: null, userId: null, reason: NO_MESSENGER_REASON };
 }
-
-async function sendTelegram(userId: string, text: string): Promise<void> {
-  const token = env.TG_BOT_TOKEN ?? env.BOT_TOKEN;
-  if (!token) throw new Error("TG_BOT_TOKEN не задан");
-
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: userId, text }),
-  });
-  const json = (await res.json()) as { ok: boolean; description?: string };
-  if (!json.ok) {
-    throw new Error(json.description ?? `Telegram HTTP ${res.status}`);
-  }
-}
-
-async function sendMax(userId: string, text: string): Promise<void> {
-  const token = env.MAX_BOT_TOKEN;
-  if (!token) throw new Error("MAX_BOT_TOKEN не задан");
-
-  const url = new URL("https://platform-api2.max.ru/messages");
-  url.searchParams.set("user_id", userId);
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: token },
-    body: JSON.stringify({ text }),
-  });
-  if (!res.ok) {
-    const json = (await res.json().catch(() => null)) as {
-      message?: string;
-    } | null;
-    throw new Error(json?.message ?? `MAX HTTP ${res.status}`);
-  }
-}
-
-/** Отправка одного сообщения пользователю мессенджера (используется и для теста). */
-export async function sendMessengerMessage(
-  messenger: Messenger,
-  userId: string,
-  text: string,
-): Promise<void> {
-  if (messenger === "telegram") await sendTelegram(userId, text);
-  else await sendMax(userId, text);
-}
-
-const SEND_DELAY_MS = 100; // ~10 сообщений/сек — с запасом до лимитов Telegram
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Собирает получателей рассылки по сделкам выбранной стадии: у каждой сделки

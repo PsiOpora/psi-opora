@@ -266,10 +266,11 @@ export async function fetchAdStats(
   } | null,
 ): Promise<AdStatsResult> {
   const today = new Date();
-  const dateTo: string = today.toISOString().split("T")[0]!;
-  const dateFrom: string = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0]!;
+  const dateTo: string = today.toISOString().split("T")[0] ?? "";
+  const dateFrom: string =
+    new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0] ?? "";
 
   const campaigns: AdCampaign[] = [];
   let totalSpend = 0;

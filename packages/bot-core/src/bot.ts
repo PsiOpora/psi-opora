@@ -27,7 +27,7 @@ export interface BotOptions {
   client?: ConstructorParameters<typeof Bot>[1]["client"];
 }
 
-export function createBot({ storage, redis, client }: BotOptions = {}) {
+export function createBot({ storage, redis: _redis, client }: BotOptions = {}) {
   const token = env.TG_BOT_TOKEN ?? env.BOT_TOKEN ?? "";
   const bot = new Bot<AppContext>(token, client ? { client } : undefined);
 

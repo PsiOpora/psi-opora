@@ -1,3 +1,4 @@
+import { AdStatsError } from "@/components/dashboard/ad-stats-error";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -14,21 +15,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatMoney, formatNumber } from "@/lib/format";
 import {
+  type AdStatsResult,
   fetchAdStats,
   getCachedAdStats,
-  type AdStatsResult,
 } from "@/lib/marketing/ads-api";
-import { getRedisOrNull } from "@/lib/redis";
-import { formatMoney, formatNumber } from "@/lib/format";
-import { AdRefreshButton } from "./refresh-button";
-import { AdStatsError } from "@/components/dashboard/ad-stats-error";
-import { AdTrendChart } from "./trend-chart";
 import { orpc } from "@/lib/orpc-client";
+import { getRedisOrNull } from "@/lib/redis";
+import { AdRefreshButton } from "./refresh-button";
+import { AdTrendChart } from "./trend-chart";
 
 function formatCtr(clicks: number, impressions: number): string {
   if (impressions === 0) return "—";
-  return ((clicks / impressions) * 100).toFixed(2) + "%";
+  return `${((clicks / impressions) * 100).toFixed(2)}%`;
 }
 
 function StatusBadge({
@@ -54,10 +54,11 @@ function StatusBadge({
 export default async function AdsPage() {
   const redis = getRedisOrNull();
   const today = new Date();
-  const dateTo = today.toISOString().split("T")[0]!;
-  const dateFrom = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0]!;
+  const dateTo = today.toISOString().split("T")[0] ?? localDate(today);
+  const dateFrom =
+    new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0] ?? localDate(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000));
 
   let data: AdStatsResult | null = null;
   let loadError = false;
@@ -70,7 +71,7 @@ export default async function AdsPage() {
     try {
       const creds = await orpc.ads.getCredentials().catch(() => null);
       data = await fetchAdStats(redis, creds);
-    } catch (err) {
+    } catch (_err) {
       loadError = true;
     }
   }
@@ -88,7 +89,7 @@ export default async function AdsPage() {
   }
 
   // data is guaranteed non-null here — we returned early if both loadError and redis are falsy
-  const liveData = data!;
+  const liveData = data;
 
   const dbStats = await orpc.ads.stats({ dateFrom, dateTo }).catch(() => ({
     summary: { totalSpend: 0, totalImpressions: 0, totalClicks: 0 },

@@ -1,6 +1,6 @@
-import { cn } from "@/lib/utils";
-import { formatNumber, formatPercent } from "@/lib/format";
 import type { BotFunnelStepStats } from "@/lib/analytics/bot-funnel";
+import { formatNumber, formatPercent } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 interface FunnelChartProps {
   steps: BotFunnelStepStats[];
@@ -92,6 +92,8 @@ export function FunnelChart({ steps, title, className }: FunnelChartProps) {
                       viewBox="0 0 12 16"
                       fill="none"
                       className="shrink-0"
+                      aria-label="Конверсия"
+                      role="img"
                     >
                       <path
                         d="M6 0v12M1 7l5 5 5-5"
@@ -102,10 +104,10 @@ export function FunnelChart({ steps, title, className }: FunnelChartProps) {
                       />
                     </svg>
                     <span className="font-medium text-foreground">
-                      {formatPercent(steps[i + 1]!.stepConversion)} конверсия
+                      {formatPercent(steps[i + 1]?.stepConversion)} конверсия
                     </span>
                     <span className="text-muted-foreground">
-                      ({formatNumber(step.count - steps[i + 1]!.count)} потерь)
+                      ({formatNumber(step.count - steps[i + 1]?.count)} потерь)
                     </span>
                   </div>
                 </div>

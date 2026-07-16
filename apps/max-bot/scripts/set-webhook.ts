@@ -20,7 +20,7 @@ const res = await fetch(`${MAX_API_ROOT}/subscriptions`, {
   body: JSON.stringify({ url: webhookEndpoint }),
 });
 
-const json = (await res.json()) as any;
+const json = (await res.json()) as Record<string, unknown>;
 
 if (!res.ok) {
   console.error("Ошибка:", JSON.stringify(json, null, 2));

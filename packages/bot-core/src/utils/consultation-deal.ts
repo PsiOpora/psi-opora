@@ -78,9 +78,10 @@ export async function submitConsultationDeal(
     await createBitrixDeal(dealData);
     await trackFunnelStep("deal", funnelCtx);
     return true;
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error(
-      `[bitrix] ошибка создания сделки (${messenger}): ${err.message}`,
+      `[bitrix] ошибка создания сделки (${messenger}): ${message}`,
     );
     return false;
   }

@@ -1,5 +1,4 @@
 import { bitrixWebhookHandler } from "@psi-opora/bitrix-webhook-api";
-import type { NextConfig } from "next";
 
 const handler = bitrixWebhookHandler();
 
