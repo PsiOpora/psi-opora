@@ -17,8 +17,8 @@
   "scripts": {
     "build": "tsdown",
     "clean": "git clean -xdf .cache .turbo dist node_modules",
-    "dev:trigger": "bunx --env-file=../../.env trigger.dev@v4 dev",
-    "deploy:trigger": "bunx --env-file=../../.env trigger.dev@v4 deploy",
+    "dev:trigger": "bunx --env-file=../../.env trigger.dev dev",
+    "deploy:trigger": "bunx --env-file=../../.env trigger.dev deploy",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
@@ -29,6 +29,7 @@
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
     "@types/node": "26.1.1",
+    "dotenv": "^17.4.2",
     "tsdown": "^0.22.8",
     "typescript": "6.0.3"
   }

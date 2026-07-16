@@ -205,6 +205,7 @@
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
         "@types/node": "26.1.1",
+        "dotenv": "^17.4.2",
         "tsdown": "^0.22.8",
         "typescript": "6.0.3",
       },

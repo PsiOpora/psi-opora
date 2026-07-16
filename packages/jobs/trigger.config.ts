@@ -1,4 +1,8 @@
 import { defineConfig } from "@trigger.dev/sdk";
+import { config } from "dotenv";
+import { resolve } from "path";
+
+config({ path: resolve(__dirname, "../../.env") });
 
 export default defineConfig({
   // Референс проекта из https://cloud.trigger.dev → Project settings
