@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "../history";
+import { AutoRefresh } from "./auto-refresh";
 import { ResendFailed } from "./resend-failed";
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -31,9 +32,13 @@ const CHANNEL_LABEL: Record<string, string> = {
 
 const STATUS_BADGE: Record<
   string,
-  { label: string; variant: "default" | "destructive" | "outline" }
+  {
+    label: string;
+    variant: "default" | "secondary" | "destructive" | "outline";
+  }
 > = {
   sent: { label: "Отправлено", variant: "default" },
+  pending: { label: "В очереди", variant: "secondary" },
   skipped: { label: "Пропущен", variant: "outline" },
   error: { label: "Ошибка", variant: "destructive" },
 };
@@ -50,8 +55,19 @@ export default async function BroadcastDetailsPage({
   ]);
   if (!broadcast) notFound();
 
+  // Пока задача выполняется, счётчики в строке broadcasts ещё не обновлены —
+  // считаем по фактическим статусам получателей.
+  const counts = {
+    sent: recipients.filter((r) => r.status === "sent").length,
+    pending: recipients.filter((r) => r.status === "pending").length,
+    skipped: recipients.filter((r) => r.status === "skipped").length,
+    failed: recipients.filter((r) => r.status === "error").length,
+  };
+  const isRunning = broadcast.status === "running";
+
   return (
     <div className="flex flex-col gap-6 max-w-4xl">
+      <AutoRefresh enabled={isRunning} />
       <div>
         <Link
           href="/broadcast"
@@ -65,9 +81,15 @@ export default async function BroadcastDetailsPage({
         <p className="text-sm text-muted-foreground mt-1">
           {broadcast.stageName ?? broadcast.stageId} ·{" "}
           {CHANNEL_LABEL[broadcast.channel] ?? broadcast.channel} · Сделок:{" "}
-          {broadcast.totalDeals ?? "—"} · Отправлено: {broadcast.sentCount} ·
-          Пропущено: {broadcast.skippedCount} · Ошибок: {broadcast.failedCount}
+          {broadcast.totalDeals ?? "—"} · Отправлено: {counts.sent}
+          {counts.pending > 0 && ` · В очереди: ${counts.pending}`} ·
+          Пропущено: {counts.skipped} · Ошибок: {counts.failed}
         </p>
+        {isRunning && (
+          <p className="text-sm mt-1">
+            ⏳ Рассылка выполняется в фоне — страница обновляется автоматически.
+          </p>
+        )}
         {broadcast.error && (
           <p className="text-sm text-destructive mt-1">{broadcast.error}</p>
         )}
@@ -90,10 +112,10 @@ export default async function BroadcastDetailsPage({
             Telegram и MAX не сообщают ботам о прочтении, поэтому статус
             «Просмотрено» недоступен.
           </CardDescription>
-          {broadcast.failedCount > 0 && broadcast.status !== "running" && (
+          {counts.failed > 0 && !isRunning && (
             <ResendFailed
               broadcastId={broadcast.id}
-              failedCount={broadcast.failedCount}
+              failedCount={counts.failed}
             />
           )}
         </CardHeader>

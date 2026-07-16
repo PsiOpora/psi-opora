@@ -19,6 +19,8 @@
         "MAX_BOT_TOKEN",
         "MAX_WEBHOOK_URL",
         "BOT_TOKEN",
+        "TG_BOT_TOKEN",
+        "TRIGGER_SECRET_KEY",
         "NODE_TLS_REJECT_UNAUTHORIZED",
         "BITRIX_WEBHOOK_URL",
         "MAX_BOT_ID",

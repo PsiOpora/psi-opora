@@ -17,19 +17,19 @@
   "scripts": {
     "build": "tsdown",
     "clean": "git clean -xdf .cache .turbo dist node_modules",
-    "dev:trigger": "bunx trigger.dev@v4 dev",
-    "deploy:trigger": "bunx trigger.dev@v4 deploy",
+    "dev:trigger": "bunx --env-file=../../.env trigger.dev@v4 dev",
+    "deploy:trigger": "bunx --env-file=../../.env trigger.dev@v4 deploy",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
-    "@trigger.dev/sdk": "^4.5.4"
+    "@trigger.dev/sdk": "4.5.4"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
     "@types/node": "26.1.1",
-    "tsdown": "^0.22.4",
+    "tsdown": "^0.22.8",
     "typescript": "6.0.3"
   }
 }

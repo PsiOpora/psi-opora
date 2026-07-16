@@ -7,9 +7,11 @@ import {
   getLastBroadcastForStage,
   insertBroadcastRecipients,
   listBroadcastRecipients,
-  updateBroadcastCounters,
-  updateBroadcastRecipient,
+  markBroadcastRunning,
 } from "@psi-opora/db/queries";
+import type { deliverBroadcast } from "@psi-opora/jobs";
+import { sendMessengerMessage } from "@psi-opora/jobs";
+import { tasks } from "@trigger.dev/sdk";
 import { revalidatePath } from "next/cache";
 import { MESSAGE_MAX_LENGTH } from "@/lib/broadcast/constants";
 import { getBitrixApi } from "@/lib/bitrix/session";
@@ -19,9 +21,6 @@ import {
   type Messenger,
   buildReport,
   collectRecipients,
-  deliverToRecipients,
-  sendDelay,
-  sendMessengerMessage,
 } from "@/lib/broadcast/send";
 
 export interface RecentBroadcastInfo {
@@ -33,6 +32,10 @@ export interface BroadcastActionResult {
   report?: BroadcastReport;
   /** Последняя рассылка по этой же стадии — предупреждение о возможном дубле. */
   recentBroadcast?: RecentBroadcastInfo | null;
+  /** ID рассылки, поставленной в очередь trigger.dev. */
+  queuedBroadcastId?: string;
+  /** Сколько получателей будет отправлено фоновой задачей. */
+  queuedCount?: number;
   error?: string;
 }
 
@@ -116,6 +119,13 @@ export async function sendBroadcastAction(input: {
       };
     }
 
+    const pendingCount = recipients.filter(
+      (r) => r.status === "pending",
+    ).length;
+    if (pendingCount === 0) {
+      return { error: "Среди получателей некому отправлять" };
+    }
+
     const broadcastId = crypto.randomUUID();
     await createBroadcast({
       id: broadcastId,
@@ -123,73 +133,64 @@ export async function sendBroadcastAction(input: {
       stageName: input.stageName,
       channel: input.channel,
       message,
+      totalDeals,
     });
+    await insertBroadcastRecipients(
+      recipients.map((r) => ({
+        id: crypto.randomUUID(),
+        broadcastId,
+        contactId: r.contactId,
+        contactName: r.contactName,
+        dealId: r.dealId,
+        dealTitle: r.dealTitle,
+        messenger: r.messenger,
+        messengerUserId: r.userId,
+        status: r.status,
+        error: r.error,
+        sentAt: null,
+      })),
+    );
 
     try {
-      await deliverToRecipients(recipients, message);
-      const report = buildReport(totalDeals, recipients, false);
-
-      await insertBroadcastRecipients(
-        report.recipients.map((r) => ({
-          id: crypto.randomUUID(),
-          broadcastId,
-          contactId: r.contactId,
-          contactName: r.contactName,
-          dealId: r.dealId,
-          dealTitle: r.dealTitle,
-          messenger: r.messenger,
-          messengerUserId: r.userId,
-          status: r.status === "pending" ? "skipped" : r.status,
-          error: r.error,
-          sentAt: r.status === "sent" ? new Date() : null,
-        })),
-      );
-      await finishBroadcast(broadcastId, {
-        status: "done",
-        totalDeals: report.totalDeals,
-        sentCount: report.sent,
-        skippedCount: report.skipped,
-        failedCount: report.failed,
+      await tasks.trigger<typeof deliverBroadcast>("broadcast-deliver", {
+        broadcastId,
+        mode: "initial",
       });
-      revalidatePath("/broadcast");
-
-      return { report };
     } catch (err) {
       await finishBroadcast(broadcastId, {
         status: "error",
-        error: (err as Error).message,
+        error: `Не удалось запустить фоновую задачу: ${(err as Error).message}`,
       });
       revalidatePath("/broadcast");
-      throw err;
+      return {
+        error: `Рассылка не запущена: ${(err as Error).message}. Проверьте настройку trigger.dev (TRIGGER_SECRET_KEY).`,
+      };
     }
+
+    revalidatePath("/broadcast");
+    return { queuedBroadcastId: broadcastId, queuedCount: pendingCount };
   } catch (err) {
     return { error: (err as Error).message };
   }
 }
 
 export interface ResendResult {
-  resent: number;
-  stillFailed: number;
+  /** Сколько получателей поставлено в очередь на досылку. */
+  queued: number;
   error?: string;
 }
 
 /**
- * Досылка сообщения получателям рассылки, у которых была ошибка отправки.
- * Использует сохранённый текст рассылки; успешные и пропущенные не трогаются.
+ * Досылка сообщения получателям рассылки, у которых была ошибка отправки:
+ * ставит фоновую задачу trigger.dev. Успешные и пропущенные не трогаются.
  */
 export async function resendFailedAction(
   broadcastId: string,
 ): Promise<ResendResult> {
   const broadcast = await getBroadcast(broadcastId);
-  if (!broadcast) {
-    return { resent: 0, stillFailed: 0, error: "Рассылка не найдена" };
-  }
+  if (!broadcast) return { queued: 0, error: "Рассылка не найдена" };
   if (broadcast.status === "running") {
-    return {
-      resent: 0,
-      stillFailed: 0,
-      error: "Рассылка ещё выполняется — дождитесь завершения",
-    };
+    return { queued: 0, error: "Рассылка ещё выполняется — дождитесь завершения" };
   }
 
   const failed = (await listBroadcastRecipients(broadcastId)).filter(
@@ -199,39 +200,24 @@ export async function resendFailedAction(
       r.messengerUserId,
   );
   if (failed.length === 0) {
-    return { resent: 0, stillFailed: 0, error: "Нет получателей с ошибкой" };
+    return { queued: 0, error: "Нет получателей с ошибкой" };
   }
 
-  let resent = 0;
-  for (const recipient of failed) {
-    try {
-      await sendMessengerMessage(
-        recipient.messenger as Messenger,
-        recipient.messengerUserId as string,
-        broadcast.message,
-      );
-      await updateBroadcastRecipient(recipient.id, {
-        status: "sent",
-        error: null,
-        sentAt: new Date(),
-      });
-      resent++;
-    } catch (err) {
-      await updateBroadcastRecipient(recipient.id, {
-        status: "error",
-        error: (err as Error).message,
-        sentAt: null,
-      });
-    }
-    await sendDelay();
+  await markBroadcastRunning(broadcastId);
+  try {
+    await tasks.trigger<typeof deliverBroadcast>("broadcast-deliver", {
+      broadcastId,
+      mode: "resend",
+    });
+  } catch (err) {
+    await finishBroadcast(broadcastId, {
+      status: "error",
+      error: `Не удалось запустить досылку: ${(err as Error).message}`,
+    });
+    return { queued: 0, error: (err as Error).message };
   }
 
-  await updateBroadcastCounters(broadcastId, {
-    sentCount: broadcast.sentCount + resent,
-    failedCount: broadcast.failedCount - resent,
-  });
   revalidatePath("/broadcast");
   revalidatePath(`/broadcast/${broadcastId}`);
-
-  return { resent, stillFailed: failed.length - resent };
+  return { queued: failed.length };
 }

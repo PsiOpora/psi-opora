@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import {
   AlertDialog,
@@ -398,6 +399,10 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
   const [reportKey, setReportKey] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [ackChecked, setAckChecked] = useState(false);
+  const [queued, setQueued] = useState<{
+    broadcastId: string;
+    count: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -441,6 +446,7 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
   const runPreview = () => {
     setConfirming(false);
     setAckChecked(false);
+    setQueued(null);
     startTransition(async () => {
       setError(null);
       const result = await sendBroadcastAction({
@@ -481,10 +487,13 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
       });
       if (result.error) {
         setError(result.error);
-      } else {
-        setReport(result.report ?? null);
+      } else if (result.queuedBroadcastId) {
+        setQueued({
+          broadcastId: result.queuedBroadcastId,
+          count: result.queuedCount ?? 0,
+        });
+        setReport(null);
         setPreviewSig(null);
-        setReportKey((k) => k + 1);
       }
     });
   };
@@ -595,6 +604,26 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
           )}
         </CardContent>
       </Card>
+
+      {queued && (
+        <Card className="border-emerald-500/50">
+          <CardHeader>
+            <CardTitle>Рассылка запущена</CardTitle>
+            <CardDescription>
+              Отправка {queued.count} сообщений выполняется в фоне — страницу
+              можно закрыть. Статусы получателей обновляются на странице
+              рассылки, там же можно дослать сообщения при ошибках.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline">
+              <Link href={`/broadcast/${queued.broadcastId}`}>
+                Открыть статус рассылки
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {confirming && previewFresh && report && (
         <Card className="border-destructive/50">

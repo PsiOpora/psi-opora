@@ -31,8 +31,7 @@ export function ResendFailed({
     startTransition(async () => {
       const res = await resendFailedAction(broadcastId);
       setResult(
-        res.error ??
-          `Досланы: ${res.resent}${res.stillFailed > 0 ? `, снова с ошибкой: ${res.stillFailed}` : ""}`,
+        res.error ?? `Досылка запущена: ${res.queued} получателей в очереди`,
       );
       router.refresh();
     });

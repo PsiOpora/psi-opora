@@ -236,33 +236,6 @@ export async function collectRecipients(
   return { totalDeals: deals.length, recipients };
 }
 
-/**
- * Доставка сообщения собранным получателям: мутирует status/error каждого.
- * Ошибка отправки одному получателю не прерывает рассылку остальным.
- */
-export async function deliverToRecipients(
-  recipients: BroadcastRecipient[],
-  message: string,
-): Promise<void> {
-  for (const recipient of recipients) {
-    if (
-      recipient.status !== "pending" ||
-      !recipient.userId ||
-      !recipient.messenger
-    ) {
-      continue;
-    }
-    try {
-      await sendMessengerMessage(recipient.messenger, recipient.userId, message);
-      recipient.status = "sent";
-    } catch (err) {
-      recipient.status = "error";
-      recipient.error = (err as Error).message;
-    }
-    await sleep(SEND_DELAY_MS);
-  }
-}
-
 export function buildReport(
   totalDeals: number,
   recipients: BroadcastRecipient[],
@@ -277,6 +250,3 @@ export function buildReport(
     dryRun,
   };
 }
-
-/** Пауза между отправками при досылке — та же, что и в основной рассылке. */
-export const sendDelay = (): Promise<void> => sleep(SEND_DELAY_MS);
