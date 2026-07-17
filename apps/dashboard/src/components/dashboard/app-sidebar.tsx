@@ -10,6 +10,7 @@ import {
   LayoutDashboardIcon,
   ListIcon,
   MegaphoneIcon,
+  MessageSquareTextIcon,
   SendIcon,
   SlidersHorizontalIcon,
   TagsIcon,
@@ -39,6 +40,7 @@ const NAV_ITEMS = [
   { href: "/deals", label: "Сделки", icon: ListIcon },
   { href: "/broadcast", label: "Рассылка", icon: SendIcon },
   { href: "/builder", label: "Конструктор", icon: SlidersHorizontalIcon },
+  { href: "/settings/bot", label: "Тексты бота", icon: MessageSquareTextIcon },
   { href: "/settings/ads", label: "Настройки", icon: SettingsIcon },
   { href: "/settings/backup", label: "Бэкап CRM", icon: DatabaseBackupIcon },
 ];

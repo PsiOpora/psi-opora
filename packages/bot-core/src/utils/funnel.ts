@@ -30,17 +30,19 @@ export function setFunnelUpsert(fn: UpsertFunnelFn): void {
 }
 
 /**
- * Шаги воронки бота в порядке прохождения. Email не трекается отдельно —
- * он есть только в Telegram-сценарии и необязателен, воронки мессенджеров
- * должны быть сравнимы между собой.
+ * Шаги воронки бота в порядке прохождения сценария.
+ * email трекается только в ветке «трудности с ребенком», subscribe —
+ * только в ветке «помощь для себя», поэтому их конверсии читаются
+ * относительно предыдущих шагов с поправкой на ветвление.
  */
 export const FUNNEL_STEPS = [
   "start",
-  "consult_click",
-  "consent",
-  "name",
+  "category",
+  "issue",
+  "email",
   "phone",
   "deal",
+  "subscribe",
 ] as const;
 export type FunnelStep = (typeof FUNNEL_STEPS)[number];
 

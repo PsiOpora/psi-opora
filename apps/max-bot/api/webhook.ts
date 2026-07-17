@@ -7,7 +7,7 @@ import { createMaxBot, processUpdate } from "../src/bot.js";
 
 const redis = createUpstashRedis();
 const storage = createRedisStorage<ConsultationSession>(redis);
-const bot = createMaxBot({ storage });
+const bot = createMaxBot({ storage, redis });
 
 export async function POST(request: Request): Promise<Response> {
   const body = await request.json();

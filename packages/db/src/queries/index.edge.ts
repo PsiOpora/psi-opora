@@ -7,8 +7,13 @@ import {
   getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
   upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
+import { getBotTextsRecord as _getBotTextsRecord } from "./bot-texts";
 
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
+
+export async function getBotTextsRecord(): Promise<Record<string, string>> {
+  return _getBotTextsRecord(db);
+}
 
 export async function upsertBotFunnelEvent(
   data: Parameters<typeof _upsertBotFunnelEvent>[1],

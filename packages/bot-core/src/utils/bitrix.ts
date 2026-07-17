@@ -8,6 +8,8 @@ export interface DealData {
   messenger?: string;
   chatId?: number;
   operatorId?: number;
+  /** Дополнительный комментарий к сделке (выбор пользователя в сценарии). */
+  comment?: string;
 }
 
 function getEnv(messenger: string, key: string): string | undefined {
@@ -90,6 +92,7 @@ function buildDealFields(data: DealData, contactId: number) {
     COMMENTS: [
       `Бот: ${botId}`,
       data.telegramUserId ? `${messenger} user_id: ${data.telegramUserId}` : "",
+      data.comment ?? "",
     ]
       .filter(Boolean)
       .join("\n"),
