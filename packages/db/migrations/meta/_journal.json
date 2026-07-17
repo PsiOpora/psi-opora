@@ -35,6 +35,13 @@
       "when": 1817810498539,
       "tag": "0004_crm_backup_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1817896898539,
+      "tag": "0005_bot_messages",
+      "breakpoints": true
     }
   ]
 }

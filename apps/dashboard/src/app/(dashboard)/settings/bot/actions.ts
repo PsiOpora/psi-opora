@@ -47,7 +47,10 @@ export async function uploadGuideAction(formData: FormData): Promise<void> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   // Проверяем магические байты, а не только расширение
   const isPdf =
-    bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46;
   if (!isPdf) {
     failGuide("Файл не похож на PDF");
   }

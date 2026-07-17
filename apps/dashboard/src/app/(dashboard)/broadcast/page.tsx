@@ -1,8 +1,5 @@
 import { NotConnected } from "@/components/dashboard/not-connected";
-import {
-  fetchCategoryNames,
-  fetchStageNames,
-} from "@/lib/analytics/deals";
+import { fetchCategoryNames, fetchStageNames } from "@/lib/analytics/deals";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import { BroadcastForm, type StageOption } from "./broadcast-form";
 import { BroadcastHistory } from "./history";

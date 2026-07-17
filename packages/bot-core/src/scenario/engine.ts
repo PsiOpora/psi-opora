@@ -257,11 +257,9 @@ export function startScenario(t: ScenarioTexts): ScenarioOutput {
  * Используется и для кнопки «Записаться» из сообщений старого бота.
  */
 export function startConsultation(t: ScenarioTexts): ScenarioOutput {
-  return output(
-    { step: "consent", flow: "consult" },
-    [consentQuestion(t)],
-    { track: ["consult_click"] },
-  );
+  return output({ step: "consent", flow: "consult" }, [consentQuestion(t)], {
+    track: ["consult_click"],
+  });
 }
 
 function askForPhone(
@@ -379,11 +377,9 @@ export function applyScenarioAction(
       const issue: ScenarioIssue = action === "sc_eating" ? "eating" : "other";
       const next = { ...state, issue };
       if (state.audience === "child") {
-        return output(
-          { ...fresh(next), step: "email" },
-          [emailQuestion(t)],
-          { track: ["issue"] },
-        );
+        return output({ ...fresh(next), step: "email" }, [emailQuestion(t)], {
+          track: ["issue"],
+        });
       }
       return askForPhone(next, t, [], ["issue"]);
     }
@@ -531,6 +527,25 @@ export function buildReminder(
   const question = stepQuestion(state, t);
   if (!question) return null;
   return { text: t.reminder, buttons: question.buttons };
+}
+
+/** Человекочитаемая подпись нажатой кнопки — для журнала сообщений. */
+export function actionLabel(action: ScenarioAction, t: ScenarioTexts): string {
+  const labels: Record<ScenarioAction, string> = {
+    sc_consult: t.btn_consult,
+    sc_guide: t.btn_guide,
+    consent_agree: t.btn_consent_agree,
+    consent_decline: t.btn_consent_decline,
+    sc_child: t.btn_child,
+    sc_self: t.btn_self,
+    sc_eating: t.btn_issue_eating,
+    sc_other: t.btn_issue_other,
+    sc_skip_email: t.btn_skip_email,
+    sc_skip_phone: t.btn_skip_phone,
+    sc_sub_yes: t.btn_subscribe_yes,
+    sc_sub_no: t.btn_subscribe_no,
+  };
+  return labels[action];
 }
 
 /** Комментарий к сделке для менеджера — что выбрал пользователь. */

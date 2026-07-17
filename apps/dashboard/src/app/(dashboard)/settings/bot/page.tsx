@@ -23,6 +23,7 @@ import {
   saveBotTextsAction,
   uploadGuideAction,
 } from "./actions";
+import { CrmWidgetsCard } from "./crm-widgets-card";
 
 const GROUP_DESCRIPTIONS: Record<string, string> = {
   "Начало диалога":
@@ -71,8 +72,8 @@ function GuideFileCard({
         <CardTitle>Файл гайда (PDF)</CardTitle>
         <CardDescription>
           Боты отправляют этот PDF документом в чат после того, как клиент
-          оставил email в ветке гайда. Хранится в S3 (используются настройки
-          из раздела «Бэкап CRM»). До 10 МБ.
+          оставил email в ветке гайда. Хранится в S3 (используются настройки из
+          раздела «Бэкап CRM»). До 10 МБ.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -144,10 +145,11 @@ export default async function BotTextsPage({
         <p className="text-sm text-muted-foreground mt-1">
           Сообщения сценария для Telegram и MAX ботов, включая гайд
           (лид-магнит). Пустое поле возвращает текст по умолчанию.
-          Поддерживается Markdown. Боты подхватывают изменения в течение
-          минуты.
+          Поддерживается Markdown. Боты подхватывают изменения в течение минуты.
         </p>
       </div>
+
+      <CrmWidgetsCard />
 
       <GuideFileCard overrides={overrides} error={guideError} />
 

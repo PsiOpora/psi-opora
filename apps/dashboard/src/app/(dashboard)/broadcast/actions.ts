@@ -53,7 +53,8 @@ export async function sendTestMessageAction(input: {
       error: `Сообщение длиннее ${MESSAGE_MAX_LENGTH} символов`,
     };
   }
-  if (!input.userId) return { ok: false, error: "У контакта нет ID мессенджера" };
+  if (!input.userId)
+    return { ok: false, error: "У контакта нет ID мессенджера" };
 
   try {
     await sendMessengerMessage(input.messenger, input.userId, message);
@@ -190,7 +191,10 @@ export async function resendFailedAction(
   const broadcast = await getBroadcast(broadcastId);
   if (!broadcast) return { queued: 0, error: "Рассылка не найдена" };
   if (broadcast.status === "running") {
-    return { queued: 0, error: "Рассылка ещё выполняется — дождитесь завершения" };
+    return {
+      queued: 0,
+      error: "Рассылка ещё выполняется — дождитесь завершения",
+    };
   }
 
   const failed = (await listBroadcastRecipients(broadcastId)).filter(

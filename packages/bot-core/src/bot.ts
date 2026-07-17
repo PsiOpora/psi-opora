@@ -4,6 +4,7 @@ import type { Api, StorageAdapter } from "grammy";
 import { Bot, InlineKeyboard, session } from "grammy";
 import { dispatchScenarioOutput } from "./scenario/dispatch";
 import {
+  actionLabel,
   applyScenarioAction,
   applyScenarioText,
   isScenarioAction,
@@ -18,6 +19,7 @@ import {
   type ScenarioTexts,
 } from "./scenario/texts";
 import type { AppContext, ConsultationSession } from "./types/context";
+import { logBotMessage } from "./utils/message-log";
 import { formatUtmLog, parseUtmParams } from "./utils/utm";
 
 export const log = (msg: string) => {
@@ -78,7 +80,9 @@ export async function sendTelegramScenarioMessage(
       if (guide) await api.sendDocument(chatId, guide.url);
     } catch (err) {
       // Текст гайда уже отправлен — без файла диалог не ломаем
-      log(`[guide] не удалось отправить PDF в Telegram: ${(err as Error).message}`);
+      log(
+        `[guide] не удалось отправить PDF в Telegram: ${(err as Error).message}`,
+      );
     }
   }
 }
@@ -132,6 +136,13 @@ export function createBot({ storage, redis, client }: BotOptions = {}) {
     log(
       `[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)} messenger=telegram`,
     );
+    await logBotMessage({
+      messenger: "telegram",
+      userId: ctx.from?.id,
+      direction: "in",
+      source: "scenario",
+      text: rawParam ? `/start ${rawParam}` : "/start",
+    });
 
     const texts = await getScenarioTexts();
     await dispatch(ctx, startScenario(texts), texts);
@@ -166,12 +177,30 @@ export function createBot({ storage, redis, client }: BotOptions = {}) {
       .catch(() => {});
 
     log(`[SCENARIO] user=${ctx.from?.id} action=${action} messenger=telegram`);
+    await logBotMessage({
+      messenger: "telegram",
+      userId: ctx.from?.id,
+      direction: "in",
+      source: "scenario",
+      text: isScenarioAction(action)
+        ? actionLabel(action, texts)
+        : texts.btn_consult,
+    });
     await dispatch(ctx, out, texts);
   });
 
   bot.on("message:text", async (ctx) => {
     const text = ctx.message.text.trim();
     if (!text || text.startsWith("/")) return;
+
+    // В журнал попадают все входящие — даже вне сценария
+    await logBotMessage({
+      messenger: "telegram",
+      userId: ctx.from?.id,
+      direction: "in",
+      source: "scenario",
+      text,
+    });
 
     const state = ctx.session.scenario;
     if (!state) return;
@@ -186,9 +215,7 @@ export function createBot({ storage, redis, client }: BotOptions = {}) {
   bot.catch((err) => {
     const ctx = err.ctx as AppContext;
     log(`[ERROR] update_id=${ctx.update.update_id} ${err.error}`);
-    ctx.reply(
-      "⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.",
-    );
+    ctx.reply("⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.");
   });
 
   return bot;

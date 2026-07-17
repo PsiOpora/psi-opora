@@ -9,6 +9,7 @@ export {
   type ScenarioDispatchDeps,
 } from "./scenario/dispatch";
 export {
+  actionLabel,
   applyScenarioAction,
   applyScenarioText,
   buildReminder,
@@ -81,6 +82,12 @@ export {
   trackFunnelStep,
   type UpsertFunnelFn,
 } from "./utils/funnel";
+export {
+  type BotMessageDirection,
+  type BotMessageLogEntry,
+  type BotMessageSource,
+  logBotMessage,
+} from "./utils/message-log";
 export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes";
 export {
   buildStartLink,

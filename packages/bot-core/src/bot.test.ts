@@ -95,10 +95,9 @@ describe("телеграм-бот: /start", () => {
     const messages = sentMessages(sent);
     expect(messages.map((m) => m.payload.text)).toEqual([t.welcome]);
     const keyboard = messages[0]?.payload.reply_markup?.inline_keyboard;
-    expect(keyboard?.flat().map((b: { callback_data: string }) => b.callback_data)).toEqual([
-      "sc_consult",
-      "sc_guide",
-    ]);
+    expect(
+      keyboard?.flat().map((b: { callback_data: string }) => b.callback_data),
+    ).toEqual(["sc_consult", "sc_guide"]);
   });
 
   test("/start с utm-меткой тоже запускает сценарий", async () => {

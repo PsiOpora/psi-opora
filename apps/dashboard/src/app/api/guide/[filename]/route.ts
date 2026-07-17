@@ -21,9 +21,7 @@ export async function GET(): Promise<Response> {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`,
-        ...(contentLength
-          ? { "Content-Length": String(contentLength) }
-          : {}),
+        ...(contentLength ? { "Content-Length": String(contentLength) } : {}),
         "Cache-Control": "public, max-age=60",
       },
     });

@@ -450,12 +450,8 @@
           "name": "broadcast_recipients_broadcast_id_broadcasts_id_fk",
           "tableFrom": "broadcast_recipients",
           "tableTo": "broadcasts",
-          "columnsFrom": [
-            "broadcast_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["broadcast_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

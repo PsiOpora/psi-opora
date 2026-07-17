@@ -1,12 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ApiVersion, initializeB24Frame } from "@bitrix24/b24jssdk";
+import {
+  ApiVersion,
+  type B24Frame,
+  initializeB24Frame,
+} from "@bitrix24/b24jssdk";
 import { AlertCircleIcon, Loader2Icon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type Status = "connecting" | "ready" | "standalone" | "error";
+
+interface B24FrameState {
+  /** Подключение к порталу; null — standalone-режим или ещё подключаемся. */
+  b24: B24Frame | null;
+  status: Status;
+}
+
+const B24FrameContext = createContext<B24FrameState>({
+  b24: null,
+  status: "connecting",
+});
+
+/** Доступ к B24Frame из клиентских компонентов (виджеты, placement.bind). */
+export function useB24Frame(): B24FrameState {
+  return useContext(B24FrameContext);
+}
 
 /**
  * Устанавливает сессию с порталом Битрикс24, когда приложение открыто во
@@ -22,6 +42,7 @@ export function BitrixFrameProvider({
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>("connecting");
+  const [b24, setB24] = useState<B24Frame | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,13 +58,13 @@ export function BitrixFrameProvider({
 
     (async () => {
       try {
-        const b24 = await initializeB24Frame();
-        const authData = b24.auth.getAuthData();
+        const frame = await initializeB24Frame();
+        const authData = frame.auth.getAuthData();
         if (!authData)
           throw new Error("Битрикс24 не передал данные авторизации");
 
         const clientEndpoint =
-          b24.getTargetOriginWithPath().get(ApiVersion.v2) ??
+          frame.getTargetOriginWithPath().get(ApiVersion.v2) ??
           `https://${authData.domain}/rest/`;
 
         const res = await fetch("/api/bitrix/session", {
@@ -61,11 +82,12 @@ export function BitrixFrameProvider({
         });
         if (!res.ok) throw new Error("Не удалось сохранить сессию Битрикс24");
 
-        if (b24.isFirstRun) {
-          await b24.installFinish();
+        if (frame.isFirstRun) {
+          await frame.installFinish();
         }
 
         if (cancelled) return;
+        setB24(frame);
         setStatus("ready");
         router.refresh();
       } catch (err) {
@@ -80,17 +102,21 @@ export function BitrixFrameProvider({
     };
   }, [router]);
 
+  const contextValue = useMemo<B24FrameState>(
+    () => ({ b24, status }),
+    [b24, status],
+  );
+
+  let content: React.ReactNode;
   if (status === "connecting") {
-    return (
+    content = (
       <div className="flex min-h-svh items-center justify-center gap-2 text-muted-foreground">
         <Loader2Icon className="size-4 animate-spin" />
         Подключаемся к Битрикс24…
       </div>
     );
-  }
-
-  if (status === "error") {
-    return (
+  } else if (status === "error") {
+    content = (
       <div className="flex min-h-svh items-center justify-center p-6">
         <Alert variant="destructive" className="max-w-md">
           <AlertCircleIcon />
@@ -99,7 +125,13 @@ export function BitrixFrameProvider({
         </Alert>
       </div>
     );
+  } else {
+    content = children;
   }
 
-  return <>{children}</>;
+  return (
+    <B24FrameContext.Provider value={contextValue}>
+      {content}
+    </B24FrameContext.Provider>
+  );
 }

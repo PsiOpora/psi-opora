@@ -102,8 +102,8 @@ export function TelegramPreview({ text }: { text: string }) {
       </div>
       {unbalanced.length > 0 && (
         <p className="text-xs text-amber-600 dark:text-amber-400">
-          ⚠️ Непарная разметка: {unbalanced.join(" ")} — Telegram отклонит
-          такое форматирование, сообщение уйдёт обычным текстом.
+          ⚠️ Непарная разметка: {unbalanced.join(" ")} — Telegram отклонит такое
+          форматирование, сообщение уйдёт обычным текстом.
         </p>
       )}
     </div>

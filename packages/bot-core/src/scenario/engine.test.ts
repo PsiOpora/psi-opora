@@ -11,9 +11,7 @@ import {
 import { DEFAULT_SCENARIO_TEXTS as t } from "./texts";
 
 /** Прогоняет цепочку действий/текстов, возвращает последний output. */
-function run(
-  steps: Array<{ action?: string; text?: string }>,
-): ScenarioOutput {
+function run(steps: Array<{ action?: string; text?: string }>): ScenarioOutput {
   let out = startScenario(t);
   for (const step of steps) {
     const next = step.action
@@ -74,7 +72,10 @@ describe("флоу «запись на консультацию»", () => {
   });
 
   test("имя подставляется в запрос телефона, трекаются consent и name", () => {
-    const consent = run([{ action: "sc_consult" }, { action: "consent_agree" }]);
+    const consent = run([
+      { action: "sc_consult" },
+      { action: "consent_agree" },
+    ]);
     expect(consent.track).toEqual(["consent"]);
     expect(consent.messages.map((m) => m.text)).toEqual([
       t.consent_agreed,
