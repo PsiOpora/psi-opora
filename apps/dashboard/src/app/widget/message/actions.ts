@@ -2,7 +2,9 @@
 
 import { insertBotMessage, listBotMessages } from "@psi-opora/db/queries";
 import { type Messenger, sendMessengerMessage } from "@psi-opora/jobs";
+import type { BitrixApi } from "@/lib/bitrix/client";
 import { getBitrixApi } from "@/lib/bitrix/session";
+import { MESSAGE_MAX_LENGTH } from "@/lib/broadcast/constants";
 import {
   discoverMessengerFields,
   findMaxId,
@@ -63,11 +65,65 @@ async function loadHistory(
 
 export type WidgetEntity = "deal" | "contact";
 
+interface ResolvedContact {
+  contactId: string;
+  contactName: string;
+  channels: WidgetChannel[];
+  telegramUsername?: string;
+}
+
 /**
- * Определяет получателя для вкладки в карточке CRM: для сделки берём
- * привязанный контакт, у контакта ищем Telegram/MAX в поле IM (пишут наши
- * боты) и UF-полях интеграций — та же логика, что у рассылки.
+ * Резолвит ID контакта и его каналы (Telegram/MAX) из CRM: для сделки
+ * сначала берём привязанный контакт, у контакта ищем мессенджеры в поле IM
+ * (пишут наши боты) и UF-полях интеграций — та же логика, что у рассылки.
+ *
+ * Используется и для отображения виджета, и для отправки — так отправка
+ * никогда не доверяет messenger/userId, присланным из браузера напрямую,
+ * а всегда пересчитывает их из актуальных данных CRM.
  */
+async function resolveContact(
+  api: BitrixApi,
+  entity: WidgetEntity,
+  id: string,
+): Promise<{ contact?: ResolvedContact; error?: string }> {
+  let contactId = id;
+  if (entity === "deal") {
+    const deal = await api.call<{ CONTACT_ID?: string | null }>(
+      "crm.deal.get",
+      { id },
+    );
+    contactId = deal?.CONTACT_ID ?? "";
+    if (!contactId) {
+      return { error: "У сделки нет привязанного контакта" };
+    }
+  }
+
+  const [fields, contact] = await Promise.all([
+    discoverMessengerFields(api),
+    api.call<RawContact>("crm.contact.get", { id: contactId }),
+  ]);
+  if (!contact) return { error: "Контакт не найден" };
+
+  const channels: WidgetChannel[] = [];
+  const telegram = findTelegram(contact, fields.telegram);
+  if (telegram?.userId) {
+    channels.push({ messenger: "telegram", userId: telegram.userId });
+  }
+  const maxId = findMaxId(contact, fields.max);
+  if (maxId) channels.push({ messenger: "max", userId: maxId });
+
+  return {
+    contact: {
+      contactId,
+      contactName:
+        [contact.NAME, contact.LAST_NAME].filter(Boolean).join(" ") ||
+        `Контакт #${contactId}`,
+      channels,
+      telegramUsername: telegram?.username,
+    },
+  };
+}
+
 export async function loadWidgetRecipientAction(
   entity: WidgetEntity,
   id: string,
@@ -80,45 +136,20 @@ export async function loadWidgetRecipientAction(
   }
 
   try {
-    let contactId = id;
-    if (entity === "deal") {
-      const deal = await api.call<{ CONTACT_ID?: string | null }>(
-        "crm.deal.get",
-        { id },
-      );
-      contactId = deal?.CONTACT_ID ?? "";
-      if (!contactId) {
-        return { error: "У сделки нет привязанного контакта" };
-      }
-    }
-
-    const [fields, contact] = await Promise.all([
-      discoverMessengerFields(api),
-      api.call<RawContact>("crm.contact.get", { id: contactId }),
-    ]);
-    if (!contact) return { error: "Контакт не найден" };
-
-    const channels: WidgetChannel[] = [];
-    const telegram = findTelegram(contact, fields.telegram);
-    if (telegram?.userId) {
-      channels.push({ messenger: "telegram", userId: telegram.userId });
-    }
-    const maxId = findMaxId(contact, fields.max);
-    if (maxId) channels.push({ messenger: "max", userId: maxId });
+    const { contact, error } = await resolveContact(api, entity, id);
+    if (error || !contact) return { error };
 
     const note =
-      channels.length === 0 && telegram?.username
-        ? `У контакта только Telegram-username (@${telegram.username}). Бот может писать лишь тем, кто сам открывал диалог с ботом — нужен числовой ID.`
+      contact.channels.length === 0 && contact.telegramUsername
+        ? `У контакта только Telegram-username (@${contact.telegramUsername}). Бот может писать лишь тем, кто сам открывал диалог с ботом — нужен числовой ID.`
         : undefined;
 
     return {
       recipient: {
-        contactId,
-        contactName:
-          [contact.NAME, contact.LAST_NAME].filter(Boolean).join(" ") ||
-          `Контакт #${contactId}`,
-        channels,
-        history: await loadHistory(channels),
+        contactId: contact.contactId,
+        contactName: contact.contactName,
+        channels: contact.channels,
+        history: await loadHistory(contact.channels),
         note,
       },
     };
@@ -128,30 +159,55 @@ export async function loadWidgetRecipientAction(
 }
 
 export interface SendWidgetMessageInput {
+  /** Элемент CRM, из карточки которого открыта вкладка (не сам контакт). */
+  entity: WidgetEntity;
+  entityId: string;
   messenger: Messenger;
-  userId: string;
   text: string;
-  contactId: string;
 }
 
 /**
  * Отправляет сообщение клиенту от имени бота выбранного мессенджера
  * и фиксирует его комментарием в таймлайне контакта.
+ *
+ * userId получателя намеренно не принимается от клиента: его значение
+ * пересчитывается здесь же из актуальных данных CRM (resolveContact),
+ * иначе вызывающий мог бы подставить произвольный messenger/userId
+ * и разослать сообщение через бота кому угодно, минуя привязку к контакту.
  */
 export async function sendWidgetMessageAction(
   input: SendWidgetMessageInput,
 ): Promise<{ ok?: true; error?: string }> {
   const text = input.text.trim();
   if (!text) return { error: "Введите текст сообщения" };
+  if (text.length > MESSAGE_MAX_LENGTH) {
+    return { error: `Сообщение длиннее ${MESSAGE_MAX_LENGTH} символов` };
+  }
   if (input.messenger !== "telegram" && input.messenger !== "max") {
     return { error: "Неизвестный канал отправки" };
   }
-  if (!/^\d+$/.test(input.userId)) {
-    return { error: "Некорректный ID получателя" };
+
+  const api = await getBitrixApi();
+  if (!api) {
+    return { error: "Нет подключения к Битрикс24 — обновите страницу" };
+  }
+
+  const { contact, error } = await resolveContact(
+    api,
+    input.entity,
+    input.entityId,
+  ).catch((err) => ({ error: (err as Error).message, contact: undefined }));
+  if (error || !contact) {
+    return { error: error ?? "Не удалось определить контакт" };
+  }
+
+  const channel = contact.channels.find((c) => c.messenger === input.messenger);
+  if (!channel) {
+    return { error: "У контакта нет такого канала — обновите страницу" };
   }
 
   try {
-    await sendMessengerMessage(input.messenger, input.userId, text);
+    await sendMessengerMessage(channel.messenger, channel.userId, text);
   } catch (err) {
     return { error: `Не отправлено: ${(err as Error).message}` };
   }
@@ -159,8 +215,8 @@ export async function sendWidgetMessageAction(
   // Журнал сообщений — история видна во вкладке при следующем открытии
   try {
     await insertBotMessage({
-      messenger: input.messenger,
-      userId: input.userId,
+      messenger: channel.messenger,
+      userId: channel.userId,
       direction: "out",
       source: "widget",
       text,
@@ -174,12 +230,11 @@ export async function sendWidgetMessageAction(
   // История переписки должна быть видна менеджеру — пишем в таймлайн.
   // Ошибка комментария не отменяет отправку, просто логируется.
   try {
-    const api = await getBitrixApi();
-    await api?.call("crm.timeline.comment.add", {
+    await api.call("crm.timeline.comment.add", {
       fields: {
-        ENTITY_ID: Number(input.contactId),
+        ENTITY_ID: Number(contact.contactId),
         ENTITY_TYPE: "contact",
-        COMMENT: `🤖 Отправлено ботом (${input.messenger === "telegram" ? "Telegram" : "MAX"}):\n${text}`,
+        COMMENT: `🤖 Отправлено ботом (${channel.messenger === "telegram" ? "Telegram" : "MAX"}):\n${text}`,
       },
     });
   } catch (err) {

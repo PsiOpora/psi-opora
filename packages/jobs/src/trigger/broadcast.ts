@@ -30,6 +30,7 @@ export const deliverBroadcast = task({
     const {
       finishBroadcast,
       getBroadcast,
+      insertBotMessage,
       listBroadcastRecipients,
       updateBroadcastRecipient,
     } = await import("@psi-opora/db/queries");
@@ -62,6 +63,19 @@ export const deliverBroadcast = task({
             status: "sent",
             error: null,
             sentAt: new Date(),
+          });
+          // Журнал сообщений — рассылка тоже должна быть видна в истории
+          // диалога во вкладке CRM. Ошибка записи не должна валить рассылку.
+          await insertBotMessage({
+            messenger: recipient.messenger as Messenger,
+            userId: recipient.messengerUserId as string,
+            direction: "out",
+            source: "broadcast",
+            text: broadcast.message,
+          }).catch((err) => {
+            console.error(
+              `[broadcast] не удалось записать сообщение в журнал: ${(err as Error).message}`,
+            );
           });
         } catch (err) {
           await updateBroadcastRecipient(recipient.id, {

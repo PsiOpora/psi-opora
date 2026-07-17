@@ -1,12 +1,30 @@
-import { describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 
-// Env до импорта бота: grammy требует непустой токен, а клиент БД —
-// POSTGRES_URL (запросы в тестах падают и глотаются, соединение не нужно)
+// Env до импорта бота: grammy требует непустой токен
 process.env.TG_BOT_TOKEN ||= "1:TEST_TOKEN";
-process.env.POSTGRES_URL ||= "postgresql://test:test@127.0.0.1:5432/test";
+
+// Мокаем слой БД до импорта бота: иначе logBotMessage/getScenarioTexts
+// пытались бы открыть настоящее сетевое соединение на каждый шаг сценария —
+// это и медленно, и не даёт проверить, что журнал сообщений пишется верно.
+interface LoggedMessage {
+  messenger: string;
+  userId: string;
+  direction: "in" | "out";
+  source: string;
+  text: string;
+}
+const insertBotMessage = mock((entry: LoggedMessage) => Promise.resolve(entry));
+mock.module("@psi-opora/db/queries.edge", () => ({
+  insertBotMessage,
+  getBotTextsRecord: () => Promise.resolve({}),
+}));
 
 const { createBot } = await import("./bot");
 const { DEFAULT_SCENARIO_TEXTS: t } = await import("./scenario/texts");
+
+beforeEach(() => {
+  insertBotMessage.mockClear();
+});
 
 interface SentCall {
   method: string;
@@ -168,5 +186,66 @@ describe("телеграм-бот: кнопки старого сценария"
     await bot.handleUpdate(callbackUpdate("consent_decline"));
     expect(sent.some((c) => c.method === "answerCallbackQuery")).toBe(true);
     expect(sentMessages(sent)).toEqual([]);
+  });
+});
+
+describe("телеграм-бот: журнал сообщений (bot_messages)", () => {
+  test("логирует входящие и исходящие на каждом шаге флоу консультации", async () => {
+    const { bot } = makeBot();
+    await bot.handleUpdate(commandUpdate("/start"));
+    await bot.handleUpdate(callbackUpdate("sc_consult", 2));
+    await bot.handleUpdate(callbackUpdate("consent_agree", 3));
+    await bot.handleUpdate(textUpdate("Анна", 4));
+    await bot.handleUpdate(textUpdate("+7 999 123-45-67", 5));
+    await bot.handleUpdate(textUpdate("anna@example.com", 6));
+
+    const calls = insertBotMessage.mock.calls.map(([entry]) => entry);
+    for (const entry of calls) {
+      expect(entry.messenger).toBe("telegram");
+      expect(entry.userId).toBe("100");
+      expect(entry.source).toBe("scenario");
+    }
+
+    expect(calls.map((e) => e.direction)).toEqual([
+      "in",
+      "out",
+      "in",
+      "out",
+      "in",
+      "out",
+      "out",
+      "in",
+      "out",
+      "in",
+      "out",
+      "in",
+      "out",
+    ]);
+
+    const texts = calls.map((e) => e.text);
+    expect(texts[0]).toBe("/start");
+    expect(texts[1]).toBe(t.welcome);
+    expect(texts[2]).toBe(t.btn_consult);
+    expect(texts[3]).toBe(t.consent_text);
+    expect(texts[4]).toBe(t.btn_consent_agree);
+    expect(texts[5]).toBe(t.consent_agreed);
+    expect(texts[6]).toBe(t.name_question);
+    expect(texts[7]).toBe("Анна");
+    expect(texts[8]).toContain("Анна");
+    expect(texts[9]).toBe("+7 999 123-45-67");
+    expect(texts[10]).toBe(t.consult_email_question);
+    expect(texts[11]).toBe("anna@example.com");
+    expect(texts[12]).toContain("Заявка принята");
+  });
+
+  test("кнопка запускает журнал с человекочитаемой подписью, а не с кодом action", async () => {
+    const { bot } = makeBot();
+    await bot.handleUpdate(commandUpdate("/start"));
+    await bot.handleUpdate(callbackUpdate("sc_guide", 2));
+
+    const inbound = insertBotMessage.mock.calls
+      .map(([entry]) => entry)
+      .filter((e) => e.direction === "in");
+    expect(inbound.map((e) => e.text)).toEqual(["/start", t.btn_guide]);
   });
 });
