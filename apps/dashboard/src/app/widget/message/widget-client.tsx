@@ -6,6 +6,7 @@ import type { Messenger } from "@psi-opora/jobs";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { MESSAGE_MAX_LENGTH } from "@/lib/broadcast/constants";
 import { cn } from "@/lib/utils";
 import {
   loadWidgetRecipientAction,
@@ -107,18 +108,21 @@ export function MessageWidget({
   // при ошибке авторизации менеджер нажмёт «Повторить»
   useEffect(load, [load]);
 
+  const trimmedText = text.trim();
+  const overLimit = trimmedText.length > MESSAGE_MAX_LENGTH;
+
   const send = () => {
-    if (!recipient || !channel) return;
+    if (!recipient || !channel || overLimit) return;
     const target = recipient.channels.find((c) => c.messenger === channel);
     if (!target) return;
 
     setSendError(null);
     startSending(async () => {
       const result = await sendWidgetMessageAction({
+        entity,
+        entityId,
         messenger: target.messenger,
-        userId: target.userId,
-        text,
-        contactId: recipient.contactId,
+        text: trimmedText,
       });
       if (result.error) {
         setSendError(result.error);
@@ -137,7 +141,7 @@ export function MessageWidget({
                   messenger: target.messenger,
                   direction: "out",
                   source: "widget",
-                  text,
+                  text: trimmedText,
                   createdAt: new Date().toISOString(),
                 },
               ],
@@ -233,6 +237,15 @@ export function MessageWidget({
           placeholder="Здравствуйте! Это центр «Опора»…"
           className="min-h-28 text-sm"
         />
+        <span
+          className={cn(
+            "self-end text-xs",
+            overLimit ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {trimmedText.length} / {MESSAGE_MAX_LENGTH}
+          {overLimit && " — мессенджеры не примут такое длинное сообщение"}
+        </span>
       </div>
 
       {sendError && <p className="text-sm text-destructive">{sendError}</p>}
@@ -245,7 +258,7 @@ export function MessageWidget({
 
       <Button
         onClick={send}
-        disabled={sending || !text.trim() || !channel}
+        disabled={sending || !trimmedText || !channel || overLimit}
         className="self-start"
       >
         {sending ? (

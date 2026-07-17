@@ -44,11 +44,18 @@ export function CrmWidgetsCard() {
     if (!b24) return;
     try {
       const res = await b24.callMethod("placement.get", {});
+      if (!res.isSuccess) {
+        setError("Не удалось получить список вкладок Битрикс24");
+        return;
+      }
       const rows = ((res.getData() as { result?: PlacementRow[] } | undefined)
         ?.result ?? []) as PlacementRow[];
       const url = handlerUrl();
       setBound(
-        rows.filter((row) => row.handler === url)h (err) {
+        rows.filter((row) => row.handler === url).map((row) => row.placement),
+      );
+      setError(null);
+    } catch (err) {
       setError((err as Error).message);
     }
   }, [b24]);
