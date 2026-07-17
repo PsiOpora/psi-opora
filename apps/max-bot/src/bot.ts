@@ -177,13 +177,16 @@ export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
   );
   bot.command("start", (ctx) => handleStart(ctx as AppContext, undefined));
 
-  // Кнопка «Записаться» из сообщений старого сценария — запускаем новый
-  bot.action("start_consultation", async (ctx) => {
-    const appCtx = ctx as AppContext;
-    await appCtx.answerOnCallback({}).catch(() => {});
-    const texts = await getScenarioTexts();
-    await dispatch(appCtx, startScenario(texts), texts);
-  });
+  // Кнопки старого сценария («Записаться», согласие на ПДн) в сообщениях,
+  // отправленных до обновления — запускаем новый сценарий
+  for (const legacyAction of ["start_consultation", "consent_agree"]) {
+    bot.action(legacyAction, async (ctx) => {
+      const appCtx = ctx as AppContext;
+      await appCtx.answerOnCallback({}).catch(() => {});
+      const texts = await getScenarioTexts();
+      await dispatch(appCtx, startScenario(texts), texts);
+    });
+  }
 
   for (const action of SCENARIO_ACTIONS) {
     bot.action(action, async (ctx) => {

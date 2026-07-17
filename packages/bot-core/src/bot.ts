@@ -124,8 +124,9 @@ export function createBot({ storage, redis, client }: BotOptions = {}) {
     const action = ctx.callbackQuery.data;
     await ctx.answerCallbackQuery();
 
-    // Кнопка «Записаться» из сообщений старого сценария — запускаем новый
-    if (action === "start_consultation") {
+    // Кнопки старого сценария («Записаться», согласие на ПДн) в сообщениях,
+    // отправленных до обновления — запускаем новый сценарий
+    if (action === "start_consultation" || action === "consent_agree") {
       const texts = await getScenarioTexts();
       await ctx
         .editMessageReplyMarkup({ reply_markup: undefined })
