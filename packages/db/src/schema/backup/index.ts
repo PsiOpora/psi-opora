@@ -13,10 +13,13 @@ export const backupCredentials = pgTable("backup_credentials", {
 export const backupRuns = pgTable("backup_runs", {
   id: text("id").primaryKey(),
   status: text("status").notNull(), // running | success | error
-  entities: jsonb("entities").$type<Record<string, number>>(),
-  objectKey: text("object_key"),
-  sizeBytes: integer("size_bytes"),
-  error: text("error"),
+  objectKey: text("object_key"), // legacy: путь к единому файлу (старый формат)
+  manifestKey: text("manifest_key"), // путь к manifest.json нового формата
+  prefix: text("prefix"), // префикс папки бэкапа в S3
+  entities: jsonb("entities"), // Record<string, BackupEntityResult>
+  totalBytes: integer("total_bytes"),
+  errors: jsonb("errors"), // Array<{ entity: string; error: string }>
+  error: text("error"), // фатальная ошибка запуска
   startedAt: timestamp("started_at").defaultNow(),
   finishedAt: timestamp("finished_at"),
 });

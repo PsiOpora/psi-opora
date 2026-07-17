@@ -11,6 +11,7 @@ export interface BitrixApi {
   list<T = Record<string, unknown>>(
     method: string,
     params?: Record<string, unknown>,
+    extractor?: (result: unknown) => T[],
   ): Promise<T[]>;
 }
 
@@ -41,12 +42,14 @@ function unwrap(json: RawResponse, method: string): unknown {
 async function paginate<T>(
   callPage: (start: number) => Promise<RawResponse>,
   method: string,
+  extractor?: (result: unknown) => T[],
 ): Promise<T[]> {
   const items: T[] = [];
   let start = 0;
   for (let page = 0; page < MAX_LIST_PAGES; page++) {
     const json = await callPage(start);
-    const chunk = unwrap(json, method) as T[];
+    const result = unwrap(json, method);
+    const chunk = extractor ? extractor(result) : (result as T[]);
     items.push(...chunk);
     if (typeof json.next !== "number") break;
     start = json.next;
@@ -96,8 +99,8 @@ export function createOAuthApi(memberId: string): BitrixApi {
       const json = await request(method, params);
       return unwrap(json, method) as T;
     },
-    list(method, params = {}) {
-      return paginate((start) => request(method, params, start), method);
+    list(method, params = {}, extractor?) {
+      return paginate((start) => request(method, params, start), method, extractor);
     },
   };
 }
@@ -124,8 +127,8 @@ export function createWebhookApi(webhookUrl: string): BitrixApi {
       const json = await request(method, params);
       return unwrap(json, method) as T;
     },
-    list(method, params = {}) {
-      return paginate((start) => request(method, params, start), method);
+    list(method, params = {}, extractor?) {
+      return paginate((start) => request(method, params, start), method, extractor);
     },
   };
 }

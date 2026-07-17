@@ -39,7 +39,13 @@ export {
 } from "./scenario/reminders";
 export {
   DEFAULT_SCENARIO_TEXTS,
+  getGuideFile,
   getScenarioTexts,
+  GUIDE_FILE_NAME_KEY,
+  GUIDE_FILE_S3_KEY,
+  GUIDE_FILE_SIZE_KEY,
+  GUIDE_FILE_URL_KEY,
+  type GuideFile,
   SCENARIO_TEXT_DEFS,
   type ScenarioTextDef,
   type ScenarioTextKey,

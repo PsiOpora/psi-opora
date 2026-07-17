@@ -308,10 +308,48 @@ export const DEFAULT_SCENARIO_TEXTS: ScenarioTexts = Object.fromEntries(
   SCENARIO_TEXT_DEFS.map((def) => [def.key, def.defaultValue]),
 ) as ScenarioTexts;
 
+// ── Зарезервированные ключи bot_texts для PDF-гайда ───────────────────────────
+// Их пишет форма загрузки гайда в дашборде; в форме текстов они не показываются
+// (не входят в SCENARIO_TEXT_DEFS).
+
+/** Публичный URL, по которому дашборд отдаёт PDF гайда. */
+export const GUIDE_FILE_URL_KEY = "guide_file_url";
+/** Имя файла гайда (для подписи и отправки в MAX). */
+export const GUIDE_FILE_NAME_KEY = "guide_file_name";
+/** Ключ объекта в S3 — используется дашбордом. */
+export const GUIDE_FILE_S3_KEY = "guide_file_s3_key";
+/** Размер файла в байтах — для отображения в дашборде. */
+export const GUIDE_FILE_SIZE_KEY = "guide_file_size";
+
+export interface GuideFile {
+  url: string;
+  name: string;
+}
+
 const CACHE_TTL_MS = 60_000;
 
-let cached: ScenarioTexts | null = null;
+let cachedOverrides: Record<string, string> | null = null;
 let cachedAt = 0;
+
+/** Строки bot_texts с кэшем на минуту; при недоступной БД — прошлый кэш. */
+async function getOverrides(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (cachedOverrides && now - cachedAt < CACHE_TTL_MS) return cachedOverrides;
+
+  try {
+    // Ленивый импорт: клиент БД падает при загрузке без POSTGRES_URL,
+    // а дефолтные тексты и defs нужны и без базы (дашборд, тесты)
+    const { getBotTextsRecord } = await import("@psi-opora/db/queries.edge");
+    cachedOverrides = await getBotTextsRecord();
+    cachedAt = now;
+    return cachedOverrides;
+  } catch (err) {
+    console.error(
+      `[texts] не удалось загрузить тексты бота: ${(err as Error).message}`,
+    );
+    return cachedOverrides ?? {};
+  }
+}
 
 /**
  * Тексты сценария: значения по умолчанию, перекрытые правками из дашборда.
@@ -319,26 +357,22 @@ let cachedAt = 0;
  * ошибка не должна ломать диалог.
  */
 export async function getScenarioTexts(): Promise<ScenarioTexts> {
-  const now = Date.now();
-  if (cached && now - cachedAt < CACHE_TTL_MS) return cached;
-
-  try {
-    // Ленивый импорт: клиент БД падает при загрузке без POSTGRES_URL,
-    // а дефолтные тексты и defs нужны и без базы (дашборд, тесты)
-    const { getBotTextsRecord } = await import("@psi-opora/db/queries.edge");
-    const overrides = await getBotTextsRecord();
-    const texts = { ...DEFAULT_SCENARIO_TEXTS };
-    for (const def of SCENARIO_TEXT_DEFS) {
-      const value = overrides[def.key];
-      if (value?.trim()) texts[def.key] = value;
-    }
-    cached = texts;
-    cachedAt = now;
-    return texts;
-  } catch (err) {
-    console.error(
-      `[texts] не удалось загрузить тексты бота: ${(err as Error).message}`,
-    );
-    return cached ?? DEFAULT_SCENARIO_TEXTS;
+  const overrides = await getOverrides();
+  const texts = { ...DEFAULT_SCENARIO_TEXTS };
+  for (const def of SCENARIO_TEXT_DEFS) {
+    const value = overrides[def.key];
+    if (value?.trim()) texts[def.key] = value;
   }
+  return texts;
+}
+
+/** PDF-гайд, загруженный в дашборде; null — файл не настроен. */
+export async function getGuideFile(): Promise<GuideFile | null> {
+  const overrides = await getOverrides();
+  const url = overrides[GUIDE_FILE_URL_KEY]?.trim();
+  if (!url) return null;
+  return {
+    url,
+    name: overrides[GUIDE_FILE_NAME_KEY]?.trim() || "guide.pdf",
+  };
 }

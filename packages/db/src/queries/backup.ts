@@ -38,11 +38,30 @@ export async function createBackupRun(id: string): Promise<void> {
   await db.insert(backupRuns).values({ id, status: "running" });
 }
 
+export interface BackupEntityResult {
+  name: string;
+  file: string;
+  method: string;
+  count: number;
+  sizeBytes: number;
+  durationMs: number;
+  error?: string;
+}
+
+export interface BackupRunError {
+  entity: string;
+  error: string;
+}
+
 export async function finishBackupRun(
   id: string,
   data: {
     status: "success" | "error";
-    entities?: Record<string, number>;
+    manifestKey?: string;
+    prefix?: string;
+    entities?: Record<string, BackupEntityResult>;
+    totalBytes?: number;
+    errors?: BackupRunError[];
     objectKey?: string;
     sizeBytes?: number;
     error?: string;
@@ -51,7 +70,11 @@ export async function finishBackupRun(
   if (!db) return;
   await db
     .update(backupRuns)
-    .set({ ...data, finishedAt: new Date() })
+    .set({
+      ...data,
+      objectKey: data.manifestKey ?? data.objectKey,
+      finishedAt: new Date(),
+    })
     .where(eq(backupRuns.id, id));
 }
 

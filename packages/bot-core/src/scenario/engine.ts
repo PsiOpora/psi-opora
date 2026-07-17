@@ -87,6 +87,8 @@ export interface ScenarioMessage {
   text: string;
   /** Ряды inline-кнопок. */
   buttons?: ScenarioButton[][];
+  /** Вслед за текстом отправить PDF-гайд (если загружен в дашборде). */
+  guide?: boolean;
 }
 
 export interface ScenarioLead {
@@ -459,7 +461,7 @@ export function applyScenarioText(
         return askForPhone(
           { ...state, email: text },
           t,
-          [{ text: t.lead_magnet }],
+          [{ text: t.lead_magnet, guide: true }],
           ["email"],
         );
       }

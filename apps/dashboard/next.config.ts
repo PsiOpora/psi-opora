@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      // Загрузка PDF-гайда через server action (по умолчанию лимит 1 МБ)
+      bodySizeLimit: "12mb",
+    },
+  },
   // Приложение открывается во фрейме внутри Битрикс24 (домен портала заранее
   // неизвестен), поэтому X-Frame-Options не выставляем — вместо запрета
   // явно разрешаем встройку с *.bitrix24.* через CSP frame-ancestors.

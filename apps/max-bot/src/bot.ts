@@ -10,6 +10,7 @@ import {
   type ConsultationSession,
   dispatchScenarioOutput,
   formatUtmLog,
+  getGuideFile,
   getScenarioTexts,
   parseUtmParams,
   SCENARIO_ACTIONS,
@@ -110,6 +111,54 @@ function toMaxKeyboard(message: ScenarioMessage) {
   );
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Отправка PDF-гайда в MAX: скачиваем файл с дашборда, загружаем через
+ * uploads API и отправляем вложением. Свежезагруженное вложение может быть
+ * ещё не готово («attachment not ready») — повторяем отправку с паузой.
+ */
+async function sendMaxGuideFile(
+  ctx: AppContext,
+  guide: { url: string; name: string },
+): Promise<void> {
+  const fileRes = await fetch(guide.url);
+  if (!fileRes.ok) throw new Error(`гайд недоступен: HTTP ${fileRes.status}`);
+  const bytes = await fileRes.arrayBuffer();
+
+  const upload = await ctx.api.raw.uploads.getUploadUrl({ type: "file" });
+  const form = new FormData();
+  form.append(
+    "data",
+    new Blob([bytes], { type: "application/pdf" }),
+    guide.name,
+  );
+  const uploadRes = await fetch(upload.url, { method: "POST", body: form });
+  if (!uploadRes.ok) {
+    throw new Error(`загрузка в MAX не удалась: HTTP ${uploadRes.status}`);
+  }
+  const uploaded = (await uploadRes.json().catch(() => null)) as {
+    token?: string;
+  } | null;
+  const token = uploaded?.token ?? upload.token;
+  if (!token) throw new Error("MAX не вернул token вложения");
+
+  const attachments = [
+    { type: "file" as const, payload: { token } },
+  ];
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await replyWithFallback(ctx, `📎 ${guide.name}`, { attachments });
+      return;
+    } catch (err) {
+      lastError = err;
+      await sleep(1500);
+    }
+  }
+  throw lastError;
+}
+
 export type MaxBot = Bot<AppContext>;
 
 export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
@@ -131,6 +180,16 @@ export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
       });
     } catch {
       await replyWithFallback(ctx, message.text, { attachments });
+    }
+
+    if (message.guide) {
+      try {
+        const guide = await getGuideFile();
+        if (guide) await sendMaxGuideFile(ctx, guide);
+      } catch (err) {
+        // Текст гайда уже отправлен — без файла диалог не ломаем
+        log(`[guide] не удалось отправить PDF в MAX: ${describeError(err)}`);
+      }
     }
   };
 

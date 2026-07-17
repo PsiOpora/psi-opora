@@ -1,4 +1,7 @@
 import {
+  GUIDE_FILE_NAME_KEY,
+  GUIDE_FILE_SIZE_KEY,
+  GUIDE_FILE_URL_KEY,
   SCENARIO_TEXT_DEFS,
   type ScenarioTextDef,
 } from "@psi-opora/bot-core";
@@ -15,7 +18,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { getBotTextsRecord } from "@psi-opora/db/queries";
-import { saveBotTextsAction } from "./actions";
+import {
+  deleteGuideAction,
+  saveBotTextsAction,
+  uploadGuideAction,
+} from "./actions";
 
 const GROUP_DESCRIPTIONS: Record<string, string> = {
   "Начало диалога":
@@ -42,11 +49,93 @@ function groupDefs(): Array<{ group: string; defs: ScenarioTextDef[] }> {
   return groups;
 }
 
-export default async function BotTextsPage() {
+function formatSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
+}
+
+function GuideFileCard({
+  overrides,
+  error,
+}: {
+  overrides: Record<string, string>;
+  error?: string;
+}) {
+  const fileName = overrides[GUIDE_FILE_NAME_KEY]?.trim();
+  const fileUrl = overrides[GUIDE_FILE_URL_KEY]?.trim();
+  const fileSize = Number(overrides[GUIDE_FILE_SIZE_KEY] ?? "");
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Файл гайда (PDF)</CardTitle>
+        <CardDescription>
+          Боты отправляют этот PDF документом в чат после того, как клиент
+          оставил email в ветке гайда. Хранится в S3 (используются настройки
+          из раздела «Бэкап CRM»). До 10 МБ.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {error && (
+          <p className="text-sm text-destructive">Ошибка загрузки: {error}</p>
+        )}
+
+        {fileName ? (
+          <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2">
+            <div className="flex flex-col">
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-medium underline underline-offset-2"
+              >
+                📎 {fileName}
+              </a>
+              <span className="text-xs text-muted-foreground">
+                {formatSize(fileSize)}
+              </span>
+            </div>
+            <form action={deleteGuideAction}>
+              <Button type="submit" variant="outline" size="sm">
+                Удалить
+              </Button>
+            </form>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Файл не загружен — бот отправит только текст гайда.
+          </p>
+        )}
+
+        <form action={uploadGuideAction} className="flex items-center gap-3">
+          <Input
+            type="file"
+            name="guide"
+            accept="application/pdf"
+            required
+            className="max-w-xs text-sm"
+          />
+          <Button type="submit" variant="secondary">
+            {fileName ? "Заменить" : "Загрузить"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default async function BotTextsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const overrides = await getBotTextsRecord().catch(
     () => ({}) as Record<string, string>,
   );
   const groups = groupDefs();
+  const params = await searchParams;
+  const guideError =
+    typeof params.guideError === "string" ? params.guideError : undefined;
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
@@ -59,6 +148,8 @@ export default async function BotTextsPage() {
           минуты.
         </p>
       </div>
+
+      <GuideFileCard overrides={overrides} error={guideError} />
 
       <form action={saveBotTextsAction} className="flex flex-col gap-6">
         {groups.map(({ group, defs }) => (

@@ -12,7 +12,11 @@ import {
   startConsultation,
   startScenario,
 } from "./scenario/engine";
-import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
+import {
+  getGuideFile,
+  getScenarioTexts,
+  type ScenarioTexts,
+} from "./scenario/texts";
 import type { AppContext, ConsultationSession } from "./types/context";
 import { formatUtmLog, parseUtmParams } from "./utils/utm";
 
@@ -64,6 +68,18 @@ export async function sendTelegramScenarioMessage(
     });
   } catch {
     await api.sendMessage(chatId, message.text, options);
+  }
+
+  if (message.guide) {
+    // PDF-гайд из дашборда: Telegram сам скачивает файл по URL —
+    // клиент получает документ в чат насовсем
+    try {
+      const guide = await getGuideFile();
+      if (guide) await api.sendDocument(chatId, guide.url);
+    } catch (err) {
+      // Текст гайда уже отправлен — без файла диалог не ломаем
+      log(`[guide] не удалось отправить PDF в Telegram: ${(err as Error).message}`);
+    }
   }
 }
 

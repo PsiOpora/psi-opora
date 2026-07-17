@@ -190,7 +190,7 @@ export default async function BackupSettingsPage() {
               <TableRow>
                 <TableHead>Начат</TableHead>
                 <TableHead>Статус</TableHead>
-                <TableHead>Объект в S3</TableHead>
+                <TableHead>Папка в S3</TableHead>
                 <TableHead>Размер</TableHead>
               </TableRow>
             </TableHeader>
@@ -205,27 +205,35 @@ export default async function BackupSettingsPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {runs.map((run) => (
-                <TableRow key={run.id}>
-                  <TableCell className="text-sm">
-                    {run.startedAt
-                      ? new Date(run.startedAt).toLocaleString("ru-RU")
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {STATUS_LABEL[run.status] ?? run.status}
-                    {run.status === "error" && run.error && (
-                      <p className="text-xs text-destructive">{run.error}</p>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs font-mono">
-                    {run.objectKey ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {formatBytes(run.sizeBytes)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {runs.map((run) => {
+                const errors = Array.isArray(run.errors) ? run.errors : [];
+                return (
+                  <TableRow key={run.id}>
+                    <TableCell className="text-sm">
+                      {run.startedAt
+                        ? new Date(run.startedAt).toLocaleString("ru-RU")
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {STATUS_LABEL[run.status] ?? run.status}
+                      {run.status === "error" && run.error && (
+                        <p className="text-xs text-destructive">{run.error}</p>
+                      )}
+                      {errors.length > 0 && (
+                        <p className="text-xs text-destructive">
+                          Ошибок сущностей: {errors.length}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono">
+                      {run.prefix ?? run.objectKey ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {formatBytes(run.totalBytes)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

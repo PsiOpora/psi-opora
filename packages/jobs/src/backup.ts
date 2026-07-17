@@ -11,23 +11,227 @@ export interface BackupS3Credentials {
   s3SecretAccessKey: string | null;
 }
 
-/** Список CRM-сущностей, которые попадают в бэкап, и метод их выборки. */
-const CRM_ENTITIES: Record<string, string> = {
-  leads: "crm.lead.list",
-  deals: "crm.deal.list",
-  contacts: "crm.contact.list",
-  companies: "crm.company.list",
-  activities: "crm.activity.list",
-};
+/** Извлекает массив элементов из ответа list-метода, если сам ответ — не массив. */
+type EntityExtractor = (result: unknown) => unknown[];
+
+interface EntityConfig {
+  name: string;
+  file: string;
+  method: string;
+  params?: Record<string, unknown>;
+  extractor?: EntityExtractor;
+}
+
+export interface BackupEntityResult {
+  name: string;
+  file: string;
+  method: string;
+  count: number;
+  sizeBytes: number;
+  durationMs: number;
+  error?: string;
+}
 
 export interface CrmBackupResult {
-  objectKey: string;
-  sizeBytes: number;
-  entities: Record<string, number>;
+  prefix: string;
+  manifestKey: string;
+  totalBytes: number;
+  entities: Record<string, BackupEntityResult>;
+  errors: Array<{ entity: string; error: string }>;
+}
+
+/** Сущности CRM, которые выгружаются всегда (файл на сущность). */
+const BASE_ENTITIES: EntityConfig[] = [
+  {
+    name: "leads",
+    file: "leads.jsonl.gz",
+    method: "crm.lead.list",
+    params: { select: ["*", "UF_*"] },
+  },
+  {
+    name: "deals",
+    file: "deals.jsonl.gz",
+    method: "crm.deal.list",
+    params: { select: ["*", "UF_*"] },
+  },
+  {
+    name: "contacts",
+    file: "contacts.jsonl.gz",
+    method: "crm.contact.list",
+    params: { select: ["*", "UF_*"] },
+  },
+  {
+    name: "companies",
+    file: "companies.jsonl.gz",
+    method: "crm.company.list",
+    params: { select: ["*", "UF_*"] },
+  },
+  {
+    name: "activities",
+    file: "activities.jsonl.gz",
+    method: "crm.activity.list",
+    params: { select: ["*", "COMMUNICATIONS"] },
+  },
+  {
+    name: "requisites",
+    file: "requisites.jsonl.gz",
+    method: "crm.requisite.list",
+    params: { select: ["*"] },
+  },
+  {
+    name: "addresses",
+    file: "addresses.jsonl.gz",
+    method: "crm.address.list",
+    params: { select: ["*"] },
+  },
+  {
+    name: "quotes",
+    file: "quotes.jsonl.gz",
+    method: "crm.quote.list",
+    params: { select: ["*"] },
+  },
+  {
+    name: "invoices",
+    file: "invoices.jsonl.gz",
+    method: "crm.invoice.list",
+    params: { select: ["*"] },
+  },
+  {
+    name: "statuses",
+    file: "statuses.jsonl.gz",
+    method: "crm.status.list",
+  },
+  {
+    name: "dealCategories",
+    file: "deal-categories.jsonl.gz",
+    method: "crm.dealcategory.list",
+  },
+  {
+    name: "activityTypes",
+    file: "activity-types.jsonl.gz",
+    method: "crm.activity.type.list",
+  },
+  {
+    name: "users",
+    file: "users.jsonl.gz",
+    method: "user.get",
+  },
+  {
+    name: "departments",
+    file: "departments.jsonl.gz",
+    method: "department.get",
+  },
+  {
+    name: "crmTypes",
+    file: "crm-types.jsonl.gz",
+    method: "crm.type.list",
+    extractor: (result) =>
+      (result as { types?: unknown[] }).types ?? [],
+  },
+  {
+    name: "catalogs",
+    file: "catalogs.jsonl.gz",
+    method: "catalog.catalog.list",
+    extractor: (result) =>
+      (result as { catalogs?: unknown[] }).catalogs ?? [],
+  },
+];
+
+/** Собирает полный список сущностей: базовые + каталоги + смарт-процессы. */
+async function buildEntityConfigs(
+  api: BitrixApi,
+): Promise<EntityConfig[]> {
+  const entities: EntityConfig[] = [...BASE_ENTITIES];
+
+  // Товары каждого торгового каталога.
+  try {
+    const catalogs = await api.list(
+      "catalog.catalog.list",
+      {},
+      (result) => (result as { catalogs?: unknown[] }).catalogs ?? [],
+    );
+    for (const catalog of catalogs) {
+      const c = catalog as {
+        id?: number;
+        iblockId?: number;
+        name?: string;
+      };
+      const iblockId = c.iblockId ?? c.id;
+      if (!iblockId) continue;
+
+      entities.push({
+        name: `catalog-${iblockId}-products`,
+        file: `catalog-${iblockId}-products.jsonl.gz`,
+        method: "catalog.product.list",
+        params: {
+          select: ["id", "iblockId", "*"],
+          filter: { iblockId },
+        },
+        extractor: (result) =>
+          (result as { products?: unknown[] }).products ?? [],
+      });
+    }
+  } catch {
+    // Если каталоги недоступны, пропускаем — отразится в manifest.errors.
+  }
+
+  // Смарт-процессы: сначала типы, затем поля и элементы каждого типа.
+  try {
+    const types = await api.list(
+      "crm.type.list",
+      {},
+      (result) => (result as { types?: unknown[] }).types ?? [],
+    );
+
+    for (const type of types) {
+      const t = type as {
+        entityTypeId?: number;
+        title?: string;
+        code?: string;
+      };
+      const entityTypeId = t.entityTypeId;
+      if (!entityTypeId) continue;
+
+      const baseName = t.title
+        ? `${t.title.replace(/\s+/g, "-")}-${entityTypeId}`
+        : `type-${entityTypeId}`;
+
+      entities.push({
+        name: `smart-process-${baseName}-fields`,
+        file: `smart-process-${entityTypeId}-fields.jsonl.gz`,
+        method: "crm.item.fields",
+        params: { entityTypeId, useOriginalUfNames: "Y" },
+        extractor: (result) => [
+          {
+            entityTypeId,
+            title: t.title,
+            code: t.code,
+            fields: (result as { fields?: unknown }).fields,
+          },
+        ],
+      });
+
+      entities.push({
+        name: `smart-process-${baseName}`,
+        file: `smart-process-${entityTypeId}.jsonl.gz`,
+        method: "crm.item.list",
+        params: { entityTypeId, select: ["*", "UF_*"] },
+        extractor: (result) =>
+          (result as { items?: unknown[] }).items ?? [],
+      });
+    }
+  } catch {
+    // Если смарт-процессы недоступны, пропускаем.
+  }
+
+  return entities;
 }
 
 /** Клиент S3 по настройкам хранилища (совместим с Yandex Object Storage и MinIO). */
-function createS3(creds: BackupS3Credentials): { client: S3Client; bucket: string } {
+function createS3(creds: BackupS3Credentials): {
+  client: S3Client;
+  bucket: string;
+} {
   if (
     !creds.s3Endpoint ||
     !creds.s3Bucket ||
@@ -56,43 +260,113 @@ function createS3(creds: BackupS3Credentials): { client: S3Client; bucket: strin
   return { client, bucket: creds.s3Bucket };
 }
 
-/** Выгружает все сущности CRM Bitrix24 и загружает единым архивом в S3. */
+/** Записывает одну сущность в S3 как сжатый JSONL. */
+async function backupEntity(
+  api: BitrixApi,
+  entity: EntityConfig,
+  client: S3Client,
+  bucket: string,
+  prefix: string,
+): Promise<BackupEntityResult> {
+  const startedAt = Date.now();
+  try {
+    const rows = await api.list<unknown>(
+      entity.method,
+      entity.params,
+      entity.extractor,
+    );
+
+    const lines = rows.map((row) => JSON.stringify(row)).join("\n");
+    const gzipped = gzipSync(Buffer.from(lines, "utf-8"));
+
+    const key = `${prefix}${entity.file}`;
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: gzipped,
+        ContentType: "application/json",
+        ContentEncoding: "gzip",
+        ContentDisposition: `inline; filename="${entity.file}"`,
+      }),
+    );
+
+    return {
+      name: entity.name,
+      file: entity.file,
+      method: entity.method,
+      count: rows.length,
+      sizeBytes: gzipped.byteLength,
+      durationMs: Date.now() - startedAt,
+    };
+  } catch (err) {
+    return {
+      name: entity.name,
+      file: entity.file,
+      method: entity.method,
+      count: 0,
+      sizeBytes: 0,
+      durationMs: Date.now() - startedAt,
+      error: (err as Error).message,
+    };
+  }
+}
+
+/** Генерирует префикс S3 для одного запуска бэкапа. */
+function backupPrefix(): string {
+  const now = new Date();
+  const datePrefix = now.toISOString().slice(0, 10);
+  const timestamp = now.toISOString().replace(/:/g, "-").replace(/\..+/, "");
+  return `crm-backups/${datePrefix}/${timestamp}/`;
+}
+
+/** Выгружает все CRM-сущности в отдельные файлы и формирует manifest.json. */
 export async function runCrmBackup(
   api: BitrixApi,
   creds: BackupS3Credentials,
 ): Promise<CrmBackupResult> {
   const { client, bucket } = createS3(creds);
+  const prefix = backupPrefix();
 
-  const entities: Record<string, number> = {};
-  const data: Record<string, unknown[]> = {};
+  const entities = await buildEntityConfigs(api);
+  const results: Record<string, BackupEntityResult> = {};
+  const errors: Array<{ entity: string; error: string }> = [];
 
-  for (const [name, method] of Object.entries(CRM_ENTITIES)) {
-    const rows = await api.list(method);
-    data[name] = rows;
-    entities[name] = rows.length;
+  // Последовательно, чтобы не упереться в лимиты Bitrix24 REST API.
+  for (const entity of entities) {
+    const result = await backupEntity(api, entity, client, bucket, prefix);
+    results[entity.name] = result;
+    if (result.error) {
+      errors.push({ entity: entity.name, error: result.error });
+    }
   }
 
-  const payload = JSON.stringify({
+  const totalBytes = Object.values(results).reduce(
+    (sum, r) => sum + r.sizeBytes,
+    0,
+  );
+
+  const manifest = {
+    version: "2",
     createdAt: new Date().toISOString(),
-    entities,
-    data,
-  });
-  const gzipped = gzipSync(Buffer.from(payload, "utf-8"));
+    prefix,
+    source: "bitrix24",
+    entities: results,
+    totalBytes,
+    errors,
+  };
 
-  const now = new Date();
-  const datePrefix = now.toISOString().slice(0, 10);
-  const objectKey = `crm-backups/${datePrefix}/backup-${now.getTime()}.json.gz`;
-
+  const manifestKey = `${prefix}manifest.json`;
   await client.send(
     new PutObjectCommand({
       Bucket: bucket,
-      Key: objectKey,
-      Body: gzipped,
-      ContentType: "application/gzip",
+      Key: manifestKey,
+      Body: JSON.stringify(manifest, null, 2),
+      ContentType: "application/json",
     }),
   );
 
-  return { objectKey, sizeBytes: gzipped.byteLength, entities };
+  return { prefix, manifestKey, totalBytes, entities: results, errors };
 }
 
 export interface ExecutedBackup extends CrmBackupResult {
@@ -119,9 +393,11 @@ export async function executeCrmBackup(
     const result = await runCrmBackup(api, creds);
     await finishBackupRun(runId, {
       status: "success",
+      manifestKey: result.manifestKey,
+      prefix: result.prefix,
       entities: result.entities,
-      objectKey: result.objectKey,
-      sizeBytes: result.sizeBytes,
+      totalBytes: result.totalBytes,
+      errors: result.errors,
     });
     return { runId, ...result };
   } catch (err) {
