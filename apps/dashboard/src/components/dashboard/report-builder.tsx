@@ -282,8 +282,10 @@ export function ReportBuilder({
   }, [dimension, metric, chartKind, filters]);
 
   const isTime = DIMENSIONS.find((d) => d.id === dimension)?.time ?? false;
-  const metricInfo = METRICS.find((m) => m.id === metric) ?? METRICS[0]!;
-  const dimensionInfo = DIMENSIONS.find((d) => d.id === dimension) ?? DIMENSIONS[0]!;
+  const metricInfo = METRICS.find((m) => m.id === metric) ??
+    (METRICS[0] as typeof METRICS[number]);
+  const dimensionInfo = DIMENSIONS.find((d) => d.id === dimension) ??
+    (DIMENSIONS[0] as typeof DIMENSIONS[number]);
 
   // Варианты значений для каждого фильтра — по всем сделкам периода, с количеством
   const filterOptions = useMemo(() => {

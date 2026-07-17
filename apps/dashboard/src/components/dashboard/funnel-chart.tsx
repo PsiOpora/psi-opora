@@ -104,10 +104,10 @@ export function FunnelChart({ steps, title, className }: FunnelChartProps) {
                       />
                     </svg>
                     <span className="font-medium text-foreground">
-                      {formatPercent(steps[i + 1]!.stepConversion)} конверсия
+                      {formatPercent(steps[i + 1]?.stepConversion ?? 0)} конверсия
                     </span>
                     <span className="text-muted-foreground">
-                      ({formatNumber(step.count - steps[i + 1]!.count)} потерь)
+                      ({formatNumber(step.count - (steps[i + 1]?.count ?? 0))} потерь)
                     </span>
                   </div>
                 </div>
