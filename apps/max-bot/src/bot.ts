@@ -17,6 +17,7 @@ import {
   type ScenarioOutput,
   type ScenarioTexts,
   setFunnelUpsert,
+  startConsultation,
   startScenario,
   type StorageAdapter,
 } from "@psi-opora/bot-core";
@@ -177,27 +178,27 @@ export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
   );
   bot.command("start", (ctx) => handleStart(ctx as AppContext, undefined));
 
-  // Кнопки старого сценария («Записаться», согласие на ПДн) в сообщениях,
-  // отправленных до обновления — запускаем новый сценарий
-  for (const legacyAction of ["start_consultation", "consent_agree"]) {
-    bot.action(legacyAction, async (ctx) => {
-      const appCtx = ctx as AppContext;
-      await appCtx.answerOnCallback({}).catch(() => {});
-      const texts = await getScenarioTexts();
-      await dispatch(appCtx, startScenario(texts), texts);
-    });
-  }
+  // Кнопка «Записаться» из сообщений старого бота — сразу в флоу записи
+  bot.action("start_consultation", async (ctx) => {
+    const appCtx = ctx as AppContext;
+    await appCtx.answerOnCallback({}).catch(() => {});
+    const texts = await getScenarioTexts();
+    await dispatch(appCtx, startConsultation(texts), texts);
+  });
 
   for (const action of SCENARIO_ACTIONS) {
     bot.action(action, async (ctx) => {
       const appCtx = ctx as AppContext;
       await appCtx.answerOnCallback({}).catch(() => {});
 
-      const state = appCtx.session.scenario;
-      if (!state) return;
-
       const texts = await getScenarioTexts();
-      const out = applyScenarioAction(state, action, texts);
+      const state = appCtx.session.scenario;
+      let out = state ? applyScenarioAction(state, action, texts) : null;
+      // Согласие из старого сообщения без активного сценария —
+      // начинаем запись заново (показываем актуальное согласие)
+      if (!out && action === "consent_agree") {
+        out = startConsultation(texts);
+      }
       // null — кнопка от прошлого шага (устаревшее сообщение), игнорируем
       if (!out) return;
 

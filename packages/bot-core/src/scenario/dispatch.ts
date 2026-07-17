@@ -46,9 +46,11 @@ export async function dispatchScenarioOutput(
   }
 
   if (out.lead) {
-    const name = deps.userName?.trim() || "Клиент из бота";
+    // Имя из анкеты (флоу консультации) точнее имени из профиля мессенджера
+    const name =
+      out.lead.name?.trim() || deps.userName?.trim() || "Клиент из бота";
     console.log(
-      `[SCENARIO] заявка name=${name} phone=${out.lead.phone}${out.lead.email ? ` email=${out.lead.email}` : ""} audience=${out.lead.audience} issue=${out.lead.issue} user=${deps.userId} messenger=${deps.messenger}`,
+      `[SCENARIO] заявка flow=${out.lead.flow} name=${name} phone=${out.lead.phone}${out.lead.email ? ` email=${out.lead.email}` : ""}${out.lead.audience ? ` audience=${out.lead.audience}` : ""}${out.lead.issue ? ` issue=${out.lead.issue}` : ""} user=${deps.userId} messenger=${deps.messenger}`,
     );
     const dealId = await submitConsultationDeal({
       name,

@@ -5,6 +5,7 @@ import {
   buildReminder,
   describeLead,
   type ScenarioOutput,
+  startConsultation,
   startScenario,
 } from "./engine";
 import { DEFAULT_SCENARIO_TEXTS as t } from "./texts";
@@ -26,23 +27,117 @@ function run(
 }
 
 describe("startScenario", () => {
-  test("приветствие + вопрос о категории, трекается start", () => {
+  test("приветствие с выбором: консультация или гайд, трекается start", () => {
     const out = startScenario(t);
-    expect(out.state.step).toBe("category");
+    expect(out.state.step).toBe("entry");
     expect(out.messages[0]?.text).toBe(t.welcome);
-    expect(out.messages[1]?.text).toBe(t.category_question);
-    expect(out.messages[1]?.buttons?.flat().map((b) => b.action)).toEqual([
-      "sc_child",
-      "sc_self",
+    expect(out.messages[0]?.buttons?.flat().map((b) => b.action)).toEqual([
+      "sc_consult",
+      "sc_guide",
     ]);
     expect(out.track).toEqual(["start"]);
     expect(out.awaitingInput).toBe(true);
   });
 });
 
-describe("ветка «трудности с ребенком»", () => {
-  test("полный путь: категория → тема → email → гайд → телефон → заявка", () => {
+describe("флоу «запись на консультацию»", () => {
+  test("кнопка «Записаться» показывает согласие на ПДн", () => {
+    const out = run([{ action: "sc_consult" }]);
+    expect(out.state.step).toBe("consent");
+    expect(out.state.flow).toBe("consult");
+    expect(out.track).toEqual(["consult_click"]);
+    expect(out.messages[0]?.text).toBe(t.consent_text);
+    expect(out.messages[0]?.buttons?.flat().map((b) => b.action)).toEqual([
+      "consent_agree",
+      "consent_decline",
+    ]);
+  });
+
+  test("полный путь: согласие → имя → телефон → email → сделка", () => {
     const out = run([
+      { action: "sc_consult" },
+      { action: "consent_agree" },
+      { text: "Анна" },
+      { text: "+7 999 123-45-67" },
+      { text: "anna@example.com" },
+    ]);
+
+    expect(out.state.step).toBe("done");
+    expect(out.lead).toEqual({
+      flow: "consult",
+      phone: "+7 999 123-45-67",
+      email: "anna@example.com",
+      name: "Анна",
+    });
+    expect(out.messages[0]?.text).toContain("Анна");
+    expect(out.awaitingInput).toBe(false);
+  });
+
+  test("имя подставляется в запрос телефона, трекаются consent и name", () => {
+    const consent = run([{ action: "sc_consult" }, { action: "consent_agree" }]);
+    expect(consent.track).toEqual(["consent"]);
+    expect(consent.messages.map((m) => m.text)).toEqual([
+      t.consent_agreed,
+      t.name_question,
+    ]);
+
+    const name = applyScenarioText(consent.state, "Пётр", t);
+    expect(name?.track).toEqual(["name"]);
+    expect(name?.messages[0]?.text).toContain("Пётр");
+    expect(name?.state.step).toBe("phone");
+  });
+
+  test("отказ от согласия завершает сценарий без заявки", () => {
+    const out = run([{ action: "sc_consult" }, { action: "consent_decline" }]);
+    expect(out.state.step).toBe("done");
+    expect(out.lead).toBeUndefined();
+    expect(out.messages[0]?.text).toBe(t.consent_declined);
+  });
+
+  test("после 3 нераспознанных email — сделка без email", () => {
+    const out = run([
+      { action: "sc_consult" },
+      { action: "consent_agree" },
+      { text: "Анна" },
+      { text: "89991234567" },
+      { text: "не email" },
+      { text: "снова нет" },
+      { text: "и это нет" },
+    ]);
+    expect(out.state.step).toBe("done");
+    expect(out.lead?.email).toBeUndefined();
+    expect(out.lead?.phone).toBe("89991234567");
+    expect(out.messages.map((m) => m.text)[0]).toBe(
+      t.consult_email_invalid_final,
+    );
+  });
+
+  test("после 3 нераспознанных телефонов сценарий завершается без заявки", () => {
+    const out = run([
+      { action: "sc_consult" },
+      { action: "consent_agree" },
+      { text: "Анна" },
+      { text: "абв" },
+      { text: "где" },
+      { text: "ёжз" },
+    ]);
+    expect(out.state.step).toBe("done");
+    expect(out.lead).toBeUndefined();
+    expect(out.messages[0]?.text).toBe(t.consult_phone_invalid_final);
+  });
+
+  test("startConsultation — вход по старой кнопке «Записаться»", () => {
+    const out = startConsultation(t);
+    expect(out.state.step).toBe("consent");
+    expect(out.state.flow).toBe("consult");
+    expect(out.track).toEqual(["consult_click"]);
+  });
+});
+
+describe("флоу гайда: ветка «трудности с ребенком»", () => {
+  test("полный путь: гайд → категория → тема → email → телефон → заявка", () => {
+    const out = run([
+      { action: "sc_guide" },
       { action: "sc_child" },
       { action: "sc_eating" },
       { text: "parent@example.com" },
@@ -51,6 +146,7 @@ describe("ветка «трудности с ребенком»", () => {
 
     expect(out.state.step).toBe("done");
     expect(out.lead).toEqual({
+      flow: "guide",
       phone: "+7 999 123-45-67",
       email: "parent@example.com",
       audience: "child",
@@ -58,11 +154,22 @@ describe("ветка «трудности с ребенком»", () => {
     });
     expect(out.track).toEqual(["phone"]);
     expect(out.messages.map((m) => m.text)).toEqual([t.phone_thanks]);
-    expect(out.awaitingInput).toBe(false);
+  });
+
+  test("кнопка «Получить гайд» ведёт к вопросу о категории", () => {
+    const out = run([{ action: "sc_guide" }]);
+    expect(out.state.step).toBe("category");
+    expect(out.state.flow).toBe("guide");
+    expect(out.track).toEqual(["guide_click"]);
+    expect(out.messages[0]?.buttons?.flat().map((b) => b.action)).toEqual([
+      "sc_child",
+      "sc_self",
+    ]);
   });
 
   test("email принят — отправляется гайд и запрос телефона", () => {
     const out = run([
+      { action: "sc_guide" },
       { action: "sc_child" },
       { action: "sc_other" },
       { text: "parent@example.com" },
@@ -77,6 +184,7 @@ describe("ветка «трудности с ребенком»", () => {
 
   test("кнопка «без email» ведёт сразу к телефону", () => {
     const out = run([
+      { action: "sc_guide" },
       { action: "sc_child" },
       { action: "sc_eating" },
       { action: "sc_skip_email" },
@@ -87,6 +195,7 @@ describe("ветка «трудности с ребенком»", () => {
 
   test("после 3 нераспознанных email — переход к телефону без гайда", () => {
     const out = run([
+      { action: "sc_guide" },
       { action: "sc_child" },
       { action: "sc_eating" },
       { text: "не email" },
@@ -99,9 +208,10 @@ describe("ветка «трудности с ребенком»", () => {
   });
 });
 
-describe("ветка «помощь для себя»", () => {
+describe("флоу гайда: ветка «помощь для себя»", () => {
   test("телефон → заявка + вопрос о рассылке", () => {
     const out = run([
+      { action: "sc_guide" },
       { action: "sc_self" },
       { action: "sc_other" },
       { text: "89991234567" },
@@ -114,6 +224,7 @@ describe("ветка «помощь для себя»", () => {
 
   test("согласие на рассылку трекается и уходит эффектом", () => {
     const out = run([
+      { action: "sc_guide" },
       { action: "sc_self" },
       { action: "sc_eating" },
       { text: "89991234567" },
@@ -127,6 +238,7 @@ describe("ветка «помощь для себя»", () => {
 
   test("отказ от рассылки завершает сценарий без трекинга", () => {
     const out = run([
+      { action: "sc_guide" },
       { action: "sc_self" },
       { action: "sc_other" },
       { text: "89991234567" },
@@ -138,9 +250,10 @@ describe("ветка «помощь для себя»", () => {
   });
 });
 
-describe("отказ от телефона и лимиты", () => {
+describe("отказ от телефона и лимиты (флоу гайда)", () => {
   test("кнопка «не оставлять телефон» завершает без заявки", () => {
     const out = run([
+      { action: "sc_guide" },
       { action: "sc_self" },
       { action: "sc_other" },
       { action: "sc_skip_phone" },
@@ -152,6 +265,7 @@ describe("отказ от телефона и лимиты", () => {
 
   test("после 3 нераспознанных телефонов сценарий завершается", () => {
     const out = run([
+      { action: "sc_guide" },
       { action: "sc_child" },
       { action: "sc_eating" },
       { action: "sc_skip_email" },
@@ -169,18 +283,20 @@ describe("устойчивость к неожиданному вводу", () =
     const start = startScenario(t);
     expect(applyScenarioAction(start.state, "sc_eating", t)).toBeNull();
     expect(applyScenarioAction(start.state, "sc_sub_yes", t)).toBeNull();
+    expect(applyScenarioAction(start.state, "consent_agree", t)).toBeNull();
   });
 
   test("текст на кнопочном шаге повторяет вопрос только один раз", () => {
     const start = startScenario(t);
     const first = applyScenarioText(start.state, "привет", t);
-    expect(first?.messages[0]?.text).toBe(t.category_question);
+    expect(first?.messages[0]?.text).toBe(t.welcome);
     const second = applyScenarioText(first?.state ?? start.state, "ещё", t);
     expect(second).toBeNull();
   });
 
   test("после завершения сценария текст игнорируется", () => {
     const out = run([
+      { action: "sc_guide" },
       { action: "sc_self" },
       { action: "sc_other" },
       { action: "sc_skip_phone" },
@@ -191,24 +307,38 @@ describe("устойчивость к неожиданному вводу", () =
   test("выбор кнопки сбрасывает nudged — вопрос повторится на новом шаге", () => {
     const start = startScenario(t);
     const nudged = applyScenarioText(start.state, "привет", t);
-    const next = applyScenarioAction(nudged?.state ?? start.state, "sc_child", t);
+    const next = applyScenarioAction(
+      nudged?.state ?? start.state,
+      "sc_guide",
+      t,
+    );
     expect(next?.state.nudged).toBe(false);
   });
 });
 
 describe("напоминания", () => {
-  test("на активном шаге — текст напоминания с кнопками вопроса", () => {
+  test("на старте — текст напоминания с кнопками выбора", () => {
     const start = startScenario(t);
     const reminder = buildReminder(start.state, t);
     expect(reminder?.text).toBe(t.reminder);
     expect(reminder?.buttons?.flat().map((b) => b.action)).toEqual([
-      "sc_child",
-      "sc_self",
+      "sc_consult",
+      "sc_guide",
+    ]);
+  });
+
+  test("на шаге согласия — кнопки согласия", () => {
+    const out = run([{ action: "sc_consult" }]);
+    const reminder = buildReminder(out.state, t);
+    expect(reminder?.buttons?.flat().map((b) => b.action)).toEqual([
+      "consent_agree",
+      "consent_decline",
     ]);
   });
 
   test("после завершения напоминать нечего", () => {
     const out = run([
+      { action: "sc_guide" },
       { action: "sc_self" },
       { action: "sc_other" },
       { action: "sc_skip_phone" },
@@ -218,12 +348,20 @@ describe("напоминания", () => {
 });
 
 describe("describeLead", () => {
-  test("комментарий для менеджера содержит подписи кнопок", () => {
+  test("гайд: комментарий содержит подписи кнопок категории и темы", () => {
     const comment = describeLead(
-      { phone: "+7", audience: "child", issue: "eating" },
+      { flow: "guide", phone: "+7", audience: "child", issue: "eating" },
       t,
     );
     expect(comment).toContain(t.btn_child);
     expect(comment).toContain(t.btn_issue_eating);
+  });
+
+  test("консультация: комментарий указывает источник заявки", () => {
+    const comment = describeLead(
+      { flow: "consult", phone: "+7", name: "Анна" },
+      t,
+    );
+    expect(comment).toContain(t.btn_consult);
   });
 });

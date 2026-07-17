@@ -22,8 +22,10 @@ export {
   type ScenarioLead,
   type ScenarioMessage,
   type ScenarioOutput,
+  type ScenarioFlow,
   type ScenarioState,
   type ScenarioStep,
+  startConsultation,
   startScenario,
   stepQuestion,
 } from "./scenario/engine";

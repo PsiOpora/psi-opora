@@ -63,6 +63,13 @@ function commandUpdate(text: string, updateId = 1) {
   };
 }
 
+function textUpdate(text: string, updateId = 1) {
+  return {
+    update_id: updateId,
+    message: { message_id: updateId, date: 0, chat, from, text },
+  };
+}
+
 function callbackUpdate(data: string, updateId = 2) {
   return {
     update_id: updateId,
@@ -81,19 +88,16 @@ function sentMessages(sent: SentCall[]): SentCall[] {
 }
 
 describe("телеграм-бот: /start", () => {
-  test("отправляет приветствие и вопрос о категории с кнопками", async () => {
+  test("отправляет приветствие с кнопками «Записаться» и «Получить гайд»", async () => {
     const { bot, sent } = makeBot();
     await bot.handleUpdate(commandUpdate("/start"));
 
     const messages = sentMessages(sent);
-    expect(messages.map((m) => m.payload.text)).toEqual([
-      t.welcome,
-      t.category_question,
-    ]);
-    const keyboard = messages[1]?.payload.reply_markup?.inline_keyboard;
+    expect(messages.map((m) => m.payload.text)).toEqual([t.welcome]);
+    const keyboard = messages[0]?.payload.reply_markup?.inline_keyboard;
     expect(keyboard?.flat().map((b: { callback_data: string }) => b.callback_data)).toEqual([
-      "sc_child",
-      "sc_self",
+      "sc_consult",
+      "sc_guide",
     ]);
   });
 
@@ -102,14 +106,15 @@ describe("телеграм-бот: /start", () => {
     await bot.handleUpdate(
       commandUpdate("/start utm_source=google&utm_campaign=test"),
     );
-    expect(sentMessages(sent).length).toBe(2);
+    expect(sentMessages(sent).length).toBe(1);
   });
 
-  test("полный путь кнопками: категория → тема → email", async () => {
+  test("флоу гайда кнопками: гайд → категория → тема → email", async () => {
     const { bot, sent } = makeBot();
     await bot.handleUpdate(commandUpdate("/start"));
-    await bot.handleUpdate(callbackUpdate("sc_child", 2));
-    await bot.handleUpdate(callbackUpdate("sc_eating", 3));
+    await bot.handleUpdate(callbackUpdate("sc_guide", 2));
+    await bot.handleUpdate(callbackUpdate("sc_child", 3));
+    await bot.handleUpdate(callbackUpdate("sc_eating", 4));
 
     const texts = sentMessages(sent).map((m) => m.payload.text);
     expect(texts).toEqual([
@@ -119,30 +124,47 @@ describe("телеграм-бот: /start", () => {
       t.email_question,
     ]);
   });
+
+  test("флоу консультации: согласие → имя → телефон → email → заявка", async () => {
+    const { bot, sent } = makeBot();
+    await bot.handleUpdate(commandUpdate("/start"));
+    await bot.handleUpdate(callbackUpdate("sc_consult", 2));
+    await bot.handleUpdate(callbackUpdate("consent_agree", 3));
+    await bot.handleUpdate(textUpdate("Анна", 4));
+    await bot.handleUpdate(textUpdate("+7 999 123-45-67", 5));
+    await bot.handleUpdate(textUpdate("anna@example.com", 6));
+
+    const texts = sentMessages(sent).map((m) => m.payload.text);
+    expect(texts[0]).toBe(t.welcome);
+    expect(texts[1]).toBe(t.consent_text);
+    expect(texts[2]).toBe(t.consent_agreed);
+    expect(texts[3]).toBe(t.name_question);
+    expect(texts[4]).toContain("Анна");
+    expect(texts[5]).toBe(t.consult_email_question);
+    expect(texts[6]).toContain("Заявка принята");
+  });
 });
 
 describe("телеграм-бот: кнопки старого сценария", () => {
-  test("«Записаться на консультацию» запускает новый сценарий", async () => {
+  test("«Записаться на консультацию» открывает согласие на ПДн", async () => {
     const { bot, sent } = makeBot();
     await bot.handleUpdate(callbackUpdate("start_consultation"));
 
     expect(sent.some((c) => c.method === "answerCallbackQuery")).toBe(true);
     expect(sentMessages(sent).map((m) => m.payload.text)).toEqual([
-      t.welcome,
-      t.category_question,
+      t.consent_text,
     ]);
   });
 
-  test("старое согласие на ПДн запускает новый сценарий", async () => {
+  test("старое согласие без активного сценария показывает согласие заново", async () => {
     const { bot, sent } = makeBot();
     await bot.handleUpdate(callbackUpdate("consent_agree"));
     expect(sentMessages(sent).map((m) => m.payload.text)).toEqual([
-      t.welcome,
-      t.category_question,
+      t.consent_text,
     ]);
   });
 
-  test("отказ от согласия молча игнорируется", async () => {
+  test("отказ от согласия без активного сценария молча игнорируется", async () => {
     const { bot, sent } = makeBot();
     await bot.handleUpdate(callbackUpdate("consent_decline"));
     expect(sent.some((c) => c.method === "answerCallbackQuery")).toBe(true);

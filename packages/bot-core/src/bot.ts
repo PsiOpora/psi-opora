@@ -9,6 +9,7 @@ import {
   isScenarioAction,
   type ScenarioMessage,
   type ScenarioOutput,
+  startConsultation,
   startScenario,
 } from "./scenario/engine";
 import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
@@ -124,24 +125,22 @@ export function createBot({ storage, redis, client }: BotOptions = {}) {
     const action = ctx.callbackQuery.data;
     await ctx.answerCallbackQuery();
 
-    // Кнопки старого сценария («Записаться», согласие на ПДн) в сообщениях,
-    // отправленных до обновления — запускаем новый сценарий
-    if (action === "start_consultation" || action === "consent_agree") {
-      const texts = await getScenarioTexts();
-      await ctx
-        .editMessageReplyMarkup({ reply_markup: undefined })
-        .catch(() => {});
-      await dispatch(ctx, startScenario(texts), texts);
-      return;
+    const texts = await getScenarioTexts();
+    let out: ScenarioOutput | null = null;
+
+    if (action === "start_consultation") {
+      // Кнопка «Записаться» из сообщений старого бота — сразу в флоу записи
+      out = startConsultation(texts);
+    } else if (isScenarioAction(action)) {
+      const state = ctx.session.scenario;
+      out = state ? applyScenarioAction(state, action, texts) : null;
+      // Согласие из старого сообщения без активного сценария —
+      // начинаем запись заново (показываем актуальное согласие)
+      if (!out && action === "consent_agree") {
+        out = startConsultation(texts);
+      }
     }
 
-    if (!isScenarioAction(action)) return;
-
-    const state = ctx.session.scenario;
-    if (!state) return;
-
-    const texts = await getScenarioTexts();
-    const out = applyScenarioAction(state, action, texts);
     // null — кнопка от прошлого шага (устаревшее сообщение), игнорируем
     if (!out) return;
 

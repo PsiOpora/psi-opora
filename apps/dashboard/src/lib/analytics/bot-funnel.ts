@@ -23,6 +23,10 @@ export interface BotFunnelStepStats {
 
 export const STEP_LABELS: Record<FunnelStep, string> = {
   start: "Запустили бота (/start)",
+  consult_click: "Нажали «Записаться»",
+  consent: "Дали согласие на ПДн",
+  name: "Оставили имя",
+  guide_click: "Нажали «Получить гайд»",
   category: "Выбрали категорию",
   issue: "Указали тему",
   email: "Оставили email (лид-магнит)",
@@ -110,7 +114,9 @@ export function funnelBySourceCampaign(
       rows.set(key, row);
     }
     if (event.step === "start") row.starts += event.count;
-    if (event.step === "category") row.clicks += event.count;
+    // «Кликнули» = выбрали любую из веток на старте
+    if (event.step === "consult_click" || event.step === "guide_click")
+      row.clicks += event.count;
     if (event.step === "phone") row.phones += event.count;
     if (event.step === "deal") row.deals += event.count;
   }
