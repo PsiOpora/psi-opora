@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { orpc } from "@/lib/orpc-client";
+import { getBotTextsRecord } from "@psi-opora/db/queries";
 import { saveBotTextsAction } from "./actions";
 
 const GROUP_DESCRIPTIONS: Record<string, string> = {
@@ -41,7 +41,9 @@ function groupDefs(): Array<{ group: string; defs: ScenarioTextDef[] }> {
 }
 
 export default async function BotTextsPage() {
-  const overrides = await orpc.botTexts.get().catch(() => ({}) as Record<string, string>);
+  const overrides = await getBotTextsRecord().catch(
+    () => ({}) as Record<string, string>,
+  );
   const groups = groupDefs();
 
   return (

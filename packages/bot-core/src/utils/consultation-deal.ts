@@ -40,11 +40,11 @@ export interface SubmitDealParams {
  * Ошибки Bitrix не пробрасываются — логируются и поглощаются,
  * чтобы не ломать диалог с клиентом.
  *
- * @returns true если сделка создана успешно, false при ошибке
+ * @returns ID созданной сделки, null при ошибке или отключённом Bitrix
  */
 export async function submitConsultationDeal(
   params: SubmitDealParams,
-): Promise<boolean> {
+): Promise<number | null> {
   const { name, phone, email, messenger, userId, source, campaign, comment } =
     params;
 
@@ -79,14 +79,14 @@ export async function submitConsultationDeal(
       ...(operatorId !== undefined ? { operatorId } : {}),
     };
 
-    await createBitrixDeal(dealData);
+    const { dealId } = await createBitrixDeal(dealData);
     await trackFunnelStep("deal", funnelCtx);
-    return true;
+    return dealId || null;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(
       `[bitrix] ошибка создания сделки (${messenger}): ${message}`,
     );
-    return false;
+    return null;
   }
 }

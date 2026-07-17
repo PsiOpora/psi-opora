@@ -1,5 +1,3 @@
-import { getBotTextsRecord } from "@psi-opora/db/queries.edge";
-
 /**
  * Тексты сценария бота. Значения по умолчанию заданы здесь,
  * переопределения хранятся в таблице bot_texts и редактируются в дашборде
@@ -207,6 +205,9 @@ export async function getScenarioTexts(): Promise<ScenarioTexts> {
   if (cached && now - cachedAt < CACHE_TTL_MS) return cached;
 
   try {
+    // Ленивый импорт: клиент БД падает при загрузке без POSTGRES_URL,
+    // а дефолтные тексты и defs нужны и без базы (дашборд, тесты)
+    const { getBotTextsRecord } = await import("@psi-opora/db/queries.edge");
     const overrides = await getBotTextsRecord();
     const texts = { ...DEFAULT_SCENARIO_TEXTS };
     for (const def of SCENARIO_TEXT_DEFS) {

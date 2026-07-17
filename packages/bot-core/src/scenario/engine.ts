@@ -50,6 +50,13 @@ export interface ScenarioState {
   phoneAttempts?: number;
   /** Напоминание уже отправлено — при следующей проверке сценарий завершается. */
   reminded?: boolean;
+  /**
+   * Вопрос уже повторяли в ответ на текст на кнопочном шаге.
+   * Дальше молчим, чтобы не встревать в переписку с оператором.
+   */
+  nudged?: boolean;
+  /** ID созданной сделки Bitrix — для комментария об ответе на рассылку. */
+  dealId?: number;
 }
 
 export interface ScenarioButton {
@@ -77,6 +84,8 @@ export interface ScenarioOutput {
   track: FunnelStep[];
   /** Заявка для передачи менеджеру (сделка в Bitrix). */
   lead?: ScenarioLead;
+  /** Ответ на вопрос о рассылке — уходит комментарием в сделку. */
+  subscribeChoice?: "yes" | "no";
   /** true — ждём ответа пользователя (при молчании сработает напоминание). */
   awaitingInput: boolean;
 }
@@ -157,13 +166,16 @@ export function stepQuestion(
 function output(
   state: ScenarioState,
   messages: ScenarioMessage[],
-  extra: Partial<Pick<ScenarioOutput, "track" | "lead">> = {},
+  extra: Partial<
+    Pick<ScenarioOutput, "track" | "lead" | "subscribeChoice">
+  > = {},
 ): ScenarioOutput {
   return {
     state,
     messages,
     track: extra.track ?? [],
     lead: extra.lead,
+    subscribeChoice: extra.subscribeChoice,
     awaitingInput: state.step !== "done",
   };
 }
@@ -182,7 +194,7 @@ function askForPhone(
   track: FunnelStep[] = [],
 ): ScenarioOutput {
   return output(
-    { ...state, step: "phone", reminded: false },
+    { ...state, step: "phone", reminded: false, nudged: false },
     [...precedingMessages, phoneQuestion(t)],
     { track },
   );
@@ -202,7 +214,7 @@ function submitPhone(
 
   if (state.audience === "self") {
     return output(
-      { ...state, step: "subscribe", reminded: false },
+      { ...state, step: "subscribe", reminded: false, nudged: false },
       [subscribeQuestion(t)],
       { track: ["phone"], lead },
     );
@@ -229,7 +241,7 @@ export function applyScenarioAction(
       const audience: ScenarioAudience =
         action === "sc_child" ? "child" : "self";
       return output(
-        { ...state, step: "issue", audience, reminded: false },
+        { ...state, step: "issue", audience, reminded: false, nudged: false },
         [issueQuestion(t)],
         { track: ["category"] },
       );
@@ -241,7 +253,7 @@ export function applyScenarioAction(
       const next = { ...state, issue };
       if (state.audience === "child") {
         return output(
-          { ...next, step: "email", reminded: false },
+          { ...next, step: "email", reminded: false, nudged: false },
           [emailQuestion(t)],
           { track: ["issue"] },
         );
@@ -265,12 +277,14 @@ export function applyScenarioAction(
         return output(
           { ...state, step: "done" },
           [{ text: t.subscribe_yes_reply }],
-          { track: ["subscribe"] },
+          { track: ["subscribe"], subscribeChoice: "yes" },
         );
       }
-      return output({ ...state, step: "done" }, [
-        { text: t.subscribe_no_reply },
-      ]);
+      return output(
+        { ...state, step: "done" },
+        [{ text: t.subscribe_no_reply }],
+        { subscribeChoice: "no" },
+      );
     }
 
     default:
@@ -322,13 +336,16 @@ export function applyScenarioText(
       ]);
     }
 
-    // На шагах с кнопками мягко повторяем вопрос
+    // На шагах с кнопками мягко повторяем вопрос, но только один раз:
+    // дальше пользователь, возможно, переписывается с оператором —
+    // не встреваем в чужой диалог
     case "category":
     case "issue":
     case "subscribe": {
+      if (state.nudged) return null;
       const question = stepQuestion(state, t);
       return question
-        ? output({ ...state, reminded: false }, [question])
+        ? output({ ...state, reminded: false, nudged: true }, [question])
         : null;
     }
 

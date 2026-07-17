@@ -191,6 +191,38 @@ export async function createBitrixDeal(
   return { contactId, dealId };
 }
 
+/**
+ * Добавляет комментарий в таймлайн сделки (например, ответ на вопрос
+ * о рассылке). Ошибки не пробрасываются — комментарий не критичен.
+ */
+export async function appendDealComment(
+  messenger: string,
+  dealId: number,
+  comment: string,
+): Promise<void> {
+  const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
+  if (!webhookUrl || !dealId) return;
+
+  try {
+    await bitrixPost(
+      "crm.timeline.comment.add",
+      {
+        fields: {
+          ENTITY_ID: dealId,
+          ENTITY_TYPE: "deal",
+          COMMENT: comment,
+        },
+      },
+      messenger,
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[bitrix] не удалось добавить комментарий к сделке ${dealId}: ${message}`,
+    );
+  }
+}
+
 export interface BitrixSource {
   STATUS_ID: string;
   NAME: string;

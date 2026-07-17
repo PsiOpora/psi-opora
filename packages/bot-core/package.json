@@ -16,6 +16,7 @@
   ],
   "scripts": {
     "build": "tsdown",
+    "test": "bun test",
     "setup:bitrix": "bun run --env-file=../../.env scripts/setup-bitrix-connector.ts",
     "setup:bitrix-source": "bun run --env-file=../../.env scripts/setup-bitrix-source.ts",
     "list:bitrix-sources": "bun run --env-file=../../.env scripts/list-bitrix-sources.ts"
@@ -27,6 +28,7 @@
     "grammy": "^1.44.0"
   },
   "devDependencies": {
+    "@types/bun": "1.3.14",
     "tsdown": "^0.22.8"
   }
 }

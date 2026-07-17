@@ -1,5 +1,5 @@
-import { Bot } from "grammy";
 import { env } from "@psi-opora/config";
+import { Bot } from "grammy";
 
 const token = env.TG_BOT_TOKEN;
 const webhookUrl = env.TG_WEBHOOK_URL;

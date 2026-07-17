@@ -18,13 +18,11 @@
 
 import { adsRouter } from "./ads";
 import { backupRouter } from "./backup";
-import { botTextsRouter } from "./bot-texts";
 
-export { adsRouter, backupRouter, botTextsRouter };
+export { adsRouter, backupRouter };
 export const appRouter = {
   ads: adsRouter,
   backup: backupRouter,
-  botTexts: botTextsRouter,
 };
 
 export type AppRouter = typeof appRouter;

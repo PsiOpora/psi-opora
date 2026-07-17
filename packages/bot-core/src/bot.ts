@@ -123,6 +123,17 @@ export function createBot({ storage, redis, client }: BotOptions = {}) {
   bot.on("callback_query:data", async (ctx) => {
     const action = ctx.callbackQuery.data;
     await ctx.answerCallbackQuery();
+
+    // Кнопка «Записаться» из сообщений старого сценария — запускаем новый
+    if (action === "start_consultation") {
+      const texts = await getScenarioTexts();
+      await ctx
+        .editMessageReplyMarkup({ reply_markup: undefined })
+        .catch(() => {});
+      await dispatch(ctx, startScenario(texts), texts);
+      return;
+    }
+
     if (!isScenarioAction(action)) return;
 
     const state = ctx.session.scenario;
