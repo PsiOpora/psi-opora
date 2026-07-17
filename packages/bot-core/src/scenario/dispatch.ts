@@ -2,6 +2,7 @@ import type { Redis } from "@upstash/redis";
 import { appendDealComment } from "../utils/bitrix";
 import { submitConsultationDeal } from "../utils/consultation-deal";
 import { trackFunnelStep } from "../utils/funnel";
+import { logBotMessage } from "../utils/message-log";
 import {
   describeLead,
   type ScenarioMessage,
@@ -35,6 +36,13 @@ export async function dispatchScenarioOutput(
 ): Promise<void> {
   for (const message of out.messages) {
     await deps.sendMessage(message);
+    await logBotMessage({
+      messenger: deps.messenger,
+      userId: deps.userId,
+      direction: "out",
+      source: "scenario",
+      text: message.text,
+    });
   }
 
   for (const step of out.track) {

@@ -1,10 +1,6 @@
+import { Bot, Context, Keyboard, type MiddlewareFn } from "@maxhub/max-bot-api";
 import {
-  Bot,
-  Context,
-  Keyboard,
-  type MiddlewareFn,
-} from "@maxhub/max-bot-api";
-import {
+  actionLabel,
   applyScenarioAction,
   applyScenarioText,
   type ConsultationSession,
@@ -12,6 +8,7 @@ import {
   formatUtmLog,
   getGuideFile,
   getScenarioTexts,
+  logBotMessage,
   parseUtmParams,
   SCENARIO_ACTIONS,
   type ScenarioMessage,
@@ -106,7 +103,9 @@ function toMaxKeyboard(message: ScenarioMessage) {
   if (!message.buttons?.length) return undefined;
   return Keyboard.inlineKeyboard(
     message.buttons.map((row) =>
-      row.map((button) => Keyboard.button.callback(button.label, button.action)),
+      row.map((button) =>
+        Keyboard.button.callback(button.label, button.action),
+      ),
     ),
   );
 }
@@ -143,9 +142,7 @@ async function sendMaxGuideFile(
   const token = uploaded?.token ?? upload.token;
   if (!token) throw new Error("MAX не вернул token вложения");
 
-  const attachments = [
-    { type: "file" as const, payload: { token } },
-  ];
+  const attachments = [{ type: "file" as const, payload: { token } }];
   let lastError: unknown;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -223,6 +220,13 @@ export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
     log(
       `[START] user=${ctx.user?.user_id} chat=${ctx.chatId} ${formatUtmLog(utm)} messenger=max`,
     );
+    await logBotMessage({
+      messenger: "max",
+      userId: ctx.user?.user_id,
+      direction: "in",
+      source: "scenario",
+      text: startPayload ? `/start ${startPayload}` : "/start",
+    });
 
     const texts = await getScenarioTexts();
     await dispatch(ctx, startScenario(texts), texts);
@@ -242,6 +246,13 @@ export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
     const appCtx = ctx as AppContext;
     await appCtx.answerOnCallback({}).catch(() => {});
     const texts = await getScenarioTexts();
+    await logBotMessage({
+      messenger: "max",
+      userId: appCtx.user?.user_id,
+      direction: "in",
+      source: "scenario",
+      text: texts.btn_consult,
+    });
     await dispatch(appCtx, startConsultation(texts), texts);
   });
 
@@ -264,6 +275,13 @@ export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
       log(
         `[SCENARIO] user=${appCtx.user?.user_id} action=${action} messenger=max`,
       );
+      await logBotMessage({
+        messenger: "max",
+        userId: appCtx.user?.user_id,
+        direction: "in",
+        source: "scenario",
+        text: actionLabel(action, texts),
+      });
       await dispatch(appCtx, out, texts);
     });
   }
@@ -272,6 +290,15 @@ export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
     const appCtx = ctx as unknown as AppContext;
     const text = appCtx.message?.body.text?.trim() ?? "";
     if (!text || text.startsWith("/")) return;
+
+    // В журнал попадают все входящие — даже вне сценария
+    await logBotMessage({
+      messenger: "max",
+      userId: appCtx.user?.user_id ?? appCtx.message?.sender?.user_id,
+      direction: "in",
+      source: "scenario",
+      text,
+    });
 
     const state = appCtx.session.scenario;
     if (!state) return;

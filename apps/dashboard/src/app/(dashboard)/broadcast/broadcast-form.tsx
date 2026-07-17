@@ -73,7 +73,10 @@ const CHANNEL_LABEL: Record<BroadcastChannel, string> = {
 
 const STATUS_BADGE: Record<
   BroadcastRecipient["status"],
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+  {
+    label: string;
+    variant: "default" | "secondary" | "destructive" | "outline";
+  }
 > = {
   sent: { label: "Отправлено", variant: "default" },
   pending: { label: "Готов к отправке", variant: "secondary" },
@@ -137,8 +140,9 @@ function RecipientsReport({
     {},
   );
   const [testingId, setTestingId] = useState<string | null>(null);
-  const [testCandidate, setTestCandidate] =
-    useState<BroadcastRecipient | null>(null);
+  const [testCandidate, setTestCandidate] = useState<BroadcastRecipient | null>(
+    null,
+  );
   const [, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
@@ -176,7 +180,11 @@ function RecipientsReport({
     if (!messenger || !userId) return;
     setTestingId(contactId);
     startTransition(async () => {
-      const result = await sendTestMessageAction({ messenger, userId, message });
+      const result = await sendTestMessageAction({
+        messenger,
+        userId,
+        message,
+      });
       setTestResults((prev) => ({ ...prev, [contactId]: result }));
       setTestingId(null);
     });
@@ -372,9 +380,9 @@ function RecipientsReport({
               <AlertDialogDescription>
                 Текущий текст сообщения получит один контакт «
                 {testCandidate?.contactName}» в{" "}
-                {messengerLabel(testCandidate?.messenger ?? null)}. Это
-                реальное сообщение реальному человеку — остальные получатели
-                ничего не получат.
+                {messengerLabel(testCandidate?.messenger ?? null)}. Это реальное
+                сообщение реальному человеку — остальные получатели ничего не
+                получат.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -424,8 +432,7 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
   const trimmed = message.trim();
   const overLimit = trimmed.length > MESSAGE_MAX_LENGTH;
   const currentSig = JSON.stringify([stageId, channel, trimmed]);
-  const previewFresh =
-    report?.dryRun && previewSig === currentSig;
+  const previewFresh = report?.dryRun && previewSig === currentSig;
   const sendableCount = report
     ? report.recipients.filter((r) => r.status === "pending").length
     : 0;
@@ -544,8 +551,8 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
           <CardTitle>Параметры рассылки</CardTitle>
           <CardDescription>
             Сообщение получит контакт каждой сделки на выбранной стадии — один
-            раз, даже если сделок у контакта несколько. Отправка возможна
-            только после предпросмотра списка получателей.
+            раз, даже если сделок у контакта несколько. Отправка возможна только
+            после предпросмотра списка получателей.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -677,8 +684,8 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
                   " — мессенджеры не примут такое длинное сообщение"}
               </span>
               <p className="text-xs text-muted-foreground">
-                Разметка Telegram: *жирный* _курсив_ `код`{" "}
-                [ссылка](https://…). MAX получит то же форматирование.
+                Разметка Telegram: *жирный* _курсив_ `код` [ссылка](https://…).
+                MAX получит то же форматирование.
               </p>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -741,7 +748,9 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
                 {CHANNEL_LABEL[channel]}
               </p>
               <p>
-                <span className="text-muted-foreground">Получат сообщение:</span>{" "}
+                <span className="text-muted-foreground">
+                  Получат сообщение:
+                </span>{" "}
                 {sendableCount} контактов
                 {report.skipped > 0 &&
                   ` (ещё ${report.skipped} будут пропущены — нет мессенджера)`}
@@ -752,8 +761,8 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
               <WarningBox>
                 По этой стадии уже была рассылка{" "}
                 {formatDateTime(recentBroadcast.startedAt)} (отправлено:{" "}
-                {recentBroadcast.sentCount}). Убедитесь, что не отправляете
-                то же самое повторно.
+                {recentBroadcast.sentCount}). Убедитесь, что не отправляете то
+                же самое повторно.
               </WarningBox>
             )}
             {sendableCount > LARGE_AUDIENCE_THRESHOLD && (
@@ -779,8 +788,8 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
                 className="mt-0.5"
               />
               <span>
-                Я проверил(а) список получателей и текст сообщения. Понимаю,
-                что сообщение уйдёт реальным клиентам.
+                Я проверил(а) список получателей и текст сообщения. Понимаю, что
+                сообщение уйдёт реальным клиентам.
               </span>
             </label>
 

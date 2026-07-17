@@ -8,6 +8,11 @@ import {
   upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
 import {
+  type BotMessageEntry,
+  insertBotMessage as _insertBotMessage,
+  listBotMessages as _listBotMessages,
+} from "./bot-messages";
+import {
   getBotTextsRecord as _getBotTextsRecord,
   saveBotTexts as _saveBotTexts,
 } from "./bot-texts";
@@ -16,7 +21,20 @@ export * from "./ads";
 export * from "./backup";
 export * from "./broadcast";
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
+export type { BotMessage, BotMessageEntry, NewBotMessage } from "./bot-messages";
 export type { BotText } from "./bot-texts";
+
+export async function insertBotMessage(entry: BotMessageEntry): Promise<void> {
+  return _insertBotMessage(db, entry);
+}
+
+export async function listBotMessages(
+  messenger: string,
+  userId: string,
+  limit?: number,
+) {
+  return _listBotMessages(db, messenger, userId, limit);
+}
 
 export async function getBotTextsRecord(): Promise<Record<string, string>> {
   return _getBotTextsRecord(db);

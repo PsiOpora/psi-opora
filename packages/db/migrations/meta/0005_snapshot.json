@@ -1,6 +1,6 @@
 {
-  "id": "7c9d4b2a-5e1f-4a8c-b3d6-2f8e9a0c4d17",
-  "prevId": "f630061d-4fd7-4f72-935a-c60f32091a6e",
+  "id": "9e4f7a1c-2b8d-4e6f-a3c5-8d1b0f7e2a94",
+  "prevId": "3bec2a8b-af6d-4f1a-9919-3a74b849ea80",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -218,9 +218,27 @@
           "primaryKey": false,
           "notNull": false
         },
-        "size_bytes": {
-          "name": "size_bytes",
+        "manifest_key": {
+          "name": "manifest_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prefix": {
+          "name": "prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_bytes": {
+          "name": "total_bytes",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "errors": {
+          "name": "errors",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -345,6 +363,91 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.bot_messages": {
+      "name": "bot_messages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "messenger": {
+          "name": "messenger",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "direction": {
+          "name": "direction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'scenario'"
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "bot_messages_user_idx": {
+          "name": "bot_messages_user_idx",
+          "columns": [
+            {
+              "expression": "messenger",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -482,8 +585,12 @@
           "name": "broadcast_recipients_broadcast_id_broadcasts_id_fk",
           "tableFrom": "broadcast_recipients",
           "tableTo": "broadcasts",
-          "columnsFrom": ["broadcast_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "broadcast_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

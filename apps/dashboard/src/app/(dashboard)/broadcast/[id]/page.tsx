@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  getBroadcast,
-  listBroadcastRecipients,
-} from "@psi-opora/db/queries";
+import { getBroadcast, listBroadcastRecipients } from "@psi-opora/db/queries";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -83,8 +80,8 @@ export default async function BroadcastDetailsPage({
           {broadcast.stageName ?? broadcast.stageId} ·{" "}
           {CHANNEL_LABEL[broadcast.channel] ?? broadcast.channel} · Сделок:{" "}
           {broadcast.totalDeals ?? "—"} · Отправлено: {counts.sent}
-          {counts.pending > 0 && ` · В очереди: ${counts.pending}`} ·
-          Пропущено: {counts.skipped} · Ошибок: {counts.failed}
+          {counts.pending > 0 && ` · В очереди: ${counts.pending}`} · Пропущено:{" "}
+          {counts.skipped} · Ошибок: {counts.failed}
         </p>
         {isRunning && (
           <p className="text-sm mt-1">
@@ -97,88 +94,88 @@ export default async function BroadcastDetailsPage({
       </div>
 
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(300px,400px)_1fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>Текст сообщения</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TelegramPreview text={broadcast.message} />
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Текст сообщения</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TelegramPreview text={broadcast.message} />
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Получатели</CardTitle>
-          <CardDescription>
-            Статус «Отправлено» означает, что мессенджер принял сообщение.
-            Telegram и MAX не сообщают ботам о прочтении, поэтому статус
-            «Просмотрено» недоступен.
-          </CardDescription>
-          {counts.failed > 0 && !isRunning && (
-            <ResendFailed
-              broadcastId={broadcast.id}
-              failedCount={counts.failed}
-            />
-          )}
-        </CardHeader>
-        <CardContent>
-          {recipients.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Получатели не сохранены.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Контакт</TableHead>
-                  <TableHead>Сделка</TableHead>
-                  <TableHead>Мессенджер</TableHead>
-                  <TableHead>Отправлено</TableHead>
-                  <TableHead>Статус</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recipients.map((r) => {
-                  const badge = STATUS_BADGE[r.status] ?? {
-                    label: r.status,
-                    variant: "outline" as const,
-                  };
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell>{r.contactName ?? r.contactId}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {r.dealTitle ?? r.dealId ?? "—"}
-                      </TableCell>
-                      <TableCell>
-                        {r.messenger === "telegram"
-                          ? "Telegram"
-                          : r.messenger === "max"
-                            ? "MAX"
-                            : "—"}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {formatDateTime(r.sentAt)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
-                          {r.error && (
-                            <span
-                              className={`text-xs ${r.status === "error" ? "text-destructive" : "text-muted-foreground"}`}
-                            >
-                              {r.error}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Получатели</CardTitle>
+            <CardDescription>
+              Статус «Отправлено» означает, что мессенджер принял сообщение.
+              Telegram и MAX не сообщают ботам о прочтении, поэтому статус
+              «Просмотрено» недоступен.
+            </CardDescription>
+            {counts.failed > 0 && !isRunning && (
+              <ResendFailed
+                broadcastId={broadcast.id}
+                failedCount={counts.failed}
+              />
+            )}
+          </CardHeader>
+          <CardContent>
+            {recipients.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Получатели не сохранены.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Контакт</TableHead>
+                    <TableHead>Сделка</TableHead>
+                    <TableHead>Мессенджер</TableHead>
+                    <TableHead>Отправлено</TableHead>
+                    <TableHead>Статус</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recipients.map((r) => {
+                    const badge = STATUS_BADGE[r.status] ?? {
+                      label: r.status,
+                      variant: "outline" as const,
+                    };
+                    return (
+                      <TableRow key={r.id}>
+                        <TableCell>{r.contactName ?? r.contactId}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {r.dealTitle ?? r.dealId ?? "—"}
+                        </TableCell>
+                        <TableCell>
+                          {r.messenger === "telegram"
+                            ? "Telegram"
+                            : r.messenger === "max"
+                              ? "MAX"
+                              : "—"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {formatDateTime(r.sentAt)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5">
+                            <Badge variant={badge.variant}>{badge.label}</Badge>
+                            {r.error && (
+                              <span
+                                className={`text-xs ${r.status === "error" ? "text-destructive" : "text-muted-foreground"}`}
+                              >
+                                {r.error}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

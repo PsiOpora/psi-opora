@@ -55,10 +55,9 @@ export default async function AdsPage() {
   const redis = getRedisOrNull();
   const today = new Date();
   const dateTo = today.toISOString().split("T")[0];
-  const dateFrom =
-    new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0];
+  const dateFrom = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
 
   let data: AdStatsResult | null = null;
   let loadError = false;

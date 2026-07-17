@@ -9,7 +9,9 @@ const log = (msg: string) => {
 };
 
 const bot = createBot({
-  client: process.env.TG_BOT_PROXY ? { apiRoot: process.env.TG_BOT_PROXY } : undefined,
+  client: process.env.TG_BOT_PROXY
+    ? { apiRoot: process.env.TG_BOT_PROXY }
+    : undefined,
 });
 
 bot.start({

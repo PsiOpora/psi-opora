@@ -36,7 +36,7 @@ interface RawContactIm {
   VALUE_TYPE: string;
 }
 
-interface RawContact {
+export interface RawContact {
   ID: string;
   NAME?: string;
   LAST_NAME?: string;
@@ -119,11 +119,14 @@ interface TelegramData {
  * UF-поля интеграций. Числовое значение — ID (боту нужен именно он),
  * нечисловое — username: по нему Bot API отправить не может.
  */
-function findTelegram(
+export function findTelegram(
   contact: RawContact,
   ufCodes: string[],
 ): TelegramData | null {
-  const candidates = [...imValues(contact, "telegram"), ...fieldValues(contact, ufCodes)];
+  const candidates = [
+    ...imValues(contact, "telegram"),
+    ...fieldValues(contact, ufCodes),
+  ];
   let username: string | undefined;
   for (const value of candidates) {
     if (/^\d+$/.test(value)) return { userId: value };
@@ -134,8 +137,14 @@ function findTelegram(
 }
 
 /** MAX-данные: IM-поле от нашего бота, затем UF-поля. Нужен числовой ID. */
-function findMaxId(contact: RawContact, ufCodes: string[]): string | null {
-  const candidates = [...imValues(contact, "max"), ...fieldValues(contact, ufCodes)];
+export function findMaxId(
+  contact: RawContact,
+  ufCodes: string[],
+): string | null {
+  const candidates = [
+    ...imValues(contact, "max"),
+    ...fieldValues(contact, ufCodes),
+  ];
   return candidates.find((value) => /^\d+$/.test(value)) ?? null;
 }
 

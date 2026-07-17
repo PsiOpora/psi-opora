@@ -16,7 +16,8 @@ import { MEMBER_ID_COOKIE, getBitrixApi } from "@/lib/bitrix/session";
 export async function saveBackupCredentialsAction(
   formData: FormData,
 ): Promise<void> {
-  const s3Endpoint = String(formData.get("s3Endpoint") ?? "").trim() || undefined;
+  const s3Endpoint =
+    String(formData.get("s3Endpoint") ?? "").trim() || undefined;
   const s3Region = String(formData.get("s3Region") ?? "").trim() || undefined;
   const s3Bucket = String(formData.get("s3Bucket") ?? "").trim() || undefined;
   const s3AccessKeyId =

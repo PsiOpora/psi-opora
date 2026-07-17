@@ -49,9 +49,9 @@ export function ResendFailed({
           <AlertDialogHeader>
             <AlertDialogTitle>Дослать сообщение?</AlertDialogTitle>
             <AlertDialogDescription>
-              Сообщение этой рассылки будет повторно отправлено{" "}
-              {failedCount} получателям, у которых была ошибка отправки. Те,
-              кто уже получил сообщение, повторно его не получат.
+              Сообщение этой рассылки будет повторно отправлено {failedCount}{" "}
+              получателям, у которых была ошибка отправки. Те, кто уже получил
+              сообщение, повторно его не получат.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,6 +1,7 @@
 import type { Redis } from "@upstash/redis";
 import type { StorageAdapter } from "../storage/upstash";
 import type { ConsultationSession } from "../types/context";
+import { logBotMessage } from "../utils/message-log";
 import { buildReminder, type ScenarioMessage } from "./engine";
 import { getScenarioTexts } from "./texts";
 
@@ -96,6 +97,13 @@ export async function runScenarioReminders({
       }
 
       await send(sessionKey, message);
+      await logBotMessage({
+        messenger,
+        userId: sessionKey,
+        direction: "out",
+        source: "reminder",
+        text: message.text,
+      });
       state.reminded = true;
       await storage.write(sessionKey, session);
       await redis.zadd(key, { score: Date.now(), member: sessionKey });
