@@ -100,7 +100,11 @@ export function createOAuthApi(memberId: string): BitrixApi {
       return unwrap(json, method) as T;
     },
     list(method, params = {}, extractor?) {
-      return paginate((start) => request(method, params, start), method, extractor);
+      return paginate(
+        (start) => request(method, params, start),
+        method,
+        extractor,
+      );
     },
   };
 }
@@ -128,7 +132,11 @@ export function createWebhookApi(webhookUrl: string): BitrixApi {
       return unwrap(json, method) as T;
     },
     list(method, params = {}, extractor?) {
-      return paginate((start) => request(method, params, start), method, extractor);
+      return paginate(
+        (start) => request(method, params, start),
+        method,
+        extractor,
+      );
     },
   };
 }

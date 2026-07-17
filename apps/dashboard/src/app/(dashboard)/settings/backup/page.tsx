@@ -1,3 +1,4 @@
+import { getBackupCredentials, listBackupRuns } from "@psi-opora/db/queries";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,8 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getBackupCredentials, listBackupRuns } from "@psi-opora/db/queries";
-import { saveBackupCredentialsAction, runBackupNowAction } from "./actions";
+import { runBackupNowAction, saveBackupCredentialsAction } from "./actions";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
@@ -34,7 +34,9 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function BackupSettingsPage() {
   const [creds, runs] = await Promise.all([
     getBackupCredentials().catch(() => null),
-    listBackupRuns().catch(() => [] as Awaited<ReturnType<typeof listBackupRuns>>),
+    listBackupRuns().catch(
+      () => [] as Awaited<ReturnType<typeof listBackupRuns>>,
+    ),
   ]);
 
   return (
@@ -60,12 +62,9 @@ export default async function BackupSettingsPage() {
             >
               Yandex Cloud
             </a>{" "}
-            (Object Storage → Сервисные аккаунты → Статический ключ).
-            Endpoint обычно{" "}
-            <code className="text-xs">
-              https://storage.yandexcloud.net
-            </code>
-            .
+            (Object Storage → Сервисные аккаунты → Статический ключ). Endpoint
+            обычно{" "}
+            <code className="text-xs">https://storage.yandexcloud.net</code>.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -173,9 +172,9 @@ export default async function BackupSettingsPage() {
         <CardHeader>
           <CardTitle>Запуск бэкапа</CardTitle>
           <CardDescription>
-            Бэкап выполняется фоновым заданием trigger.dev — кнопка лишь
-            ставит его в очередь, статус появится в таблице ниже. Ночной
-            запуск по расписанию делает Vercel Cron.
+            Бэкап выполняется фоновым заданием trigger.dev — кнопка лишь ставит
+            его в очередь, статус появится в таблице ниже. Ночной запуск по
+            расписанию делает Vercel Cron.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

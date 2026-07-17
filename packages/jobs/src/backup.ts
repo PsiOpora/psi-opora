@@ -125,22 +125,18 @@ const BASE_ENTITIES: EntityConfig[] = [
     name: "crmTypes",
     file: "crm-types.jsonl.gz",
     method: "crm.type.list",
-    extractor: (result) =>
-      (result as { types?: unknown[] }).types ?? [],
+    extractor: (result) => (result as { types?: unknown[] }).types ?? [],
   },
   {
     name: "catalogs",
     file: "catalogs.jsonl.gz",
     method: "catalog.catalog.list",
-    extractor: (result) =>
-      (result as { catalogs?: unknown[] }).catalogs ?? [],
+    extractor: (result) => (result as { catalogs?: unknown[] }).catalogs ?? [],
   },
 ];
 
 /** Собирает полный список сущностей: базовые + каталоги + смарт-процессы. */
-async function buildEntityConfigs(
-  api: BitrixApi,
-): Promise<EntityConfig[]> {
+async function buildEntityConfigs(api: BitrixApi): Promise<EntityConfig[]> {
   const entities: EntityConfig[] = [...BASE_ENTITIES];
 
   // Товары каждого торгового каталога.
@@ -216,8 +212,7 @@ async function buildEntityConfigs(
         file: `smart-process-${entityTypeId}.jsonl.gz`,
         method: "crm.item.list",
         params: { entityTypeId, select: ["*", "UF_*"] },
-        extractor: (result) =>
-          (result as { items?: unknown[] }).items ?? [],
+        extractor: (result) => (result as { items?: unknown[] }).items ?? [],
       });
     }
   } catch {
