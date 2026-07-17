@@ -121,7 +121,7 @@ export default async function BotFunnelPage({
                   "Источник",
                   "Кампания",
                   "Стартов",
-                  "Записаться",
+                  "Выбрали категорию",
                   "Телефонов",
                   "Заявок",
                   "Конверсия, %",
@@ -167,7 +167,7 @@ function SourceTable({
             <TableHead>Источник</TableHead>
             <TableHead>Кампания</TableHead>
             <TableHead className="text-right">Стартов</TableHead>
-            <TableHead className="text-right">«Записаться»</TableHead>
+            <TableHead className="text-right">Категория</TableHead>
             <TableHead className="text-right">Телефонов</TableHead>
             <TableHead className="text-right">Заявок</TableHead>
             <TableHead className="text-right">Конверсия</TableHead>

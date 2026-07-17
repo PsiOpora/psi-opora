@@ -1,16 +1,18 @@
-import { conversations, createConversation } from "@grammyjs/conversations";
 import { env } from "@psi-opora/config";
 import type { Redis } from "@upstash/redis";
-import type { StorageAdapter } from "grammy";
-import { Bot, InlineKeyboard, type Middleware, session } from "grammy";
-import { consultationConversation } from "./handlers/consultation";
-import type { AppContext, ConsultationSession } from "./types/context";
-import { trackFunnelStep } from "./utils/funnel";
+import type { Api, StorageAdapter } from "grammy";
+import { Bot, InlineKeyboard, session } from "grammy";
+import { dispatchScenarioOutput } from "./scenario/dispatch";
 import {
-  CONSENT_DECLINED_TEXT,
-  CONSENT_TEXT,
-  WELCOME_TEXT,
-} from "./utils/messages";
+  applyScenarioAction,
+  applyScenarioText,
+  isScenarioAction,
+  type ScenarioMessage,
+  type ScenarioOutput,
+  startScenario,
+} from "./scenario/engine";
+import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
+import type { AppContext, ConsultationSession } from "./types/context";
 import { formatUtmLog, parseUtmParams } from "./utils/utm";
 
 export const log = (msg: string) => {
@@ -23,11 +25,48 @@ function createInitialSession(): ConsultationSession {
 
 export interface BotOptions {
   storage?: StorageAdapter<ConsultationSession>;
+  /** Redis для очереди напоминаний; без него напоминания отключены. */
   redis?: Redis;
   client?: ConstructorParameters<typeof Bot>[1]["client"];
 }
 
-export function createBot({ storage, redis: _redis, client }: BotOptions = {}) {
+function toInlineKeyboard(
+  message: ScenarioMessage,
+): InlineKeyboard | undefined {
+  if (!message.buttons?.length) return undefined;
+  const keyboard = new InlineKeyboard();
+  message.buttons.forEach((row, index) => {
+    if (index > 0) keyboard.row();
+    for (const button of row) keyboard.text(button.label, button.action);
+  });
+  return keyboard;
+}
+
+/**
+ * Отправка сообщения сценария в Telegram. Markdown из дашборда может быть
+ * невалидным — при ошибке парсинга отправляем как обычный текст.
+ */
+export async function sendTelegramScenarioMessage(
+  api: Api,
+  chatId: number,
+  message: ScenarioMessage,
+): Promise<void> {
+  const keyboard = toInlineKeyboard(message);
+  const options = {
+    reply_markup: keyboard,
+    link_preview_options: { is_disabled: true },
+  };
+  try {
+    await api.sendMessage(chatId, message.text, {
+      ...options,
+      parse_mode: "Markdown",
+    });
+  } catch {
+    await api.sendMessage(chatId, message.text, options);
+  }
+}
+
+export function createBot({ storage, redis, client }: BotOptions = {}) {
   const token = env.TG_BOT_TOKEN ?? env.BOT_TOKEN ?? "";
   const bot = new Bot<AppContext>(token, client ? { client } : undefined);
 
@@ -35,17 +74,34 @@ export function createBot({ storage, redis: _redis, client }: BotOptions = {}) {
     session({
       initial: createInitialSession,
       storage,
-    }) as Middleware<AppContext>,
-  );
-  bot.use(conversations() as Middleware<AppContext>);
-  bot.use(
-    createConversation(
-      consultationConversation,
-      "consultationConversation",
-    ) as Middleware<AppContext>,
+    }),
   );
 
-  bot.command("start", async (ctx: AppContext) => {
+  const dispatch = async (
+    ctx: AppContext,
+    out: ScenarioOutput,
+    texts: ScenarioTexts,
+  ) => {
+    const chatId = ctx.chatId;
+    if (!chatId) return;
+    ctx.session.scenario = out.state;
+    await dispatchScenarioOutput(out, {
+      messenger: "telegram",
+      sessionKey: String(chatId),
+      redis,
+      texts,
+      sendMessage: (message) =>
+        sendTelegramScenarioMessage(ctx.api, chatId, message),
+      userName: [ctx.from?.first_name, ctx.from?.last_name]
+        .filter(Boolean)
+        .join(" "),
+      userId: ctx.from?.id,
+      source: ctx.session.source,
+      campaign: ctx.session.campaign,
+    });
+  };
+
+  bot.command("start", async (ctx) => {
     const rawParam = typeof ctx.match === "string" ? ctx.match : undefined;
     const utm = parseUtmParams(rawParam);
 
@@ -59,66 +115,45 @@ export function createBot({ storage, redis: _redis, client }: BotOptions = {}) {
     log(
       `[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)} messenger=telegram`,
     );
-    await trackFunnelStep("start", {
-      messenger: "telegram",
-      source: utm.source,
-      campaign: utm.campaign,
-    });
 
-    const keyboard = new InlineKeyboard().text(
-      "📝 Записаться на консультацию",
-      "start_consultation",
-    );
-
-    await ctx.reply(WELCOME_TEXT, {
-      parse_mode: "Markdown",
-      reply_markup: keyboard,
-    });
+    const texts = await getScenarioTexts();
+    await dispatch(ctx, startScenario(texts), texts);
   });
 
-  bot.callbackQuery("start_consultation", async (ctx: AppContext) => {
+  bot.on("callback_query:data", async (ctx) => {
+    const action = ctx.callbackQuery.data;
     await ctx.answerCallbackQuery();
-    await trackFunnelStep("consult_click", {
-      messenger: "telegram",
-      source: ctx.session.source,
-      campaign: ctx.session.campaign,
-    });
+    if (!isScenarioAction(action)) return;
 
-    const consentKeyboard = new InlineKeyboard()
-      .text("✅ Согласен(а) на обработку данных", "consent_agree")
-      .row()
-      .text("❌ Не согласен(а)", "consent_decline");
+    const state = ctx.session.scenario;
+    if (!state) return;
 
-    await ctx.reply(CONSENT_TEXT, {
-      parse_mode: "Markdown",
-      reply_markup: consentKeyboard,
-      link_preview_options: { is_disabled: true },
-    });
+    const texts = await getScenarioTexts();
+    const out = applyScenarioAction(state, action, texts);
+    // null — кнопка от прошлого шага (устаревшее сообщение), игнорируем
+    if (!out) return;
+
+    // Убираем кнопки с нажатого сообщения, чтобы не нажали повторно
+    await ctx
+      .editMessageReplyMarkup({ reply_markup: undefined })
+      .catch(() => {});
+
+    log(`[SCENARIO] user=${ctx.from?.id} action=${action} messenger=telegram`);
+    await dispatch(ctx, out, texts);
   });
 
-  bot.callbackQuery("consent_agree", async (ctx: AppContext) => {
-    await ctx.answerCallbackQuery("Спасибо! Продолжаем.");
-    ctx.session.consentGiven = true;
-    log(`[CONSENT] user=${ctx.from?.id} согласился`);
-    await trackFunnelStep("consent", {
-      messenger: "telegram",
-      source: ctx.session.source,
-      campaign: ctx.session.campaign,
-    });
+  bot.on("message:text", async (ctx) => {
+    const text = ctx.message.text.trim();
+    if (!text || text.startsWith("/")) return;
 
-    await ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() });
-    await ctx.reply(
-      "✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?",
-    );
-    await ctx.conversation.enter("consultationConversation");
-  });
+    const state = ctx.session.scenario;
+    if (!state) return;
 
-  bot.callbackQuery("consent_decline", async (ctx: AppContext) => {
-    await ctx.answerCallbackQuery();
-    log(`[CONSENT] user=${ctx.from?.id} отказался`);
+    const texts = await getScenarioTexts();
+    const out = applyScenarioText(state, text, texts);
+    if (!out) return;
 
-    await ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() });
-    await ctx.reply(CONSENT_DECLINED_TEXT);
+    await dispatch(ctx, out, texts);
   });
 
   bot.catch((err) => {

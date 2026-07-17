@@ -89,6 +89,7 @@
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
+        "@upstash/redis": "^1.38.0",
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
@@ -161,7 +162,6 @@
       "name": "@psi-opora/bot-core",
       "version": "0.0.1",
       "dependencies": {
-        "@grammyjs/conversations": "^2.1.1",
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
         "@upstash/redis": "^1.38.0",
@@ -214,6 +214,7 @@
       "dependencies": {
         "@aws-sdk/client-s3": "^3.751.0",
         "@psi-opora/bitrix-client": "workspace:*",
+        "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/db": "workspace:*",
         "@trigger.dev/sdk": "4.5.4",
       },
@@ -472,8 +473,6 @@
     "@floating-ui/utils": ["@floating-ui/utils@0.2.11", "", {}, "sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg=="],
 
     "@google-cloud/precise-date": ["@google-cloud/precise-date@4.0.0", "", {}, "sha512-1TUx3KdaU3cN7nfCdNf+UVqA/PSX29Cjcox3fZZBtINlRrXVTmUkQnCKv2MbBUbCopbK4olAT1IHl76uZyCiVA=="],
-
-    "@grammyjs/conversations": ["@grammyjs/conversations@2.1.1", "", { "peerDependencies": { "grammy": "^1.20.1" } }, "sha512-hoxqwSkaXDeU7mzXulpk3A4Cmd6UZO3HU4aPoITX5ekSHK7ZcUEmMl7RhKKkqw3z6zVbbAShQreJoVV5/dDSLA=="],
 
     "@grammyjs/types": ["@grammyjs/types@3.28.0", "", {}, "sha512-4JvXCdxRZHCje0M4gHzLwtB4bLno3WD28xd8CNfk4POWIu73BFnSvGeW6OQ5gPem4eYTEwkD9yDaXssixl6tMQ=="],
 

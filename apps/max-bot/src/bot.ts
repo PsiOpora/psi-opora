@@ -1,21 +1,28 @@
-import { Bot, Context, Keyboard, type MiddlewareFn } from "@maxhub/max-bot-api";
 import {
-  CONSENT_DECLINED_TEXT,
-  CONSENT_TEXT,
+  Bot,
+  Context,
+  Keyboard,
+  type MiddlewareFn,
+} from "@maxhub/max-bot-api";
+import {
+  applyScenarioAction,
+  applyScenarioText,
   type ConsultationSession,
+  dispatchScenarioOutput,
   formatUtmLog,
-  hasPhoneNumber,
-  isValidEmail,
+  getScenarioTexts,
   parseUtmParams,
-  type StorageAdapter,
+  SCENARIO_ACTIONS,
+  type ScenarioMessage,
+  type ScenarioOutput,
+  type ScenarioTexts,
   setFunnelUpsert,
-  submitConsultationDeal,
-  successReply,
-  trackFunnelStep,
-  WELCOME_TEXT,
+  startScenario,
+  type StorageAdapter,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
+import type { Redis } from "@upstash/redis";
 
 // MAX-бот деплоится на Vercel Edge Runtime — используем neon-http через @psi-opora/db/queries.edge
 // (node-postgres недоступен в Edge, т.к. требует Node.js API: net, tls, dns)
@@ -67,10 +74,16 @@ export class AppContext extends Context {
 
 export interface MaxBotOptions {
   storage?: StorageAdapter<ConsultationSession>;
+  /** Redis для очереди напоминаний; без него напоминания отключены. */
+  redis?: Redis;
 }
 
 function createInitialSession(): ConsultationSession {
   return { step: "name" };
+}
+
+function sessionKeyOf(ctx: AppContext): string {
+  return String(ctx.user?.user_id ?? ctx.chatId ?? "anon");
 }
 
 function sessionMiddleware(
@@ -78,7 +91,7 @@ function sessionMiddleware(
 ): MiddlewareFn<AppContext> {
   const memory = new Map<string, ConsultationSession>();
   return async (ctx, next) => {
-    const key = String(ctx.user?.user_id ?? ctx.chatId ?? "anon");
+    const key = sessionKeyOf(ctx);
     const existing = storage ? await storage.read(key) : memory.get(key);
     ctx.session = existing ?? createInitialSession();
     await next();
@@ -87,44 +100,73 @@ function sessionMiddleware(
   };
 }
 
-async function handleStart(ctx: AppContext, startPayload: string | undefined) {
-  const utm = parseUtmParams(startPayload);
-  if (utm.campaign) ctx.session.campaign = utm.campaign;
-  if (utm.source) ctx.session.source = utm.source;
-
-  log(
-    `[START] user=${ctx.user?.user_id} chat=${ctx.chatId} ${formatUtmLog(utm)} messenger=max`,
+function toMaxKeyboard(message: ScenarioMessage) {
+  if (!message.buttons?.length) return undefined;
+  return Keyboard.inlineKeyboard(
+    message.buttons.map((row) =>
+      row.map((button) => Keyboard.button.callback(button.label, button.action)),
+    ),
   );
-  await trackFunnelStep("start", {
-    messenger: "max",
-    source: utm.source,
-    campaign: utm.campaign,
-  });
-
-  const keyboard = Keyboard.inlineKeyboard([
-    [
-      Keyboard.button.callback(
-        "📝 Записаться на консультацию",
-        "start_consultation",
-      ),
-    ],
-  ]);
-
-  const replyOptions = {
-    format: "markdown" as const,
-    attachments: [keyboard],
-  };
-
-  await replyWithFallback(ctx, WELCOME_TEXT, replyOptions);
 }
 
 export type MaxBot = Bot<AppContext>;
 
-export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
+export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
   const token = env.MAX_BOT_TOKEN ?? env.BOT_TOKEN ?? "";
   const bot = new Bot<AppContext>(token, { contextType: AppContext });
 
   bot.use(sessionMiddleware(storage));
+
+  const replyScenarioMessage = async (
+    ctx: AppContext,
+    message: ScenarioMessage,
+  ) => {
+    const keyboard = toMaxKeyboard(message);
+    const attachments = keyboard ? [keyboard] : undefined;
+    try {
+      await replyWithFallback(ctx, message.text, {
+        format: "markdown",
+        attachments,
+      });
+    } catch {
+      await replyWithFallback(ctx, message.text, { attachments });
+    }
+  };
+
+  const dispatch = async (
+    ctx: AppContext,
+    out: ScenarioOutput,
+    texts: ScenarioTexts,
+  ) => {
+    ctx.session.scenario = out.state;
+    await dispatchScenarioOutput(out, {
+      messenger: "max",
+      sessionKey: sessionKeyOf(ctx),
+      redis,
+      texts,
+      sendMessage: (message) => replyScenarioMessage(ctx, message),
+      userName: ctx.user?.name,
+      userId: ctx.user?.user_id,
+      source: ctx.session.source,
+      campaign: ctx.session.campaign,
+    });
+  };
+
+  async function handleStart(
+    ctx: AppContext,
+    startPayload: string | undefined,
+  ) {
+    const utm = parseUtmParams(startPayload);
+    if (utm.campaign) ctx.session.campaign = utm.campaign;
+    if (utm.source) ctx.session.source = utm.source;
+
+    log(
+      `[START] user=${ctx.user?.user_id} chat=${ctx.chatId} ${formatUtmLog(utm)} messenger=max`,
+    );
+
+    const texts = await getScenarioTexts();
+    await dispatch(ctx, startScenario(texts), texts);
+  }
 
   bot.on("bot_started", (ctx) =>
     handleStart(
@@ -133,167 +175,41 @@ export function createMaxBot({ storage }: MaxBotOptions = {}): MaxBot {
         undefined,
     ),
   );
-  bot.command("start", (ctx) => handleStart(ctx, undefined));
+  bot.command("start", (ctx) => handleStart(ctx as AppContext, undefined));
 
-  bot.action("start_consultation", async (ctx) => {
-    const appCtx = ctx as AppContext;
-    await appCtx.answerOnCallback({ notification: "Открываем анкету..." });
-    await trackFunnelStep("consult_click", {
-      messenger: "max",
-      source: appCtx.session.source,
-      campaign: appCtx.session.campaign,
+  for (const action of SCENARIO_ACTIONS) {
+    bot.action(action, async (ctx) => {
+      const appCtx = ctx as AppContext;
+      await appCtx.answerOnCallback({}).catch(() => {});
+
+      const state = appCtx.session.scenario;
+      if (!state) return;
+
+      const texts = await getScenarioTexts();
+      const out = applyScenarioAction(state, action, texts);
+      // null — кнопка от прошлого шага (устаревшее сообщение), игнорируем
+      if (!out) return;
+
+      log(
+        `[SCENARIO] user=${appCtx.user?.user_id} action=${action} messenger=max`,
+      );
+      await dispatch(appCtx, out, texts);
     });
-
-    await replyWithFallback(appCtx, CONSENT_TEXT, {
-      format: "markdown",
-      attachments: [
-        Keyboard.inlineKeyboard([
-          [
-            Keyboard.button.callback(
-              "✅ Согласен(а) на обработку данных",
-              "consent_agree",
-            ),
-          ],
-          [Keyboard.button.callback("❌ Не согласен(а)", "consent_decline")],
-        ]),
-      ],
-    });
-  });
-
-  bot.action("consent_agree", async (ctx) => {
-    const appCtx = ctx as AppContext;
-    await appCtx.answerOnCallback({ notification: "Спасибо! Продолжаем." });
-    appCtx.session.consentGiven = true;
-    appCtx.session.step = "name";
-    log(`[CONSENT] user=${appCtx.user?.user_id} согласился`);
-    await trackFunnelStep("consent", {
-      messenger: "max",
-      source: appCtx.session.source,
-      campaign: appCtx.session.campaign,
-    });
-    await replyWithFallback(
-      appCtx,
-      "✅ Согласие получено. Приступим к записи!\n\nКак вас зовут?",
-    );
-  });
-
-  bot.action("consent_decline", async (ctx) => {
-    const appCtx = ctx as AppContext;
-    await appCtx.answerOnCallback({ notification: "Хорошо" });
-    log(`[CONSENT] user=${appCtx.user?.user_id} отказался`);
-    await replyWithFallback(appCtx, CONSENT_DECLINED_TEXT);
-  });
+  }
 
   bot.on("message_created", async (ctx) => {
     const appCtx = ctx as unknown as AppContext;
     const text = appCtx.message?.body.text?.trim() ?? "";
     if (!text || text.startsWith("/")) return;
 
-    const safeReply = (replyText: string, options?: Parameters<AppContext["reply"]>[1]) =>
-      replyWithFallback(appCtx, replyText, options);
+    const state = appCtx.session.scenario;
+    if (!state) return;
 
-    if (appCtx.session.step === "name") {
-      appCtx.session.name = text;
-      appCtx.session.step = "phone";
-      await trackFunnelStep("name", {
-        messenger: "max",
-        source: appCtx.session.source,
-        campaign: appCtx.session.campaign,
-      });
-      await safeReply(
-        `Отлично, ${text}! Теперь введите, пожалуйста, ваш номер телефона для связи.`,
-      );
-      return;
-    }
+    const texts = await getScenarioTexts();
+    const out = applyScenarioText(state, text, texts);
+    if (!out) return;
 
-    if (appCtx.session.step === "phone") {
-      if (hasPhoneNumber(text)) {
-        appCtx.session.phone = text;
-        appCtx.session.step = "email";
-        await trackFunnelStep("phone", {
-          messenger: "max",
-          source: appCtx.session.source,
-          campaign: appCtx.session.campaign,
-        });
-        await safeReply(
-          "Спасибо! И последний шаг — укажите, пожалуйста, ваш email для связи.",
-        );
-        return;
-      }
-
-      appCtx.session.phoneAttempts = (appCtx.session.phoneAttempts ?? 0) + 1;
-      if (appCtx.session.phoneAttempts >= 3) {
-        appCtx.session.step = "done";
-        await safeReply(
-          "😔 К сожалению, мы не смогли распознать номер. " +
-            "Напишите, пожалуйста, номер в любом формате: +7 999 123-45-67, " +
-            "8 999 123 45 67 и т.д. Мы свяжемся с вами для уточнения.",
-        );
-        return;
-      }
-
-      await safeReply(
-        "Не удалось распознать номер телефона. Введите, пожалуйста, номер в любом формате, например: +7 (999) 123-45-67",
-      );
-      return;
-    }
-
-    if (appCtx.session.step === "email") {
-      const name = appCtx.session.name ?? "";
-      const phone = appCtx.session.phone ?? "";
-      const source = appCtx.session.source;
-      const campaign = appCtx.session.campaign;
-      const userId = appCtx.message?.sender?.user_id;
-
-      if (isValidEmail(text)) {
-        appCtx.session.email = text;
-        appCtx.session.step = "done";
-
-        log(
-          `[CONSULTATION] name=${name} phone=${phone} email=${text}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${userId} messenger=max`,
-        );
-
-        await submitConsultationDeal({
-          name,
-          phone,
-          email: text,
-          messenger: "max",
-          userId,
-          source,
-          campaign,
-        });
-        await safeReply(successReply(name), { format: "markdown" });
-        return;
-      }
-
-      appCtx.session.emailAttempts = (appCtx.session.emailAttempts ?? 0) + 1;
-      if (appCtx.session.emailAttempts >= 3) {
-        appCtx.session.step = "done";
-        await safeReply(
-          "😔 Не удалось распознать email, продолжим без него — уточним при звонке.",
-        );
-
-        log(
-          `[CONSULTATION] name=${name} phone=${phone}${source ? ` source=${source}` : ""}${campaign ? ` campaign=${campaign}` : ""} user=${userId} messenger=max`,
-        );
-
-        await submitConsultationDeal({
-          name,
-          phone,
-          messenger: "max",
-          userId,
-          source,
-          campaign,
-        });
-        await safeReply(successReply(name), { format: "markdown" });
-        return;
-      }
-
-      await safeReply(
-        "Не удалось распознать email. Введите, пожалуйста, адрес в формате: example@mail.ru",
-      );
-      return;
-    }
+    await dispatch(appCtx, out, texts);
   });
 
   bot.catch((err, ctx) => {

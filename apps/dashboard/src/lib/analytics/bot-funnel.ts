@@ -23,11 +23,12 @@ export interface BotFunnelStepStats {
 
 export const STEP_LABELS: Record<FunnelStep, string> = {
   start: "Запустили бота (/start)",
-  consult_click: "Нажали «Записаться»",
-  consent: "Дали согласие на ПДн",
-  name: "Оставили имя",
+  category: "Выбрали категорию",
+  issue: "Указали тему",
+  email: "Оставили email (лид-магнит)",
   phone: "Оставили телефон",
   deal: "Заявка создана в CRM",
+  subscribe: "Согласились на рассылку",
 };
 
 export async function fetchBotFunnelEvents(
@@ -109,7 +110,7 @@ export function funnelBySourceCampaign(
       rows.set(key, row);
     }
     if (event.step === "start") row.starts += event.count;
-    if (event.step === "consult_click") row.clicks += event.count;
+    if (event.step === "category") row.clicks += event.count;
     if (event.step === "phone") row.phones += event.count;
     if (event.step === "deal") row.deals += event.count;
   }

@@ -1,5 +1,11 @@
 export type Messenger = "telegram" | "max";
 
+/** Inline-кнопка: text — подпись, payload — callback data. */
+export interface MessengerButton {
+  text: string;
+  payload: string;
+}
+
 /**
  * Лимиты мессенджеров на отправку от бота:
  * - Telegram Bot API: ~30 сообщений/сек суммарно на бота при массовой
@@ -25,9 +31,21 @@ export const sleep = (ms: number): Promise<void> =>
  * Если мессенджер отклоняет разметку (400, например непарные символы),
  * сообщение повторно уходит обычным текстом — рассылка не падает.
  */
-async function sendTelegram(userId: string, text: string): Promise<void> {
+async function sendTelegram(
+  userId: string,
+  text: string,
+  buttons?: MessengerButton[][],
+): Promise<void> {
   const token = process.env.TG_BOT_TOKEN ?? process.env.BOT_TOKEN;
   if (!token) throw new Error("TG_BOT_TOKEN не задан");
+
+  const replyMarkup = buttons?.length
+    ? {
+        inline_keyboard: buttons.map((row) =>
+          row.map((b) => ({ text: b.text, callback_data: b.payload })),
+        ),
+      }
+    : undefined;
 
   let withMarkdown = true;
   for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS + 1; attempt++) {
@@ -39,6 +57,7 @@ async function sendTelegram(userId: string, text: string): Promise<void> {
         body: JSON.stringify({
           chat_id: userId,
           text,
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
           ...(withMarkdown ? { parse_mode: "Markdown" } : {}),
         }),
       },
@@ -69,9 +88,30 @@ async function sendTelegram(userId: string, text: string): Promise<void> {
   );
 }
 
-async function sendMax(userId: string, text: string): Promise<void> {
+async function sendMax(
+  userId: string,
+  text: string,
+  buttons?: MessengerButton[][],
+): Promise<void> {
   const token = process.env.MAX_BOT_TOKEN;
   if (!token) throw new Error("MAX_BOT_TOKEN не задан");
+
+  const attachments = buttons?.length
+    ? [
+        {
+          type: "inline_keyboard",
+          payload: {
+            buttons: buttons.map((row) =>
+              row.map((b) => ({
+                type: "callback",
+                text: b.text,
+                payload: b.payload,
+              })),
+            ),
+          },
+        },
+      ]
+    : undefined;
 
   let withMarkdown = true;
   for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS + 1; attempt++) {
@@ -82,6 +122,7 @@ async function sendMax(userId: string, text: string): Promise<void> {
       headers: { "Content-Type": "application/json", Authorization: token },
       body: JSON.stringify({
         text,
+        ...(attachments ? { attachments } : {}),
         ...(withMarkdown ? { format: "markdown" } : {}),
       }),
     });
@@ -112,7 +153,8 @@ export async function sendMessengerMessage(
   messenger: Messenger,
   userId: string,
   text: string,
+  buttons?: MessengerButton[][],
 ): Promise<void> {
-  if (messenger === "telegram") await sendTelegram(userId, text);
-  else await sendMax(userId, text);
+  if (messenger === "telegram") await sendTelegram(userId, text, buttons);
+  else await sendMax(userId, text, buttons);
 }

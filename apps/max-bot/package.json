@@ -13,7 +13,8 @@
     "@maxhub/max-bot-api": "0.2.4",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
-    "@psi-opora/db": "workspace:*"
+    "@psi-opora/db": "workspace:*",
+    "@upstash/redis": "^1.38.0"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",

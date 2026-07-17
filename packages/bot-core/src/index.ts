@@ -1,4 +1,48 @@
-export { createBot, log, type BotOptions } from "./bot";
+export {
+  createBot,
+  log,
+  sendTelegramScenarioMessage,
+  type BotOptions,
+} from "./bot";
+export {
+  dispatchScenarioOutput,
+  type ScenarioDispatchDeps,
+} from "./scenario/dispatch";
+export {
+  applyScenarioAction,
+  applyScenarioText,
+  buildReminder,
+  describeLead,
+  isScenarioAction,
+  SCENARIO_ACTIONS,
+  startScenario,
+  stepQuestion,
+  type ScenarioAction,
+  type ScenarioAudience,
+  type ScenarioButton,
+  type ScenarioIssue,
+  type ScenarioLead,
+  type ScenarioMessage,
+  type ScenarioOutput,
+  type ScenarioState,
+  type ScenarioStep,
+} from "./scenario/engine";
+export {
+  clearScenarioAwaiting,
+  markScenarioAwaiting,
+  REMINDER_DELAY_MS,
+  runScenarioReminders,
+  type ReminderRunOptions,
+  type ReminderRunResult,
+} from "./scenario/reminders";
+export {
+  DEFAULT_SCENARIO_TEXTS,
+  getScenarioTexts,
+  SCENARIO_TEXT_DEFS,
+  type ScenarioTextDef,
+  type ScenarioTextKey,
+  type ScenarioTexts,
+} from "./scenario/texts";
 export {
   createRedisStorage,
   createUpstashRedis,
@@ -6,11 +50,7 @@ export {
   type StorageAdapter,
   type BitrixChatInfo,
 } from "./storage/upstash";
-export type {
-  ConsultationSession,
-  AppContext,
-  ConvContext,
-} from "./types/context";
+export type { ConsultationSession, AppContext } from "./types/context";
 export {
   createBitrixDeal,
   registerBitrixConnector,
@@ -37,12 +77,6 @@ export {
 } from "./utils/utm";
 export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes";
 export { hasPhoneNumber, isValidEmail } from "./utils/validation";
-export {
-  successReply,
-  WELCOME_TEXT,
-  CONSENT_TEXT,
-  CONSENT_DECLINED_TEXT,
-} from "./utils/messages";
 export {
   submitConsultationDeal,
   type SubmitDealParams,

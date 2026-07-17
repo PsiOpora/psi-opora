@@ -15,3 +15,4 @@ export {
   deliverBroadcast,
 } from "./trigger/broadcast";
 export { type CrmBackupPayload, crmBackup } from "./trigger/crm-backup";
+export { scenarioReminders } from "./trigger/scenario-reminders";

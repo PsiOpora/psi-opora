@@ -10,7 +10,7 @@ export const config = { runtime: "edge" };
 
 const redis = createUpstashRedis();
 const storage = createRedisStorage<ConsultationSession>(redis);
-const bot = createBot({ storage });
+const bot = createBot({ storage, redis });
 const handleUpdate = webhookCallback(bot, "std/http");
 
 export default async function handler(req: Request): Promise<Response> {

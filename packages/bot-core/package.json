@@ -24,8 +24,7 @@
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@upstash/redis": "^1.38.0",
-    "grammy": "^1.44.0",
-    "@grammyjs/conversations": "^2.1.1"
+    "grammy": "^1.44.0"
   },
   "devDependencies": {
     "tsdown": "^0.22.8"

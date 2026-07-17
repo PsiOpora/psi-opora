@@ -31,6 +31,8 @@ export interface SubmitDealParams {
   userId?: number;
   source?: string;
   campaign?: string;
+  /** Комментарий к сделке (например, выбранные в сценарии категория и тема). */
+  comment?: string;
 }
 
 /**
@@ -43,7 +45,8 @@ export interface SubmitDealParams {
 export async function submitConsultationDeal(
   params: SubmitDealParams,
 ): Promise<boolean> {
-  const { name, phone, email, messenger, userId, source, campaign } = params;
+  const { name, phone, email, messenger, userId, source, campaign, comment } =
+    params;
 
   const funnelCtx: FunnelEventContext = { messenger, source, campaign };
 
@@ -71,6 +74,7 @@ export async function submitConsultationDeal(
       source,
       telegramUserId: userId,
       messenger,
+      ...(comment ? { comment } : {}),
       ...(chatId !== undefined ? { chatId } : {}),
       ...(operatorId !== undefined ? { operatorId } : {}),
     };
