@@ -76,7 +76,7 @@ export default async function AdsPage() {
     }
   }
 
-  if (loadError || (!data && !redis)) {
+  if (loadError || !data) {
     return (
       <AdStatsError
         message={
@@ -88,8 +88,8 @@ export default async function AdsPage() {
     );
   }
 
-  // data is guaranteed non-null here — we returned early if both loadError and redis are falsy
-  const liveData = data!;
+  // data is guaranteed non-null here — we returned early above
+  const liveData = data;
 
   const dbStats = await orpc.ads.stats({ dateFrom, dateTo }).catch(() => ({
     summary: { totalSpend: 0, totalImpressions: 0, totalClicks: 0 },
