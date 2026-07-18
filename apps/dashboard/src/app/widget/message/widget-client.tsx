@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Loader2Icon, SendIcon } from "lucide-react";
 import type { Messenger } from "@psi-opora/jobs";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,17 @@ import { MESSAGE_MAX_LENGTH } from "@/lib/broadcast/constants";
 import { cn } from "@/lib/utils";
 import {
   loadWidgetRecipientAction,
+  pollWidgetMessagesAction,
   sendWidgetMessageAction,
   type WidgetEntity,
   type WidgetHistoryItem,
   type WidgetRecipient,
 } from "./actions";
+
+/** Оптимистично добавленное сообщение до подтверждения записи в БД поллингом. */
+type HistoryEntry = WidgetHistoryItem & { pending?: boolean };
+
+const POLL_INTERVAL_MS = 5000;
 
 const MESSENGER_LABELS: Record<Messenger, string> = {
   telegram: "Telegram",
@@ -27,18 +33,25 @@ const SOURCE_LABELS: Record<string, string> = {
   broadcast: "рассылка",
 };
 
-function HistoryList({ history }: { history: WidgetHistoryItem[] }) {
+function HistoryList({ history }: { history: HistoryEntry[] }) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [history]);
+
   if (history.length === 0) return null;
   return (
     <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto rounded-md border p-3">
       {history.map((item) => (
         <div
-          key={`${item.createdAt}-${item.direction}-${item.text.slice(0, 20)}`}
+          key={item.id}
           className={cn(
             "max-w-[85%] rounded-lg px-3 py-1.5 text-sm whitespace-pre-wrap",
             item.direction === "out"
               ? "self-end bg-primary/10"
               : "self-start bg-muted",
+            item.pending && "opacity-60",
           )}
         >
           {item.text}
@@ -54,11 +67,43 @@ function HistoryList({ history }: { history: WidgetHistoryItem[] }) {
             {SOURCE_LABELS[item.source] ? ` · ${SOURCE_LABELS[item.source]}` : ""}
             {" · "}
             {MESSENGER_LABELS[item.messenger]}
+            {item.pending ? " · отправляется…" : ""}
           </div>
         </div>
       ))}
+      <div ref={bottomRef} />
     </div>
   );
+}
+
+/** Вливает новые сообщения с поллинга в локальную историю: заменяет
+ * подтверждённой записью совпадающее по смыслу «отправляется…» сообщение
+ * (чтобы не задваивать только что отправленное), остальное — добавляет. */
+function mergeHistory(
+  prev: HistoryEntry[],
+  incoming: WidgetHistoryItem[],
+): HistoryEntry[] {
+  let next = prev;
+  for (const msg of incoming) {
+    if (next.some((item) => item.id === msg.id)) continue;
+    const pendingIdx = next.findIndex(
+      (item) =>
+        item.pending &&
+        item.messenger === msg.messenger &&
+        item.direction === msg.direction &&
+        item.text === msg.text,
+    );
+    if (pendingIdx !== -1) {
+      next = [
+        ...next.slice(0, pendingIdx),
+        msg,
+        ...next.slice(pendingIdx + 1),
+      ];
+    } else {
+      next = [...next, msg];
+    }
+  }
+  return next;
 }
 
 /**
@@ -74,6 +119,7 @@ export function MessageWidget({
   entityId: string;
 }) {
   const [recipient, setRecipient] = useState<WidgetRecipient | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -82,6 +128,9 @@ export function MessageWidget({
   const [sendError, setSendError] = useState<string | null>(null);
   const [sentAt, setSentAt] = useState<Date | null>(null);
   const [sending, startSending] = useTransition();
+
+  // Момент последнего известного сообщения — поллинг запрашивает только то, что новее.
+  const sinceRef = useRef(new Date().toISOString());
 
   const load = useCallback(() => {
     if (!entityId) {
@@ -98,6 +147,10 @@ export function MessageWidget({
           return;
         }
         setRecipient(loaded);
+        setHistory(loaded.history);
+        sinceRef.current =
+          loaded.history[loaded.history.length - 1]?.createdAt ??
+          new Date().toISOString();
         setChannel(loaded.channels[0]?.messenger ?? null);
       })
       .catch((err) => setLoadError((err as Error).message))
@@ -107,6 +160,28 @@ export function MessageWidget({
   // Токены портала сохраняются BitrixFrameProvider чуть позже первого рендера —
   // при ошибке авторизации менеджер нажмёт «Повторить»
   useEffect(load, [load]);
+
+  // Поллинг: новые сообщения клиента (и отправленные из других мест — сценарий,
+  // напоминание, рассылка) подтягиваются без перезагрузки вкладки.
+  useEffect(() => {
+    if (!entityId || loading || loadError || !recipient) return;
+    if (recipient.channels.length === 0) return;
+
+    const interval = setInterval(async () => {
+      const result = await pollWidgetMessagesAction(
+        entity,
+        entityId,
+        sinceRef.current,
+      );
+      if (!result.messages || result.messages.length === 0) return;
+      sinceRef.current =
+        result.messages[result.messages.length - 1]?.createdAt ??
+        sinceRef.current;
+      setHistory((prev) => mergeHistory(prev, result.messages ?? []));
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [entity, entityId, loading, loadError, recipient]);
 
   const trimmedText = text.trim();
   const overLimit = trimmedText.length > MESSAGE_MAX_LENGTH;
@@ -130,24 +205,20 @@ export function MessageWidget({
       }
       setSentAt(new Date());
       setText("");
-      // Пополняем историю локально, без повторного запроса
-      setRecipient((prev) =>
-        prev
-          ? {
-              ...prev,
-              history: [
-                ...prev.history,
-                {
-                  messenger: target.messenger,
-                  direction: "out",
-                  source: "widget",
-                  text: trimmedText,
-                  createdAt: new Date().toISOString(),
-                },
-              ],
-            }
-          : prev,
-      );
+      // Показываем сообщение сразу же, не дожидаясь ближайшего поллинга —
+      // он позже заменит эту запись подтверждённой (см. mergeHistory).
+      setHistory((prev) => [
+        ...prev,
+        {
+          id: `pending-${crypto.randomUUID()}`,
+          messenger: target.messenger,
+          direction: "out",
+          source: "widget",
+          text: trimmedText,
+          createdAt: new Date().toISOString(),
+          pending: true,
+        },
+      ]);
     });
   };
 
@@ -194,7 +265,7 @@ export function MessageWidget({
         </p>
       </div>
 
-      <HistoryList history={recipient.history} />
+      <HistoryList history={history} />
 
       {recipient.channels.length > 1 && (
         <div className="flex gap-2">

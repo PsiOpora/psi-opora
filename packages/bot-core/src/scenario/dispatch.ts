@@ -1,6 +1,7 @@
 import type { Redis } from "@upstash/redis";
 import { appendDealComment } from "../utils/bitrix";
 import { submitConsultationDeal } from "../utils/consultation-deal";
+import { sendGuideEmail } from "../utils/email";
 import { trackFunnelStep } from "../utils/funnel";
 import { logBotMessage } from "../utils/message-log";
 import {
@@ -9,7 +10,7 @@ import {
   type ScenarioOutput,
 } from "./engine";
 import { clearScenarioAwaiting, markScenarioAwaiting } from "./reminders";
-import type { ScenarioTexts } from "./texts";
+import { getGuideFile, type ScenarioTexts } from "./texts";
 
 export interface ScenarioDispatchDeps {
   messenger: string;
@@ -43,6 +44,25 @@ export async function dispatchScenarioOutput(
       source: "scenario",
       text: message.text,
     });
+
+    if (message.guide && out.state.email) {
+      try {
+        const guide = await getGuideFile();
+        if (guide) {
+          await sendGuideEmail(
+            out.state.email,
+            guide,
+            deps.texts.email_subject,
+            deps.texts.email_body,
+          );
+        }
+      } catch (err) {
+        // Гайд уже ушёл в чат — без письма диалог не ломаем
+        console.error(
+          `[guide] не удалось отправить email: ${(err as Error).message}`,
+        );
+      }
+    }
   }
 
   for (const step of out.track) {

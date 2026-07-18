@@ -11,6 +11,7 @@ import {
   type BotMessageEntry,
   insertBotMessage as _insertBotMessage,
   listBotMessages as _listBotMessages,
+  listBotMessagesSince as _listBotMessagesSince,
 } from "./bot-messages";
 import {
   getBotTextsRecord as _getBotTextsRecord,
@@ -34,6 +35,15 @@ export async function listBotMessages(
   limit?: number,
 ) {
   return _listBotMessages(db, messenger, userId, limit);
+}
+
+export async function listBotMessagesSince(
+  messenger: string,
+  userId: string,
+  since: Date,
+  limit?: number,
+) {
+  return _listBotMessagesSince(db, messenger, userId, since, limit);
 }
 
 export async function getBotTextsRecord(): Promise<Record<string, string>> {

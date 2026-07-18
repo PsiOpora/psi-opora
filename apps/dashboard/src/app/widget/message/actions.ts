@@ -1,6 +1,10 @@
 "use server";
 
-import { insertBotMessage, listBotMessages } from "@psi-opora/db/queries";
+import {
+  insertBotMessage,
+  listBotMessages,
+  listBotMessagesSince,
+} from "@psi-opora/db/queries";
 import { type Messenger, sendMessengerMessage } from "@psi-opora/jobs";
 import type { BitrixApi } from "@/lib/bitrix/client";
 import { getBitrixApi } from "@/lib/bitrix/session";
@@ -18,6 +22,7 @@ export interface WidgetChannel {
 }
 
 export interface WidgetHistoryItem {
+  id: string;
   messenger: Messenger;
   direction: "in" | "out";
   source: string;
@@ -49,6 +54,7 @@ async function loadHistory(
         HISTORY_LIMIT,
       ).catch(() => []);
       return rows.map((row) => ({
+        id: row.id,
         messenger: channel.messenger,
         direction: row.direction === "in" ? ("in" as const) : ("out" as const),
         source: row.source,
@@ -152,6 +158,59 @@ export async function loadWidgetRecipientAction(
         history: await loadHistory(contact.channels),
         note,
       },
+    };
+  } catch (err) {
+    return { error: (err as Error).message };
+  }
+}
+
+/**
+ * Новые сообщения диалога после `sinceIso` — для поллинга истории в открытой
+ * вкладке. Как и в sendWidgetMessageAction, каналы не принимаются от клиента:
+ * они каждый раз пересчитываются из актуальных данных CRM (resolveContact),
+ * иначе можно было бы подставить чужие messenger/userId и читать чужую переписку.
+ */
+export async function pollWidgetMessagesAction(
+  entity: WidgetEntity,
+  id: string,
+  sinceIso: string,
+): Promise<{ messages?: WidgetHistoryItem[]; error?: string }> {
+  if (!/^\d+$/.test(id)) return { error: "Некорректный ID элемента CRM" };
+
+  const since = new Date(sinceIso);
+  if (Number.isNaN(since.getTime())) return { error: "Некорректная дата" };
+
+  const api = await getBitrixApi();
+  if (!api) {
+    return { error: "Нет подключения к Битрикс24 — обновите страницу" };
+  }
+
+  try {
+    const { contact, error } = await resolveContact(api, entity, id);
+    if (error || !contact) return { error };
+
+    const perChannel = await Promise.all(
+      contact.channels.map(async (channel) => {
+        const rows = await listBotMessagesSince(
+          channel.messenger,
+          channel.userId,
+          since,
+        ).catch(() => []);
+        return rows.map((row) => ({
+          id: row.id,
+          messenger: channel.messenger,
+          direction: row.direction === "in" ? ("in" as const) : ("out" as const),
+          source: row.source,
+          text: row.text,
+          createdAt: row.createdAt.toISOString(),
+        }));
+      }),
+    );
+
+    return {
+      messages: perChannel
+        .flat()
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     };
   } catch (err) {
     return { error: (err as Error).message };

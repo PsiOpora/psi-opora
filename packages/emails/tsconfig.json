@@ -1,0 +1,9 @@
+{
+  "extends": "@psi-opora/tsconfig/base.json",
+  "include": [".", "env.ts"],
+  "exclude": ["dist", "build", "node_modules"],
+  "compilerOptions": {
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx"
+  }
+}

@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import type { Database } from "../client.types";
 import { botMessages } from "../schema/bot-messages";
 
@@ -44,5 +44,28 @@ export async function listBotMessages(
       and(eq(botMessages.messenger, messenger), eq(botMessages.userId, userId)),
     )
     .orderBy(desc(botMessages.createdAt))
+    .limit(limit);
+}
+
+/** Сообщения диалога, появившиеся после `since` (старые выше) — для поллинга виджета. */
+export async function listBotMessagesSince(
+  db: Database,
+  messenger: string,
+  userId: string,
+  since: Date,
+  limit = 50,
+): Promise<BotMessage[]> {
+  if (!db) return [];
+  return db
+    .select()
+    .from(botMessages)
+    .where(
+      and(
+        eq(botMessages.messenger, messenger),
+        eq(botMessages.userId, userId),
+        gt(botMessages.createdAt, since),
+      ),
+    )
+    .orderBy(asc(botMessages.createdAt))
     .limit(limit);
 }

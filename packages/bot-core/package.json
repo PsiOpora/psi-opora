@@ -24,6 +24,7 @@
   "dependencies": {
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
+    "@psi-opora/emails": "workspace:*",
     "@upstash/redis": "^1.38.0",
     "grammy": "^1.44.0"
   },
