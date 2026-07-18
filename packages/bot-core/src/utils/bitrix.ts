@@ -22,13 +22,18 @@ function getBotId(messenger: string): string {
 }
 
 function getSourceId(messenger: string): string {
-  const fallback = messenger === "telegram" ? "TELEGRAM_OL" : "MAX_OL";
-  return getEnv(messenger, "BITRIX_SOURCE_ID") ?? fallback;
+  const sourceId = getEnv(messenger, "BITRIX_SOURCE_ID");
+  if (!sourceId) {
+    throw new Error(
+      `BITRIX_SOURCE_ID не задан для ${messenger} — источник в Bitrix не определён`,
+    );
+  }
+  return sourceId;
 }
 
 function getSourceName(messenger: string): string {
   const label = messenger === "telegram" ? "Telegram" : "MAX";
-  return getEnv(messenger, "BITRIX_SOURCE_NAME") ?? `${label} - Открытая линия`;
+  return getEnv(messenger, "BITRIX_SOURCE_NAME") ?? `${label}-бот`;
 }
 
 function getWebhookBase(messenger: string): string {
