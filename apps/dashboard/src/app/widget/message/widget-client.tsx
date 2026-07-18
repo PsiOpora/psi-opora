@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Loader2Icon, SendIcon } from "lucide-react";
+import {
+  BoldIcon,
+  CodeIcon,
+  ItalicIcon,
+  Link2Icon,
+  Loader2Icon,
+  SendIcon,
+} from "lucide-react";
 import type { Messenger } from "@psi-opora/jobs";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -21,6 +28,23 @@ import {
 type HistoryEntry = WidgetHistoryItem & { pending?: boolean };
 
 const POLL_INTERVAL_MS = 5000;
+
+/**
+ * Кнопки разметки соответствуют «легаси» Markdown Telegram, с которым
+ * реально отправляются сообщения (см. packages/jobs/src/messenger.ts):
+ * *жирный*, _курсив_, `код`, [текст](ссылка) — без **, __ и других вариантов.
+ */
+const MARKDOWN_ACTIONS: Array<{
+  label: string;
+  icon: typeof BoldIcon;
+  before: string;
+  after: string;
+  placeholder: string;
+}> = [
+  { label: "Жирный", icon: BoldIcon, before: "*", after: "*", placeholder: "жирный текст" },
+  { label: "Курсив", icon: ItalicIcon, before: "_", after: "_", placeholder: "курсив" },
+  { label: "Код", icon: CodeIcon, before: "`", after: "`", placeholder: "код" },
+];
 
 const MESSENGER_LABELS: Record<Messenger, string> = {
   telegram: "Telegram",
@@ -128,9 +152,45 @@ export function MessageWidget({
   const [sendError, setSendError] = useState<string | null>(null);
   const [sentAt, setSentAt] = useState<Date | null>(null);
   const [sending, startSending] = useTransition();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Момент последнего известного сообщения — поллинг запрашивает только то, что новее.
   const sinceRef = useRef(new Date().toISOString());
+
+  /** Оборачивает выделенный текст в разметку (или подставляет плейсхолдер) и
+   * оставляет его выделенным, чтобы сразу можно было напечатать своё. */
+  const wrapSelection = useCallback(
+    (before: string, after: string, placeholder: string) => {
+      const el = textareaRef.current;
+      const start = el?.selectionStart ?? text.length;
+      const end = el?.selectionEnd ?? text.length;
+      const selected = text.slice(start, end) || placeholder;
+      const next = text.slice(0, start) + before + selected + after + text.slice(end);
+      setText(next);
+      requestAnimationFrame(() => {
+        el?.focus();
+        el?.setSelectionRange(start + before.length, start + before.length + selected.length);
+      });
+    },
+    [text],
+  );
+
+  /** Ссылка: выделенный текст (или плейсхолдер) уходит в подпись,
+   * а под курсор попадает URL — чтобы сразу его вписать. */
+  const insertLink = useCallback(() => {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? text.length;
+    const end = el?.selectionEnd ?? text.length;
+    const label = text.slice(start, end) || "текст ссылки";
+    const url = "https://";
+    const next = `${text.slice(0, start)}[${label}](${url})${text.slice(end)}`;
+    setText(next);
+    const urlStart = start + label.length + 3;
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(urlStart, urlStart + url.length);
+    });
+  }, [text]);
 
   const load = useCallback(() => {
     if (!entityId) {
@@ -301,12 +361,38 @@ export function MessageWidget({
         >
           Текст сообщения (поддерживается Markdown)
         </Label>
+        <div className="flex gap-1 rounded-t-md border border-b-0 bg-muted/40 p-1">
+          {MARKDOWN_ACTIONS.map(({ label, icon: Icon, before, after, placeholder }) => (
+            <Button
+              key={label}
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title={label}
+              aria-label={label}
+              onClick={() => wrapSelection(before, after, placeholder)}
+            >
+              <Icon className="size-3.5" />
+            </Button>
+          ))}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title="Ссылка"
+            aria-label="Ссылка"
+            onClick={insertLink}
+          >
+            <Link2Icon className="size-3.5" />
+          </Button>
+        </div>
         <Textarea
           id="widget-message"
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Здравствуйте! Это центр «Опора»…"
-          className="min-h-28 text-sm"
+          className="min-h-28 rounded-t-none text-sm"
         />
         <span
           className={cn(
