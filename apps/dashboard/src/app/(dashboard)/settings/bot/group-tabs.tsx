@@ -36,11 +36,14 @@ export function GroupTabs({
             )}
           >
             {group}
-            {changedCounts[group] > 0 && (
-              <Badge variant="secondary" className="text-[10px]">
-                {changedCounts[group]}
-              </Badge>
-            )}
+            {(() => {
+              const count = changedCounts[group] ?? 0;
+              return count > 0 ? (
+                <Badge variant="secondary" className="text-[10px]">
+                  {count}
+                </Badge>
+              ) : null;
+            })()}
           </button>
         ))}
       </div>
