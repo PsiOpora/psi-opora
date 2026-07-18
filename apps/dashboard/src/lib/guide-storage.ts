@@ -11,8 +11,9 @@ import {
   GUIDE_FILE_URL_KEY,
 } from "@psi-opora/bot-core";
 import {
+  createBotGuide,
   getBackupCredentials,
-  getBotTextsRecord,
+  listBotGuides,
   saveBotTexts,
 } from "@psi-opora/db/queries";
 
@@ -109,15 +110,22 @@ export async function deleteGuidePdf(key: string): Promise<void> {
 }
 
 export interface GuideUploadResult {
+  id: string;
   fileName: string;
   fileUrl: string;
   fileSize: number;
 }
 
-/** Валидирует и загружает PDF гайда, обновляет тексты бота. */
+/**
+ * Валидирует и загружает PDF гайда в библиотеку (bot_guides).
+ * Гайд не становится активным автоматически — кроме случая, когда это
+ * самый первый гайд в библиотеке: иначе бот молча перестал бы слать
+ * тот единственный файл, который слал раньше.
+ */
 export async function handleGuideUpload(
   file: File,
   origin: string,
+  title: string,
 ): Promise<GuideUploadResult> {
   if (file.size === 0) throw new Error("Выберите PDF-файл");
   if (file.size > MAX_GUIDE_SIZE)
@@ -132,29 +140,35 @@ export async function handleGuideUpload(
     bytes[3] === 0x46;
   if (!isPdf) throw new Error("Файл не похож на PDF");
 
-  const previous = await getBotTextsRecord();
+  const existingGuides = await listBotGuides();
 
   const s3Key = await uploadGuidePdf(bytes, file.name);
+  const id = crypto.randomUUID();
 
   // Стабильный публичный URL раздачи; имя файла в пути нужно Telegram,
   // чтобы документ в чате назывался по-человечески
   const urlName = file.name.toLowerCase().endsWith(".pdf")
     ? file.name
     : `${file.name}.pdf`;
-  const fileUrl = `${origin}/api/guide/${encodeURIComponent(urlName)}`;
+  const fileUrl = `${origin}/api/guide-file/${id}/${encodeURIComponent(urlName)}`;
 
-  await saveBotTexts({
-    [GUIDE_FILE_S3_KEY]: s3Key,
-    [GUIDE_FILE_NAME_KEY]: urlName,
-    [GUIDE_FILE_URL_KEY]: fileUrl,
-    [GUIDE_FILE_SIZE_KEY]: String(file.size),
+  await createBotGuide({
+    id,
+    title: title.trim() || urlName,
+    fileName: urlName,
+    fileUrl,
+    s3Key,
+    fileSize: file.size,
   });
 
-  // Прошлый файл больше не нужен
-  const previousKey = previous[GUIDE_FILE_S3_KEY]?.trim();
-  if (previousKey && previousKey !== s3Key) {
-    await deleteGuidePdf(previousKey);
+  if (existingGuides.length === 0) {
+    await saveBotTexts({
+      [GUIDE_FILE_S3_KEY]: s3Key,
+      [GUIDE_FILE_NAME_KEY]: urlName,
+      [GUIDE_FILE_URL_KEY]: fileUrl,
+      [GUIDE_FILE_SIZE_KEY]: String(file.size),
+    });
   }
 
-  return { fileName: urlName, fileUrl, fileSize: file.size };
+  return { id, fileName: urlName, fileUrl, fileSize: file.size };
 }

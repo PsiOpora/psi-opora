@@ -20,6 +20,7 @@ import {
 
 export * from "./ads";
 export * from "./backup";
+export * from "./bot-guides";
 export * from "./broadcast";
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
 export type { BotMessage, BotMessageEntry, NewBotMessage } from "./bot-messages";

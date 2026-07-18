@@ -10,7 +10,12 @@ import {
 // Тексты сохраняются напрямую из server action, без oRPC-роутера:
 // /api/orpc не проверяет сессию, и публичная мутация позволила бы
 // кому угодно переписать сообщения бота.
-import { getBotTextsRecord, saveBotTexts } from "@psi-opora/db/queries";
+import {
+  deleteBotGuide,
+  getBotGuide,
+  getBotTextsRecord,
+  saveBotTexts,
+} from "@psi-opora/db/queries";
 import { revalidatePath } from "next/cache";
 import { deleteGuidePdf } from "@/lib/guide-storage";
 
@@ -29,18 +34,40 @@ export async function saveBotTextsAction(formData: FormData): Promise<void> {
 // Загрузка гайда идёт через /api/guide/upload (см. guide-upload-form.tsx) —
 // обычный API-роут, а не server action, чтобы XHR мог отдавать прогресс отправки.
 
-export async function deleteGuideAction(): Promise<void> {
-  const record = await getBotTextsRecord();
-  const s3Key = record[GUIDE_FILE_S3_KEY]?.trim();
-  if (s3Key) await deleteGuidePdf(s3Key);
+/** Делает гайд из библиотеки активным — именно его бот шлёт в ветке лид-магнита. */
+export async function setActiveGuideAction(formData: FormData): Promise<void> {
+  const id = String(formData.get("id") ?? "");
+  const guide = await getBotGuide(id);
+  if (!guide) return;
 
-  // Пустые значения удаляют переопределения — бот перестанет слать файл
   await saveBotTexts({
-    [GUIDE_FILE_S3_KEY]: "",
-    [GUIDE_FILE_NAME_KEY]: "",
-    [GUIDE_FILE_URL_KEY]: "",
-    [GUIDE_FILE_SIZE_KEY]: "",
+    [GUIDE_FILE_S3_KEY]: guide.s3Key,
+    [GUIDE_FILE_NAME_KEY]: guide.fileName,
+    [GUIDE_FILE_URL_KEY]: guide.fileUrl,
+    [GUIDE_FILE_SIZE_KEY]: String(guide.fileSize),
   });
+
+  revalidatePath("/settings/bot");
+}
+
+/** Удаляет гайд из библиотеки; если он был активным — бот перестаёт слать файл. */
+export async function deleteGuideAction(formData: FormData): Promise<void> {
+  const id = String(formData.get("id") ?? "");
+  const guide = await getBotGuide(id);
+  if (!guide) return;
+
+  await deleteGuidePdf(guide.s3Key);
+  await deleteBotGuide(id);
+
+  const record = await getBotTextsRecord();
+  if (record[GUIDE_FILE_S3_KEY]?.trim() === guide.s3Key) {
+    await saveBotTexts({
+      [GUIDE_FILE_S3_KEY]: "",
+      [GUIDE_FILE_NAME_KEY]: "",
+      [GUIDE_FILE_URL_KEY]: "",
+      [GUIDE_FILE_SIZE_KEY]: "",
+    });
+  }
 
   revalidatePath("/settings/bot");
 }

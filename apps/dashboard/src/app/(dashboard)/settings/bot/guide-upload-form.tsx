@@ -13,7 +13,7 @@ interface UploadResponse {
 }
 
 /** Загрузка через XHR (не server action), чтобы показать прогресс отправки файла. */
-export function GuideUploadForm({ hasFile }: { hasFile: boolean }) {
+export function GuideUploadForm() {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -46,7 +46,7 @@ export function GuideUploadForm({ hasFile }: { hasFile: boolean }) {
         // тело ответа не JSON — используем статус ниже
       }
       if (xhr.status >= 200 && xhr.status < 300 && data.ok) {
-        toast.success("Файл гайда загружен");
+        toast.success("Гайд добавлен в библиотеку");
         formRef.current?.reset();
         router.refresh();
       } else {
@@ -64,7 +64,14 @@ export function GuideUploadForm({ hasFile }: { hasFile: boolean }) {
 
   return (
     <form ref={formRef} onSubmit={onSubmit} className="flex flex-col gap-2">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          type="text"
+          name="title"
+          placeholder="Название гайда, например «Для родителей детей»"
+          disabled={progress !== null}
+          className="max-w-xs text-sm"
+        />
         <Input
           type="file"
           name="guide"
@@ -73,16 +80,8 @@ export function GuideUploadForm({ hasFile }: { hasFile: boolean }) {
           disabled={progress !== null}
           className="max-w-xs text-sm"
         />
-        <Button
-          type="submit"
-          variant="secondary"
-          disabled={progress !== null}
-        >
-          {progress !== null
-            ? "Загружаем…"
-            : hasFile
-              ? "Заменить"
-              : "Загрузить"}
+        <Button type="submit" variant="secondary" disabled={progress !== null}>
+          {progress !== null ? "Загружаем…" : "Добавить гайд"}
         </Button>
       </div>
       {progress !== null && (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import type * as React from "react";
 import {
   BoldIcon,
   CodeIcon,
@@ -28,6 +29,32 @@ import {
 type HistoryEntry = WidgetHistoryItem & { pending?: boolean };
 
 const POLL_INTERVAL_MS = 5000;
+/** Через сколько снимать надпись «отправляется…», даже если поллинг ещё не
+ * подтвердил запись в БД (сама отправка клиенту при этом уже прошла успешно). */
+const PENDING_LABEL_TIMEOUT_MS = 8000;
+
+function draftStorageKey(entity: WidgetEntity, entityId: string): string {
+  return `psi-opora:widget-draft:${entity}:${entityId}`;
+}
+
+/** localStorage может быть недоступен в iframe виджета (Safari ITP и т.п.) —
+ * тогда черновик просто не сохраняется, без падения виджета. */
+function readDraft(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeDraft(key: string, value: string): void {
+  try {
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+  } catch {
+    // недоступно — черновик не сохранится, отправка сообщений при этом не страдает
+  }
+}
 
 /**
  * Кнопки разметки соответствуют «легаси» Markdown Telegram, с которым
@@ -57,16 +84,36 @@ const SOURCE_LABELS: Record<string, string> = {
   broadcast: "рассылка",
 };
 
+/** Насколько близко к низу нужно быть, чтобы новое сообщение автоскроллило —
+ * иначе менеджер, читающий историю выше, не будет «дёрнут» вниз поллингом. */
+const STICK_TO_BOTTOM_THRESHOLD_PX = 40;
+
 function HistoryList({ history }: { history: HistoryEntry[] }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    const el = containerRef.current;
+    if (el && stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [history]);
+
+  const handleScroll = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    stickToBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight <
+      STICK_TO_BOTTOM_THRESHOLD_PX;
+  };
 
   if (history.length === 0) return null;
   return (
-    <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto rounded-md border p-3">
+    <div
+      ref={containerRef}
+      onScroll={handleScroll}
+      className="flex max-h-64 flex-col gap-1.5 overflow-y-auto rounded-md border p-3"
+    >
       {history.map((item) => (
         <div
           key={item.id}
@@ -95,14 +142,16 @@ function HistoryList({ history }: { history: HistoryEntry[] }) {
           </div>
         </div>
       ))}
-      <div ref={bottomRef} />
     </div>
   );
 }
 
 /** Вливает новые сообщения с поллинга в локальную историю: заменяет
- * подтверждённой записью совпадающее по смыслу «отправляется…» сообщение
- * (чтобы не задваивать только что отправленное), остальное — добавляет. */
+ * совпадающее по смыслу оптимистичное сообщение подтверждённой записью
+ * (чтобы не задваивать только что отправленное), остальное — добавляет.
+ * Матчинг идёт по id с префиксом "pending-", а не по флагу `pending` —
+ * он мог быть уже снят по таймауту (см. PENDING_LABEL_TIMEOUT_MS), но
+ * запись всё ещё нужно бесшовно заменить подтверждённой, без дубля. */
 function mergeHistory(
   prev: HistoryEntry[],
   incoming: WidgetHistoryItem[],
@@ -112,7 +161,7 @@ function mergeHistory(
     if (next.some((item) => item.id === msg.id)) continue;
     const pendingIdx = next.findIndex(
       (item) =>
-        item.pending &&
+        item.id.startsWith("pending-") &&
         item.messenger === msg.messenger &&
         item.direction === msg.direction &&
         item.text === msg.text,
@@ -221,13 +270,28 @@ export function MessageWidget({
   // при ошибке авторизации менеджер нажмёт «Повторить»
   useEffect(load, [load]);
 
+  // Черновик переживает случайное закрытие/переключение вкладки CRM —
+  // восстанавливается один раз на элемент CRM, если поле ещё пустое.
+  useEffect(() => {
+    if (!entityId) return;
+    const saved = readDraft(draftStorageKey(entity, entityId));
+    if (saved) setText(saved);
+  }, [entity, entityId]);
+
+  useEffect(() => {
+    if (!entityId) return;
+    writeDraft(draftStorageKey(entity, entityId), text);
+  }, [entity, entityId, text]);
+
   // Поллинг: новые сообщения клиента (и отправленные из других мест — сценарий,
-  // напоминание, рассылка) подтягиваются без перезагрузки вкладки.
+  // напоминание, рассылка) подтягиваются без перезагрузки вкладки. Пока вкладка
+  // CRM не в фокусе — не дёргаем Bitrix API, а сразу опрашиваем при возврате.
   useEffect(() => {
     if (!entityId || loading || loadError || !recipient) return;
     if (recipient.channels.length === 0) return;
 
-    const interval = setInterval(async () => {
+    const poll = async () => {
+      if (document.hidden) return;
       const result = await pollWidgetMessagesAction(
         entity,
         entityId,
@@ -238,16 +302,25 @@ export function MessageWidget({
         result.messages[result.messages.length - 1]?.createdAt ??
         sinceRef.current;
       setHistory((prev) => mergeHistory(prev, result.messages ?? []));
-    }, POLL_INTERVAL_MS);
+    };
 
-    return () => clearInterval(interval);
+    const interval = setInterval(poll, POLL_INTERVAL_MS);
+    const onVisibilityChange = () => {
+      if (!document.hidden) poll();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [entity, entityId, loading, loadError, recipient]);
 
   const trimmedText = text.trim();
   const overLimit = trimmedText.length > MESSAGE_MAX_LENGTH;
 
   const send = () => {
-    if (!recipient || !channel || overLimit) return;
+    if (!recipient || !channel || !trimmedText || overLimit || sending) return;
     const target = recipient.channels.find((c) => c.messenger === channel);
     if (!target) return;
 
@@ -267,10 +340,11 @@ export function MessageWidget({
       setText("");
       // Показываем сообщение сразу же, не дожидаясь ближайшего поллинга —
       // он позже заменит эту запись подтверждённой (см. mergeHistory).
+      const pendingId = `pending-${crypto.randomUUID()}`;
       setHistory((prev) => [
         ...prev,
         {
-          id: `pending-${crypto.randomUUID()}`,
+          id: pendingId,
           messenger: target.messenger,
           direction: "out",
           source: "widget",
@@ -279,7 +353,27 @@ export function MessageWidget({
           pending: true,
         },
       ]);
+      // Сама отправка клиенту уже прошла успешно — если запись в журнал БД
+      // почему-то подвиснет и поллинг её не подтвердит, не держим надпись
+      // «отправляется…» вечно (mergeHistory всё равно бесшовно заменит эту
+      // запись подтверждённой, когда/если она подтянется позже).
+      setTimeout(() => {
+        setHistory((prev) =>
+          prev.map((item) =>
+            item.id === pendingId ? { ...item, pending: false } : item,
+          ),
+        );
+      }, PENDING_LABEL_TIMEOUT_MS);
     });
+  };
+
+  const handleTextareaKeyDown = (
+    e: React.KeyboardEvent<HTMLTextAreaElement>,
+  ) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
   };
 
   if (loading) {
@@ -391,7 +485,8 @@ export function MessageWidget({
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Здравствуйте! Это центр «Опора»…"
+          onKeyDown={handleTextareaKeyDown}
+          placeholder="Здравствуйте! Это центр «Опора»… (Enter — отправить, Shift+Enter — новая строка)"
           className="min-h-28 rounded-t-none text-sm"
         />
         <span
