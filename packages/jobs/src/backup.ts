@@ -315,10 +315,18 @@ function backupPrefix(): string {
   return `crm-backups/${datePrefix}/${timestamp}/`;
 }
 
+/** Колбэк прогресса: сколько сущностей выгружено из скольких и какая сейчас в работе. */
+export type BackupProgressCallback = (
+  done: number,
+  total: number,
+  currentEntity: string,
+) => void | Promise<void>;
+
 /** Выгружает все CRM-сущности в отдельные файлы и формирует manifest.json. */
 export async function runCrmBackup(
   api: BitrixApi,
   creds: BackupS3Credentials,
+  onProgress?: BackupProgressCallback,
 ): Promise<CrmBackupResult> {
   const { client, bucket } = createS3(creds);
   const prefix = backupPrefix();
@@ -328,13 +336,15 @@ export async function runCrmBackup(
   const errors: Array<{ entity: string; error: string }> = [];
 
   // Последовательно, чтобы не упереться в лимиты Bitrix24 REST API.
-  for (const entity of entities) {
+  for (const [index, entity] of entities.entries()) {
+    await onProgress?.(index, entities.length, entity.name);
     const result = await backupEntity(api, entity, client, bucket, prefix);
     results[entity.name] = result;
     if (result.error) {
       errors.push({ entity: entity.name, error: result.error });
     }
   }
+  await onProgress?.(entities.length, entities.length, "manifest.json");
 
   const totalBytes = Object.values(results).reduce(
     (sum, r) => sum + r.sizeBytes,
@@ -371,21 +381,34 @@ export interface ExecutedBackup extends CrmBackupResult {
 /** Полный цикл бэкапа с записью статуса в backup_runs. */
 export async function executeCrmBackup(
   api: BitrixApi,
+  /** Если запуск уже создан вызывающей стороной (например, чтобы сразу
+   * показать его в истории), передайте его id — новую запись создавать не будем. */
+  existingRunId?: string,
 ): Promise<ExecutedBackup> {
   // Ленивый импорт: клиент БД подключается на верхнем уровне модуля
   // (top-level await + проверка POSTGRES_URL), поэтому статический импорт
   // ронял бы индексацию задач при деплое, где БД недоступна.
-  const { createBackupRun, finishBackupRun, getBackupCredentials } =
-    await import("@psi-opora/db/queries");
+  const {
+    createBackupRun,
+    updateBackupRunProgress,
+    finishBackupRun,
+    getBackupCredentials,
+  } = await import("@psi-opora/db/queries");
 
   const creds = await getBackupCredentials();
   if (!creds) throw new Error("Не настроено S3-хранилище для бэкапа");
 
-  const runId = crypto.randomUUID();
-  await createBackupRun(runId);
+  const runId = existingRunId ?? crypto.randomUUID();
+  if (!existingRunId) await createBackupRun(runId);
 
   try {
-    const result = await runCrmBackup(api, creds);
+    const result = await runCrmBackup(api, creds, (done, total, currentEntity) =>
+      updateBackupRunProgress(runId, {
+        entitiesDone: done,
+        entitiesTotal: total,
+        currentEntity,
+      }),
+    );
     await finishBackupRun(runId, {
       status: "success",
       manifestKey: result.manifestKey,

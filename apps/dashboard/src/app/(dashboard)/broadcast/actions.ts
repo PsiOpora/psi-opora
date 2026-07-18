@@ -75,6 +75,11 @@ export async function sendBroadcastAction(input: {
    * если состав изменился с момента предпросмотра — рассылка не запускается.
    */
   expectedRecipients?: number;
+  /**
+   * ID контактов, отмеченных чекбоксами в предпросмотре. Если не задано или
+   * пусто — сообщение уходит всем подходящим получателям стадии.
+   */
+  selectedContactIds?: string[];
 }): Promise<BroadcastActionResult> {
   const api = await getBitrixApi();
   if (!api) return { error: "Bitrix24 не подключён" };
@@ -120,7 +125,14 @@ export async function sendBroadcastAction(input: {
       };
     }
 
-    const pendingCount = recipients.filter(
+    const selectedIds = input.selectedContactIds?.length
+      ? new Set(input.selectedContactIds)
+      : null;
+    const targetRecipients = selectedIds
+      ? recipients.filter((r) => selectedIds.has(r.contactId))
+      : recipients;
+
+    const pendingCount = targetRecipients.filter(
       (r) => r.status === "pending",
     ).length;
     if (pendingCount === 0) {
@@ -137,7 +149,7 @@ export async function sendBroadcastAction(input: {
       totalDeals,
     });
     await insertBroadcastRecipients(
-      recipients.map((r) => ({
+      targetRecipients.map((r) => ({
         id: crypto.randomUUID(),
         broadcastId,
         contactId: r.contactId,

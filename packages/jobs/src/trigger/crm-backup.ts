@@ -5,6 +5,8 @@ import { executeCrmBackup } from "../backup";
 export interface CrmBackupPayload {
   /** member_id портала Bitrix24 (OAuth); без него — dev-вебхук из env. */
   memberId?: string;
+  /** id уже созданной записи в backup_runs (см. runBackupNowAction). */
+  runId?: string;
 }
 
 // Один бэкап за раз: параллельные запуски (cron + ручной) лишь дублируют
@@ -22,6 +24,6 @@ export const crmBackup = task({
   run: async (payload: CrmBackupPayload) => {
     const api = resolveBitrixApi(payload.memberId);
     if (!api) throw new Error("Bitrix24 не подключён");
-    return executeCrmBackup(api);
+    return executeCrmBackup(api, payload.runId);
   },
 });

@@ -38,6 +38,18 @@ export async function createBackupRun(id: string): Promise<void> {
   await db.insert(backupRuns).values({ id, status: "running" });
 }
 
+export async function updateBackupRunProgress(
+  id: string,
+  data: {
+    entitiesTotal?: number;
+    entitiesDone?: number;
+    currentEntity?: string;
+  },
+): Promise<void> {
+  if (!db) return;
+  await db.update(backupRuns).set(data).where(eq(backupRuns.id, id));
+}
+
 export interface BackupEntityResult {
   name: string;
   file: string;

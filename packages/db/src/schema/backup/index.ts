@@ -20,6 +20,9 @@ export const backupRuns = pgTable("backup_runs", {
   totalBytes: integer("total_bytes"),
   errors: jsonb("errors"), // Array<{ entity: string; error: string }>
   error: text("error"), // фатальная ошибка запуска
+  entitiesTotal: integer("entities_total"), // сколько сущностей будет выгружено
+  entitiesDone: integer("entities_done"), // сколько уже выгружено
+  currentEntity: text("current_entity"), // какая сущность выгружается сейчас
   startedAt: timestamp("started_at").defaultNow(),
   finishedAt: timestamp("finished_at"),
 });

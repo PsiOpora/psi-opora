@@ -18,12 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { getBotTextsRecord } from "@psi-opora/db/queries";
-import {
-  deleteGuideAction,
-  saveBotTextsAction,
-  uploadGuideAction,
-} from "./actions";
+import { deleteGuideAction, saveBotTextsAction } from "./actions";
 import { CrmWidgetsCard } from "./crm-widgets-card";
+import { GuideUploadForm } from "./guide-upload-form";
 
 const GROUP_DESCRIPTIONS: Record<string, string> = {
   "Начало диалога":
@@ -57,10 +54,8 @@ function formatSize(bytes: number): string {
 
 function GuideFileCard({
   overrides,
-  error,
 }: {
   overrides: Record<string, string>;
-  error?: string;
 }) {
   const fileName = overrides[GUIDE_FILE_NAME_KEY]?.trim();
   const fileUrl = overrides[GUIDE_FILE_URL_KEY]?.trim();
@@ -77,10 +72,6 @@ function GuideFileCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {error && (
-          <p className="text-sm text-destructive">Ошибка загрузки: {error}</p>
-        )}
-
         {fileName ? (
           <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2">
             <div className="flex flex-col">
@@ -108,35 +99,17 @@ function GuideFileCard({
           </p>
         )}
 
-        <form action={uploadGuideAction} className="flex items-center gap-3">
-          <Input
-            type="file"
-            name="guide"
-            accept="application/pdf"
-            required
-            className="max-w-xs text-sm"
-          />
-          <Button type="submit" variant="secondary">
-            {fileName ? "Заменить" : "Загрузить"}
-          </Button>
-        </form>
+        <GuideUploadForm hasFile={Boolean(fileName)} />
       </CardContent>
     </Card>
   );
 }
 
-export default async function BotTextsPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export default async function BotTextsPage() {
   const overrides = await getBotTextsRecord().catch(
     () => ({}) as Record<string, string>,
   );
   const groups = groupDefs();
-  const params = await searchParams;
-  const guideError =
-    typeof params.guideError === "string" ? params.guideError : undefined;
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
@@ -151,7 +124,7 @@ export default async function BotTextsPage({
 
       <CrmWidgetsCard />
 
-      <GuideFileCard overrides={overrides} error={guideError} />
+      <GuideFileCard overrides={overrides} />
 
       <form action={saveBotTextsAction} className="flex flex-col gap-6">
         {groups.map(({ group, defs }) => (

@@ -4,7 +4,17 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { getBackupCredentials } from "@psi-opora/db/queries";
+import {
+  GUIDE_FILE_NAME_KEY,
+  GUIDE_FILE_S3_KEY,
+  GUIDE_FILE_SIZE_KEY,
+  GUIDE_FILE_URL_KEY,
+} from "@psi-opora/bot-core";
+import {
+  getBackupCredentials,
+  getBotTextsRecord,
+  saveBotTexts,
+} from "@psi-opora/db/queries";
 
 /**
  * Хранилище PDF-гайда (лид-магнита) в S3.
@@ -13,6 +23,9 @@ import { getBackupCredentials } from "@psi-opora/db/queries";
  */
 
 const GUIDE_PREFIX = "bot/guide/";
+
+/** Telegram скачивает документ по URL сам; его лимит — 20 МБ, наш — с запасом. */
+export const MAX_GUIDE_SIZE = 10 * 1024 * 1024;
 
 async function createS3(): Promise<{ client: S3Client; bucket: string }> {
   const creds = await getBackupCredentials();
@@ -93,4 +106,55 @@ export async function deleteGuidePdf(key: string): Promise<void> {
       `[guide] не удалось удалить объект ${key}: ${(err as Error).message}`,
     );
   }
+}
+
+export interface GuideUploadResult {
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+}
+
+/** Валидирует и загружает PDF гайда, обновляет тексты бота. */
+export async function handleGuideUpload(
+  file: File,
+  origin: string,
+): Promise<GuideUploadResult> {
+  if (file.size === 0) throw new Error("Выберите PDF-файл");
+  if (file.size > MAX_GUIDE_SIZE)
+    throw new Error("Файл больше 10 МБ — сожмите PDF");
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  // Проверяем магические байты, а не только расширение
+  const isPdf =
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46;
+  if (!isPdf) throw new Error("Файл не похож на PDF");
+
+  const previous = await getBotTextsRecord();
+
+  const s3Key = await uploadGuidePdf(bytes, file.name);
+
+  // Стабильный публичный URL раздачи; имя файла в пути нужно Telegram,
+  // чтобы документ в чате назывался по-человечески
+  const urlName = file.name.toLowerCase().endsWith(".pdf")
+    ? file.name
+    : `${file.name}.pdf`;
+  const fileUrl = `${origin}/api/guide/${encodeURIComponent(urlName)}`;
+
+  await saveBotTexts({
+    [GUIDE_FILE_S3_KEY]: s3Key,
+    [GUIDE_FILE_NAME_KEY]: urlName,
+    [GUIDE_FILE_URL_KEY]: fileUrl,
+    [GUIDE_FILE_SIZE_KEY]: String(file.size),
+  });
+
+  // Прошлый файл больше не нужен
+  const previousKey = previous[GUIDE_FILE_S3_KEY]?.trim();
+  if (previousKey && previousKey !== s3Key) {
+    await deleteGuidePdf(previousKey);
+  }
+
+  return { fileName: urlName, fileUrl, fileSize: file.size };
 }

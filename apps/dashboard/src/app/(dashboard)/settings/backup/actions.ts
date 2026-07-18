@@ -36,32 +36,47 @@ export async function saveBackupCredentialsAction(
   revalidatePath("/settings/backup");
 }
 
-export async function runBackupNowAction(): Promise<void> {
+export interface RunBackupResult {
+  ok: boolean;
+  runId: string;
+  error?: string;
+}
+
+export async function runBackupNowAction(): Promise<RunBackupResult> {
+  // Создаём запись сразу же, чтобы бэкап появился в истории и в прогрессе
+  // в тот же момент, когда пользователь нажал кнопку, а не когда фоновое
+  // задание в итоге стартует.
+  const runId = crypto.randomUUID();
+  await createBackupRun(runId);
+
+  let result: RunBackupResult = { ok: true, runId };
+
   // Основной путь — фоновое задание trigger.dev: экшен только ставит его
   // в очередь, сам бэкап идёт вне лимитов serverless-функции.
   if (env.TRIGGER_SECRET_KEY) {
     const store = await cookies();
     const memberId = store.get(MEMBER_ID_COOKIE)?.value;
     try {
-      await tasks.trigger<typeof crmBackup>("crm-backup", { memberId });
+      await tasks.trigger<typeof crmBackup>("crm-backup", { memberId, runId });
     } catch (err) {
       // Задание не поставлено — фиксируем в истории, чтобы ошибка
       // была видна в таблице запусков.
-      const runId = crypto.randomUUID();
-      await createBackupRun(runId);
-      await finishBackupRun(runId, {
-        status: "error",
-        error: `Не удалось запустить фоновое задание: ${(err as Error).message}`,
-      });
+      const error = `Не удалось запустить фоновое задание: ${(err as Error).message}`;
+      await finishBackupRun(runId, { status: "error", error });
+      result = { ok: false, runId, error };
     }
   } else {
     // Fallback без trigger.dev (локальная разработка) — инлайн.
-    const api = await getBitrixApi();
-    if (!api) throw new Error("Bitrix24 не подключён");
-    await executeCrmBackup(api).catch(() => {
+    try {
+      const api = await getBitrixApi();
+      if (!api) throw new Error("Bitrix24 не подключён");
+      await executeCrmBackup(api, runId);
+    } catch (err) {
       // Ошибка уже записана в backup_runs — покажется в таблице истории.
-    });
+      result = { ok: false, runId, error: (err as Error).message };
+    }
   }
 
   revalidatePath("/settings/backup");
+  return result;
 }

@@ -3,6 +3,7 @@ import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
 import { BitrixFrameProvider } from "@/components/bitrix/frame-provider";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
@@ -27,6 +28,7 @@ export default function RootLayout({
       <body>
         <TooltipProvider>
           <BitrixFrameProvider>{children}</BitrixFrameProvider>
+          <Toaster position="top-right" richColors />
         </TooltipProvider>
       </body>
     </html>

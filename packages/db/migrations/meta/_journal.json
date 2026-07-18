@@ -42,6 +42,13 @@
       "when": 1817896898539,
       "tag": "0005_bot_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1817983298539,
+      "tag": "0006_backup_progress",
+      "breakpoints": true
     }
   ]
 }

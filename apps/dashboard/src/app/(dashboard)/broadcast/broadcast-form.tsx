@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -128,9 +129,15 @@ function WarningBox({ children }: { children: React.ReactNode }) {
 function RecipientsReport({
   report,
   message,
+  selectedIds,
+  onToggle,
+  onToggleMany,
 }: {
   report: BroadcastReport;
   message: string;
+  selectedIds: Set<string>;
+  onToggle: (contactId: string) => void;
+  onToggleMany: (contactIds: string[], checked: boolean) => void;
 }) {
   const [messengerFilter, setMessengerFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -166,6 +173,18 @@ function RecipientsReport({
       return true;
     });
   }, [report.recipients, messengerFilter, statusFilter, search]);
+
+  const selectableIds = useMemo(
+    () =>
+      filtered.filter((r) => r.status === "pending").map((r) => r.contactId),
+    [filtered],
+  );
+  const selectedInFilter = selectableIds.filter((id) => selectedIds.has(id));
+  const allFilteredSelected =
+    selectableIds.length > 0 &&
+    selectedInFilter.length === selectableIds.length;
+  const someFilteredSelected =
+    selectedInFilter.length > 0 && !allFilteredSelected;
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
@@ -260,6 +279,25 @@ function RecipientsReport({
               </Select>
             </div>
 
+            {report.dryRun && (
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="text-muted-foreground">
+                  {selectedIds.size > 0
+                    ? `Отмечено получателей: ${selectedIds.size}. Сообщение получат только они.`
+                    : "Никто не отмечен — сообщение получат все готовые к отправке."}
+                </span>
+                {selectedIds.size > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onToggleMany([...selectedIds], false)}
+                  >
+                    Сбросить выбор
+                  </Button>
+                )}
+              </div>
+            )}
+
             {filtered.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Никто не подходит под выбранные фильтры.
@@ -268,6 +306,24 @@ function RecipientsReport({
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {report.dryRun && (
+                      <TableHead className="w-8">
+                        <Checkbox
+                          checked={
+                            allFilteredSelected
+                              ? true
+                              : someFilteredSelected
+                                ? "indeterminate"
+                                : false
+                          }
+                          disabled={selectableIds.length === 0}
+                          onCheckedChange={(checked) =>
+                            onToggleMany(selectableIds, checked === true)
+                          }
+                          aria-label="Выбрать всех подходящих под фильтр"
+                        />
+                      </TableHead>
+                    )}
                     <TableHead>Контакт</TableHead>
                     <TableHead>Сделка</TableHead>
                     <TableHead>Мессенджер</TableHead>
@@ -281,6 +337,16 @@ function RecipientsReport({
                     const test = testResults[r.contactId];
                     return (
                       <TableRow key={r.contactId}>
+                        {report.dryRun && (
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedIds.has(r.contactId)}
+                              disabled={r.status !== "pending"}
+                              onCheckedChange={() => onToggle(r.contactId)}
+                              aria-label={`Выбрать ${r.contactName}`}
+                            />
+                          </TableCell>
+                        )}
                         <TableCell>{r.contactName}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {r.dealTitle}
@@ -409,6 +475,9 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
   const [reportKey, setReportKey] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [ackChecked, setAckChecked] = useState(false);
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [queued, setQueued] = useState<{
     broadcastId: string;
     count: number;
@@ -433,11 +502,36 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
   const overLimit = trimmed.length > MESSAGE_MAX_LENGTH;
   const currentSig = JSON.stringify([stageId, channel, trimmed]);
   const previewFresh = report?.dryRun && previewSig === currentSig;
-  const sendableCount = report
-    ? report.recipients.filter((r) => r.status === "pending").length
-    : 0;
+  const pendingRecipients = report
+    ? report.recipients.filter((r) => r.status === "pending")
+    : [];
+  const sendableCount =
+    selectedContactIds.size > 0
+      ? pendingRecipients.filter((r) => selectedContactIds.has(r.contactId))
+          .length
+      : pendingRecipients.length;
   const canSend =
     previewFresh && sendableCount > 0 && trimmed.length > 0 && !overLimit;
+
+  const toggleContact = (contactId: string) => {
+    setSelectedContactIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(contactId)) next.delete(contactId);
+      else next.add(contactId);
+      return next;
+    });
+  };
+
+  const toggleManyContacts = (contactIds: string[], checked: boolean) => {
+    setSelectedContactIds((prev) => {
+      const next = new Set(prev);
+      for (const id of contactIds) {
+        if (checked) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  };
 
   const sendHint = !stageId
     ? "Выберите стадию сделки."
@@ -493,6 +587,7 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
     setConfirming(false);
     setAckChecked(false);
     setQueued(null);
+    setSelectedContactIds(new Set());
     startTransition(async () => {
       setError(null);
       const result = await sendBroadcastAction({
@@ -530,6 +625,8 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
         message,
         dryRun: false,
         expectedRecipients,
+        selectedContactIds:
+          selectedContactIds.size > 0 ? [...selectedContactIds] : undefined,
       });
       if (result.error) {
         setError(result.error);
@@ -752,6 +849,9 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
                   Получат сообщение:
                 </span>{" "}
                 {sendableCount} контактов
+                {selectedContactIds.size > 0
+                  ? " (отмечены вручную, остальные пропущены)"
+                  : ""}
                 {report.skipped > 0 &&
                   ` (ещё ${report.skipped} будут пропущены — нет мессенджера)`}
               </p>
@@ -819,7 +919,14 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
       )}
 
       {report && (
-        <RecipientsReport key={reportKey} report={report} message={message} />
+        <RecipientsReport
+          key={reportKey}
+          report={report}
+          message={message}
+          selectedIds={selectedContactIds}
+          onToggle={toggleContact}
+          onToggleMany={toggleManyContacts}
+        />
       )}
     </div>
   );

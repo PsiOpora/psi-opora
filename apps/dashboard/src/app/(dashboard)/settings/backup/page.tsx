@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -17,7 +18,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { runBackupNowAction, saveBackupCredentialsAction } from "./actions";
+import { saveBackupCredentialsAction } from "./actions";
+import { AutoRefresh } from "./auto-refresh";
+import { RunBackupButton } from "./run-backup-button";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
@@ -39,8 +42,11 @@ export default async function BackupSettingsPage() {
     ),
   ]);
 
+  const hasRunningBackup = runs.some((run) => run.status === "running");
+
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
+      <AutoRefresh enabled={hasRunningBackup} />
       <div>
         <h1 className="text-2xl font-semibold">Бэкап CRM</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -178,11 +184,7 @@ export default async function BackupSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <form action={runBackupNowAction}>
-            <Button type="submit" variant="secondary">
-              Запустить бэкап сейчас
-            </Button>
-          </form>
+          <RunBackupButton />
 
           <Table>
             <TableHeader>
@@ -215,6 +217,26 @@ export default async function BackupSettingsPage() {
                     </TableCell>
                     <TableCell className="text-sm">
                       {STATUS_LABEL[run.status] ?? run.status}
+                      {run.status === "running" && (
+                        <div className="mt-1.5 flex w-40 flex-col gap-1">
+                          <Progress
+                            value={
+                              run.entitiesTotal
+                                ? Math.round(
+                                    ((run.entitiesDone ?? 0) /
+                                      run.entitiesTotal) *
+                                      100,
+                                  )
+                                : 0
+                            }
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            {run.entitiesTotal
+                              ? `${run.entitiesDone ?? 0} из ${run.entitiesTotal}${run.currentEntity ? ` — ${run.currentEntity}` : ""}`
+                              : "Постановка в очередь…"}
+                          </p>
+                        </div>
+                      )}
                       {run.status === "error" && run.error && (
                         <p className="text-xs text-destructive">{run.error}</p>
                       )}
