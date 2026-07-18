@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@maxhub/max-bot-api": "0.2.4",
+    "@maxhub/max-bot-api": "0.2.5",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
