@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.751.0",
+    "@aws-sdk/client-s3": "^3.1090.0",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/db": "workspace:*",
@@ -32,7 +32,7 @@
     "@psi-opora/tsconfig": "workspace:*",
     "@types/node": "26.1.1",
     "dotenv": "^17.4.2",
-    "tsdown": "^0.22.8",
+    "tsdown": "^0.22.9",
     "typescript": "6.0.3"
   }
 }
