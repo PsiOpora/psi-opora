@@ -6,8 +6,6 @@ import {
 } from "@psi-opora/bot-core";
 import { webhookCallback } from "grammy";
 
-export const config = { runtime: "edge" };
-
 const redis = createUpstashRedis();
 const storage = createRedisStorage<ConsultationSession>(redis);
 const bot = createBot({ storage, redis });
