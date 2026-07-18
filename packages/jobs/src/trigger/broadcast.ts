@@ -72,7 +72,7 @@ export const deliverBroadcast = task({
             direction: "out",
             source: "broadcast",
             text: broadcast.message,
-          }).catch((err) => {
+          }).catch((err: unknown) => {
             console.error(
               `[broadcast] не удалось записать сообщение в журнал: ${(err as Error).message}`,
             );
