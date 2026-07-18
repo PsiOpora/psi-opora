@@ -30,8 +30,11 @@ export async function logBotMessage(entry: BotMessageLogEntry): Promise<void> {
       text,
     });
   } catch (err) {
+    const error = err as Error;
     console.error(
-      `[messages] не удалось записать сообщение в журнал: ${(err as Error).message}`,
+      `[messages] не удалось записать сообщение в журнал: ${error.message}`,
+      error.cause ?? "",
+      error.stack ?? "",
     );
   }
 }

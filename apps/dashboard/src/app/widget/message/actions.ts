@@ -222,8 +222,11 @@ export async function sendWidgetMessageAction(
       text,
     });
   } catch (err) {
+    const error = err as Error;
     console.error(
-      `[widget] не удалось записать сообщение в журнал: ${(err as Error).message}`,
+      `[widget] не удалось записать сообщение в журнал: ${error.message}`,
+      error.cause ?? "",
+      error.stack ?? "",
     );
   }
 

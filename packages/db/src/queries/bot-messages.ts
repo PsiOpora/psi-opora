@@ -25,6 +25,7 @@ export async function insertBotMessage(
     direction: entry.direction,
     source: entry.source,
     text: entry.text,
+    createdAt: new Date(),
   });
 }
 
