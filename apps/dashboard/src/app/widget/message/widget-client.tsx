@@ -94,10 +94,10 @@ function HistoryList({ history }: { history: HistoryEntry[] }) {
 
   useEffect(() => {
     const el = containerRef.current;
-    if (el && stickToBottomRef.current) {
+    if (el && stickToBottomRef.current && history.length > 0) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [history]);
+  }, [history.length]);
 
   const handleScroll = () => {
     const el = containerRef.current;

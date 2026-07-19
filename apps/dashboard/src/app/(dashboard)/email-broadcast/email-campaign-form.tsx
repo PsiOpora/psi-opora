@@ -2,7 +2,7 @@
 
 import type { UnisenderTemplate } from "@psi-opora/unisender-client";
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -415,7 +415,7 @@ export function EmailCampaignForm({
   const [stageId, setStageId] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [subject, setSubject] = useState("");
-  const [subjectTouched, setSubjectTouched] = useState(false);
+  const subjectTouchedRef = useRef(false);
   const [previewBody, setPreviewBody] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [report, setReport] = useState<EmailRecipientsReport | null>(null);
@@ -463,12 +463,11 @@ export function EmailCampaignForm({
         return;
       }
       setPreviewBody(result.body ?? null);
-      if (!subjectTouched && result.subject) setSubject(result.subject);
+      if (!subjectTouchedRef.current && result.subject) setSubject(result.subject);
     });
     return () => {
       cancelled = true;
     };
-    // biome-ignore lint/correctness/useExhaustiveDependencies: subjectTouched read intentionally without re-running the fetch on every keystroke
   }, [templateId]);
 
   const trimmedSubject = subject.trim();
@@ -660,7 +659,7 @@ export function EmailCampaignForm({
                 value={subject}
                 onChange={(e) => {
                   setSubject(e.target.value);
-                  setSubjectTouched(true);
+                  subjectTouchedRef.current = true;
                 }}
                 placeholder="Тема письма подтянется из шаблона — можно изменить"
               />

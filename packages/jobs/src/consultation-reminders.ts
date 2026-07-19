@@ -194,7 +194,7 @@ export async function handleConsultationDealUpdate(
   const state = await readState(redis, dealId);
   const now = new Date().toISOString();
 
-  if (!state || !state.lastConsultationAt) {
+  if (!state?.lastConsultationAt) {
     await writeState(redis, dealId, {
       lastConsultationAt: newConsultationAt,
       reminderSentAt: null,
