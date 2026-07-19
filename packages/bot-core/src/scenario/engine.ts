@@ -10,7 +10,7 @@ import type { ScenarioTexts } from "./texts";
  *   ├── «Записаться на консультацию» (флоу consult)
  *   │     └── согласие на ПДн → имя → телефон → email → сделка
  *   └── «Получить гайд» (флоу guide)
- *         └── категория (ребёнок / для себя) → тема
+ *         └── согласие на ПДн → категория (ребёнок / для себя) → тема
  *             ветка «ребёнок»: email → гайд → телефон → сделка
  *             ветка «для себя»: телефон → сделка → вопрос о рассылке
  *
@@ -337,8 +337,8 @@ export function applyScenarioAction(
       if (action === "sc_consult") return startConsultation(t);
       if (action === "sc_guide") {
         return output(
-          { ...fresh(state), step: "category", flow: "guide" },
-          [categoryQuestion(t)],
+          { ...fresh(state), step: "consent", flow: "guide" },
+          [consentQuestion(t)],
           { track: ["guide_click"] },
         );
       }
@@ -347,9 +347,13 @@ export function applyScenarioAction(
 
     case "consent": {
       if (action === "consent_agree") {
+        const isGuide = state.flow === "guide";
         return output(
-          { ...fresh(state), step: "name" },
-          [{ text: t.consent_agreed }, { text: t.name_question }],
+          { ...fresh(state), step: isGuide ? "category" : "name" },
+          [
+            { text: t.consent_agreed },
+            isGuide ? categoryQuestion(t) : { text: t.name_question },
+          ],
           { track: ["consent"] },
         );
       }

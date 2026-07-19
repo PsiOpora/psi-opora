@@ -126,16 +126,19 @@ describe("телеграм-бот: /start", () => {
     expect(sentMessages(sent).length).toBe(1);
   });
 
-  test("флоу гайда кнопками: гайд → категория → тема → email", async () => {
+  test("флоу гайда кнопками: гайд → согласие → категория → тема → email", async () => {
     const { bot, sent } = makeBot();
     await bot.handleUpdate(commandUpdate("/start"));
     await bot.handleUpdate(callbackUpdate("sc_guide", 2));
-    await bot.handleUpdate(callbackUpdate("sc_child", 3));
-    await bot.handleUpdate(callbackUpdate("sc_eating", 4));
+    await bot.handleUpdate(callbackUpdate("consent_agree", 3));
+    await bot.handleUpdate(callbackUpdate("sc_child", 4));
+    await bot.handleUpdate(callbackUpdate("sc_eating", 5));
 
     const texts = sentMessages(sent).map((m) => m.payload.text);
     expect(texts).toEqual([
       t.welcome,
+      t.consent_text,
+      t.consent_agreed,
       t.category_question,
       t.issue_question,
       t.email_question,

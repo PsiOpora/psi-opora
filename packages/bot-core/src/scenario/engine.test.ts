@@ -136,9 +136,10 @@ describe("флоу «запись на консультацию»", () => {
 });
 
 describe("флоу гайда: ветка «трудности с ребенком»", () => {
-  test("полный путь: гайд → категория → тема → email → телефон → заявка", () => {
+  test("полный путь: гайд → согласие → категория → тема → email → телефон → заявка", () => {
     const out = run([
       { action: "sc_guide" },
+      { action: "consent_agree" },
       { action: "sc_child" },
       { action: "sc_eating" },
       { text: "parent@example.com" },
@@ -157,20 +158,42 @@ describe("флоу гайда: ветка «трудности с ребенко
     expect(out.messages.map((m) => m.text)).toEqual([t.phone_thanks]);
   });
 
-  test("кнопка «Получить гайд» ведёт к вопросу о категории", () => {
+  test("кнопка «Получить гайд» ведёт к согласию на ПДн", () => {
     const out = run([{ action: "sc_guide" }]);
-    expect(out.state.step).toBe("category");
+    expect(out.state.step).toBe("consent");
     expect(out.state.flow).toBe("guide");
     expect(out.track).toEqual(["guide_click"]);
     expect(out.messages[0]?.buttons?.flat().map((b) => b.action)).toEqual([
+      "consent_agree",
+      "consent_decline",
+    ]);
+  });
+
+  test("согласие в флоу гайда ведёт к вопросу о категории", () => {
+    const out = run([{ action: "sc_guide" }, { action: "consent_agree" }]);
+    expect(out.state.step).toBe("category");
+    expect(out.track).toEqual(["consent"]);
+    expect(out.messages.map((m) => m.text)).toEqual([
+      t.consent_agreed,
+      t.category_question,
+    ]);
+    expect(out.messages[1]?.buttons?.flat().map((b) => b.action)).toEqual([
       "sc_child",
       "sc_self",
     ]);
   });
 
+  test("отказ от согласия завершает флоу гайда без заявки", () => {
+    const out = run([{ action: "sc_guide" }, { action: "consent_decline" }]);
+    expect(out.state.step).toBe("done");
+    expect(out.lead).toBeUndefined();
+    expect(out.messages[0]?.text).toBe(t.consent_declined);
+  });
+
   test("email принят — отправляется гайд и запрос телефона", () => {
     const out = run([
       { action: "sc_guide" },
+      { action: "consent_agree" },
       { action: "sc_child" },
       { action: "sc_other" },
       { text: "parent@example.com" },
@@ -186,6 +209,7 @@ describe("флоу гайда: ветка «трудности с ребенко
   test("кнопка «без email» ведёт сразу к телефону", () => {
     const out = run([
       { action: "sc_guide" },
+      { action: "consent_agree" },
       { action: "sc_child" },
       { action: "sc_eating" },
       { action: "sc_skip_email" },
@@ -197,6 +221,7 @@ describe("флоу гайда: ветка «трудности с ребенко
   test("после 3 нераспознанных email — переход к телефону без гайда", () => {
     const out = run([
       { action: "sc_guide" },
+      { action: "consent_agree" },
       { action: "sc_child" },
       { action: "sc_eating" },
       { text: "не email" },
@@ -213,6 +238,7 @@ describe("флоу гайда: ветка «помощь для себя»", () 
   test("телефон → заявка + вопрос о рассылке", () => {
     const out = run([
       { action: "sc_guide" },
+      { action: "consent_agree" },
       { action: "sc_self" },
       { action: "sc_other" },
       { text: "89991234567" },
@@ -226,6 +252,7 @@ describe("флоу гайда: ветка «помощь для себя»", () 
   test("согласие на рассылку трекается и уходит эффектом", () => {
     const out = run([
       { action: "sc_guide" },
+      { action: "consent_agree" },
       { action: "sc_self" },
       { action: "sc_eating" },
       { text: "89991234567" },
@@ -240,6 +267,7 @@ describe("флоу гайда: ветка «помощь для себя»", () 
   test("отказ от рассылки завершает сценарий без трекинга", () => {
     const out = run([
       { action: "sc_guide" },
+      { action: "consent_agree" },
       { action: "sc_self" },
       { action: "sc_other" },
       { text: "89991234567" },
@@ -255,6 +283,7 @@ describe("отказ от телефона и лимиты (флоу гайда)
   test("кнопка «не оставлять телефон» завершает без заявки", () => {
     const out = run([
       { action: "sc_guide" },
+      { action: "consent_agree" },
       { action: "sc_self" },
       { action: "sc_other" },
       { action: "sc_skip_phone" },
@@ -267,6 +296,7 @@ describe("отказ от телефона и лимиты (флоу гайда)
   test("после 3 нераспознанных телефонов сценарий завершается", () => {
     const out = run([
       { action: "sc_guide" },
+      { action: "consent_agree" },
       { action: "sc_child" },
       { action: "sc_eating" },
       { action: "sc_skip_email" },
@@ -298,6 +328,7 @@ describe("устойчивость к неожиданному вводу", () =
   test("после завершения сценария текст игнорируется", () => {
     const out = run([
       { action: "sc_guide" },
+      { action: "consent_agree" },
       { action: "sc_self" },
       { action: "sc_other" },
       { action: "sc_skip_phone" },
@@ -340,6 +371,7 @@ describe("напоминания", () => {
   test("после завершения напоминать нечего", () => {
     const out = run([
       { action: "sc_guide" },
+      { action: "consent_agree" },
       { action: "sc_self" },
       { action: "sc_other" },
       { action: "sc_skip_phone" },

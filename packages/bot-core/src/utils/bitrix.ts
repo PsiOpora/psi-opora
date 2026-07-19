@@ -61,8 +61,17 @@ async function bitrixPost<T = unknown>(
   return json.result as T;
 }
 
+// Поле контакта в Wazzup-интеграции (кнопка «написать клиенту» в CRM),
+// заполняется автоматически только при обращении через Open Line Wazzup —
+// контактам, созданным ботом напрямую через API, нужно проставлять вручную.
+const MESSENGER_WZ_ID_FIELD: Record<string, string> = {
+  max: "UF_CRM_MAXID_WZ",
+  telegram: "UF_CRM_TELEGRAMID_WZ",
+};
+
 function buildContactFields(data: DealData) {
   const messenger = data.messenger ?? "telegram";
+  const wzIdField = MESSENGER_WZ_ID_FIELD[messenger];
   return {
     NAME: data.name,
     PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
@@ -73,9 +82,15 @@ function buildContactFields(data: DealData) {
     SOURCE_DESCRIPTION: [data.source, data.campaign]
       .filter(Boolean)
       .join(" / "),
+    // Сценарий бота (см. scenario/engine.ts) всегда показывает экран
+    // согласия с публичной офертой перед сбором контактов — и во флоу
+    // консультации, и во флоу гайда, — так что к моменту создания
+    // контакта согласие уже получено.
+    UF_CRM_CONTACT_1779910236669: 1,
     ...(data.telegramUserId
       ? {
           IM: [{ VALUE: String(data.telegramUserId), VALUE_TYPE: messenger }],
+          ...(wzIdField ? { [wzIdField]: String(data.telegramUserId) } : {}),
         }
       : {}),
   };
