@@ -10,6 +10,12 @@ export interface DealData {
   operatorId?: number;
   /** Дополнительный комментарий к сделке (выбор пользователя в сценарии). */
   comment?: string;
+  /** Ветка сценария (см. scenario/engine.ts) — попадает в заголовок и «Продукт». */
+  flow?: "consult" | "guide";
+  /** Выбор в флоу гайда: кому нужна помощь. */
+  audience?: "child" | "self";
+  /** Выбор в флоу гайда: с чем связаны трудности. */
+  issue?: "eating" | "other";
 }
 
 function getEnv(messenger: string, key: string): string | undefined {
@@ -103,12 +109,42 @@ const MESSENGER_FIELD_VALUES: Record<string, string> = {
 };
 const MESSENGER_FIELD_OTHER = "376"; // Другой
 
+// ID значения "Консультация" поля "Продукт" (UF_CRM_1779045469683).
+// Для флоу гайда «продукт» не подставляем — это лид-магнит, а не заявка
+// на конкретную услугу.
+const PRODUCT_CONSULT_ID = "258";
+
+const AUDIENCE_LABELS: Record<NonNullable<DealData["audience"]>, string> = {
+  child: "Ребёнок",
+  self: "Для себя",
+};
+const ISSUE_LABELS: Record<NonNullable<DealData["issue"]>, string> = {
+  eating: "Питание",
+  other: "Другое",
+};
+
+/** Короткая метка ветки сценария для заголовка сделки — видна в канбане без открытия карточки. */
+function buildFlowLabel(data: DealData): string | undefined {
+  if (data.flow === "consult") return "Консультация";
+  if (data.flow === "guide") {
+    const details = [
+      data.audience && AUDIENCE_LABELS[data.audience],
+      data.issue && ISSUE_LABELS[data.issue],
+    ]
+      .filter(Boolean)
+      .join("/");
+    return details ? `Гайд: ${details}` : "Гайд";
+  }
+  return undefined;
+}
+
 function buildDealFields(data: DealData, contactId: number) {
   const messenger = data.messenger ?? "telegram";
   const botId = getBotId(messenger);
   const description = [data.source, data.campaign].filter(Boolean).join(" / ");
+  const flowLabel = buildFlowLabel(data);
   return {
-    TITLE: `Заявка (${botId}): ${data.name}`,
+    TITLE: `Заявка (${[flowLabel, botId].filter(Boolean).join(", ")}): ${data.name}`,
     CONTACT_IDS: [contactId],
     SOURCE_ID: getSourceId(messenger),
     SOURCE_DESCRIPTION: description || `${messenger} бот`,
@@ -118,6 +154,9 @@ function buildDealFields(data: DealData, contactId: number) {
     UTM_CONTENT: botId,
     UF_CRM_1779643796551:
       MESSENGER_FIELD_VALUES[messenger] ?? MESSENGER_FIELD_OTHER,
+    ...(data.flow === "consult"
+      ? { UF_CRM_1779045469683: PRODUCT_CONSULT_ID }
+      : {}),
     COMMENTS: [
       `Бот: ${botId}`,
       data.telegramUserId ? `${messenger} user_id: ${data.telegramUserId}` : "",

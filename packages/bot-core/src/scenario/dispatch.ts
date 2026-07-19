@@ -89,6 +89,9 @@ export async function dispatchScenarioOutput(
       source: deps.source,
       campaign: deps.campaign,
       comment: describeLead(out.lead, deps.texts),
+      flow: out.lead.flow,
+      audience: out.lead.audience,
+      issue: out.lead.issue,
     });
     // Мутируем state по ссылке: адаптер уже положил его в сессию,
     // и сессия сохранится после завершения обработчика

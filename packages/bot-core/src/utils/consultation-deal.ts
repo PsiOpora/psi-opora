@@ -33,6 +33,10 @@ export interface SubmitDealParams {
   campaign?: string;
   /** Комментарий к сделке (например, выбранные в сценарии категория и тема). */
   comment?: string;
+  /** Ветка сценария — попадает в заголовок сделки и «Продукт» в Bitrix. */
+  flow?: DealData["flow"];
+  audience?: DealData["audience"];
+  issue?: DealData["issue"];
 }
 
 /**
@@ -45,8 +49,19 @@ export interface SubmitDealParams {
 export async function submitConsultationDeal(
   params: SubmitDealParams,
 ): Promise<number | null> {
-  const { name, phone, email, messenger, userId, source, campaign, comment } =
-    params;
+  const {
+    name,
+    phone,
+    email,
+    messenger,
+    userId,
+    source,
+    campaign,
+    comment,
+    flow,
+    audience,
+    issue,
+  } = params;
 
   const funnelCtx: FunnelEventContext = { messenger, source, campaign };
 
@@ -75,6 +90,9 @@ export async function submitConsultationDeal(
       telegramUserId: userId,
       messenger,
       ...(comment ? { comment } : {}),
+      ...(flow ? { flow } : {}),
+      ...(audience ? { audience } : {}),
+      ...(issue ? { issue } : {}),
       ...(chatId !== undefined ? { chatId } : {}),
       ...(operatorId !== undefined ? { operatorId } : {}),
     };

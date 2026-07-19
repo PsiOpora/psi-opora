@@ -24,6 +24,7 @@ const resp = await call("crm.deal.list", {
     "UTM_MEDIUM",
     "UTM_CAMPAIGN",
     "UTM_CONTENT",
+    "UF_CRM_1779643796551",
     "COMMENTS",
     "DATE_CREATE",
   ],
