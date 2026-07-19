@@ -3,6 +3,7 @@
 import { BoldIcon, CodeIcon, ItalicIcon, LinkIcon } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -199,6 +200,7 @@ function RecipientsReport({
     if (!messenger || !userId) return;
     setTestingId(contactId);
     startTransition(async () => {
+      const toastId = toast.loading("Отправляем тестовое сообщение…");
       const result = await sendTestMessageAction({
         messenger,
         userId,
@@ -206,6 +208,11 @@ function RecipientsReport({
       });
       setTestResults((prev) => ({ ...prev, [contactId]: result }));
       setTestingId(null);
+      if (result.ok) {
+        toast.success("Тест отправлен", { id: toastId });
+      } else {
+        toast.error(result.error ?? "Ошибка теста", { id: toastId });
+      }
     });
   };
 

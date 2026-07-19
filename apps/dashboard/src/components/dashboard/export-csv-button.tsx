@@ -1,6 +1,7 @@
 "use client";
 
 import { DownloadIcon } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 function escapeCell(value: string | number): string {
@@ -18,6 +19,10 @@ export function ExportCsvButton({
   rows: Array<Array<string | number>>;
 }) {
   function download() {
+    if (rows.length === 0) {
+      toast.error("Нет данных для экспорта");
+      return;
+    }
     // BOM + ";" — чтобы русский Excel открывал файл без настройки импорта
     const bom = String.fromCharCode(0xfeff);
     const csv =
@@ -33,6 +38,7 @@ export function ExportCsvButton({
     link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
+    toast.success(`Файл ${filename} скачан`);
   }
 
   return (

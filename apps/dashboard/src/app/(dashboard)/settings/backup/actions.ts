@@ -15,7 +15,7 @@ import { MEMBER_ID_COOKIE, getBitrixApi } from "@/lib/bitrix/session";
 
 export async function saveBackupCredentialsAction(
   formData: FormData,
-): Promise<void> {
+): Promise<{ ok: boolean; error?: string }> {
   const s3Endpoint =
     String(formData.get("s3Endpoint") ?? "").trim() || undefined;
   const s3Region = String(formData.get("s3Region") ?? "").trim() || undefined;
@@ -25,15 +25,20 @@ export async function saveBackupCredentialsAction(
   const s3SecretAccessKey =
     String(formData.get("s3SecretAccessKey") ?? "").trim() || undefined;
 
-  await upsertBackupCredentials({
-    s3Endpoint,
-    s3Region,
-    s3Bucket,
-    s3AccessKeyId,
-    s3SecretAccessKey,
-  });
+  try {
+    await upsertBackupCredentials({
+      s3Endpoint,
+      s3Region,
+      s3Bucket,
+      s3AccessKeyId,
+      s3SecretAccessKey,
+    });
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 
   revalidatePath("/settings/backup");
+  return { ok: true };
 }
 
 export interface RunBackupResult {

@@ -1,5 +1,4 @@
 import { getBackupCredentials, listBackupRuns } from "@psi-opora/db/queries";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -18,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SubmitButton } from "@/components/dashboard/submit-button";
 import { saveBackupCredentialsAction } from "./actions";
 import { AutoRefresh } from "./auto-refresh";
 import { RunBackupButton } from "./run-backup-button";
@@ -167,9 +167,12 @@ export default async function BackupSettingsPage() {
               </p>
             )}
 
-            <Button type="submit" className="self-start">
-              Сохранить
-            </Button>
+            <SubmitButton
+              action={saveBackupCredentialsAction}
+              idleLabel="Сохранить"
+              successMessage="Настройки S3 сохранены"
+              className="self-start"
+            />
           </form>
         </CardContent>
       </Card>

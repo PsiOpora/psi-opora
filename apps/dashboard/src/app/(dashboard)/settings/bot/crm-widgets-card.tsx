@@ -2,6 +2,7 @@
 
 import { Loader2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { useB24Frame } from "@/components/bitrix/frame-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ export function CrmWidgetsCard() {
     if (!b24) return;
     startTransition(async () => {
       setError(null);
+      const toastId = toast.loading("Подключаем вкладки…");
       try {
         for (const { code } of PLACEMENTS) {
           await b24.callMethod("placement.bind", {
@@ -81,13 +83,14 @@ export function CrmWidgetsCard() {
           });
         }
         await refresh();
+        toast.success("Вкладки подключены", { id: toastId });
       } catch (err) {
         const message = (err as Error).message;
-        setError(
-          /scope|insufficient/i.test(message)
-            ? `${message}. Добавьте приложению право «Встраивание приложений» (placement) в настройках локального приложения на портале.`
-            : message,
-        );
+        const fullMessage = /scope|insufficient/i.test(message)
+          ? `${message}. Добавьте приложению право «Встраивание приложений» (placement) в настройках локального приложения на портале.`
+          : message;
+        setError(fullMessage);
+        toast.error(fullMessage, { id: toastId });
       }
     });
   };
@@ -96,6 +99,7 @@ export function CrmWidgetsCard() {
     if (!b24) return;
     startTransition(async () => {
       setError(null);
+      const toastId = toast.loading("Отключаем вкладки…");
       try {
         for (const { code } of PLACEMENTS) {
           await b24.callMethod("placement.unbind", {
@@ -104,8 +108,11 @@ export function CrmWidgetsCard() {
           });
         }
         await refresh();
+        toast.success("Вкладки отключены", { id: toastId });
       } catch (err) {
-        setError((err as Error).message);
+        const message = (err as Error).message;
+        setError(message);
+        toast.error(message, { id: toastId });
       }
     });
   };

@@ -1,6 +1,5 @@
 import { Trash2Icon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -30,8 +29,10 @@ import {
 import { isRedisConfigured } from "@/lib/redis";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
+import { ActionButton } from "@/components/dashboard/action-button";
 import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
 import { NotConnected } from "@/components/dashboard/not-connected";
+import { SubmitButton } from "@/components/dashboard/submit-button";
 import { addCostAction, deleteCostAction } from "./actions";
 
 interface RoiRow {
@@ -316,7 +317,13 @@ export default async function CostsPage({
                 className="w-48"
               />
             </div>
-            <Button type="submit">Добавить</Button>
+            <SubmitButton
+              action={addCostAction}
+              idleLabel="Добавить"
+              successMessage="Расход добавлен"
+              loadingMessage="Добавляем…"
+              resetOnSuccess
+            />
           </form>
         </CardContent>
       </Card>
@@ -362,17 +369,23 @@ export default async function CostsPage({
                       {cost.note}
                     </TableCell>
                     <TableCell>
-                      <form action={deleteCostAction}>
-                        <input type="hidden" name="id" value={cost.id} />
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="sm"
-                          aria-label="Удалить расход"
-                        >
-                          <Trash2Icon />
-                        </Button>
-                      </form>
+                      <ActionButton
+                        action={deleteCostAction}
+                        values={{ id: cost.id }}
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Удалить расход"
+                        successMessage="Расход удалён"
+                        loadingMessage="Удаляем…"
+                        confirm={{
+                          title: "Удалить расход?",
+                          description: `Запись ${cost.month} · ${cost.utmSource} · ${formatMoney(cost.amount)} будет удалена без возможности восстановления.`,
+                          confirmLabel: "Удалить",
+                          destructive: true,
+                        }}
+                      >
+                        <Trash2Icon />
+                      </ActionButton>
                     </TableCell>
                   </TableRow>
                 ))}

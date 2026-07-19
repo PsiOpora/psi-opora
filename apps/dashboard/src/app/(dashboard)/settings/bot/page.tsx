@@ -4,7 +4,6 @@ import {
   type ScenarioTextDef,
 } from "@psi-opora/bot-core";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -16,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { getBotTextsRecord, listBotGuides } from "@psi-opora/db/queries";
+import { ActionButton } from "@/components/dashboard/action-button";
+import { SubmitButton } from "@/components/dashboard/submit-button";
 import {
   deleteGuideAction,
   saveBotTextsAction,
@@ -120,19 +121,35 @@ function GuidesLibraryCard({
                   </div>
                   <div className="flex items-center gap-2">
                     {!isActive && (
-                      <form action={setActiveGuideAction}>
-                        <input type="hidden" name="id" value={guide.id} />
-                        <Button type="submit" variant="outline" size="sm">
-                          Сделать активным
-                        </Button>
-                      </form>
+                      <ActionButton
+                        action={setActiveGuideAction}
+                        values={{ id: guide.id }}
+                        variant="outline"
+                        size="sm"
+                        successMessage={`«${guide.title}» теперь активный гайд`}
+                        loadingMessage="Применяем…"
+                      >
+                        Сделать активным
+                      </ActionButton>
                     )}
-                    <form action={deleteGuideAction}>
-                      <input type="hidden" name="id" value={guide.id} />
-                      <Button type="submit" variant="outline" size="sm">
-                        Удалить
-                      </Button>
-                    </form>
+                    <ActionButton
+                      action={deleteGuideAction}
+                      values={{ id: guide.id }}
+                      variant="outline"
+                      size="sm"
+                      successMessage={`«${guide.title}» удалён`}
+                      loadingMessage="Удаляем…"
+                      confirm={{
+                        title: "Удалить гайд?",
+                        description: isActive
+                          ? `«${guide.title}» сейчас активен — после удаления бот перестанет слать вложение до выбора другого гайда.`
+                          : `Файл «${guide.title}» будет удалён из библиотеки и из хранилища. Это необратимо.`,
+                        confirmLabel: "Удалить",
+                        destructive: true,
+                      }}
+                    >
+                      Удалить
+                    </ActionButton>
                   </div>
                 </div>
               );
@@ -239,9 +256,12 @@ export default async function BotTextsPage() {
           ))}
         </GroupTabs>
 
-        <Button type="submit" className="self-start">
-          Сохранить
-        </Button>
+        <SubmitButton
+          action={saveBotTextsAction}
+          idleLabel="Сохранить"
+          successMessage="Тексты бота сохранены"
+          className="self-start"
+        />
       </form>
     </div>
   );

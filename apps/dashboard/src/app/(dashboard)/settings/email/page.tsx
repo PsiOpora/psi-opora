@@ -1,5 +1,4 @@
 import { getUnisenderSettings } from "@psi-opora/db/queries";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -9,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/dashboard/submit-button";
 import { saveUnisenderSettingsAction } from "./actions";
 
 export default async function EmailSettingsPage() {
@@ -100,9 +100,12 @@ export default async function EmailSettingsPage() {
               </p>
             )}
 
-            <Button type="submit" className="self-start">
-              Сохранить
-            </Button>
+            <SubmitButton
+              action={saveUnisenderSettingsAction}
+              idleLabel="Сохранить"
+              successMessage="Настройки Unisender сохранены"
+              className="self-start"
+            />
           </form>
         </CardContent>
       </Card>

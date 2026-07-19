@@ -3,6 +3,7 @@
 import type { UnisenderTemplate } from "@psi-opora/unisender-client";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -166,9 +167,15 @@ function RecipientsReport({
     const { email, contactId } = testCandidate;
     setTestingId(contactId);
     startTransition(async () => {
+      const toastId = toast.loading("Отправляем тестовое письмо…");
       const result = await sendTestEmailAction({ email, templateId, subject });
       setTestResults((prev) => ({ ...prev, [contactId]: result }));
       setTestingId(null);
+      if (result.ok) {
+        toast.success("Тест отправлен", { id: toastId });
+      } else {
+        toast.error(result.error ?? "Ошибка теста", { id: toastId });
+      }
     });
   };
 

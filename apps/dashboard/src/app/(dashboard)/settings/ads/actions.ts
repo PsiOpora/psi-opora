@@ -5,7 +5,7 @@ import { orpc } from "@/lib/orpc-client";
 
 export async function saveAdCredentialsAction(
   formData: FormData,
-): Promise<void> {
+): Promise<{ ok: boolean; error?: string }> {
   const yandexClientId =
     String(formData.get("yandexClientId") ?? "").trim() || undefined;
   const yandexClientSecret =
@@ -17,13 +17,18 @@ export async function saveAdCredentialsAction(
   const vkAdsAccountId =
     String(formData.get("vkAdsAccountId") ?? "").trim() || undefined;
 
-  await orpc.ads.upsertCredentials({
-    yandexClientId,
-    yandexClientSecret,
-    yandexRefreshToken,
-    vkAccessToken,
-    vkAdsAccountId,
-  });
+  try {
+    await orpc.ads.upsertCredentials({
+      yandexClientId,
+      yandexClientSecret,
+      yandexRefreshToken,
+      vkAccessToken,
+      vkAdsAccountId,
+    });
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 
   revalidatePath("/settings/ads");
+  return { ok: true };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { RefreshCwIcon } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -15,8 +16,21 @@ export function AdRefreshButton() {
 
   const handleRefresh = async () => {
     setLoading(true);
+    const toastId = toast.loading("Обновляем данные рекламы…");
     try {
-      await refreshAdStatsAction();
+      const result = await refreshAdStatsAction();
+      if (result.ok) {
+        toast.success("Данные обновлены", { id: toastId });
+      } else {
+        toast.error(result.error ?? "Не удалось обновить данные", {
+          id: toastId,
+        });
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Не удалось обновить данные",
+        { id: toastId },
+      );
     } finally {
       setLoading(false);
     }

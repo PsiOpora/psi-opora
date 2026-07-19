@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,45 +25,44 @@ export function ResendFailed({
   failedCount: number;
 }) {
   const router = useRouter();
-  const [result, setResult] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const onConfirm = () => {
     startTransition(async () => {
+      const toastId = toast.loading("Ставим досылку в очередь…");
       const res = await resendFailedAction(broadcastId);
-      setResult(
-        res.error ?? `Досылка запущена: ${res.queued} получателей в очереди`,
-      );
+      if (res.error) {
+        toast.error(res.error, { id: toastId });
+      } else {
+        toast.success(`Досылка запущена: ${res.queued} получателей в очереди`, {
+          id: toastId,
+        });
+      }
       router.refresh();
     });
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="outline" size="sm" disabled={isPending}>
-            {isPending ? "Отправка…" : `Дослать (${failedCount})`}
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Дослать сообщение?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Сообщение этой рассылки будет повторно отправлено {failedCount}{" "}
-              получателям, у которых была ошибка отправки. Те, кто уже получил
-              сообщение, повторно его не получат.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirm}>Дослать</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      {result && (
-        <span className="text-xs text-muted-foreground">{result}</span>
-      )}
-    </div>
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" size="sm" disabled={isPending}>
+          {isPending ? "Отправка…" : `Дослать (${failedCount})`}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Дослать сообщение?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Сообщение этой рассылки будет повторно отправлено {failedCount}{" "}
+            получателям, у которых была ошибка отправки. Те, кто уже получил
+            сообщение, повторно его не получат.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Отмена</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>Дослать</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -9,6 +8,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { SubmitButton } from "@/components/dashboard/submit-button";
 import { saveAdCredentialsAction } from "./actions";
 import { orpc } from "@/lib/orpc-client";
 
@@ -153,9 +153,12 @@ export default async function AdSettingsPage() {
               </p>
             )}
 
-            <Button type="submit" className="self-start">
-              Сохранить
-            </Button>
+            <SubmitButton
+              action={saveAdCredentialsAction}
+              idleLabel="Сохранить"
+              successMessage="Настройки рекламы сохранены"
+              className="self-start"
+            />
           </form>
         </CardContent>
       </Card>
