@@ -8,6 +8,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { asFormAction } from "@/lib/form-actions";
 import { SubmitButton } from "@/components/dashboard/submit-button";
 import { saveAdCredentialsAction } from "./actions";
 import { orpc } from "@/lib/orpc-client";
@@ -41,10 +42,7 @@ export default async function AdSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            action={saveAdCredentialsAction}
-            className="flex flex-col gap-4"
-          >
+          <form action={asFormAction(saveAdCredentialsAction)} className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label

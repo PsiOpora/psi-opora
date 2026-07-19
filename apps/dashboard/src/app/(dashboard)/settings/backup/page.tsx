@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { asFormAction } from "@/lib/form-actions";
 import { SubmitButton } from "@/components/dashboard/submit-button";
 import { saveBackupCredentialsAction } from "./actions";
 import { AutoRefresh } from "./auto-refresh";
@@ -74,10 +75,7 @@ export default async function BackupSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            action={saveBackupCredentialsAction}
-            className="flex flex-col gap-4"
-          >
+          <form action={asFormAction(saveBackupCredentialsAction)} className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label

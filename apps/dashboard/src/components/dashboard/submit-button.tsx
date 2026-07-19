@@ -13,7 +13,7 @@ export interface ActionResult {
 
 interface SubmitButtonProps {
   /** Server action формы, к которой относится эта кнопка (closest("form")). */
-  action: (formData: FormData) => Promise<ActionResult | void>;
+  action: (formData: FormData) => Promise<ActionResult | undefined>;
   /** Текст кнопки в обычном состоянии. */
   idleLabel: string;
   /** Сообщение toast при успехе. */

@@ -20,7 +20,7 @@ import type { ActionResult } from "./submit-button";
 
 interface ActionButtonProps {
   /** Server action, вызывается с FormData, собранной из `values`. */
-  action: (formData: FormData) => Promise<ActionResult | void>;
+  action: (formData: FormData) => Promise<ActionResult | undefined>;
   /** Поля, которые нужно передать в action (например, { id: cost.id }). */
   values: Record<string, string>;
   children: ReactNode;

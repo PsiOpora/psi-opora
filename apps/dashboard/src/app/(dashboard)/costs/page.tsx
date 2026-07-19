@@ -1,4 +1,8 @@
 import { Trash2Icon } from "lucide-react";
+import { ActionButton } from "@/components/dashboard/action-button";
+import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
+import { NotConnected } from "@/components/dashboard/not-connected";
+import { SubmitButton } from "@/components/dashboard/submit-button";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -21,18 +25,15 @@ import {
 import { parseDateRange } from "@/lib/analytics/date-range";
 import { fetchDeals } from "@/lib/analytics/deals";
 import type { DealRecord } from "@/lib/analytics/types";
+import { getBitrixApi } from "@/lib/bitrix/session";
+import { asFormAction } from "@/lib/form-actions";
+import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import {
+  type CostEntry,
   listCosts,
   monthIntersectsRange,
-  type CostEntry,
 } from "@/lib/marketing/costs";
 import { isRedisConfigured } from "@/lib/redis";
-import { getBitrixApi } from "@/lib/bitrix/session";
-import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
-import { ActionButton } from "@/components/dashboard/action-button";
-import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
-import { NotConnected } from "@/components/dashboard/not-connected";
-import { SubmitButton } from "@/components/dashboard/submit-button";
 import { addCostAction, deleteCostAction } from "./actions";
 
 interface RoiRow {
@@ -238,7 +239,7 @@ export default async function CostsPage({
         </CardHeader>
         <CardContent>
           <form
-            action={addCostAction}
+            action={asFormAction(addCostAction)}
             className="flex flex-wrap items-end gap-3"
           >
             <div className="flex flex-col gap-1">

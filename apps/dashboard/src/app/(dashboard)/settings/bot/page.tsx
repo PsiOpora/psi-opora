@@ -22,6 +22,7 @@ import {
   saveBotTextsAction,
   setActiveGuideAction,
 } from "./actions";
+import { asFormAction } from "@/lib/form-actions";
 import { CrmWidgetsCard } from "./crm-widgets-card";
 import { GroupTabs } from "./group-tabs";
 import { GuideUploadForm } from "./guide-upload-form";
@@ -193,7 +194,7 @@ export default async function BotTextsPage() {
 
       <GuidesLibraryCard guides={guides} activeS3Key={activeS3Key} />
 
-      <form action={saveBotTextsAction} className="flex flex-col gap-6">
+      <form action={asFormAction(saveBotTextsAction)} className="flex flex-col gap-6">
         <GroupTabs
           groups={groups.map(({ group }) => group)}
           changedCounts={changedCounts}

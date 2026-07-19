@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { asFormAction } from "@/lib/form-actions";
 import { SubmitButton } from "@/components/dashboard/submit-button";
 import { saveUnisenderSettingsAction } from "./actions";
 
@@ -42,10 +43,7 @@ export default async function EmailSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            action={saveUnisenderSettingsAction}
-            className="flex flex-col gap-4"
-          >
+          <form action={asFormAction(saveUnisenderSettingsAction)} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="apiKey" className="text-xs text-muted-foreground">
                 API-ключ
