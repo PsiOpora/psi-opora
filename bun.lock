@@ -18,9 +18,11 @@
       "name": "@psi-opora/bitrix-webhook",
       "version": "0.0.1",
       "dependencies": {
+        "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bitrix-webhook-api": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
+        "@psi-opora/jobs": "workspace:*",
         "@upstash/redis": "^1.38.0",
         "next": "^16.2.10",
         "react": "^19.2.7",
@@ -250,6 +252,7 @@
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/db": "workspace:*",
         "@trigger.dev/sdk": "4.5.4",
+        "@upstash/redis": "^1.38.0",
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",

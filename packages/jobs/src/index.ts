@@ -16,3 +16,11 @@ export {
 } from "./trigger/broadcast";
 export { type CrmBackupPayload, crmBackup } from "./trigger/crm-backup";
 export { scenarioReminders } from "./trigger/scenario-reminders";
+export { consultationReminders } from "./trigger/consultation-reminders";
+export {
+  type ConsultationDealUpdateResult,
+  type SendConsultationRemindersResult,
+  handleConsultationDealUpdate,
+  sendConsultationReminders,
+  stripBitrixBbCode,
+} from "./consultation-reminders";
