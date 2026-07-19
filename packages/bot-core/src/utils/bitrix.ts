@@ -81,6 +81,13 @@ function buildContactFields(data: DealData) {
   };
 }
 
+// ID значений поля "Мессенджер" (UF_CRM_1779643796551) в Bitrix24.
+const MESSENGER_FIELD_VALUES: Record<string, string> = {
+  max: "326", // МАКС
+  telegram: "328", // Telegram
+};
+const MESSENGER_FIELD_OTHER = "376"; // Другой
+
 function buildDealFields(data: DealData, contactId: number) {
   const messenger = data.messenger ?? "telegram";
   const botId = getBotId(messenger);
@@ -94,6 +101,8 @@ function buildDealFields(data: DealData, contactId: number) {
     UTM_MEDIUM: `${messenger}_bot`,
     UTM_CAMPAIGN: data.campaign ?? "",
     UTM_CONTENT: botId,
+    UF_CRM_1779643796551:
+      MESSENGER_FIELD_VALUES[messenger] ?? MESSENGER_FIELD_OTHER,
     COMMENTS: [
       `Бот: ${botId}`,
       data.telegramUserId ? `${messenger} user_id: ${data.telegramUserId}` : "",
