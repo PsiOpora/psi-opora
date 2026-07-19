@@ -251,6 +251,7 @@
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/db": "workspace:*",
+        "@psi-opora/unisender-client": "workspace:*",
         "@trigger.dev/sdk": "4.5.4",
         "@upstash/redis": "^1.38.0",
       },
@@ -258,6 +259,16 @@
         "@psi-opora/tsconfig": "workspace:*",
         "@types/node": "26.1.1",
         "dotenv": "^17.4.2",
+        "tsdown": "^0.22.9",
+        "typescript": "6.0.3",
+      },
+    },
+    "packages/unisender-client": {
+      "name": "@psi-opora/unisender-client",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@psi-opora/tsconfig": "workspace:*",
+        "@types/node": "26.1.1",
         "tsdown": "^0.22.9",
         "typescript": "6.0.3",
       },
@@ -711,6 +722,8 @@
     "@psi-opora/tg-bot": ["@psi-opora/tg-bot@workspace:apps/tg-bot"],
 
     "@psi-opora/tsconfig": ["@psi-opora/tsconfig@workspace:tooling/typescript"],
+
+    "@psi-opora/unisender-client": ["@psi-opora/unisender-client@workspace:packages/unisender-client"],
 
     "@psi-opora/validators": ["@psi-opora/validators@workspace:packages/validators"],
 

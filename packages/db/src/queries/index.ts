@@ -22,6 +22,8 @@ export * from "./ads";
 export * from "./backup";
 export * from "./bot-guides";
 export * from "./broadcast";
+export * from "./email-campaign";
+export * from "./unisender";
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
 export type { BotMessage, BotMessageEntry, NewBotMessage } from "./bot-messages";
 export type { BotText } from "./bot-texts";

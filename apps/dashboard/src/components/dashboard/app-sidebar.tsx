@@ -7,8 +7,10 @@ import {
   BotIcon,
   DatabaseBackupIcon,
   FilterIcon,
+  KeyRoundIcon,
   LayoutDashboardIcon,
   ListIcon,
+  MailIcon,
   MegaphoneIcon,
   MessageSquareTextIcon,
   SendIcon,
@@ -39,10 +41,12 @@ const NAV_ITEMS = [
   { href: "/ads", label: "Реклама", icon: MegaphoneIcon },
   { href: "/deals", label: "Сделки", icon: ListIcon },
   { href: "/broadcast", label: "Рассылка", icon: SendIcon },
+  { href: "/email-broadcast", label: "Email-рассылка", icon: MailIcon },
   { href: "/builder", label: "Конструктор", icon: SlidersHorizontalIcon },
   { href: "/settings/bot", label: "Тексты бота", icon: MessageSquareTextIcon },
   { href: "/settings/ads", label: "Настройки", icon: SettingsIcon },
   { href: "/settings/backup", label: "Бэкап CRM", icon: DatabaseBackupIcon },
+  { href: "/settings/email", label: "Настройки Unisender", icon: KeyRoundIcon },
 ];
 
 export function AppSidebar() {

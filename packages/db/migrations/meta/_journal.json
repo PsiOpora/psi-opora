@@ -56,6 +56,13 @@
       "when": 1784370181080,
       "tag": "0007_curved_photon",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784465771583,
+      "tag": "0008_sparkling_molten_man",
+      "breakpoints": true
     }
   ]
 }

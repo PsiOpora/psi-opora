@@ -26,6 +26,7 @@
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/db": "workspace:*",
+    "@psi-opora/unisender-client": "workspace:*",
     "@trigger.dev/sdk": "4.5.4",
     "@upstash/redis": "^1.38.0"
   },
