@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { BitrixFrameProvider } from "@/components/bitrix/frame-provider";
+import { QueryProvider } from "@/components/providers/query-provider";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -26,10 +27,12 @@ export default function RootLayout({
       className={cn("font-sans", geist.variable)}
     >
       <body>
-        <TooltipProvider>
-          <BitrixFrameProvider>{children}</BitrixFrameProvider>
-          <Toaster position="top-right" richColors />
-        </TooltipProvider>
+        <QueryProvider>
+          <TooltipProvider>
+            <BitrixFrameProvider>{children}</BitrixFrameProvider>
+            <Toaster position="top-right" richColors />
+          </TooltipProvider>
+        </QueryProvider>
       </body>
     </html>
   );

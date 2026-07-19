@@ -22,4 +22,8 @@ type RouterOutputs = InferRouterOutputs<AppRouter>;
 
 export { createORPCContext } from "./orpc";
 export { type AppRouter, appRouter } from "./routers";
+export {
+  type AdCredentialsInput,
+  adCredentialsSchema,
+} from "./schemas/ads";
 export type { RouterInputs, RouterOutputs };

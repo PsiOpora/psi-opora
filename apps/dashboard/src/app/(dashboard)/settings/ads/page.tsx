@@ -5,13 +5,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { asFormAction } from "@/lib/form-actions";
-import { SubmitButton } from "@/components/dashboard/submit-button";
-import { saveAdCredentialsAction } from "./actions";
-import { orpc } from "@/lib/orpc-client";
+import { orpc } from "@/lib/orpc/server";
+import { AdCredentialsForm } from "./credentials-form";
 
 export default async function AdSettingsPage() {
   const creds = await orpc.ads.getCredentials().catch(() => null);
@@ -42,122 +37,7 @@ export default async function AdSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={asFormAction(saveAdCredentialsAction)} className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  htmlFor="yandexClientId"
-                  className="text-xs text-muted-foreground"
-                >
-                  Client ID
-                </Label>
-                <Input
-                  id="yandexClientId"
-                  name="yandexClientId"
-                  defaultValue={creds?.yandexClientId ?? ""}
-                  placeholder="abc123def456"
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  htmlFor="yandexClientSecret"
-                  className="text-xs text-muted-foreground"
-                >
-                  Client Secret
-                </Label>
-                <Input
-                  id="yandexClientSecret"
-                  name="yandexClientSecret"
-                  type="password"
-                  defaultValue={creds?.yandexClientSecret ?? ""}
-                  placeholder="••••••••"
-                  className="font-mono text-sm"
-                />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="yandexRefreshToken"
-                className="text-xs text-muted-foreground"
-              >
-                Refresh Token
-              </Label>
-              <Input
-                id="yandexRefreshToken"
-                name="yandexRefreshToken"
-                type="password"
-                defaultValue={creds?.yandexRefreshToken ?? ""}
-                placeholder="••••••••"
-                className="font-mono text-sm"
-              />
-            </div>
-
-            <Separator />
-
-            <div className="flex flex-col gap-1">
-              <h3 className="text-lg font-medium">VK Реклама</h3>
-              <p className="text-sm text-muted-foreground">
-                Получите токен в{" "}
-                <a
-                  href="https://ads.vk.com/hq/settings"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline underline-offset-2"
-                >
-                  кабинете VK Реклама
-                </a>{" "}
-                (раздел Настройки → Доступ к API).
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  htmlFor="vkAccessToken"
-                  className="text-xs text-muted-foreground"
-                >
-                  Access Token
-                </Label>
-                <Input
-                  id="vkAccessToken"
-                  name="vkAccessToken"
-                  type="password"
-                  defaultValue={creds?.vkAccessToken ?? ""}
-                  placeholder="••••••••"
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  htmlFor="vkAdsAccountId"
-                  className="text-xs text-muted-foreground"
-                >
-                  Ads Account ID
-                </Label>
-                <Input
-                  id="vkAdsAccountId"
-                  name="vkAdsAccountId"
-                  defaultValue={creds?.vkAdsAccountId ?? ""}
-                  placeholder="123456789"
-                  className="font-mono text-sm"
-                />
-              </div>
-            </div>
-
-            {creds?.updatedAt && (
-              <p className="text-xs text-muted-foreground">
-                Сохранено: {creds.updatedAt.toLocaleString("ru-RU")}
-              </p>
-            )}
-
-            <SubmitButton
-              action={saveAdCredentialsAction}
-              idleLabel="Сохранить"
-              successMessage="Настройки рекламы сохранены"
-              className="self-start"
-            />
-          </form>
+          <AdCredentialsForm initialCredentials={creds} />
         </CardContent>
       </Card>
     </div>

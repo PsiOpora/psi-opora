@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getRedisOrNull } from "@/lib/redis";
 import { fetchAdStats } from "@/lib/marketing/ads-api";
-import { orpc } from "@/lib/orpc-client";
+import { orpc } from "@/lib/orpc/server";
+import { getRedisOrNull } from "@/lib/redis";
 
 export async function refreshAdStatsAction(): Promise<{
   ok: boolean;

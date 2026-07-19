@@ -1,5 +1,6 @@
 import { publicProcedure, router } from "../orpc";
 import { z } from "zod";
+import { adCredentialsSchema } from "../schemas/ads";
 import {
   getAdCredentials,
   upsertAdCredentials,
@@ -15,15 +16,7 @@ export const adsRouter = router({
   }),
 
   upsertCredentials: publicProcedure
-    .input(
-      z.object({
-        yandexClientId: z.string().optional(),
-        yandexClientSecret: z.string().optional(),
-        yandexRefreshToken: z.string().optional(),
-        vkAccessToken: z.string().optional(),
-        vkAdsAccountId: z.string().optional(),
-      }),
-    )
+    .input(adCredentialsSchema)
     .handler(async ({ input }) => {
       await upsertAdCredentials(input);
       return { ok: true };
