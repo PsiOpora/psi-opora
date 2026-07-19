@@ -15,7 +15,7 @@ export interface DealData {
   /** Выбор в флоу гайда: кому нужна помощь. */
   audience?: "child" | "self";
   /** Выбор в флоу гайда: с чем связаны трудности. */
-  issue?: "eating" | "other";
+  issue?: "eating" | "ocd" | "other";
 }
 
 function getEnv(messenger: string, key: string): string | undefined {
@@ -120,6 +120,7 @@ const AUDIENCE_LABELS: Record<NonNullable<DealData["audience"]>, string> = {
 };
 const ISSUE_LABELS: Record<NonNullable<DealData["issue"]>, string> = {
   eating: "Питание",
+  ocd: "ОКР",
   other: "Другое",
 };
 

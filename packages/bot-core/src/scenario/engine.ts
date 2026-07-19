@@ -12,7 +12,7 @@ import type { ScenarioTexts } from "./texts";
  *   └── «Получить гайд» (флоу guide)
  *         └── согласие на ПДн → категория (ребёнок / для себя) → тема
  *             ветка «ребёнок»: email → гайд → телефон → сделка
- *             ветка «для себя»: телефон → сделка → вопрос о рассылке
+ *             ветка «для себя»: телефон (или отказ) → вопрос о рассылке
  *
  * Адаптеры (grammy для TG, @maxhub для MAX) рендерят ScenarioMessage
  * и исполняют эффекты: track (воронка) и lead (сделка в Bitrix).
@@ -28,6 +28,7 @@ export const SCENARIO_ACTIONS = [
   "sc_child",
   "sc_self",
   "sc_eating",
+  "sc_ocd",
   "sc_other",
   "sc_skip_email",
   "sc_skip_phone",
@@ -53,7 +54,7 @@ export type ScenarioStep =
 
 export type ScenarioFlow = "consult" | "guide";
 export type ScenarioAudience = "child" | "self";
-export type ScenarioIssue = "eating" | "other";
+export type ScenarioIssue = "eating" | "ocd" | "other";
 
 export interface ScenarioState {
   step: ScenarioStep;
@@ -158,6 +159,7 @@ function issueQuestion(t: ScenarioTexts): ScenarioMessage {
     text: t.issue_question,
     buttons: [
       [{ label: t.btn_issue_eating, action: "sc_eating" }],
+      [{ label: t.btn_issue_ocd, action: "sc_ocd" }],
       [{ label: t.btn_issue_other, action: "sc_other" }],
     ],
   };
@@ -303,6 +305,22 @@ function submitGuidePhone(
   });
 }
 
+/**
+ * Отказ от телефона (кнопкой или после исчерпанных попыток) в флоу гайда.
+ * Ветка «для себя» всё равно получает вопрос о рассылке — контакта может
+ * не быть, но интерес к каналу бота остаётся; ветка «ребёнок» просто
+ * завершает сценарий (лид-магнит уже отправлен на email).
+ */
+function declinePhone(state: ScenarioState, t: ScenarioTexts): ScenarioOutput {
+  if (state.audience === "self") {
+    return output({ ...fresh(state), step: "subscribe" }, [
+      { text: t.phone_declined },
+      subscribeQuestion(t),
+    ]);
+  }
+  return output({ ...state, step: "done" }, [{ text: t.phone_declined }]);
+}
+
 /** Финал флоу консультации: сделка с именем и (опционально) email. */
 function submitConsultLead(
   state: ScenarioState,
@@ -377,8 +395,11 @@ export function applyScenarioAction(
     }
 
     case "issue": {
-      if (action !== "sc_eating" && action !== "sc_other") return null;
-      const issue: ScenarioIssue = action === "sc_eating" ? "eating" : "other";
+      if (action !== "sc_eating" && action !== "sc_ocd" && action !== "sc_other") {
+        return null;
+      }
+      const issue: ScenarioIssue =
+        action === "sc_eating" ? "eating" : action === "sc_ocd" ? "ocd" : "other";
       const next = { ...state, issue };
       if (state.audience === "child") {
         return output({ ...fresh(next), step: "email" }, [emailQuestion(t)], {
@@ -395,7 +416,7 @@ export function applyScenarioAction(
 
     case "phone": {
       if (action !== "sc_skip_phone" || state.flow === "consult") return null;
-      return output({ ...state, step: "done" }, [{ text: t.phone_declined }]);
+      return declinePhone(state, t);
     }
 
     case "subscribe": {
@@ -489,14 +510,12 @@ export function applyScenarioText(
       }
       const attempts = (state.phoneAttempts ?? 0) + 1;
       if (attempts >= MAX_ATTEMPTS) {
-        return output({ ...state, step: "done" }, [
-          {
-            text:
-              state.flow === "consult"
-                ? t.consult_phone_invalid_final
-                : t.phone_declined,
-          },
-        ]);
+        if (state.flow === "consult") {
+          return output({ ...state, step: "done" }, [
+            { text: t.consult_phone_invalid_final },
+          ]);
+        }
+        return declinePhone(state, t);
       }
       return output({ ...state, phoneAttempts: attempts, reminded: false }, [
         { text: t.phone_invalid },
@@ -543,6 +562,7 @@ export function actionLabel(action: ScenarioAction, t: ScenarioTexts): string {
     sc_child: t.btn_child,
     sc_self: t.btn_self,
     sc_eating: t.btn_issue_eating,
+    sc_ocd: t.btn_issue_ocd,
     sc_other: t.btn_issue_other,
     sc_skip_email: t.btn_skip_email,
     sc_skip_phone: t.btn_skip_phone,
@@ -559,6 +579,10 @@ export function describeLead(lead: ScenarioLead, t: ScenarioTexts): string {
   }
   const audience = lead.audience === "child" ? t.btn_child : t.btn_self;
   const issue =
-    lead.issue === "eating" ? t.btn_issue_eating : t.btn_issue_other;
+    lead.issue === "eating"
+      ? t.btn_issue_eating
+      : lead.issue === "ocd"
+        ? t.btn_issue_ocd
+        : t.btn_issue_other;
   return `Заявка: ${t.btn_guide}\nКатегория: ${audience}\nТема: ${issue}`;
 }

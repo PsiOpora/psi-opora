@@ -72,6 +72,12 @@ export const SCENARIO_TEXT_DEFS = [
     defaultValue: "Пищевое расстройство",
   },
   {
+    key: "btn_issue_ocd",
+    label: "Кнопка «ОКР»",
+    group: "Начало диалога",
+    defaultValue: "ОКР",
+  },
+  {
     key: "btn_issue_other",
     label: "Кнопка «Другое»",
     group: "Начало диалога",

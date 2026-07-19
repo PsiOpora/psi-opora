@@ -280,7 +280,7 @@ describe("флоу гайда: ветка «помощь для себя»", () 
 });
 
 describe("отказ от телефона и лимиты (флоу гайда)", () => {
-  test("кнопка «не оставлять телефон» завершает без заявки", () => {
+  test("«не оставлять телефон» в ветке «для себя» всё равно спрашивает про рассылку", () => {
     const out = run([
       { action: "sc_guide" },
       { action: "consent_agree" },
@@ -288,12 +288,29 @@ describe("отказ от телефона и лимиты (флоу гайда)
       { action: "sc_other" },
       { action: "sc_skip_phone" },
     ]);
+    expect(out.state.step).toBe("subscribe");
+    expect(out.lead).toBeUndefined();
+    expect(out.messages.map((m) => m.text)).toEqual([
+      t.phone_declined,
+      t.subscribe_question,
+    ]);
+  });
+
+  test("«не оставлять телефон» в ветке «ребёнок» завершает без заявки", () => {
+    const out = run([
+      { action: "sc_guide" },
+      { action: "consent_agree" },
+      { action: "sc_child" },
+      { action: "sc_eating" },
+      { action: "sc_skip_email" },
+      { action: "sc_skip_phone" },
+    ]);
     expect(out.state.step).toBe("done");
     expect(out.lead).toBeUndefined();
     expect(out.messages.map((m) => m.text)).toEqual([t.phone_declined]);
   });
 
-  test("после 3 нераспознанных телефонов сценарий завершается", () => {
+  test("после 3 нераспознанных телефонов в ветке «ребёнок» сценарий завершается", () => {
     const out = run([
       { action: "sc_guide" },
       { action: "consent_agree" },
@@ -306,6 +323,47 @@ describe("отказ от телефона и лимиты (флоу гайда)
     ]);
     expect(out.state.step).toBe("done");
     expect(out.lead).toBeUndefined();
+  });
+
+  test("после 3 нераспознанных телефонов в ветке «для себя» тоже спрашивает про рассылку", () => {
+    const out = run([
+      { action: "sc_guide" },
+      { action: "consent_agree" },
+      { action: "sc_self" },
+      { action: "sc_other" },
+      { text: "абв" },
+      { text: "где" },
+      { text: "ёжз" },
+    ]);
+    expect(out.state.step).toBe("subscribe");
+    expect(out.lead).toBeUndefined();
+  });
+});
+
+describe("флоу гайда: тема «ОКР»", () => {
+  test("кнопка «ОКР» — третий вариант темы, помимо питания и «другого»", () => {
+    const category = run([
+      { action: "sc_guide" },
+      { action: "consent_agree" },
+      { action: "sc_self" },
+    ]);
+    expect(
+      category.messages[0]?.buttons?.flat().map((b) => b.action),
+    ).toEqual(["sc_eating", "sc_ocd", "sc_other"]);
+
+    const issue = applyScenarioAction(category.state, "sc_ocd", t);
+    expect(issue?.state.issue).toBe("ocd");
+  });
+
+  test("заявка с темой «ОКР» доходит до сделки", () => {
+    const out = run([
+      { action: "sc_guide" },
+      { action: "consent_agree" },
+      { action: "sc_self" },
+      { action: "sc_ocd" },
+      { text: "89991234567" },
+    ]);
+    expect(out.lead?.issue).toBe("ocd");
   });
 });
 
@@ -329,8 +387,9 @@ describe("устойчивость к неожиданному вводу", () =
     const out = run([
       { action: "sc_guide" },
       { action: "consent_agree" },
-      { action: "sc_self" },
-      { action: "sc_other" },
+      { action: "sc_child" },
+      { action: "sc_eating" },
+      { action: "sc_skip_email" },
       { action: "sc_skip_phone" },
     ]);
     expect(applyScenarioText(out.state, "любой текст", t)).toBeNull();
@@ -372,8 +431,9 @@ describe("напоминания", () => {
     const out = run([
       { action: "sc_guide" },
       { action: "consent_agree" },
-      { action: "sc_self" },
-      { action: "sc_other" },
+      { action: "sc_child" },
+      { action: "sc_eating" },
+      { action: "sc_skip_email" },
       { action: "sc_skip_phone" },
     ]);
     expect(buildReminder(out.state, t)).toBeNull();
@@ -388,6 +448,14 @@ describe("describeLead", () => {
     );
     expect(comment).toContain(t.btn_child);
     expect(comment).toContain(t.btn_issue_eating);
+  });
+
+  test("гайд: тема «ОКР» тоже попадает в комментарий", () => {
+    const comment = describeLead(
+      { flow: "guide", phone: "+7", audience: "self", issue: "ocd" },
+      t,
+    );
+    expect(comment).toContain(t.btn_issue_ocd);
   });
 
   test("консультация: комментарий указывает источник заявки", () => {
