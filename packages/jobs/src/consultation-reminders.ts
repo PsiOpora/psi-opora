@@ -333,6 +333,7 @@ export interface SendConsultationRemindersResult {
   sent: number;
   skipped: number;
   errors: number;
+  details: Array<{ dealId: number; action: "sent" | "skip" | "error"; reason?: string }>;
 }
 
 async function trySendOneHourReminder(
@@ -455,7 +456,12 @@ export async function sendConsultationReminders(
   await resyncFromRest(api, redis);
 
   const dealIds = await redis.smembers(INDEX_KEY);
-  const result: SendConsultationRemindersResult = { sent: 0, skipped: 0, errors: 0 };
+  const result: SendConsultationRemindersResult = {
+    sent: 0,
+    skipped: 0,
+    errors: 0,
+    details: [],
+  };
 
   for (const idStr of dealIds) {
     const dealId = Number(idStr);
@@ -472,6 +478,7 @@ export async function sendConsultationReminders(
 
     try {
       const outcome = await trySendOneHourReminder(api, dealId, state);
+      result.details.push({ dealId, action: outcome.action, reason: outcome.reason });
       if (outcome.action === "sent") {
         result.sent++;
         await writeState(redis, dealId, {
@@ -487,9 +494,17 @@ export async function sendConsultationReminders(
         );
       } else {
         result.skipped++;
+        console.log(
+          `[consultation-reminder] dealId=${dealId} skipped: ${outcome.reason}`,
+        );
       }
     } catch (err) {
       result.errors++;
+      result.details.push({
+        dealId,
+        action: "error",
+        reason: (err as Error).message,
+      });
       console.error(
         `[consultation-reminder] dealId=${dealId}: ${(err as Error).message}`,
       );
