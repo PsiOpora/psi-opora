@@ -75,9 +75,19 @@ const MESSENGER_WZ_ID_FIELD: Record<string, string> = {
   telegram: "UF_CRM_TELEGRAMID_WZ",
 };
 
-function buildContactFields(data: DealData) {
+/** Поля привязки мессенджера к контакту (IM + UF Wazzup-ID) — используются и при создании, и при линковке к уже найденному контакту. */
+function buildMessengerLinkFields(data: DealData) {
+  if (!data.telegramUserId) return null;
   const messenger = data.messenger ?? "telegram";
   const wzIdField = MESSENGER_WZ_ID_FIELD[messenger];
+  return {
+    IM: [{ VALUE: String(data.telegramUserId), VALUE_TYPE: messenger }],
+    ...(wzIdField ? { [wzIdField]: String(data.telegramUserId) } : {}),
+  };
+}
+
+function buildContactFields(data: DealData) {
+  const messenger = data.messenger ?? "telegram";
   return {
     NAME: data.name,
     PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
@@ -93,13 +103,67 @@ function buildContactFields(data: DealData) {
     // консультации, и во флоу гайда, — так что к моменту создания
     // контакта согласие уже получено.
     UF_CRM_CONTACT_1779910236669: 1,
-    ...(data.telegramUserId
-      ? {
-          IM: [{ VALUE: String(data.telegramUserId), VALUE_TYPE: messenger }],
-          ...(wzIdField ? { [wzIdField]: String(data.telegramUserId) } : {}),
-        }
-      : {}),
+    ...(buildMessengerLinkFields(data) ?? {}),
   };
+}
+
+async function findContactIdByMessengerId(
+  messenger: string,
+  telegramUserId: number,
+): Promise<number | null> {
+  const wzIdField = MESSENGER_WZ_ID_FIELD[messenger];
+  if (!wzIdField) return null;
+  const contacts = await bitrixPost<{ ID: string }[]>(
+    "crm.contact.list",
+    { filter: { [wzIdField]: String(telegramUserId) }, select: ["ID"] },
+    messenger,
+  );
+  return contacts[0] ? Number(contacts[0].ID) : null;
+}
+
+async function findContactIdByComm(
+  messenger: string,
+  type: "PHONE" | "EMAIL",
+  value: string,
+): Promise<number | null> {
+  const result = await bitrixPost<{ CONTACT?: number[] }>(
+    "crm.duplicate.findbycomm",
+    { entity_type: "CONTACT", type, values: [value] },
+    messenger,
+  );
+  return result.CONTACT?.[0] ?? null;
+}
+
+/**
+ * Ищет контакт, уже существующий в Bitrix, перед созданием нового —
+ * сперва по ID в мессенджере (самый точный признак), затем по телефону
+ * и email, — чтобы не плодить дубликаты для одного и того же человека.
+ * Ошибки поиска не пробрасываются: при сбое просто создаём новый контакт,
+ * как раньше.
+ */
+async function findExistingContactId(data: DealData): Promise<number | null> {
+  const messenger = data.messenger ?? "telegram";
+  try {
+    if (data.telegramUserId) {
+      const byMessenger = await findContactIdByMessengerId(
+        messenger,
+        data.telegramUserId,
+      );
+      if (byMessenger) return byMessenger;
+    }
+    if (data.phone) {
+      const byPhone = await findContactIdByComm(messenger, "PHONE", data.phone);
+      if (byPhone) return byPhone;
+    }
+    if (data.email) {
+      const byEmail = await findContactIdByComm(messenger, "EMAIL", data.email);
+      if (byEmail) return byEmail;
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[bitrix] ошибка поиска существующего контакта: ${message}`);
+  }
+  return null;
 }
 
 // ID значений поля "Мессенджер" (UF_CRM_1779643796551) в Bitrix24.
@@ -213,13 +277,35 @@ export async function createBitrixDeal(
     return { contactId: 0, dealId: 0 };
   }
 
-  const contactId = await bitrixPost<number>(
-    "crm.contact.add",
-    {
-      fields: buildContactFields(data),
-    },
-    messenger,
-  );
+  let contactId = await findExistingContactId(data);
+  if (contactId) {
+    console.log(
+      `[bitrix] используем существующий контакт id=${contactId} вместо создания нового (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
+    );
+    const messengerLink = buildMessengerLinkFields(data);
+    if (messengerLink) {
+      try {
+        await bitrixPost(
+          "crm.contact.update",
+          { id: contactId, fields: messengerLink },
+          messenger,
+        );
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[bitrix] не удалось привязать мессенджер к контакту ${contactId}: ${message}`,
+        );
+      }
+    }
+  } else {
+    contactId = await bitrixPost<number>(
+      "crm.contact.add",
+      {
+        fields: buildContactFields(data),
+      },
+      messenger,
+    );
+  }
 
   const dealId = await bitrixPost<number>(
     "crm.deal.add",
