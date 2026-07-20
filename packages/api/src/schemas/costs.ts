@@ -12,4 +12,4 @@ export const addCostSchema = z.object({
   note: z.string().trim().default(""),
 });
 
-export type AddCostInput = z.infer<typeof addCostSchema>;
+export type AddCostInput = z.input<typeof addCostSchema>;
