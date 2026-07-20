@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Card,
   CardContent,
@@ -5,12 +7,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { orpc } from "@/lib/orpc/server";
 import { UnisenderSettingsForm } from "./settings-form";
 
-export default async function EmailSettingsPage() {
-  const settings = await orpc.email.getSettings().catch(() => null);
-
+export default function EmailSettingsPage() {
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
       <div>
@@ -39,7 +38,7 @@ export default async function EmailSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <UnisenderSettingsForm initialSettings={settings} />
+          <UnisenderSettingsForm />
         </CardContent>
       </Card>
     </div>

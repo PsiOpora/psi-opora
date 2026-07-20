@@ -24,9 +24,7 @@ import { orpc } from "@/lib/orpc/client";
 
 type UnisenderSettings = RouterOutputs["email"]["getSettings"];
 
-function toFormValues(
-  settings: UnisenderSettings,
-): UnisenderSettingsInput {
+function toFormValues(settings: UnisenderSettings): UnisenderSettingsInput {
   return {
     apiKey: settings?.apiKey ?? "",
     senderEmail: settings?.senderEmail ?? "",
@@ -34,22 +32,18 @@ function toFormValues(
   };
 }
 
-export function UnisenderSettingsForm({
-  initialSettings,
-}: {
-  initialSettings: UnisenderSettings;
-}) {
+export function UnisenderSettingsForm() {
   const queryClient = useQueryClient();
 
-  const { data: settings } = useQuery(
-    orpc.email.getSettings.queryOptions({
-      initialData: initialSettings,
-    }),
+  const { data: settings, isLoading } = useQuery(
+    orpc.email.getSettings.queryOptions(),
   );
 
   const form = useForm<UnisenderSettingsInput>({
     resolver: zodResolver(unisenderSettingsSchema),
-    defaultValues: toFormValues(initialSettings),
+    defaultValues: toFormValues(null),
+    values: settings === undefined ? undefined : toFormValues(settings),
+    resetOptions: { keepDirtyValues: true },
   });
 
   const mutation = useMutation(
@@ -75,82 +69,88 @@ export function UnisenderSettingsForm({
         )}
         className="flex flex-col gap-4"
       >
-        <FormField
-          control={form.control}
-          name="apiKey"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-xs text-muted-foreground">
-                API-ключ
-              </FormLabel>
-              <FormControl>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  className="font-mono text-sm"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+        <fieldset disabled={isLoading} className="contents">
+          <FormField
+            control={form.control}
+            name="apiKey"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs text-muted-foreground">
+                  API-ключ
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    className="font-mono text-sm"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="senderEmail"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-muted-foreground">
+                    Email отправителя
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      placeholder="hello@psi-opora.ru"
+                      className="font-mono text-sm"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="senderName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-muted-foreground">
+                    Имя отправителя
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Психологический центр «Опора»"
+                      className="font-mono text-sm"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          {settings?.updatedAt && (
+            <p className="text-xs text-muted-foreground">
+              Сохранено: {new Date(settings.updatedAt).toLocaleString("ru-RU")}
+            </p>
           )}
-        />
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="senderEmail"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs text-muted-foreground">
-                  Email отправителя
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    type="email"
-                    placeholder="hello@psi-opora.ru"
-                    className="font-mono text-sm"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="senderName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs text-muted-foreground">
-                  Имя отправителя
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Психологический центр «Опора»"
-                    className="font-mono text-sm"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {settings?.updatedAt && (
-          <p className="text-xs text-muted-foreground">
-            Сохранено: {new Date(settings.updatedAt).toLocaleString("ru-RU")}
-          </p>
-        )}
-
-        <Button
-          type="submit"
-          disabled={mutation.isPending}
-          className="self-start"
-        >
-          {mutation.isPending ? "Сохраняем…" : "Сохранить"}
-        </Button>
+          <Button
+            type="submit"
+            disabled={mutation.isPending}
+            className="self-start"
+          >
+            {mutation.isPending
+              ? "Сохраняем…"
+              : isLoading
+                ? "Загрузка…"
+                : "Сохранить"}
+          </Button>
+        </fieldset>
       </form>
     </Form>
   );
