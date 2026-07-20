@@ -75,13 +75,32 @@ const MESSENGER_WZ_ID_FIELD: Record<string, string> = {
   telegram: "UF_CRM_TELEGRAMID_WZ",
 };
 
+// Значение IM-поля в формате Открытых линий (`imol|{connector}|{line}|{user_id}|{chat_id}`) —
+// именно в таком виде Битрикс делает иконку мессенджера кликабельной и открывает диалог
+// открытой линии из карточки CRM. Без chatId/lineId (чат ещё не привязан к линии) откатываемся
+// на голый ID пользователя — как и раньше, просто справочная запись.
+function buildImValue(
+  messenger: string,
+  userId: number,
+  chatId?: number,
+): string {
+  const lineId = getEnv(messenger, "BITRIX_OPEN_LINE_ID");
+  if (!chatId || !lineId) return String(userId);
+  return `imol|${messenger}|${lineId}|${userId}|${chatId}`;
+}
+
 /** Поля привязки мессенджера к контакту (IM + UF Wazzup-ID) — используются и при создании, и при линковке к уже найденному контакту. */
 function buildMessengerLinkFields(data: DealData) {
   if (!data.telegramUserId) return null;
   const messenger = data.messenger ?? "telegram";
   const wzIdField = MESSENGER_WZ_ID_FIELD[messenger];
   return {
-    IM: [{ VALUE: String(data.telegramUserId), VALUE_TYPE: messenger }],
+    IM: [
+      {
+        VALUE: buildImValue(messenger, data.telegramUserId, data.chatId),
+        VALUE_TYPE: messenger,
+      },
+    ],
     ...(wzIdField ? { [wzIdField]: String(data.telegramUserId) } : {}),
   };
 }
