@@ -9,6 +9,7 @@ import {
 import { parseDateRange } from "@/lib/analytics/date-range";
 import { fetchDeals } from "@/lib/analytics/deals";
 import { utmHint } from "@/lib/analytics/utm-tags";
+import { getBitrixPortalDomain } from "@/lib/bitrix/deal-link";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import { GroupBarChart } from "@/components/dashboard/group-bar-chart";
 import { GroupStatsCard } from "@/components/dashboard/group-stats-card";
@@ -24,7 +25,10 @@ export default async function UtmReportPage({
   if (!api) return <NotConnected />;
 
   const range = parseDateRange(await searchParams);
-  const deals = await fetchDeals(api, range);
+  const [deals, dealDomain] = await Promise.all([
+    fetchDeals(api, range),
+    getBitrixPortalDomain(),
+  ]);
 
   const dimensions = [
     {
@@ -99,6 +103,7 @@ export default async function UtmReportPage({
               columnLabel={dim.columnLabel}
               csvName={`utm-${dim.value}.csv`}
               data={dim.data}
+              dealDomain={dealDomain}
             />
           </TabsContent>
         ))}

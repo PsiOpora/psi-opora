@@ -18,6 +18,7 @@ export function GroupStatsCard({
   columnLabel,
   csvName,
   data,
+  dealDomain,
 }: {
   title: string;
   description: string;
@@ -25,6 +26,7 @@ export function GroupStatsCard({
   columnLabel: string;
   csvName: string;
   data: GroupStats[];
+  dealDomain?: string | null;
 }) {
   const csvRows = data.map((row) => [
     row.label,
@@ -59,7 +61,11 @@ export function GroupStatsCard({
         </CardAction>
       </CardHeader>
       <CardContent>
-        <GroupStatsTable columnLabel={columnLabel} data={data} />
+        <GroupStatsTable
+          columnLabel={columnLabel}
+          data={data}
+          dealDomain={dealDomain}
+        />
       </CardContent>
     </Card>
   );

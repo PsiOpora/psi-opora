@@ -27,5 +27,4 @@ export {
   type SendConsultationRemindersResult,
   handleConsultationDealUpdate,
   sendConsultationReminders,
-  stripBitrixBbCode,
 } from "./consultation-reminders";

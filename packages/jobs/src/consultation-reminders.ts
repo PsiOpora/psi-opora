@@ -1,4 +1,5 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
+import { getScenarioTexts } from "@psi-opora/bot-core";
 import type { Redis } from "@upstash/redis";
 
 // Портал psi-opora.bitrix24.ru: воронка и стадии сделки, на которых
@@ -9,8 +10,6 @@ const DEAL_STAGE_IDS = ["EXECUTING", "UC_WWIO8W"];
 const CONSULTATION_DT_FIELD = "UF_CRM_1779802779513";
 const MESSENGER_FIELD = "UF_CRM_1779643796551";
 const RESPONSIBLE_USER_ID = 1;
-const TEMPLATE_CONTACT_ID = 6860;
-const TEMPLATE_CONTACT_FIELD = "COMMENTS";
 
 // Значения поля "Мессенджер" → подстрока CONNECTOR_ID чата Открытой линии
 // (та же карта ID, что в bot-core/utils/bitrix.ts MESSENGER_FIELD_VALUES).
@@ -71,27 +70,22 @@ function toTimestamp(iso: string): number {
   return Number.isFinite(ts) ? ts : 0;
 }
 
-/** Убирает BBCode из шаблона сообщения (описание контакта-шаблона в CRM). */
-export function stripBitrixBbCode(message: string): string {
-  let text = message.trim();
-  if (!text) return "";
+/** Время консультации по Москве для подстановки в шаблон напоминания, напр. "11:00". */
+function formatConsultationTime(iso: string): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Europe/Moscow",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
 
-  text = text.replace(/\[br\s*\/?\]/gi, "\n");
-  text = text.replace(/\[\/?p\s*\]/gi, "\n");
-  text = text.replace(/\[\/?quote[^\]]*\]/gi, "");
-  text = text.replace(/\[\/?b\s*\]/gi, "");
-  text = text.replace(/\[\/?i\s*\]/gi, "");
-  text = text.replace(/\[\/?u\s*\]/gi, "");
-  text = text.replace(/\[\/?code[^\]]*\]/gi, "");
-  text = text.replace(/\[\/?list[^\]]*\]/gi, "");
-  text = text.replace(/\[\/?li\s*\]/gi, "- ");
-  text = text.replace(/\[\/?url[^\]]*\]/gi, "");
-  text = text.replace(/\[[^\]]+\]/g, "");
-
-  text = text.replace(/\r\n?/g, "\n");
-  text = text.replace(/\n{3,}/g, "\n\n");
-
-  return text.trim();
+function renderReminderMessage(
+  template: string,
+  vars: { name: string; time: string },
+): string {
+  return template
+    .replaceAll("{name}", vars.name)
+    .replaceAll("{time}", vars.time);
 }
 
 function extractClientContactId(deal: Record<string, unknown>): number {
@@ -377,15 +371,20 @@ async function trySendOneHourReminder(
   const clientContactId = extractClientContactId(deal);
   if (clientContactId <= 0) return { action: "skip", reason: "no_client_contact" };
 
-  const templateContact = await api.call<Record<string, unknown> | false>(
+  const texts = await getScenarioTexts();
+  const template = texts.consultation_reminder_template?.trim();
+  if (!template) return { action: "skip", reason: "empty_template_message" };
+
+  const contact = await api.call<Record<string, unknown> | false>(
     "crm.contact.get",
-    { id: TEMPLATE_CONTACT_ID },
+    { id: clientContactId },
   );
-  const rawMessage = templateContact
-    ? String(templateContact[TEMPLATE_CONTACT_FIELD] ?? "")
-    : "";
-  const message = stripBitrixBbCode(rawMessage);
-  if (!message) return { action: "skip", reason: "empty_template_message" };
+  const clientName = contact ? String(contact.NAME ?? "").trim() : "";
+
+  const message = renderReminderMessage(template, {
+    name: clientName,
+    time: formatConsultationTime(dealConsultationAt),
+  });
 
   const chatId = await pickChatIdForConnector(api, clientContactId, connectorContains);
   if (chatId <= 0) return { action: "skip", reason: "no_openlines_chat" };

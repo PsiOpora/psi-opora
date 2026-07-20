@@ -23,6 +23,14 @@ export interface DealRecord {
   utmTerm: string;
 }
 
+export interface DealSummary {
+  id: string;
+  title: string;
+  status: DealStatus;
+  opportunity: number;
+  dateCreate: Date;
+}
+
 export interface GroupStats {
   key: string;
   label: string;
@@ -31,6 +39,8 @@ export interface GroupStats {
   opportunitySum: number;
   wonSum: number;
   conversionRate: number;
+  /** Сделки, попавшие в группу — для перехода из отчёта в карточки CRM. */
+  items: DealSummary[];
 }
 
 export interface Summary {

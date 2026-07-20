@@ -69,6 +69,13 @@ export function computeGroupStats(
       opportunitySum,
       wonSum,
       conversionRate: closed > 0 ? won.length / closed : 0,
+      items: group.map((d) => ({
+        id: d.id,
+        title: d.title,
+        status: d.status,
+        opportunity: d.opportunity,
+        dateCreate: d.dateCreate,
+      })),
     });
   }
   return stats;

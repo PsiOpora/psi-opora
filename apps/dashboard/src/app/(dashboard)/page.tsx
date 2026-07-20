@@ -6,6 +6,7 @@ import {
 } from "@/lib/analytics/aggregate";
 import { parseDateRange, previousRange } from "@/lib/analytics/date-range";
 import { fetchDeals, fetchSourceNames } from "@/lib/analytics/deals";
+import { getBitrixPortalDomain } from "@/lib/bitrix/deal-link";
 import { getBitrixApi } from "@/lib/bitrix/session";
 import { GroupStatsCard } from "@/components/dashboard/group-stats-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
@@ -23,10 +24,11 @@ export default async function OverviewPage({
   if (!api) return <NotConnected />;
 
   const range = parseDateRange(await searchParams);
-  const [deals, previousDeals, sourceNames] = await Promise.all([
+  const [deals, previousDeals, sourceNames, dealDomain] = await Promise.all([
     fetchDeals(api, range),
     fetchDeals(api, previousRange(range)),
     fetchSourceNames(api),
+    getBitrixPortalDomain(),
   ]);
   const summary = summarize(deals);
   const previousSummary = summarize(previousDeals);
@@ -45,6 +47,7 @@ export default async function OverviewPage({
           columnLabel="UTM source"
           csvName="top-utm-sources.csv"
           data={topUtm}
+          dealDomain={dealDomain}
         />
         <GroupStatsCard
           title="Топ источников CRM"
@@ -52,6 +55,7 @@ export default async function OverviewPage({
           columnLabel="Источник"
           csvName="top-crm-sources.csv"
           data={topSources}
+          dealDomain={dealDomain}
         />
       </div>
     </div>
