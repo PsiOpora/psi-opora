@@ -11,11 +11,15 @@ const CONSULTATION_DT_FIELD = "UF_CRM_1779802779513";
 const MESSENGER_FIELD = "UF_CRM_1779643796551";
 const RESPONSIBLE_USER_ID = 1;
 
-// Значения поля "Мессенджер" → подстрока CONNECTOR_ID чата Открытой линии
-// (та же карта ID, что в bot-core/utils/bitrix.ts MESSENGER_FIELD_VALUES).
+// Значения поля "Мессенджер" → подстрока CONNECTOR_ID чата Открытой линии.
+// "326" (MAX) подтверждён реальным ответом imopenlines.crm.chat.get
+// (CONNECTOR_ID: "max", без префикса "wz_" — старое значение никогда не
+// совпадало). "328" (Telegram) пока не перепроверен вживую — если
+// напоминания в Telegram не долетают, см. no_openlines_chat в логах и
+// свериться с реальным CONNECTOR_ID через imopenlines.crm.chat.get.
 const MESSENGER_CONNECTOR_MAP: Record<string, string> = {
-  "326": "wz_max",
-  "328": "wz_telegram",
+  "326": "max",
+  "328": "telegram",
 };
 
 // Напоминание шлём, если консультация через 0–65 минут — запас на случай

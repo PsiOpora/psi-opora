@@ -20,17 +20,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { STATUS_LABEL } from "@/lib/analytics/status-label";
 import type { DealRecord, DealStatus } from "@/lib/analytics/types";
 import { formatMoney } from "@/lib/format";
-
-const STATUS_LABEL: Record<
-  DealStatus,
-  { label: string; variant: "default" | "secondary" | "destructive" }
-> = {
-  won: { label: "Выиграна", variant: "default" },
-  lost: { label: "Проиграна", variant: "destructive" },
-  in_progress: { label: "В работе", variant: "secondary" },
-};
 
 function sortableHeader(label: string) {
   return function Header({
