@@ -63,6 +63,13 @@
       "when": 1817983298540,
       "tag": "0008_sparkling_molten_man",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784559959241,
+      "tag": "0009_dusty_overlord",
+      "breakpoints": true
     }
   ]
 }
