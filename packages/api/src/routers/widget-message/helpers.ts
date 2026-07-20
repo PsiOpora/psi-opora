@@ -78,12 +78,6 @@ export async function resolveContact(
   });
   if (!contact) return { error: "Контакт не найден" };
 
-  console.log(
-    "[widget:resolveContact] contactId=%s, IM=%s",
-    contactId,
-    JSON.stringify(contact.IM),
-  );
-
   const channels: WidgetChannel[] = [];
   const telegram = findTelegram(contact, [], { includeUf: false });
   if (telegram?.userId) {
@@ -91,13 +85,6 @@ export async function resolveContact(
   }
   const maxId = findMaxId(contact, [], { includeUf: false });
   if (maxId) channels.push({ messenger: "max", userId: maxId });
-
-  console.log(
-    "[widget:resolveContact] resolved channels=%s, telegram=%s, max=%s",
-    JSON.stringify(channels),
-    JSON.stringify(telegram),
-    maxId ?? "null",
-  );
 
   return {
     contact: {

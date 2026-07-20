@@ -105,8 +105,20 @@ function fieldValues(contact: RawContact, codes: string[]): string[] {
 
 function imValues(contact: RawContact, messenger: Messenger): string[] {
   return (contact.IM ?? [])
-    .filter((im) => im.VALUE_TYPE?.toLowerCase() === messenger && im.VALUE)
-    .map((im) => im.VALUE.trim());
+    .filter((im) => im.VALUE)
+    .flatMap((im) => {
+      const valueType = im.VALUE_TYPE?.toLowerCase() ?? "";
+      if (valueType === messenger) return [im.VALUE.trim()];
+      // Открытые линии Bitrix24 хранят мессенджер в IMOL-поле:
+      // imol|<messenger>|<openLineId>|<userId>|<chatId>
+      if (valueType === "imol" && im.VALUE.trim().startsWith("imol|")) {
+        const parts = im.VALUE.trim().split("|");
+        if (parts[1]?.toLowerCase() === messenger && parts[3]?.trim()) {
+          return [parts[3].trim()];
+        }
+      }
+      return [];
+    });
 }
 
 interface TelegramData {
