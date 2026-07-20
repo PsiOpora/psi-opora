@@ -15,6 +15,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import type { GroupStats } from "@/lib/analytics/types";
+import { InfoHint } from "./info-hint";
 
 const chartConfig = {
   wonSum: { label: "Сумма выигранных", color: "var(--chart-1)" },
@@ -23,10 +24,12 @@ const chartConfig = {
 export function GroupBarChart({
   title,
   description,
+  hint,
   data,
 }: {
   title: string;
   description: string;
+  hint?: string;
   data: GroupStats[];
 }) {
   const top = data.slice(0, 8);
@@ -34,7 +37,10 @@ export function GroupBarChart({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle className="flex items-center gap-1.5">
+          {title}
+          {hint && <InfoHint text={hint} />}
+        </CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
