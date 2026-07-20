@@ -17,6 +17,7 @@ async function createContext(req: Request) {
 
 export const GET = async (req: Request) => {
   const { response } = await handler.handle(req, {
+    prefix: "/api/orpc",
     context: await createContext(req),
   });
   return response ?? new Response("Not found", { status: 404 });
@@ -24,6 +25,7 @@ export const GET = async (req: Request) => {
 
 export const POST = async (req: Request) => {
   const { response } = await handler.handle(req, {
+    prefix: "/api/orpc",
     context: await createContext(req),
   });
   return response ?? new Response("Not found", { status: 404 });
