@@ -25,7 +25,9 @@
         "BITRIX_WEBHOOK_URL",
         "MAX_BOT_ID",
         "MAX_BITRIX_SOURCE_ID",
-        "MAX_BITRIX_SOURCE_NAME"
+        "MAX_BITRIX_SOURCE_NAME",
+        "TRIGGER_PROJECT_REF",
+        "RESEND_API_KEY"
       ]
     },
     "typecheck": {
