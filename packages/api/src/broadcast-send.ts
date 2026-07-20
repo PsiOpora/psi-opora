@@ -114,6 +114,11 @@ interface TelegramData {
   username?: string;
 }
 
+interface MessengerLookupOptions {
+  /** Учитывать UF-поля интеграций в дополнение к IM-полю «Мессенджер». */
+  includeUf?: boolean;
+}
+
 /**
  * Telegram-данные контакта: сначала поле IM (пишут наши боты), затем
  * UF-поля интеграций. Числовое значение — ID (боту нужен именно он),
@@ -122,10 +127,12 @@ interface TelegramData {
 export function findTelegram(
   contact: RawContact,
   ufCodes: string[],
+  options?: MessengerLookupOptions,
 ): TelegramData | null {
+  const includeUf = options?.includeUf ?? true;
   const candidates = [
     ...imValues(contact, "telegram"),
-    ...fieldValues(contact, ufCodes),
+    ...(includeUf ? fieldValues(contact, ufCodes) : []),
   ];
   let username: string | undefined;
   for (const value of candidates) {
@@ -140,10 +147,12 @@ export function findTelegram(
 export function findMaxId(
   contact: RawContact,
   ufCodes: string[],
+  options?: MessengerLookupOptions,
 ): string | null {
+  const includeUf = options?.includeUf ?? true;
   const candidates = [
     ...imValues(contact, "max"),
-    ...fieldValues(contact, ufCodes),
+    ...(includeUf ? fieldValues(contact, ufCodes) : []),
   ];
   return candidates.find((value) => /^\d+$/.test(value)) ?? null;
 }

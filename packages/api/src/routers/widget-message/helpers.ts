@@ -2,7 +2,6 @@ import { listBotMessages } from "@psi-opora/db/queries";
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import type { RawContact } from "../../broadcast-send";
 import {
-  discoverMessengerFields,
   findMaxId,
   findTelegram,
 } from "../../broadcast-send";
@@ -49,8 +48,9 @@ export interface ResolvedContact {
 
 /**
  * Резолвит ID контакта и его каналы (Telegram/MAX) из CRM: для сделки
- * сначала берём привязанный контакт, у контакта ищем мессенджеры в поле IM
- * (пишут наши боты) и UF-полях интеграций — та же логика, что у рассылки.
+ * сначала берём привязанный контакт, у контакта ищем мессенджеры только в
+ * стандартном поле IM (Мессенджер). UF-поля интеграций игнорируются,
+ * потому что менеджер видит и редактирует именно поле Мессенджер.
  *
  * Используется и для отображения виджета, и для отправки — так отправка
  * никогда не доверяет messenger/userId, присланным из браузера напрямую,
@@ -73,18 +73,17 @@ export async function resolveContact(
     }
   }
 
-  const [fields, contact] = await Promise.all([
-    discoverMessengerFields(api),
-    api.call<RawContact>("crm.contact.get", { id: contactId }),
-  ]);
+  const contact = await api.call<RawContact>("crm.contact.get", {
+    id: contactId,
+  });
   if (!contact) return { error: "Контакт не найден" };
 
   const channels: WidgetChannel[] = [];
-  const telegram = findTelegram(contact, fields.telegram);
+  const telegram = findTelegram(contact, [], { includeUf: false });
   if (telegram?.userId) {
     channels.push({ messenger: "telegram", userId: telegram.userId });
   }
-  const maxId = findMaxId(contact, fields.max);
+  const maxId = findMaxId(contact, [], { includeUf: false });
   if (maxId) channels.push({ messenger: "max", userId: maxId });
 
   return {
