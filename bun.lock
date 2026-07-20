@@ -126,6 +126,7 @@
       "dependencies": {
         "@orpc/contract": "^1.14.8",
         "@orpc/server": "^1.14.8",
+        "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
         "@psi-opora/validators": "workspace:*",

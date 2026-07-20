@@ -21,6 +21,7 @@ type RouterInputs = InferRouterInputs<AppRouter>;
 type RouterOutputs = InferRouterOutputs<AppRouter>;
 
 export { createORPCContext } from "./orpc";
+export type { CostEntry } from "./costs-store";
 export { type AppRouter, appRouter } from "./routers";
 export {
   type AdCredentialsInput,

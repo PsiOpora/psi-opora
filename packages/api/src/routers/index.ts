@@ -18,12 +18,14 @@
 
 import { adsRouter } from "./ads";
 import { backupRouter } from "./backup";
+import { costsRouter } from "./costs";
 import { emailRouter } from "./email";
 
-export { adsRouter, backupRouter, emailRouter };
+export { adsRouter, backupRouter, costsRouter, emailRouter };
 export const appRouter = {
   ads: adsRouter,
   backup: backupRouter,
+  costs: costsRouter,
   email: emailRouter,
 };
 

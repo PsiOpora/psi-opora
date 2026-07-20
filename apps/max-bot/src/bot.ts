@@ -43,6 +43,26 @@ function isChatNotFoundError(err: unknown): boolean {
   return (err as { status?: number } | null)?.status === 404;
 }
 
+// Отправка через user_id с повторами: сразу после bot_started диалог
+// в MAX иногда ещё не успевает создаться на их стороне — 404 в первую
+// попытку, но появляется через секунду-другую.
+async function sendToUserWithRetry(
+  ctx: AppContext,
+  userId: number,
+  text: string,
+  options?: Parameters<AppContext["reply"]>[1],
+): Promise<void> {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await ctx.api.sendMessageToUser(userId, text, options);
+      return;
+    } catch (err) {
+      if (!isChatNotFoundError(err) || attempt === 3) throw err;
+      await sleep(1000 * attempt);
+    }
+  }
+}
+
 // Общий хелпер: отправка ответа с fallback на user_id,
 // если чат не существует (404) — например, пользователь удалил
 // переписку с ботом или это устаревший апдейт.
@@ -53,14 +73,14 @@ async function replyWithFallback(
 ): Promise<void> {
   const userId = ctx.user?.user_id;
   if (!ctx.chatId && userId) {
-    await ctx.api.sendMessageToUser(userId, text, options);
+    await sendToUserWithRetry(ctx, userId, text, options);
     return;
   }
   try {
     await ctx.reply(text, options);
   } catch (err) {
     if (isChatNotFoundError(err) && userId) {
-      await ctx.api.sendMessageToUser(userId, text, options);
+      await sendToUserWithRetry(ctx, userId, text, options);
       return;
     }
     throw err;

@@ -23,6 +23,8 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1090.0",
+    "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@psi-opora/validators": "workspace:*",

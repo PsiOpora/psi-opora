@@ -1,8 +1,6 @@
-import { Trash2Icon } from "lucide-react";
-import { ActionButton } from "@/components/dashboard/action-button";
+import type { CostEntry } from "@psi-opora/api";
 import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
 import { NotConnected } from "@/components/dashboard/not-connected";
-import { SubmitButton } from "@/components/dashboard/submit-button";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -12,8 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -26,15 +22,12 @@ import { parseDateRange } from "@/lib/analytics/date-range";
 import { fetchDeals } from "@/lib/analytics/deals";
 import type { DealRecord } from "@/lib/analytics/types";
 import { getBitrixApi } from "@/lib/bitrix/session";
-import { asFormAction } from "@/lib/form-actions";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
-import {
-  type CostEntry,
-  listCosts,
-  monthIntersectsRange,
-} from "@/lib/marketing/costs";
+import { monthIntersectsRange } from "@/lib/marketing/costs";
+import { orpc } from "@/lib/orpc/server";
 import { isRedisConfigured } from "@/lib/redis";
-import { addCostAction, deleteCostAction } from "./actions";
+import { AddCostForm } from "./add-cost-form";
+import { DeleteCostButton } from "./delete-cost-button";
 
 interface RoiRow {
   key: string;
@@ -126,11 +119,10 @@ export default async function CostsPage({
 
   const range = parseDateRange(await searchParams);
   const [costs, deals] = await Promise.all([
-    listCosts(),
+    orpc.costs.list(),
     fetchDeals(api, range),
   ]);
   const roiRows = buildRoiRows(costs, deals, range.from, range.to);
-  const currentMonth = new Date().toISOString().slice(0, 7);
 
   return (
     <div className="flex flex-col gap-4">
@@ -238,94 +230,7 @@ export default async function CostsPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            action={asFormAction(addCostAction)}
-            className="flex flex-wrap items-end gap-3"
-          >
-            <div className="flex flex-col gap-1">
-              <Label
-                htmlFor="cost-month"
-                className="text-xs text-muted-foreground"
-              >
-                Месяц
-              </Label>
-              <Input
-                id="cost-month"
-                name="month"
-                type="month"
-                defaultValue={currentMonth}
-                required
-                className="w-40"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label
-                htmlFor="cost-source"
-                className="text-xs text-muted-foreground"
-              >
-                UTM source
-              </Label>
-              <Input
-                id="cost-source"
-                name="utmSource"
-                placeholder="yandex"
-                required
-                className="w-40"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label
-                htmlFor="cost-campaign"
-                className="text-xs text-muted-foreground"
-              >
-                UTM campaign (не обязательно)
-              </Label>
-              <Input
-                id="cost-campaign"
-                name="utmCampaign"
-                placeholder="promo-june"
-                className="w-44"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label
-                htmlFor="cost-amount"
-                className="text-xs text-muted-foreground"
-              >
-                Сумма, ₽
-              </Label>
-              <Input
-                id="cost-amount"
-                name="amount"
-                type="number"
-                min="1"
-                step="0.01"
-                required
-                className="w-32"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label
-                htmlFor="cost-note"
-                className="text-xs text-muted-foreground"
-              >
-                Заметка
-              </Label>
-              <Input
-                id="cost-note"
-                name="note"
-                placeholder="кабинет Директа"
-                className="w-48"
-              />
-            </div>
-            <SubmitButton
-              action={addCostAction}
-              idleLabel="Добавить"
-              successMessage="Расход добавлен"
-              loadingMessage="Добавляем…"
-              resetOnSuccess
-            />
-          </form>
+          <AddCostForm />
         </CardContent>
       </Card>
 
@@ -370,23 +275,10 @@ export default async function CostsPage({
                       {cost.note}
                     </TableCell>
                     <TableCell>
-                      <ActionButton
-                        action={deleteCostAction}
-                        values={{ id: cost.id }}
-                        variant="ghost"
-                        size="sm"
-                        aria-label="Удалить расход"
-                        successMessage="Расход удалён"
-                        loadingMessage="Удаляем…"
-                        confirm={{
-                          title: "Удалить расход?",
-                          description: `Запись ${cost.month} · ${cost.utmSource} · ${formatMoney(cost.amount)} будет удалена без возможности восстановления.`,
-                          confirmLabel: "Удалить",
-                          destructive: true,
-                        }}
-                      >
-                        <Trash2Icon />
-                      </ActionButton>
+                      <DeleteCostButton
+                        id={cost.id}
+                        label={`${cost.month} · ${cost.utmSource} · ${formatMoney(cost.amount)}`}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

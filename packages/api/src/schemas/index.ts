@@ -8,6 +8,7 @@ export {
   type BackupCredentialsInput,
   backupCredentialsSchema,
 } from "./backup";
+export { type AddCostInput, addCostSchema } from "./costs";
 export {
   type UnisenderSettingsInput,
   unisenderSettingsSchema,
