@@ -1,3 +1,6 @@
+import { fetchWithCa } from "./fetch-with-ca";
+import { RUSSIAN_TRUSTED_ROOT_CA } from "./certs/russian-trusted-ca";
+
 export type Messenger = "telegram" | "max";
 
 /** Inline-кнопка: text — подпись, payload — callback data. */
@@ -117,15 +120,19 @@ async function sendMax(
   for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS + 1; attempt++) {
     const url = new URL("https://platform-api2.max.ru/messages");
     url.searchParams.set("user_id", userId);
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: token },
-      body: JSON.stringify({
-        text,
-        ...(attachments ? { attachments } : {}),
-        ...(withMarkdown ? { format: "markdown" } : {}),
-      }),
-    });
+    const res = await fetchWithCa(
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: token },
+        body: JSON.stringify({
+          text,
+          ...(attachments ? { attachments } : {}),
+          ...(withMarkdown ? { format: "markdown" } : {}),
+        }),
+      },
+      RUSSIAN_TRUSTED_ROOT_CA,
+    );
     if (res.ok) return;
     if (res.status === 400 && withMarkdown) {
       withMarkdown = false;

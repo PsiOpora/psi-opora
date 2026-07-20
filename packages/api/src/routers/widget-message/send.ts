@@ -53,7 +53,13 @@ export const send = publicProcedure
       try {
         await sendMessengerMessage(channel.messenger, channel.userId, text);
       } catch (err) {
-        return { error: `Не отправлено: ${(err as Error).message}` };
+        const error = err as Error;
+        console.error(
+          `[widget] ошибка отправки ${channel.messenger}: ${error.message}`,
+          error.cause ?? "",
+          error.stack ?? "",
+        );
+        return { error: `Не отправлено: ${error.message}` };
       }
 
       // Журнал сообщений — история видна во вкладке при следующем открытии
