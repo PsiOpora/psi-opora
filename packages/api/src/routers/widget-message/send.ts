@@ -7,6 +7,18 @@ import {
 } from "../../schemas/broadcast";
 import { resolveContact } from "./helpers";
 
+const MESSENGER_ERROR_MESSAGES: Record<string, string> = {
+  "error.dialog.notfound":
+    "Диалог с клиентом в MAX не найден — возможно, он не писал боту или удалил чат",
+};
+
+function formatSendError(message: string): string {
+  for (const [code, text] of Object.entries(MESSENGER_ERROR_MESSAGES)) {
+    if (message.includes(code)) return text;
+  }
+  return message;
+}
+
 /**
  * Отправляет сообщение клиенту от имени бота выбранного мессенджера
  * и фиксирует его комментарием в таймлайне контакта.
@@ -59,7 +71,7 @@ export const send = publicProcedure
           error.cause ?? "",
           error.stack ?? "",
         );
-        return { error: `Не отправлено: ${error.message}` };
+        return { error: `Не отправлено: ${formatSendError(error.message)}` };
       }
 
       // Журнал сообщений — история видна во вкладке при следующем открытии

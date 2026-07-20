@@ -1,5 +1,5 @@
 import https from "node:https";
-import { URL } from "node:url";
+import type { URL } from "node:url";
 
 interface FetchResponse {
   ok: boolean;
@@ -48,7 +48,12 @@ export function fetchWithCa(
             }
           }
           resolve({
-            ok: res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 300,
+            ok:
+              res.statusCode !== undefined &&
+              res.statusCode >= 200 &&
+              res.statusCode !== undefined &&
+              res.statusCode >= 200 &&
+              res.statusCode < 300,
             status: res.statusCode ?? 0,
             statusText: res.statusMessage ?? "",
             headers,

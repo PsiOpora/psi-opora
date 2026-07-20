@@ -1,22 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import type * as React from "react";
-import {
-  BoldIcon,
-  CodeIcon,
-  ItalicIcon,
-  Link2Icon,
-  Loader2Icon,
-  SendIcon,
-} from "lucide-react";
-import type { Messenger } from "@psi-opora/jobs";
 import type {
   WidgetEntity,
   WidgetHistoryItem,
   WidgetRecipient,
 } from "@psi-opora/api";
 import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
+import type { Messenger } from "@psi-opora/jobs";
+import {
+  BoldIcon,
+  CheckIcon,
+  CodeIcon,
+  ItalicIcon,
+  Link2Icon,
+  Loader2Icon,
+  SendIcon,
+  XIcon,
+} from "lucide-react";
+import type * as React from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,8 +68,20 @@ const MARKDOWN_ACTIONS: Array<{
   after: string;
   placeholder: string;
 }> = [
-  { label: "Жирный", icon: BoldIcon, before: "*", after: "*", placeholder: "жирный текст" },
-  { label: "Курсив", icon: ItalicIcon, before: "_", after: "_", placeholder: "курсив" },
+  {
+    label: "Жирный",
+    icon: BoldIcon,
+    before: "*",
+    after: "*",
+    placeholder: "жирный текст",
+  },
+  {
+    label: "Курсив",
+    icon: ItalicIcon,
+    before: "_",
+    after: "_",
+    placeholder: "курсив",
+  },
   { label: "Код", icon: CodeIcon, before: "`", after: "`", placeholder: "код" },
 ];
 
@@ -75,6 +89,8 @@ const MESSENGER_LABELS: Record<Messenger, string> = {
   telegram: "Telegram",
   max: "MAX",
 };
+
+const ALL_MESSENGERS: Messenger[] = ["telegram", "max"];
 
 const SOURCE_LABELS: Record<string, string> = {
   reminder: "напоминание",
@@ -133,7 +149,9 @@ function HistoryList({ history }: { history: HistoryEntry[] }) {
             })}
             {" · "}
             {item.direction === "out" ? "бот" : "клиент"}
-            {SOURCE_LABELS[item.source] ? ` · ${SOURCE_LABELS[item.source]}` : ""}
+            {SOURCE_LABELS[item.source]
+              ? ` · ${SOURCE_LABELS[item.source]}`
+              : ""}
             {" · "}
             {MESSENGER_LABELS[item.messenger]}
             {item.pending ? " · отправляется…" : ""}
@@ -165,11 +183,7 @@ function mergeHistory(
         item.text === msg.text,
     );
     if (pendingIdx !== -1) {
-      next = [
-        ...next.slice(0, pendingIdx),
-        msg,
-        ...next.slice(pendingIdx + 1),
-      ];
+      next = [...next.slice(0, pendingIdx), msg, ...next.slice(pendingIdx + 1)];
     } else {
       next = [...next, msg];
     }
@@ -212,11 +226,15 @@ export function MessageWidget({
       const start = el?.selectionStart ?? text.length;
       const end = el?.selectionEnd ?? text.length;
       const selected = text.slice(start, end) || placeholder;
-      const next = text.slice(0, start) + before + selected + after + text.slice(end);
+      const next =
+        text.slice(0, start) + before + selected + after + text.slice(end);
       setText(next);
       requestAnimationFrame(() => {
         el?.focus();
-        el?.setSelectionRange(start + before.length, start + before.length + selected.length);
+        el?.setSelectionRange(
+          start + before.length,
+          start + before.length + selected.length,
+        );
       });
     },
     [text],
@@ -259,7 +277,11 @@ export function MessageWidget({
         sinceRef.current =
           loaded.history[loaded.history.length - 1]?.createdAt ??
           new Date().toISOString();
-        setChannel(loaded.channels[0]?.messenger ?? null);
+        setChannel(
+          ALL_MESSENGERS.find((m) =>
+            loaded.channels.some((c) => c.messenger === m),
+          ) ?? null,
+        );
       })
       .catch((err) => setLoadError((err as Error).message))
       .finally(() => setLoading(false));
@@ -397,17 +419,8 @@ export function MessageWidget({
 
   if (!recipient) return null;
 
-  if (recipient.channels.length === 0) {
-    return (
-      <div className="py-4 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">{recipient.contactName}</p>
-        <p className="mt-2">
-          {recipient.note ??
-            "У контакта не найден Telegram или MAX. Мессенджер появляется в полях контакта, когда клиент пишет нашему боту."}
-        </p>
-      </div>
-    );
-  }
+  // Если каналов нет, форму всё равно показываем — кнопки каналов будут
+  // отключены, а подсказка выведена в блоке выбора канала.
 
   return (
     <div className="flex max-w-xl flex-col gap-4">
@@ -420,32 +433,49 @@ export function MessageWidget({
 
       <HistoryList history={history} />
 
-      {recipient.channels.length > 1 && (
-        <div className="flex gap-2">
-          {recipient.channels.map((c) => (
-            <button
-              key={c.messenger}
-              type="button"
-              onClick={() => setChannel(c.messenger)}
-              className={cn(
-                "rounded-md border px-3 py-1.5 text-sm transition-colors",
-                channel === c.messenger
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "hover:bg-muted",
-              )}
-            >
-              {MESSENGER_LABELS[c.messenger]}
-            </button>
-          ))}
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-muted-foreground">Канал отправки</p>
+        <div className="flex flex-wrap gap-2">
+          {ALL_MESSENGERS.map((m) => {
+            const available = recipient.channels.some((c) => c.messenger === m);
+            const selected = channel === m;
+            return (
+              <button
+                key={m}
+                type="button"
+                disabled={!available}
+                onClick={() => available && setChannel(m)}
+                title={
+                  available
+                    ? "Заполнено в карточке контакта"
+                    : "Не заполнено в карточке контакта"
+                }
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors",
+                  selected
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : available
+                      ? "hover:bg-muted"
+                      : "cursor-not-allowed opacity-60",
+                )}
+              >
+                {available ? (
+                  <CheckIcon className="size-3.5 text-emerald-500" />
+                ) : (
+                  <XIcon className="size-3.5 text-muted-foreground" />
+                )}
+                {MESSENGER_LABELS[m]}
+              </button>
+            );
+          })}
         </div>
-      )}
-
-      {recipient.channels.length === 1 && (
-        <p className="text-xs text-muted-foreground">
-          Канал:{" "}
-          {MESSENGER_LABELS[recipient.channels[0]?.messenger ?? "telegram"]}
-        </p>
-      )}
+        {recipient.channels.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            {recipient.note ??
+              "У контакта не найден Telegram или MAX. Мессенджер появляется в полях контакта, когда клиент пишет нашему боту."}
+          </p>
+        )}
+      </div>
 
       <div className="flex flex-col gap-1.5">
         <Label
@@ -455,19 +485,21 @@ export function MessageWidget({
           Текст сообщения (поддерживается Markdown)
         </Label>
         <div className="flex gap-1 rounded-t-md border border-b-0 bg-muted/40 p-1">
-          {MARKDOWN_ACTIONS.map(({ label, icon: Icon, before, after, placeholder }) => (
-            <Button
-              key={label}
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              title={label}
-              aria-label={label}
-              onClick={() => wrapSelection(before, after, placeholder)}
-            >
-              <Icon className="size-3.5" />
-            </Button>
-          ))}
+          {MARKDOWN_ACTIONS.map(
+            ({ label, icon: Icon, before, after, placeholder }) => (
+              <Button
+                key={label}
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                title={label}
+                aria-label={label}
+                onClick={() => wrapSelection(before, after, placeholder)}
+              >
+                <Icon className="size-3.5" />
+              </Button>
+            ),
+          )}
           <Button
             type="button"
             variant="ghost"
