@@ -22,6 +22,7 @@ export {
 export { type CrmBackupPayload, crmBackup } from "./trigger/crm-backup";
 export { scenarioReminders } from "./trigger/scenario-reminders";
 export { consultationReminders } from "./trigger/consultation-reminders";
+export { maxWebhookHealthcheck } from "./trigger/max-webhook-healthcheck";
 export {
   type ConsultationDealUpdateResult,
   type SendConsultationRemindersResult,

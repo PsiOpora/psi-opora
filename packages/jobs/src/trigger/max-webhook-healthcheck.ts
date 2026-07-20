@@ -1,0 +1,64 @@
+import { schedules } from "@trigger.dev/sdk";
+import { RUSSIAN_TRUSTED_ROOT_CA } from "../certs/russian-trusted-ca";
+import { fetchWithCa } from "../fetch-with-ca";
+
+const MAX_API_ROOT = "https://platform-api2.max.ru";
+
+interface MaxSubscription {
+  url: string;
+}
+
+interface MaxSubscriptionsResponse {
+  subscriptions?: MaxSubscription[];
+}
+
+/**
+ * MAX не даёт одновременно получать апдейты через long-polling (getUpdates)
+ * и через webhook — старт polling (bot.start() из apps/max-bot/src/dev.ts,
+ * запущенный локально или по ошибке где-то ещё) снимает активную
+ * webhook-подписку на прод-URL. Раз в 10 минут проверяем, что подписка жива,
+ * и восстанавливаем её, если платформа её сбросила.
+ */
+export const maxWebhookHealthcheck = schedules.task({
+  id: "max-webhook-healthcheck",
+  cron: "*/10 * * * *",
+  run: async () => {
+    const token = process.env.MAX_BOT_TOKEN;
+    const webhookUrl = process.env.MAX_WEBHOOK_URL;
+    if (!token || !webhookUrl) {
+      throw new Error("MAX_BOT_TOKEN или MAX_WEBHOOK_URL не заданы");
+    }
+    const webhookEndpoint = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
+
+    const listRes = await fetchWithCa(
+      new URL(`${MAX_API_ROOT}/subscriptions`),
+      { headers: { Authorization: token } },
+      RUSSIAN_TRUSTED_ROOT_CA,
+    );
+    if (!listRes.ok) {
+      throw new Error(`MAX GET /subscriptions HTTP ${listRes.status}`);
+    }
+    const json = (await listRes.json()) as MaxSubscriptionsResponse;
+    const isActive =
+      json.subscriptions?.some((s) => s.url === webhookEndpoint) ?? false;
+    if (isActive) return { restored: false };
+
+    const setRes = await fetchWithCa(
+      new URL(`${MAX_API_ROOT}/subscriptions`),
+      {
+        method: "POST",
+        headers: { Authorization: token, "Content-Type": "application/json" },
+        body: JSON.stringify({ url: webhookEndpoint }),
+      },
+      RUSSIAN_TRUSTED_ROOT_CA,
+    );
+    if (!setRes.ok) {
+      const errJson = await setRes.json().catch(() => null);
+      throw new Error(
+        `MAX POST /subscriptions HTTP ${setRes.status}: ${JSON.stringify(errJson)}`,
+      );
+    }
+
+    return { restored: true, url: webhookEndpoint };
+  },
+});
