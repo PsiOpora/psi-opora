@@ -4,42 +4,10 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { tasks } from "@trigger.dev/sdk";
 import { env } from "@psi-opora/config";
-import {
-  createBackupRun,
-  finishBackupRun,
-  upsertBackupCredentials,
-} from "@psi-opora/db/queries";
+import { createBackupRun, finishBackupRun } from "@psi-opora/db/queries";
 import type { crmBackup } from "@psi-opora/jobs";
 import { executeCrmBackup } from "@psi-opora/jobs";
 import { MEMBER_ID_COOKIE, getBitrixApi } from "@/lib/bitrix/session";
-
-export async function saveBackupCredentialsAction(
-  formData: FormData,
-): Promise<{ ok: boolean; error?: string }> {
-  const s3Endpoint =
-    String(formData.get("s3Endpoint") ?? "").trim() || undefined;
-  const s3Region = String(formData.get("s3Region") ?? "").trim() || undefined;
-  const s3Bucket = String(formData.get("s3Bucket") ?? "").trim() || undefined;
-  const s3AccessKeyId =
-    String(formData.get("s3AccessKeyId") ?? "").trim() || undefined;
-  const s3SecretAccessKey =
-    String(formData.get("s3SecretAccessKey") ?? "").trim() || undefined;
-
-  try {
-    await upsertBackupCredentials({
-      s3Endpoint,
-      s3Region,
-      s3Bucket,
-      s3AccessKeyId,
-      s3SecretAccessKey,
-    });
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
-
-  revalidatePath("/settings/backup");
-  return { ok: true };
-}
 
 export interface RunBackupResult {
   ok: boolean;

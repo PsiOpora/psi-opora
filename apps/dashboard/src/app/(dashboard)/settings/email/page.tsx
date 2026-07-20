@@ -1,4 +1,3 @@
-import { getUnisenderSettings } from "@psi-opora/db/queries";
 import {
   Card,
   CardContent,
@@ -6,14 +5,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { asFormAction } from "@/lib/form-actions";
-import { SubmitButton } from "@/components/dashboard/submit-button";
-import { saveUnisenderSettingsAction } from "./actions";
+import { orpc } from "@/lib/orpc/server";
+import { UnisenderSettingsForm } from "./settings-form";
 
 export default async function EmailSettingsPage() {
-  const settings = await getUnisenderSettings().catch(() => null);
+  const settings = await orpc.email.getSettings().catch(() => null);
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
@@ -43,68 +39,7 @@ export default async function EmailSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={asFormAction(saveUnisenderSettingsAction)} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="apiKey" className="text-xs text-muted-foreground">
-                API-ключ
-              </Label>
-              <Input
-                id="apiKey"
-                name="apiKey"
-                type="password"
-                defaultValue={settings?.apiKey ?? ""}
-                placeholder="••••••••"
-                className="font-mono text-sm"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  htmlFor="senderEmail"
-                  className="text-xs text-muted-foreground"
-                >
-                  Email отправителя
-                </Label>
-                <Input
-                  id="senderEmail"
-                  name="senderEmail"
-                  type="email"
-                  defaultValue={settings?.senderEmail ?? ""}
-                  placeholder="hello@psi-opora.ru"
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  htmlFor="senderName"
-                  className="text-xs text-muted-foreground"
-                >
-                  Имя отправителя
-                </Label>
-                <Input
-                  id="senderName"
-                  name="senderName"
-                  defaultValue={settings?.senderName ?? ""}
-                  placeholder="Психологический центр «Опора»"
-                  className="font-mono text-sm"
-                />
-              </div>
-            </div>
-
-            {settings?.updatedAt && (
-              <p className="text-xs text-muted-foreground">
-                Сохранено: {settings.updatedAt.toLocaleString("ru-RU")}
-              </p>
-            )}
-
-            <SubmitButton
-              action={saveUnisenderSettingsAction}
-              idleLabel="Сохранить"
-              successMessage="Настройки Unisender сохранены"
-              className="self-start"
-            />
-          </form>
+          <UnisenderSettingsForm initialSettings={settings} />
         </CardContent>
       </Card>
     </div>

@@ -3,8 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { RouterOutputs } from "@psi-opora/api";
 import {
-  type AdCredentialsInput,
-  adCredentialsSchema,
+  type BackupCredentialsInput,
+  backupCredentialsSchema,
 } from "@psi-opora/api/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -19,49 +19,46 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { blankToUndefined } from "@/lib/blank-to-undefined";
 import { orpc } from "@/lib/orpc/client";
 
-type AdCredentials = RouterOutputs["ads"]["getCredentials"];
+type BackupCredentials = RouterOutputs["backup"]["getCredentials"];
 
-function toFormValues(creds: AdCredentials): AdCredentialsInput {
+function toFormValues(creds: BackupCredentials): BackupCredentialsInput {
   return {
-    yandexClientId: creds?.yandexClientId ?? "",
-    yandexClientSecret: creds?.yandexClientSecret ?? "",
-    yandexRefreshToken: creds?.yandexRefreshToken ?? "",
-    vkAccessToken: creds?.vkAccessToken ?? "",
-    vkAdsAccountId: creds?.vkAdsAccountId ?? "",
+    s3Endpoint: creds?.s3Endpoint ?? "",
+    s3Region: creds?.s3Region ?? "ru-central1",
+    s3Bucket: creds?.s3Bucket ?? "",
+    s3AccessKeyId: creds?.s3AccessKeyId ?? "",
+    s3SecretAccessKey: creds?.s3SecretAccessKey ?? "",
   };
 }
 
-export function AdCredentialsForm({
+export function BackupCredentialsForm({
   initialCredentials,
 }: {
-  initialCredentials: AdCredentials;
+  initialCredentials: BackupCredentials;
 }) {
   const queryClient = useQueryClient();
 
   const { data: creds } = useQuery(
-    orpc.ads.getCredentials.queryOptions({
+    orpc.backup.getCredentials.queryOptions({
       initialData: initialCredentials,
     }),
   );
 
-  const form = useForm<AdCredentialsInput>({
-    resolver: zodResolver(adCredentialsSchema),
+  const form = useForm<BackupCredentialsInput>({
+    resolver: zodResolver(backupCredentialsSchema),
     defaultValues: toFormValues(initialCredentials),
   });
 
   const mutation = useMutation(
-    orpc.ads.upsertCredentials.mutationOptions({
+    orpc.backup.upsertCredentials.mutationOptions({
       onSuccess: () => {
-        toast.success("Настройки рекламы сохранены");
-        // Сбрасывает флаг "изменено" формы, оставляя введённые значения как есть
-        // (не значения с undefined, отправленные на сервер вместо пустых полей).
+        toast.success("Настройки S3 сохранены");
         form.reset(form.getValues());
         queryClient.invalidateQueries({
-          queryKey: orpc.ads.getCredentials.key(),
+          queryKey: orpc.backup.getCredentials.key(),
         });
       },
       onError: (error) => {
@@ -81,15 +78,15 @@ export function AdCredentialsForm({
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="yandexClientId"
+            name="s3Endpoint"
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-xs text-muted-foreground">
-                  Client ID
+                  Endpoint
                 </FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="abc123def456"
+                    placeholder="https://storage.yandexcloud.net"
                     className="font-mono text-sm"
                     {...field}
                   />
@@ -100,16 +97,15 @@ export function AdCredentialsForm({
           />
           <FormField
             control={form.control}
-            name="yandexClientSecret"
+            name="s3Region"
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-xs text-muted-foreground">
-                  Client Secret
+                  Регион
                 </FormLabel>
                 <FormControl>
                   <Input
-                    type="password"
-                    placeholder="••••••••"
+                    placeholder="ru-central1"
                     className="font-mono text-sm"
                     {...field}
                   />
@@ -122,16 +118,15 @@ export function AdCredentialsForm({
 
         <FormField
           control={form.control}
-          name="yandexRefreshToken"
+          name="s3Bucket"
           render={({ field }) => (
             <FormItem>
               <FormLabel className="text-xs text-muted-foreground">
-                Refresh Token
+                Бакет
               </FormLabel>
               <FormControl>
                 <Input
-                  type="password"
-                  placeholder="••••••••"
+                  placeholder="psi-opora-crm-backups"
                   className="font-mono text-sm"
                   {...field}
                 />
@@ -141,37 +136,18 @@ export function AdCredentialsForm({
           )}
         />
 
-        <Separator />
-
-        <div className="flex flex-col gap-1">
-          <h3 className="text-lg font-medium">VK Реклама</h3>
-          <p className="text-sm text-muted-foreground">
-            Получите токен в{" "}
-            <a
-              href="https://ads.vk.com/hq/settings"
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2"
-            >
-              кабинете VK Реклама
-            </a>{" "}
-            (раздел Настройки → Доступ к API).
-          </p>
-        </div>
-
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="vkAccessToken"
+            name="s3AccessKeyId"
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-xs text-muted-foreground">
-                  Access Token
+                  Access Key ID
                 </FormLabel>
                 <FormControl>
                   <Input
-                    type="password"
-                    placeholder="••••••••"
+                    placeholder="YCAJE..."
                     className="font-mono text-sm"
                     {...field}
                   />
@@ -182,15 +158,16 @@ export function AdCredentialsForm({
           />
           <FormField
             control={form.control}
-            name="vkAdsAccountId"
+            name="s3SecretAccessKey"
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-xs text-muted-foreground">
-                  Ads Account ID
+                  Secret Access Key
                 </FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="123456789"
+                    type="password"
+                    placeholder="••••••••"
                     className="font-mono text-sm"
                     {...field}
                   />

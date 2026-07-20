@@ -4,3 +4,11 @@
  * серверного кода (db, better-auth) в клиентский бандл.
  */
 export { type AdCredentialsInput, adCredentialsSchema } from "./ads";
+export {
+  type BackupCredentialsInput,
+  backupCredentialsSchema,
+} from "./backup";
+export {
+  type UnisenderSettingsInput,
+  unisenderSettingsSchema,
+} from "./unisender";

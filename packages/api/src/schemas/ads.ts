@@ -11,11 +11,7 @@ export const adCredentialsSchema = z.object({
   yandexClientSecret: z.string().trim().optional(),
   yandexRefreshToken: z.string().trim().optional(),
   vkAccessToken: z.string().trim().optional(),
-  vkAdsAccountId: z
-    .string()
-    .trim()
-    .regex(/^\d*$/, "Ads Account ID — только цифры")
-    .optional(),
+  vkAdsAccountId: z.string().trim().optional(),
 });
 
 export type AdCredentialsInput = z.infer<typeof adCredentialsSchema>;

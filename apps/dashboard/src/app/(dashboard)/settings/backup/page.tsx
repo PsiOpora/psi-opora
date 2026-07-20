@@ -1,4 +1,3 @@
-import { getBackupCredentials, listBackupRuns } from "@psi-opora/db/queries";
 import {
   Card,
   CardContent,
@@ -6,8 +5,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -17,10 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { asFormAction } from "@/lib/form-actions";
-import { SubmitButton } from "@/components/dashboard/submit-button";
-import { saveBackupCredentialsAction } from "./actions";
+import { orpc } from "@/lib/orpc/server";
 import { AutoRefresh } from "./auto-refresh";
+import { BackupCredentialsForm } from "./credentials-form";
 import { RunBackupButton } from "./run-backup-button";
 
 function formatBytes(bytes: number | null): string {
@@ -37,10 +33,8 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default async function BackupSettingsPage() {
   const [creds, runs] = await Promise.all([
-    getBackupCredentials().catch(() => null),
-    listBackupRuns().catch(
-      () => [] as Awaited<ReturnType<typeof listBackupRuns>>,
-    ),
+    orpc.backup.getCredentials().catch(() => null),
+    orpc.backup.listRuns().catch(() => []),
   ]);
 
   const hasRunningBackup = runs.some((run) => run.status === "running");
@@ -75,103 +69,7 @@ export default async function BackupSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={asFormAction(saveBackupCredentialsAction)} className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  htmlFor="s3Endpoint"
-                  className="text-xs text-muted-foreground"
-                >
-                  Endpoint
-                </Label>
-                <Input
-                  id="s3Endpoint"
-                  name="s3Endpoint"
-                  defaultValue={creds?.s3Endpoint ?? ""}
-                  placeholder="https://storage.yandexcloud.net"
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  htmlFor="s3Region"
-                  className="text-xs text-muted-foreground"
-                >
-                  Регион
-                </Label>
-                <Input
-                  id="s3Region"
-                  name="s3Region"
-                  defaultValue={creds?.s3Region ?? "ru-central1"}
-                  placeholder="ru-central1"
-                  className="font-mono text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label
-                htmlFor="s3Bucket"
-                className="text-xs text-muted-foreground"
-              >
-                Бакет
-              </Label>
-              <Input
-                id="s3Bucket"
-                name="s3Bucket"
-                defaultValue={creds?.s3Bucket ?? ""}
-                placeholder="psi-opora-crm-backups"
-                className="font-mono text-sm"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  htmlFor="s3AccessKeyId"
-                  className="text-xs text-muted-foreground"
-                >
-                  Access Key ID
-                </Label>
-                <Input
-                  id="s3AccessKeyId"
-                  name="s3AccessKeyId"
-                  defaultValue={creds?.s3AccessKeyId ?? ""}
-                  placeholder="YCAJE..."
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  htmlFor="s3SecretAccessKey"
-                  className="text-xs text-muted-foreground"
-                >
-                  Secret Access Key
-                </Label>
-                <Input
-                  id="s3SecretAccessKey"
-                  name="s3SecretAccessKey"
-                  type="password"
-                  defaultValue={creds?.s3SecretAccessKey ?? ""}
-                  placeholder="••••••••"
-                  className="font-mono text-sm"
-                />
-              </div>
-            </div>
-
-            {creds?.updatedAt && (
-              <p className="text-xs text-muted-foreground">
-                Сохранено: {creds.updatedAt.toLocaleString("ru-RU")}
-              </p>
-            )}
-
-            <SubmitButton
-              action={saveBackupCredentialsAction}
-              idleLabel="Сохранить"
-              successMessage="Настройки S3 сохранены"
-              className="self-start"
-            />
-          </form>
+          <BackupCredentialsForm initialCredentials={creds} />
         </CardContent>
       </Card>
 

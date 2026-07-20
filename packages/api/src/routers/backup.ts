@@ -1,5 +1,5 @@
 import { publicProcedure, router } from "../orpc";
-import { z } from "zod";
+import { backupCredentialsSchema } from "../schemas/backup";
 import {
   getBackupCredentials,
   upsertBackupCredentials,
@@ -12,15 +12,7 @@ export const backupRouter = router({
   }),
 
   upsertCredentials: publicProcedure
-    .input(
-      z.object({
-        s3Endpoint: z.string().optional(),
-        s3Region: z.string().optional(),
-        s3Bucket: z.string().optional(),
-        s3AccessKeyId: z.string().optional(),
-        s3SecretAccessKey: z.string().optional(),
-      }),
-    )
+    .input(backupCredentialsSchema)
     .handler(async ({ input }) => {
       await upsertBackupCredentials(input);
       return { ok: true };
