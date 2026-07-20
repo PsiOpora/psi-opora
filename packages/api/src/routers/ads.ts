@@ -1,6 +1,7 @@
 import { publicProcedure, router } from "../orpc";
 import { z } from "zod";
 import { adCredentialsSchema } from "../schemas/ads";
+import { fetchAdStats, getRedisOrNull } from "../ads-stats";
 import {
   getAdCredentials,
   upsertAdCredentials,
@@ -46,6 +47,19 @@ export const adsRouter = router({
 
       return { summary, rows };
     }),
+
+  refreshStats: publicProcedure.handler(async () => {
+    const [redis, creds] = await Promise.all([
+      Promise.resolve(getRedisOrNull()),
+      getAdCredentials().catch(() => null),
+    ]);
+    try {
+      await fetchAdStats(redis, creds);
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+    return { ok: true };
+  }),
 
   upsertStats: publicProcedure
     .input(

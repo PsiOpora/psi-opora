@@ -86,7 +86,7 @@ export async function handleBitrixWebhook(
   }
 }
 
-export function bitrixWebhookHandler() {
+export function bitrixWebhookHandler(options?: { token?: string }) {
   return async (req: Request): Promise<Response> => {
     if (req.method !== "POST") {
       return new Response("ok");
@@ -94,7 +94,7 @@ export function bitrixWebhookHandler() {
 
     const redisUrl = env.KV_REST_API_URL;
     const redisToken = env.KV_REST_API_TOKEN;
-    const webhookToken = env.BITRIX_WEBHOOK_TOKEN;
+    const webhookToken = options?.token ?? env.BITRIX_WEBHOOK_TOKEN;
 
     if (!redisUrl || !redisToken) {
       console.error(

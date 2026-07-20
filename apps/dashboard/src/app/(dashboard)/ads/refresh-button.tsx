@@ -8,19 +8,22 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { refreshAdStatsAction } from "./actions";
+import { orpcClient } from "@/lib/orpc/client";
 
 export function AdRefreshButton() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const handleRefresh = async () => {
     setLoading(true);
     const toastId = toast.loading("Обновляем данные рекламы…");
     try {
-      const result = await refreshAdStatsAction();
+      const result = await orpcClient.ads.refreshStats();
       if (result.ok) {
         toast.success("Данные обновлены", { id: toastId });
+        router.refresh();
       } else {
         toast.error(result.error ?? "Не удалось обновить данные", {
           id: toastId,

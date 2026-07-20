@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
+import { fetchAdStats } from "@psi-opora/api";
 import { env } from "@psi-opora/config";
 import { getRedisOrNull } from "@/lib/redis";
-import { fetchAdStats } from "@/lib/marketing/ads-api";
 import { orpc } from "@/lib/orpc/server";
 
 export const dynamic = "force-dynamic";

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { runBackupNowAction } from "./actions";
+import { orpcClient } from "@/lib/orpc/client";
 
 export function RunBackupButton() {
   const router = useRouter();
@@ -14,7 +14,7 @@ export function RunBackupButton() {
     startTransition(async () => {
       const toastId = toast.loading("Запускаем бэкап CRM…");
       try {
-        const result = await runBackupNowAction();
+        const result = await orpcClient.backup.runNow();
         if (result.ok) {
           toast.success(
             "Бэкап запущен. Прогресс отображается в таблице ниже.",

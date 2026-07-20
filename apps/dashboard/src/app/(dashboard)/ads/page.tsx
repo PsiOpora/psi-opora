@@ -15,12 +15,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatMoney, formatNumber } from "@/lib/format";
 import {
   type AdStatsResult,
   fetchAdStats,
   getCachedAdStats,
-} from "@/lib/marketing/ads-api";
+} from "@psi-opora/api";
+import { formatMoney, formatNumber } from "@/lib/format";
 import { orpc } from "@/lib/orpc/server";
 import { getRedisOrNull } from "@/lib/redis";
 import { AdRefreshButton } from "./refresh-button";

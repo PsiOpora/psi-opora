@@ -41,6 +41,8 @@ export function createORPCContext(opts: CreateORPCContextOptions) {
     session: opts.session,
     headers: opts.headers,
     db,
+    /** memberId портала Bitrix24 (для payload фоновых заданий trigger.dev). */
+    memberId: opts.memberId,
     /** Резолвит Bitrix24-клиент для запроса лениво и не более одного раза. */
     getBitrixApi(): Promise<BitrixApi | null> {
       bitrixApiPromise ??= resolveBitrixApiForRequest(opts.memberId);

@@ -28,6 +28,34 @@ export {
   getGuidePdfStream,
   handleGuideUpload,
 } from "./guide-storage";
+export type {
+  BroadcastChannel,
+  BroadcastRecipient,
+  BroadcastReport,
+} from "./broadcast-send";
+export type {
+  EmailRecipient,
+  EmailRecipientsReport,
+} from "./email-campaign-collect";
+export type {
+  BroadcastActionResult,
+  RecentBroadcastInfo,
+} from "./routers/broadcast";
+export type {
+  EmailCampaignActionResult,
+  RecentEmailCampaignInfo,
+} from "./routers/email-broadcast";
+export type {
+  WidgetEntity,
+  WidgetHistoryItem,
+  WidgetRecipient,
+} from "./routers/widget-message";
+export {
+  type AdCampaign,
+  type AdStatsResult,
+  fetchAdStats,
+  getCachedAdStats,
+} from "./ads-stats";
 export { type AppRouter, appRouter } from "./routers";
 export {
   type AdCredentialsInput,

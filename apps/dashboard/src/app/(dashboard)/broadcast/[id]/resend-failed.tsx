@@ -15,7 +15,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { resendFailedAction } from "../actions";
+import { orpcClient } from "@/lib/orpc/client";
 
 export function ResendFailed({
   broadcastId,
@@ -30,7 +30,7 @@ export function ResendFailed({
   const onConfirm = () => {
     startTransition(async () => {
       const toastId = toast.loading("Ставим досылку в очередь…");
-      const res = await resendFailedAction(broadcastId);
+      const res = await orpcClient.broadcast.resendFailed({ broadcastId });
       if (res.error) {
         toast.error(res.error, { id: toastId });
       } else {

@@ -35,8 +35,9 @@
 
 ```ts
 import { bitrixWebhookHandler } from "@psi-opora/bitrix-webhook-api";
+import { env } from "@psi-opora/config";
 
-const handler = bitrixWebhookHandler();
+const handler = bitrixWebhookHandler({ token: env.BITRIX_WEBHOOK_TOKEN });
 
 // Next.js route handler
 export async function POST(request: Request) {
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
 ```
 
 Требует переменные окружения:
-- `BITRIX_WEBHOOK_TOKEN` — токен для валидации `application_token` в вебхуке
+- `BITRIX_WEBHOOK_TOKEN` — токен для валидации `application_token` в вебхуке (можно переопределить через `token` в опциях)
 - `KV_REST_API_URL` / `KV_REST_API_TOKEN` — подключение к Upstash Redis
 
 ### `handleBitrixWebhook(payload, options)`

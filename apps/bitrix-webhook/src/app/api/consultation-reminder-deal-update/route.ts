@@ -8,9 +8,9 @@ import { handleConsultationDealUpdate } from "@psi-opora/jobs";
  * Bitrix шлёт его как application/x-www-form-urlencoded, а не JSON.
  */
 export async function POST(request: Request) {
-  const webhookToken = env.BITRIX_WEBHOOK_TOKEN;
+  const webhookToken = env.BITRIX_CRM_WEBHOOK_TOKEN;
   if (!webhookToken) {
-    console.error("[consultation-reminder] BITRIX_WEBHOOK_TOKEN не задан");
+    console.error("[consultation-reminder] BITRIX_CRM_WEBHOOK_TOKEN не задан");
     return new Response("Internal Server Error", { status: 500 });
   }
 

@@ -1,16 +1,17 @@
-import type { RedisClient } from "@/lib/redis";
+import { createUpstashRedis } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
+import { upsertAdDailyStats, type NewAdDailyStats } from "@psi-opora/db/queries";
 
-export type NewAdDailyStats = {
-  id: string;
-  platform: string;
-  campaignId: string;
-  campaignName: string;
-  date: string;
-  impressions: number;
-  clicks: number;
-  spend: number;
-};
+export type RedisClient = ReturnType<typeof createUpstashRedis>;
+
+export function isRedisConfigured(): boolean {
+  return Boolean(env.KV_REST_API_URL && env.KV_REST_API_TOKEN);
+}
+
+/** null, если KV_REST_API_URL/KV_REST_API_TOKEN не заданы (локальная разработка без Redis). */
+export function getRedisOrNull(): RedisClient | null {
+  return isRedisConfigured() ? createUpstashRedis() : null;
+}
 
 const API_URL = "https://api.vk.com/method";
 
@@ -380,14 +381,11 @@ export async function fetchAdStats(
     }
   }
 
-  await fetch(`${env.BASE_URL ?? env.NEXT_PUBLIC_APP_URL ?? ""}/api/orpc`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      method: "ads.upsertStats",
-      params: { rows: dbRows },
-    }),
-  }).catch(() => {});
+  if (dbRows.length > 0) {
+    await upsertAdDailyStats(dbRows).catch((err) => {
+      console.warn("[ads] upsertAdDailyStats error:", (err as Error).message);
+    });
+  }
 
   const result: AdStatsResult = {
     campaigns,

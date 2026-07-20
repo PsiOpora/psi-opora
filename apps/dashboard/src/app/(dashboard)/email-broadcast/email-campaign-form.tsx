@@ -2,6 +2,7 @@
 
 import type { UnisenderTemplate } from "@psi-opora/unisender-client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
@@ -43,17 +44,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { LARGE_AUDIENCE_THRESHOLD } from "@/lib/broadcast/constants";
 import type {
   EmailRecipient,
   EmailRecipientsReport,
-} from "@/lib/email-campaign/collect";
-import {
-  type RecentEmailCampaignInfo,
-  getTemplatePreviewAction,
-  sendEmailCampaignAction,
-  sendTestEmailAction,
-} from "./actions";
+  RecentEmailCampaignInfo,
+} from "@psi-opora/api";
+import { LARGE_AUDIENCE_THRESHOLD } from "@psi-opora/api/schemas";
+import { orpcClient } from "@/lib/orpc/client";
 
 export interface StageOption {
   stageId: string;
@@ -168,7 +165,11 @@ function RecipientsReport({
     setTestingId(contactId);
     startTransition(async () => {
       const toastId = toast.loading("Отправляем тестовое письмо…");
-      const result = await sendTestEmailAction({ email, templateId, subject });
+      const result = await orpcClient.emailBroadcast.sendTest({
+        email,
+        templateId,
+        subject,
+      });
       setTestResults((prev) => ({ ...prev, [contactId]: result }));
       setTestingId(null);
       if (result.ok) {
@@ -419,6 +420,7 @@ export function EmailCampaignForm({
   templates: UnisenderTemplate[];
   senderConfigured: boolean;
 }) {
+  const router = useRouter();
   const [stageId, setStageId] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [subject, setSubject] = useState("");
@@ -462,7 +464,7 @@ export function EmailCampaignForm({
     }
     let cancelled = false;
     setPreviewLoading(true);
-    getTemplatePreviewAction(templateId).then((result) => {
+    orpcClient.emailBroadcast.templatePreview({ templateId }).then((result) => {
       if (cancelled) return;
       setPreviewLoading(false);
       if (result.error) {
@@ -534,7 +536,7 @@ export function EmailCampaignForm({
     setSelectedContactIds(new Set());
     startTransition(async () => {
       setError(null);
-      const result = await sendEmailCampaignAction({
+      const result = await orpcClient.emailBroadcast.send({
         stageId,
         stageName: stageLabel,
         templateId,
@@ -563,7 +565,7 @@ export function EmailCampaignForm({
     setAckChecked(false);
     startTransition(async () => {
       setError(null);
-      const result = await sendEmailCampaignAction({
+      const result = await orpcClient.emailBroadcast.send({
         stageId,
         stageName: stageLabel,
         templateId,
@@ -583,6 +585,7 @@ export function EmailCampaignForm({
         });
         setReport(null);
         setPreviewSig(null);
+        router.refresh();
       }
     });
   };

@@ -57,6 +57,7 @@ export const env = createEnv({
 
     // Bitrix
     BITRIX_WEBHOOK_TOKEN: z.string().optional(),
+    BITRIX_CRM_WEBHOOK_TOKEN: z.string().optional(),
     DASHBOARD_BITRIX_CLIENT_ID: z.string().optional(),
     DASHBOARD_BITRIX_CLIENT_SECRET: z.string().optional(),
     DASHBOARD_BITRIX_WEBHOOK_URL: z.string().optional(),
@@ -106,6 +107,7 @@ export const env = createEnv({
     KV_REST_API_URL: process.env.KV_REST_API_URL,
     KV_REST_API_TOKEN: process.env.KV_REST_API_TOKEN,
     BITRIX_WEBHOOK_TOKEN: process.env.BITRIX_WEBHOOK_TOKEN,
+    BITRIX_CRM_WEBHOOK_TOKEN: process.env.BITRIX_CRM_WEBHOOK_TOKEN,
     DASHBOARD_BITRIX_CLIENT_ID: process.env.DASHBOARD_BITRIX_CLIENT_ID,
     DASHBOARD_BITRIX_CLIENT_SECRET: process.env.DASHBOARD_BITRIX_CLIENT_SECRET,
     DASHBOARD_BITRIX_WEBHOOK_URL: process.env.DASHBOARD_BITRIX_WEBHOOK_URL,

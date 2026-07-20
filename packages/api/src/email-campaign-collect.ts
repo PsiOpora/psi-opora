@@ -1,4 +1,4 @@
-import type { BitrixApi } from "@/lib/bitrix/client";
+import type { BitrixApi } from "@psi-opora/bitrix-client";
 
 export interface EmailRecipient {
   contactId: string;

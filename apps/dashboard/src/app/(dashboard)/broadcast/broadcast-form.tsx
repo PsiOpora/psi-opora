@@ -2,6 +2,7 @@
 
 import { BoldIcon, CodeIcon, ItalicIcon, LinkIcon } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
@@ -43,20 +44,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  LARGE_AUDIENCE_THRESHOLD,
-  MESSAGE_MAX_LENGTH,
-} from "@/lib/broadcast/constants";
 import type {
   BroadcastChannel,
   BroadcastRecipient,
   BroadcastReport,
-} from "@/lib/broadcast/send";
+  RecentBroadcastInfo,
+} from "@psi-opora/api";
 import {
-  type RecentBroadcastInfo,
-  sendBroadcastAction,
-  sendTestMessageAction,
-} from "./actions";
+  LARGE_AUDIENCE_THRESHOLD,
+  MESSAGE_MAX_LENGTH,
+} from "@psi-opora/api/schemas";
+import { orpcClient } from "@/lib/orpc/client";
 import { TelegramPreview } from "./telegram-preview";
 
 export interface StageOption {
@@ -201,7 +199,7 @@ function RecipientsReport({
     setTestingId(contactId);
     startTransition(async () => {
       const toastId = toast.loading("Отправляем тестовое сообщение…");
-      const result = await sendTestMessageAction({
+      const result = await orpcClient.broadcast.sendTest({
         messenger,
         userId,
         message,
@@ -472,6 +470,7 @@ function RecipientsReport({
 }
 
 export function BroadcastForm({ stages }: { stages: StageOption[] }) {
+  const router = useRouter();
   const [stageId, setStageId] = useState("");
   const [channel, setChannel] = useState<BroadcastChannel>("auto");
   const [message, setMessage] = useState("");
@@ -597,7 +596,7 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
     setSelectedContactIds(new Set());
     startTransition(async () => {
       setError(null);
-      const result = await sendBroadcastAction({
+      const result = await orpcClient.broadcast.send({
         stageId,
         stageName: stageLabel,
         channel,
@@ -625,7 +624,7 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
     setAckChecked(false);
     startTransition(async () => {
       setError(null);
-      const result = await sendBroadcastAction({
+      const result = await orpcClient.broadcast.send({
         stageId,
         stageName: stageLabel,
         channel,
@@ -644,6 +643,7 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
         });
         setReport(null);
         setPreviewSig(null);
+        router.refresh();
       }
     });
   };

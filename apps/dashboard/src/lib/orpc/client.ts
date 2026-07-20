@@ -13,10 +13,15 @@ import type { AppRouter } from "@psi-opora/api";
  *
  * @see https://orpc.dev/docs/integrations/tanstack-query
  */
-const client = createORPCClient<RouterClient<AppRouter>>(
+/**
+ * Прямой вызываемый клиент (без react-query): `orpcClient.broadcast.send(input)`
+ * возвращает Promise, как обычная async-функция. Использовать там, где своя
+ * логика состояния (dry-run/подтверждение/поллинг) не ложится на кэш query/mutation.
+ */
+export const orpcClient = createORPCClient<RouterClient<AppRouter>>(
   new RPCLink({
     url: () => `${window.location.origin}/api/orpc`,
   }),
 );
 
-export const orpc = createTanstackQueryUtils(client);
+export const orpc = createTanstackQueryUtils(orpcClient);

@@ -19,16 +19,31 @@
 import { adsRouter } from "./ads";
 import { backupRouter } from "./backup";
 import { botRouter } from "./bot";
+import { broadcastRouter } from "./broadcast";
 import { costsRouter } from "./costs";
 import { emailRouter } from "./email";
+import { emailBroadcastRouter } from "./email-broadcast";
+import { widgetMessageRouter } from "./widget-message";
 
-export { adsRouter, backupRouter, botRouter, costsRouter, emailRouter };
+export {
+  adsRouter,
+  backupRouter,
+  botRouter,
+  broadcastRouter,
+  costsRouter,
+  emailRouter,
+  emailBroadcastRouter,
+  widgetMessageRouter,
+};
 export const appRouter = {
   ads: adsRouter,
   backup: backupRouter,
   bot: botRouter,
+  broadcast: broadcastRouter,
   costs: costsRouter,
   email: emailRouter,
+  emailBroadcast: emailBroadcastRouter,
+  widgetMessage: widgetMessageRouter,
 };
 
 export type AppRouter = typeof appRouter;

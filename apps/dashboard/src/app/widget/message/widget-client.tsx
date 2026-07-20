@@ -11,19 +11,17 @@ import {
   SendIcon,
 } from "lucide-react";
 import type { Messenger } from "@psi-opora/jobs";
+import type {
+  WidgetEntity,
+  WidgetHistoryItem,
+  WidgetRecipient,
+} from "@psi-opora/api";
+import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MESSAGE_MAX_LENGTH } from "@/lib/broadcast/constants";
+import { orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
-import {
-  loadWidgetRecipientAction,
-  pollWidgetMessagesAction,
-  sendWidgetMessageAction,
-  type WidgetEntity,
-  type WidgetHistoryItem,
-  type WidgetRecipient,
-} from "./actions";
 
 /** Оптимистично добавленное сообщение до подтверждения записи в БД поллингом. */
 type HistoryEntry = WidgetHistoryItem & { pending?: boolean };
@@ -249,7 +247,8 @@ export function MessageWidget({
     }
     setLoading(true);
     setLoadError(null);
-    loadWidgetRecipientAction(entity, entityId)
+    orpcClient.widgetMessage
+      .loadRecipient({ entity, id: entityId })
       .then(({ recipient: loaded, error }) => {
         if (error || !loaded) {
           setLoadError(error ?? "Не удалось получить данные");
@@ -292,11 +291,11 @@ export function MessageWidget({
 
     const poll = async () => {
       if (document.hidden) return;
-      const result = await pollWidgetMessagesAction(
+      const result = await orpcClient.widgetMessage.poll({
         entity,
-        entityId,
-        sinceRef.current,
-      );
+        id: entityId,
+        sinceIso: sinceRef.current,
+      });
       if (!result.messages || result.messages.length === 0) return;
       sinceRef.current =
         result.messages[result.messages.length - 1]?.createdAt ??
@@ -326,7 +325,7 @@ export function MessageWidget({
 
     setSendError(null);
     startSending(async () => {
-      const result = await sendWidgetMessageAction({
+      const result = await orpcClient.widgetMessage.send({
         entity,
         entityId,
         messenger: target.messenger,

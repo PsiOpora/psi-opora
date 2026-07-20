@@ -1,10 +1,22 @@
+import { env } from "@psi-opora/config";
+import {
+  createBackupRun,
+  finishBackupRun,
+  getBackupCredentials,
+  listBackupRuns,
+  upsertBackupCredentials,
+} from "@psi-opora/db/queries";
+import type { crmBackup } from "@psi-opora/jobs";
+import { executeCrmBackup } from "@psi-opora/jobs";
+import { tasks } from "@trigger.dev/sdk";
 import { publicProcedure, router } from "../orpc";
 import { backupCredentialsSchema } from "../schemas/backup";
-import {
-  getBackupCredentials,
-  upsertBackupCredentials,
-  listBackupRuns,
-} from "@psi-opora/db/queries";
+
+export interface RunBackupResult {
+  ok: boolean;
+  runId: string;
+  error?: string;
+}
 
 export const backupRouter = router({
   getCredentials: publicProcedure.handler(async () => {
@@ -21,4 +33,36 @@ export const backupRouter = router({
   listRuns: publicProcedure.handler(async () => {
     return listBackupRuns();
   }),
+
+  runNow: publicProcedure.handler(
+    async ({ context }): Promise<RunBackupResult> => {
+      const runId = crypto.randomUUID();
+      await createBackupRun(runId);
+
+      let result: RunBackupResult = { ok: true, runId };
+
+      if (env.TRIGGER_SECRET_KEY) {
+        try {
+          await tasks.trigger<typeof crmBackup>("crm-backup", {
+            memberId: context.memberId ?? undefined,
+            runId,
+          });
+        } catch (err) {
+          const error = `Не удалось запустить фоновое задание: ${(err as Error).message}`;
+          await finishBackupRun(runId, { status: "error", error });
+          result = { ok: false, runId, error };
+        }
+      } else {
+        try {
+          const api = await context.getBitrixApi();
+          if (!api) throw new Error("Bitrix24 не подключён");
+          await executeCrmBackup(api, runId);
+        } catch (err) {
+          result = { ok: false, runId, error: (err as Error).message };
+        }
+      }
+
+      return result;
+    },
+  ),
 });
