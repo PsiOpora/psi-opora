@@ -16,6 +16,11 @@ export interface DealData {
   audience?: "child" | "self";
   /** Выбор в флоу гайда: с чем связаны трудности. */
   issue?: "eating" | "ocd" | "other";
+  /** Ниже — доп. данные профиля из мессенджера (bot_users), для карточки контакта. */
+  username?: string;
+  languageCode?: string;
+  isPremium?: boolean;
+  bio?: string;
 }
 
 function getEnv(messenger: string, key: string): string | undefined {
@@ -105,8 +110,24 @@ function buildMessengerLinkFields(data: DealData) {
   };
 }
 
+/**
+ * Собирает доп. данные профиля мессенджера (username, язык, bio) в
+ * читаемый комментарий для карточки контакта — Bitrix не заводит под них
+ * отдельных полей, поэтому это просто текстовая справка для оператора.
+ */
+function buildProfileComment(data: DealData): string | undefined {
+  const lines = [
+    data.username && `Username: @${data.username}`,
+    data.languageCode && `Язык интерфейса: ${data.languageCode}`,
+    data.isPremium && "Telegram Premium: да",
+    data.bio && `О себе: ${data.bio}`,
+  ].filter(Boolean);
+  return lines.length ? `Профиль в мессенджере:\n${lines.join("\n")}` : undefined;
+}
+
 function buildContactFields(data: DealData) {
   const messenger = data.messenger ?? "telegram";
+  const profileComment = buildProfileComment(data);
   return {
     NAME: data.name,
     PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
@@ -122,6 +143,7 @@ function buildContactFields(data: DealData) {
     // консультации, и во флоу гайда, — так что к моменту создания
     // контакта согласие уже получено.
     UF_CRM_CONTACT_1779910236669: 1,
+    ...(profileComment ? { COMMENTS: profileComment } : {}),
     ...(buildMessengerLinkFields(data) ?? {}),
   };
 }

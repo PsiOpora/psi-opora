@@ -5,6 +5,7 @@
  * Используется в TG и MAX ботах.
  */
 
+import { getBotUserProfile } from "@psi-opora/db/queries.edge";
 import { createUpstashRedis, getBitrixChatInfo } from "../storage/upstash";
 import { createBitrixDeal, type DealData } from "./bitrix";
 import { type FunnelEventContext, trackFunnelStep } from "./funnel";
@@ -81,6 +82,26 @@ export async function submitConsultationDeal(
       }
     }
 
+    // Профиль мессенджера (bot_users), собранный ботом на /start —
+    // добавляем в карточку контакта для оператора. Не критично для сделки.
+    let username: string | undefined;
+    let languageCode: string | undefined;
+    let isPremium: boolean | undefined;
+    let bio: string | undefined;
+    if (userId) {
+      try {
+        const profile = await getBotUserProfile(messenger, String(userId));
+        username = profile?.username ?? undefined;
+        languageCode = profile?.languageCode ?? undefined;
+        isPremium = profile?.isPremium ?? undefined;
+        bio = profile?.bio ?? undefined;
+      } catch (err) {
+        console.error(
+          `[deal] не удалось получить профиль пользователя ${userId}: ${(err as Error).message}`,
+        );
+      }
+    }
+
     const dealData: DealData = {
       name,
       phone,
@@ -95,6 +116,10 @@ export async function submitConsultationDeal(
       ...(issue ? { issue } : {}),
       ...(chatId !== undefined ? { chatId } : {}),
       ...(operatorId !== undefined ? { operatorId } : {}),
+      ...(username ? { username } : {}),
+      ...(languageCode ? { languageCode } : {}),
+      ...(isPremium !== undefined ? { isPremium } : {}),
+      ...(bio ? { bio } : {}),
     };
 
     const { dealId } = await createBitrixDeal(dealData);

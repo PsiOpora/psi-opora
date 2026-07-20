@@ -12,9 +12,15 @@ import {
   insertBotMessage as _insertBotMessage,
 } from "./bot-messages";
 import { getBotTextsRecord as _getBotTextsRecord } from "./bot-texts";
+import {
+  type BotUserProfileEntry,
+  getBotUserProfile as _getBotUserProfile,
+  upsertBotUser as _upsertBotUser,
+} from "./bot-users";
 
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
 export type { BotMessageEntry } from "./bot-messages";
+export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
 
 export async function insertBotMessage(entry: BotMessageEntry): Promise<void> {
   return _insertBotMessage(db, entry);
@@ -35,4 +41,12 @@ export async function getBotFunnelEventsByDateRange(
   toDate: string,
 ) {
   return _getBotFunnelEventsByDateRange(db, fromDate, toDate);
+}
+
+export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {
+  return _upsertBotUser(db, entry);
+}
+
+export async function getBotUserProfile(messenger: string, userId: string) {
+  return _getBotUserProfile(db, messenger, userId);
 }

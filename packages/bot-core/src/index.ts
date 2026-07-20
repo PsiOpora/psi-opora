@@ -90,6 +90,10 @@ export {
 } from "./utils/message-log";
 export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes";
 export {
+  type BotUserProfileInput,
+  upsertBotUserProfile,
+} from "./utils/user-profile";
+export {
   buildStartLink,
   formatUtmLog,
   parseUtmParams,

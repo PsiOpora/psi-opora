@@ -18,6 +18,7 @@ import {
   startConsultation,
   startScenario,
   type StorageAdapter,
+  upsertBotUserProfile,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
@@ -103,6 +104,53 @@ function createInitialSession(): ConsultationSession {
 
 function sessionKeyOf(ctx: AppContext): string {
   return String(ctx.user?.user_id ?? ctx.chatId ?? "anon");
+}
+
+/**
+ * Сохраняет профиль клиента в bot_users: поля из апдейта (всегда доступны)
+ * плюс description/avatar из getChatMembers (может не сработать для диалога
+ * 1:1 в зависимости от прав бота — не критично).
+ */
+async function collectMaxProfile(
+  ctx: AppContext,
+  source: string | undefined,
+  campaign: string | undefined,
+): Promise<void> {
+  const user = ctx.user;
+  if (!user) return;
+
+  const userLocale = (ctx.update as { user_locale?: unknown }).user_locale;
+
+  let bio: string | undefined;
+  let avatarUrl: string | undefined;
+  let rawProfile: unknown = user;
+  try {
+    const { members } = await ctx.getChatMembers({ user_ids: [user.user_id] });
+    const member = members[0];
+    if (member) {
+      rawProfile = member;
+      bio = member.description ?? undefined;
+      avatarUrl = member.avatar_url;
+    }
+  } catch (err) {
+    log(
+      `[profile] не удалось получить getChatMembers для user=${user.user_id}: ${describeError(err)}`,
+    );
+  }
+
+  await upsertBotUserProfile({
+    messenger: "max",
+    userId: user.user_id,
+    name: user.name,
+    username: user.username ?? undefined,
+    isBot: user.is_bot,
+    languageCode: typeof userLocale === "string" ? userLocale : undefined,
+    bio,
+    avatarUrl,
+    source,
+    campaign,
+    rawProfile,
+  });
 }
 
 function sessionMiddleware(
@@ -247,6 +295,7 @@ export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
       source: "scenario",
       text: startPayload ? `/start ${startPayload}` : "/start",
     });
+    await collectMaxProfile(ctx, ctx.session.source, ctx.session.campaign);
 
     const texts = await getScenarioTexts();
     await dispatch(ctx, startScenario(texts), texts);

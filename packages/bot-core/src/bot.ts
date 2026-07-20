@@ -16,6 +16,7 @@ import {
 import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
 import type { AppContext, ConsultationSession } from "./types/context";
 import { logBotMessage } from "./utils/message-log";
+import { upsertBotUserProfile } from "./utils/user-profile";
 import { formatUtmLog, parseUtmParams } from "./utils/utm";
 
 export const log = (msg: string) => {
@@ -24,6 +25,51 @@ export const log = (msg: string) => {
 
 function createInitialSession(): ConsultationSession {
   return { step: "name" };
+}
+
+/**
+ * Сохраняет профиль клиента в bot_users: поля из апдейта (всегда доступны)
+ * плюс bio/фото из getChat (может не сработать из-за приватности — не критично).
+ */
+async function collectTelegramProfile(
+  ctx: AppContext,
+  source: string | undefined,
+  campaign: string | undefined,
+): Promise<void> {
+  const from = ctx.from;
+  if (!from) return;
+
+  let bio: string | undefined;
+  let photoFileId: string | undefined;
+  let rawProfile: unknown;
+  try {
+    const chat = await ctx.api.getChat(from.id);
+    rawProfile = chat;
+    if (chat.type === "private") {
+      bio = chat.bio;
+      photoFileId = chat.photo?.big_file_id;
+    }
+  } catch (err) {
+    console.error(
+      `[profile] не удалось получить getChat для user=${from.id}: ${(err as Error).message}`,
+    );
+  }
+
+  await upsertBotUserProfile({
+    messenger: "telegram",
+    userId: from.id,
+    firstName: from.first_name,
+    lastName: from.last_name,
+    username: from.username,
+    languageCode: from.language_code,
+    isPremium: from.is_premium,
+    isBot: from.is_bot,
+    bio,
+    photoFileId,
+    source,
+    campaign,
+    rawProfile,
+  });
 }
 
 export interface BotOptions {
@@ -127,6 +173,7 @@ export function createBot({ storage, redis, client }: BotOptions = {}) {
       source: "scenario",
       text: rawParam ? `/start ${rawParam}` : "/start",
     });
+    await collectTelegramProfile(ctx, ctx.session.source, ctx.session.campaign);
 
     const texts = await getScenarioTexts();
     await dispatch(ctx, startScenario(texts), texts);
