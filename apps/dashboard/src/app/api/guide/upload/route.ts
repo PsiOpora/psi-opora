@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { handleGuideUpload } from "@psi-opora/api";
 import { getBitrixApi } from "@/lib/bitrix/session";
-import { handleGuideUpload } from "@/lib/guide-storage";
 
 export const dynamic = "force-dynamic";
 

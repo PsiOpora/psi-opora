@@ -2,7 +2,8 @@ import "server-only";
 
 import { createRouterClient } from "@orpc/server";
 import { appRouter, createORPCContext } from "@psi-opora/api";
-import { headers } from "next/headers";
+import { MEMBER_ID_COOKIE } from "@psi-opora/bitrix-client";
+import { cookies, headers } from "next/headers";
 
 /**
  * Серверный oRPC-клиент: вызывает процедуры in-process, без HTTP-запроса
@@ -16,5 +17,6 @@ export const orpc = createRouterClient(appRouter, {
     createORPCContext({
       headers: await headers(),
       session: null,
+      memberId: (await cookies()).get(MEMBER_ID_COOKIE)?.value ?? null,
     }),
 });

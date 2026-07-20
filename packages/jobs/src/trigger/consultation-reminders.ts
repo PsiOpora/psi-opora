@@ -1,5 +1,5 @@
-import { createUpstashRedis } from "@psi-opora/bot-core";
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
+import { createUpstashRedis } from "@psi-opora/bot-core";
 import { schedules } from "@trigger.dev/sdk";
 import { sendConsultationReminders } from "../consultation-reminders";
 

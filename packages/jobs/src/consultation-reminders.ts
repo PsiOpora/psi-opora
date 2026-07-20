@@ -400,14 +400,60 @@ async function trySendOneHourReminder(
 }
 
 /**
+ * Сделки, где консультация попадает в окно напоминания, но которых может
+ * не быть в Redis-индексе — если вебхук ONCRMDEALUPDATE не сработал
+ * (даунтайм, сетевой сбой) или дата поменялась до того, как вебхук был
+ * настроен на сделке.
+ */
+async function findUpcomingDealIdsViaRest(api: BitrixApi): Promise<number[]> {
+  const now = new Date();
+  const windowEnd = new Date(now.getTime() + REMINDER_WINDOW_MS);
+  const deals = await api.list<{ ID: string | number }>("crm.deal.list", {
+    select: ["ID"],
+    filter: {
+      CATEGORY_ID: DEAL_CATEGORY_ID,
+      STAGE_ID: DEAL_STAGE_IDS,
+      [`>=${CONSULTATION_DT_FIELD}`]: now.toISOString(),
+      [`<=${CONSULTATION_DT_FIELD}`]: windowEnd.toISOString(),
+    },
+  });
+  return deals
+    .map((deal) => Number(deal.ID))
+    .filter((id) => Number.isFinite(id) && id > 0);
+}
+
+/**
+ * Подстраховка от пропущенных вебхуков: прогоняет найденные через REST
+ * сделки через тот же handleConsultationDealUpdate, что и сам вебхук —
+ * если состояние в Redis уже актуально, это no-op (action: "skip").
+ */
+async function resyncFromRest(api: BitrixApi, redis: Redis): Promise<void> {
+  const dealIds = await findUpcomingDealIdsViaRest(api);
+  for (const dealId of dealIds) {
+    try {
+      await handleConsultationDealUpdate(api, redis, dealId);
+    } catch (err) {
+      console.error(
+        `[consultation-reminder] resync dealId=${dealId}: ${(err as Error).message}`,
+      );
+    }
+  }
+}
+
+/**
  * Проход по отслеживаемым сделкам: тем, у кого консультация в ближайший
  * час и напоминание ещё не отправлено, шлём автосообщение в Открытую
  * линию. Порт ReminderController::actionSendOneHour.
+ *
+ * Перед этим подчищает Redis-индекс через REST — на случай, если вебхук
+ * ONCRMDEALUPDATE не долетел (см. resyncFromRest).
  */
 export async function sendConsultationReminders(
   api: BitrixApi,
   redis: Redis,
 ): Promise<SendConsultationRemindersResult> {
+  await resyncFromRest(api, redis);
+
   const dealIds = await redis.smembers(INDEX_KEY);
   const result: SendConsultationRemindersResult = { sent: 0, skipped: 0, errors: 0 };
 

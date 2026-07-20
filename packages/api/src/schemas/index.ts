@@ -8,6 +8,11 @@ export {
   type BackupCredentialsInput,
   backupCredentialsSchema,
 } from "./backup";
+export {
+  guideIdSchema,
+  type SaveBotTextsInput,
+  saveBotTextsSchema,
+} from "./bot";
 export { type AddCostInput, addCostSchema } from "./costs";
 export {
   type UnisenderSettingsInput,

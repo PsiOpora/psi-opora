@@ -1,5 +1,9 @@
 import { env } from "@psi-opora/config";
 import { forceRefreshPortalTokens, getValidPortalTokens } from "./oauth";
+import { getPortalTokens } from "./tokens";
+
+/** Cookie с memberId портала, из которой резолвится OAuth-сессия Bitrix24. */
+export const MEMBER_ID_COOKIE = "b24_member_id";
 
 export interface BitrixApi {
   /** Произвольный вызов метода REST API, возвращает "result" из ответа. */
@@ -147,6 +151,24 @@ export function createWebhookApi(webhookUrl: string): BitrixApi {
  */
 export function resolveBitrixApi(memberId?: string): BitrixApi | null {
   if (memberId) return createOAuthApi(memberId);
+  if (env.DASHBOARD_BITRIX_WEBHOOK_URL)
+    return createWebhookApi(env.DASHBOARD_BITRIX_WEBHOOK_URL);
+  return null;
+}
+
+/**
+ * Клиент Bitrix24 для текущего запроса: сначала пробуем OAuth-сессию портала
+ * (проверяя, что токены реально сохранены — иначе `memberId` из устаревшей
+ * cookie привёл бы к ошибке вместо честного фолбэка), иначе — вебхук для
+ * локальной разработки (DASHBOARD_BITRIX_WEBHOOK_URL в .env).
+ */
+export async function resolveBitrixApiForRequest(
+  memberId: string | null,
+): Promise<BitrixApi | null> {
+  if (memberId) {
+    const tokens = await getPortalTokens(memberId);
+    if (tokens) return createOAuthApi(memberId);
+  }
   if (env.DASHBOARD_BITRIX_WEBHOOK_URL)
     return createWebhookApi(env.DASHBOARD_BITRIX_WEBHOOK_URL);
   return null;

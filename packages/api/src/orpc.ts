@@ -17,6 +17,7 @@
  */
 
 import { env, logger } from "@psi-opora/config";
+import { type BitrixApi, resolveBitrixApiForRequest } from "@psi-opora/bitrix-client";
 import { db } from "@psi-opora/db";
 import { ORPCError, os } from "@orpc/server";
 
@@ -25,13 +26,26 @@ export interface CreateORPCContextOptions {
   headers: Headers;
   /** Pre-resolved session (or `null` for anonymous requests). */
   session: { user: { id: string; email: string; name: string } } | null;
+  /**
+   * memberId портала Bitrix24 из cookie текущего запроса (или `null`) —
+   * caller (route handler / RSC-клиент) читает cookie сам, чтобы этот пакет
+   * не зависел от `next/headers`. См. `getBitrixApi()` на контексте.
+   */
+  memberId: string | null;
 }
 
 export function createORPCContext(opts: CreateORPCContextOptions) {
+  let bitrixApiPromise: Promise<BitrixApi | null> | undefined;
+
   return {
     session: opts.session,
     headers: opts.headers,
     db,
+    /** Резолвит Bitrix24-клиент для запроса лениво и не более одного раза. */
+    getBitrixApi(): Promise<BitrixApi | null> {
+      bitrixApiPromise ??= resolveBitrixApiForRequest(opts.memberId);
+      return bitrixApiPromise;
+    },
   };
 }
 

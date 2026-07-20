@@ -1,6 +1,6 @@
+import { getGuidePdfStream } from "@psi-opora/api";
 import { GUIDE_FILE_NAME_KEY, GUIDE_FILE_S3_KEY } from "@psi-opora/bot-core";
 import { getBotTextsRecord } from "@psi-opora/db/queries";
-import { getGuidePdfStream } from "@/lib/guide-storage";
 
 export const dynamic = "force-dynamic";
 

@@ -1,5 +1,5 @@
+import { getGuidePdfStream } from "@psi-opora/api";
 import { getBotGuide } from "@psi-opora/db/queries";
-import { getGuidePdfStream } from "@/lib/guide-storage";
 
 export const dynamic = "force-dynamic";
 

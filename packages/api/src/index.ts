@@ -22,6 +22,12 @@ type RouterOutputs = InferRouterOutputs<AppRouter>;
 
 export { createORPCContext } from "./orpc";
 export type { CostEntry } from "./costs-store";
+export {
+  type GuideUploadResult,
+  MAX_GUIDE_SIZE,
+  getGuidePdfStream,
+  handleGuideUpload,
+} from "./guide-storage";
 export { type AppRouter, appRouter } from "./routers";
 export {
   type AdCredentialsInput,

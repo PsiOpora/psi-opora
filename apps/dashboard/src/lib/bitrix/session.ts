@@ -1,9 +1,8 @@
 import { cookies } from "next/headers";
-import { env } from "@psi-opora/config";
-import { createOAuthApi, createWebhookApi, type BitrixApi } from "./client";
-import { getPortalTokens } from "./tokens";
+import { MEMBER_ID_COOKIE, resolveBitrixApiForRequest } from "./client";
+import type { BitrixApi } from "./client";
 
-export const MEMBER_ID_COOKIE = "b24_member_id";
+export { MEMBER_ID_COOKIE };
 
 /**
  * Возвращает REST-клиент для текущего запроса: сначала пробуем OAuth-сессию
@@ -12,15 +11,6 @@ export const MEMBER_ID_COOKIE = "b24_member_id";
  */
 export async function getBitrixApi(): Promise<BitrixApi | null> {
   const store = await cookies();
-  const memberId = store.get(MEMBER_ID_COOKIE)?.value;
-
-  if (memberId) {
-    const tokens = await getPortalTokens(memberId);
-    if (tokens) return createOAuthApi(memberId);
-  }
-
-  const devWebhook = env.DASHBOARD_BITRIX_WEBHOOK_URL;
-  if (devWebhook) return createWebhookApi(devWebhook);
-
-  return null;
+  const memberId = store.get(MEMBER_ID_COOKIE)?.value ?? null;
+  return resolveBitrixApiForRequest(memberId);
 }

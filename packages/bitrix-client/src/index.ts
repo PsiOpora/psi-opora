@@ -1,8 +1,10 @@
 export {
   type BitrixApi,
+  MEMBER_ID_COOKIE,
   createOAuthApi,
   createWebhookApi,
   resolveBitrixApi,
+  resolveBitrixApiForRequest,
 } from "./client";
 export {
   forceRefreshPortalTokens,
