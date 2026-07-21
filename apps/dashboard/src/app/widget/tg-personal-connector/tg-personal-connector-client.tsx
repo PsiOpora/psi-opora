@@ -6,6 +6,7 @@ import {
   EyeOffIcon,
   HelpCircleIcon,
   Loader2Icon,
+  SendIcon,
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
@@ -153,7 +154,8 @@ export function TgPersonalConnectorClient({ lineId }: { lineId: string }) {
       {step === "credentials" && (
         <>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <SendIcon className="size-3.5" />
               Личный номер Telegram
             </span>
             <ApiCredentialsHelp />

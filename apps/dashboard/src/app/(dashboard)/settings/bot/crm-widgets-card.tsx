@@ -137,15 +137,20 @@ export function CrmWidgetsCard() {
 
         {status === "ready" && (
           <>
-            {b24?.auth.getAuthData()?.member_id && (
-              <p className="text-xs text-muted-foreground">
-                memberId портала (для <code>BITRIX_MEMBER_ID</code> в .env, нужен
-                ботам для дублирования переписки в Открытые линии):{" "}
-                <code className="font-mono">
-                  {b24.auth.getAuthData()?.member_id}
-                </code>
-              </p>
-            )}
+            {(() => {
+              // getAuthData() возвращает `AuthData | false` (не `| undefined`) —
+              // optional chaining тут не сужает тип, поэтому явная проверка.
+              const authData = b24?.auth.getAuthData();
+              const memberId = authData ? authData.member_id : undefined;
+              if (!memberId) return null;
+              return (
+                <p className="text-xs text-muted-foreground">
+                  memberId портала (для <code>BITRIX_MEMBER_ID</code> в .env,
+                  нужен ботам для дублирования переписки в Открытые линии):{" "}
+                  <code className="font-mono">{memberId}</code>
+                </p>
+              );
+            })()}
 
             <div className="flex flex-wrap gap-2">
               {PLACEMENTS.map(({ code, label }) => (
