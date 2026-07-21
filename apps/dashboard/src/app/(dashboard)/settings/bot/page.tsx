@@ -16,6 +16,7 @@ import { BotTextsForm } from "./bot-texts-form";
 import { CrmWidgetsCard } from "./crm-widgets-card";
 import { DeleteGuideButton, SetActiveGuideButton } from "./guide-actions";
 import { GuideUploadForm } from "./guide-upload-form";
+import { TgPersonalConnectorCard } from "./tg-personal-connector-card";
 
 function groupDefs(): Array<{ group: string; defs: ScenarioTextDef[] }> {
   const groups: Array<{ group: string; defs: ScenarioTextDef[] }> = [];
@@ -133,6 +134,8 @@ export default async function BotTextsPage() {
       </div>
 
       <CrmWidgetsCard />
+
+      <TgPersonalConnectorCard />
 
       <GuidesLibraryCard guides={guides} activeS3Key={activeS3Key} />
 

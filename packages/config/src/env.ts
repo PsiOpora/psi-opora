@@ -62,6 +62,12 @@ export const env = createEnv({
     DASHBOARD_BITRIX_CLIENT_SECRET: z.string().optional(),
     DASHBOARD_BITRIX_WEBHOOK_URL: z.string().optional(),
 
+    // Telegram userbot (личный номер как коннектор Открытых линий, mtcute)
+    TG_USERBOT_API_ID: z.coerce.number().optional(),
+    TG_USERBOT_API_HASH: z.string().optional(),
+    TG_USERBOT_ENCRYPTION_KEY: z.string().optional(),
+    TG_USERBOT_CONNECTOR_ID: z.string().default("psiopora_tg_personal"),
+
     // Admin
     ADMIN_EMAILS: z.string().optional(),
 
@@ -111,6 +117,10 @@ export const env = createEnv({
     DASHBOARD_BITRIX_CLIENT_ID: process.env.DASHBOARD_BITRIX_CLIENT_ID,
     DASHBOARD_BITRIX_CLIENT_SECRET: process.env.DASHBOARD_BITRIX_CLIENT_SECRET,
     DASHBOARD_BITRIX_WEBHOOK_URL: process.env.DASHBOARD_BITRIX_WEBHOOK_URL,
+    TG_USERBOT_API_ID: process.env.TG_USERBOT_API_ID,
+    TG_USERBOT_API_HASH: process.env.TG_USERBOT_API_HASH,
+    TG_USERBOT_ENCRYPTION_KEY: process.env.TG_USERBOT_ENCRYPTION_KEY,
+    TG_USERBOT_CONNECTOR_ID: process.env.TG_USERBOT_CONNECTOR_ID,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     CRON_SECRET: process.env.CRON_SECRET,
     TRIGGER_SECRET_KEY: process.env.TRIGGER_SECRET_KEY,

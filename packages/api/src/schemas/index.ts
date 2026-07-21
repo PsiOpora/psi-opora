@@ -33,6 +33,16 @@ export {
 } from "./broadcast";
 export { type AddCostInput, addCostSchema } from "./costs";
 export {
+  type DisconnectTelegramPersonalInput,
+  disconnectTelegramPersonalSchema,
+  type StartTelegramLoginInput,
+  startTelegramLoginSchema,
+  type SubmitTelegramCodeInput,
+  submitTelegramCodeSchema,
+  type SubmitTelegramPasswordInput,
+  submitTelegramPasswordSchema,
+} from "./telegram-personal";
+export {
   type UnisenderSettingsInput,
   unisenderSettingsSchema,
 } from "./unisender";

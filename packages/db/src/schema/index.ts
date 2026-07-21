@@ -7,4 +7,5 @@ export * from "./bot-users";
 export * from "./bot-texts";
 export * from "./broadcast";
 export * from "./email-campaign";
+export * from "./telegram-personal";
 export * from "./unisender";
