@@ -6,10 +6,10 @@ export type TelegramPersonalAccount =
   typeof telegramPersonalAccounts.$inferSelect;
 
 /**
- * "connected" — обычное состояние строки. "error" — зарезервировано для
- * Фазы 2 (воркер обнаружил, что сессия отозвана/недействительна), сейчас
- * никем не устанавливается. Промежуточные шаги логина в эту таблицу не
- * попадают — см. комментарий у колонки status в schema/telegram-personal.
+ * "connected" — обычное состояние строки. "error" — воркер (apps/tg-userbot-worker)
+ * не смог поднять клиент или обнаружил, что сессия отозвана/недействительна
+ * (см. markTelegramPersonalAccountError). Промежуточные шаги логина в эту
+ * таблицу не попадают — см. комментарий у колонки status в schema/telegram-personal.
  */
 export type TelegramPersonalAccountStatus = "connected" | "error";
 
@@ -22,6 +22,23 @@ export async function listTelegramPersonalAccounts(
     .select()
     .from(telegramPersonalAccounts)
     .where(eq(telegramPersonalAccounts.memberId, memberId));
+}
+
+/** Все подключённые номера всех порталов — воркер (apps/tg-userbot-worker)
+ * поднимает по живому MTProto-клиенту на каждую строку при старте. */
+export async function listConnectedTelegramPersonalAccounts(): Promise<
+  TelegramPersonalAccount[]
+> {
+  if (!db) return [];
+  return db
+    .select()
+    .from(telegramPersonalAccounts)
+    .where(
+      eq(
+        telegramPersonalAccounts.status,
+        "connected" satisfies TelegramPersonalAccountStatus,
+      ),
+    );
 }
 
 export async function getTelegramPersonalAccount(
@@ -38,6 +55,24 @@ export async function getTelegramPersonalAccount(
         eq(telegramPersonalAccounts.openLineId, openLineId),
       ),
     )
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Ищет аккаунт по одной только линии, без memberId — используется
+ * apps/bitrix-webhook, у которого нет OAuth-сессии портала (только общий
+ * BITRIX_WEBHOOK_TOKEN), чтобы понять, какому личному номеру и порталу
+ * адресован ответ оператора (ONIMCONNECTORMESSAGEADD → data.LINE).
+ */
+export async function getTelegramPersonalAccountByLine(
+  openLineId: string,
+): Promise<TelegramPersonalAccount | null> {
+  if (!db) return null;
+  const [row] = await db
+    .select()
+    .from(telegramPersonalAccounts)
+    .where(eq(telegramPersonalAccounts.openLineId, openLineId))
     .limit(1);
   return row ?? null;
 }
@@ -82,6 +117,27 @@ export async function upsertTelegramPersonalAccountConnected(data: {
         updatedAt: new Date(),
       },
     });
+}
+
+export async function markTelegramPersonalAccountError(
+  memberId: string,
+  openLineId: string,
+  error: string,
+): Promise<void> {
+  if (!db) return;
+  await db
+    .update(telegramPersonalAccounts)
+    .set({
+      status: "error" satisfies TelegramPersonalAccountStatus,
+      lastError: error,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(telegramPersonalAccounts.memberId, memberId),
+        eq(telegramPersonalAccounts.openLineId, openLineId),
+      ),
+    );
 }
 
 export async function removeTelegramPersonalAccount(

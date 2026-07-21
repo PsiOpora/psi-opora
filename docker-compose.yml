@@ -7,6 +7,18 @@ services:
     env_file:
       - .env
 
+  # Always-on процесс для личных Telegram-номеров (packages/tg-userbot,
+  # apps/tg-userbot-worker) — держит постоянное MTProto-соединение,
+  # поэтому не деплоится как serverless-функция (в отличие от apps/tg-bot
+  # и apps/max-bot).
+  tg-userbot-worker:
+    build:
+      context: .
+      dockerfile: apps/tg-userbot-worker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+
   minio:
     image: minio/minio:latest
     restart: unless-stopped

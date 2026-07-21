@@ -39,8 +39,12 @@ export interface BitrixWebhookPayload {
 }
 
 export interface OperatorReplyMessage {
-  /** ID коннектора (data.CONNECTOR) — по нему определяем мессенджер (TG/MAX). */
+  /** ID коннектора (data.CONNECTOR) — по нему определяем мессенджер (TG/MAX)
+   * или, для личного Telegram-номера, что это ответ на линию с userbot'ом. */
   connector?: string;
+  /** ID линии (data.LINE) — нужен, чтобы найти нужный telegram_personal_accounts
+   * (у бота линия одна, фиксирована в env, а у личных номеров — своя на каждый). */
+  lineId?: number;
   /** ID чата во внешней системе — тот же chat.id, что бот передавал в imconnector.send.messages. */
   chatId: number;
   text: string;
@@ -61,7 +65,12 @@ export function getOperatorReplyMessage(
   const text = item?.message?.text?.trim();
   if (!chatId || !text) return null;
 
-  return { connector: payload.data?.CONNECTOR, chatId, text };
+  return {
+    connector: payload.data?.CONNECTOR,
+    lineId: payload.data?.LINE ?? item?.connector?.line_id,
+    chatId,
+    text,
+  };
 }
 
 const CHAT_KEY_PREFIX = "b24:chat:";
