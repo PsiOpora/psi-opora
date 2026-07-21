@@ -1,6 +1,12 @@
 "use client";
 
-import { CheckIcon, HelpCircleIcon, Loader2Icon } from "lucide-react";
+import {
+  CheckIcon,
+  EyeIcon,
+  EyeOffIcon,
+  HelpCircleIcon,
+  Loader2Icon,
+} from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +73,7 @@ export function TgPersonalConnectorClient({ lineId }: { lineId: string }) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [loginId, setLoginId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activationError, setActivationError] = useState<string | null>(null);
@@ -207,15 +214,32 @@ export function TgPersonalConnectorClient({ lineId }: { lineId: string }) {
 
       {step === "password" && (
         <>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Пароль 2FA"
-            aria-label="Пароль двухфакторной аутентификации"
-            disabled={busy}
-            autoFocus
-          />
+          <div className="relative">
+            <Input
+              type={passwordVisible ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Пароль 2FA"
+              aria-label="Пароль двухфакторной аутентификации"
+              disabled={busy}
+              autoFocus
+              className="pr-8"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="absolute right-1 top-1"
+              aria-label={passwordVisible ? "Скрыть пароль" : "Показать пароль"}
+              onClick={() => setPasswordVisible((v) => !v)}
+            >
+              {passwordVisible ? (
+                <EyeOffIcon className="size-3.5" />
+              ) : (
+                <EyeIcon className="size-3.5" />
+              )}
+            </Button>
+          </div>
           <Button size="sm" onClick={submitPassword} disabled={busy || !password}>
             {busy && <Loader2Icon className="size-3.5 animate-spin" />}
             Войти
