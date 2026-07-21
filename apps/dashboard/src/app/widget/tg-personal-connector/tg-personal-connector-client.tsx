@@ -1,20 +1,69 @@
 "use client";
 
-import { CheckIcon, Loader2Icon } from "lucide-react";
+import { CheckIcon, HelpCircleIcon, Loader2Icon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { orpcClient } from "@/lib/orpc/client";
 
-type Step = "phone" | "code" | "password" | "connected";
+type Step = "credentials" | "code" | "password" | "connected";
+
+/** Bitrix24 открывает настройки коннектора в узком окне фиксированной
+ * высоты (~204px) — макет ниже специально плотный: без подписей над
+ * полями (только placeholder), справка — во всплывающей подсказке,
+ * которая не занимает место в потоке. */
+function ApiCredentialsHelp() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Где взять api_id и api_hash"
+        >
+          <HelpCircleIcon className="size-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="end" className="text-xs">
+        <p>
+          <b>api_id</b> и <b>api_hash</b> — реквизиты приложения Telegram для
+          номера, который вы подключаете (не аккаунта Bitrix24).
+        </p>
+        <ol className="list-decimal space-y-0.5 pl-4">
+          <li>
+            Откройте{" "}
+            <a
+              href="https://my.telegram.org/apps"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              my.telegram.org/apps
+            </a>{" "}
+            и войдите под этим номером телефона.
+          </li>
+          <li>Создайте приложение (любые название и платформа).</li>
+          <li>Скопируйте App api_id и App api_hash в поля ниже.</li>
+        </ol>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 /**
- * Пошаговый вход в личный аккаунт Telegram (телефон → код → пароль 2FA при
- * необходимости) для конкретной линии Открытых линий Bitrix24.
+ * Пошаговый вход в личный аккаунт Telegram (api_id/api_hash + телефон → код
+ * → пароль 2FA при необходимости) для конкретной линии Открытых линий Bitrix24.
  */
 export function TgPersonalConnectorClient({ lineId }: { lineId: string }) {
-  const [step, setStep] = useState<Step>("phone");
+  const [step, setStep] = useState<Step>("credentials");
+  const [apiId, setApiId] = useState("");
+  const [apiHash, setApiHash] = useState("");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -25,20 +74,25 @@ export function TgPersonalConnectorClient({ lineId }: { lineId: string }) {
 
   if (!lineId) {
     return (
-      <p className="text-sm text-destructive">
-        Откройте это окно из настроек канала на линии в Контакт-центре
-        Битрикс24 — не удалось определить линию.
+      <p className="text-xs text-destructive">
+        Откройте это окно из настроек канала на линии в Контакт-центре —
+        не удалось определить линию.
       </p>
     );
   }
 
-  const submitPhone = () => {
-    if (!phone.trim()) return;
+  const credentialsValid =
+    /^\d+$/.test(apiId.trim()) && apiHash.trim().length > 0 && phone.trim().length >= 5;
+
+  const submitCredentials = () => {
+    if (!credentialsValid) return;
     setError(null);
     startTransition(async () => {
       const res = await orpcClient.telegramPersonal.startLogin({
         lineId,
         phone: phone.trim(),
+        apiId: apiId.trim(),
+        apiHash: apiHash.trim(),
       });
       if (res.error || !res.loginId) {
         setError(res.error ?? "Не удалось отправить код");
@@ -88,85 +142,103 @@ export function TgPersonalConnectorClient({ lineId }: { lineId: string }) {
   };
 
   return (
-    <div className="flex max-w-sm flex-col gap-4">
-      <div>
-        <p className="text-sm font-medium">Telegram — личный номер</p>
-        <p className="text-xs text-muted-foreground">Линия {lineId}</p>
-      </div>
-
-      {step === "phone" && (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="tg-phone" className="text-xs text-muted-foreground">
-            Номер телефона (в международном формате)
-          </Label>
+    <div className="flex flex-col gap-1.5">
+      {step === "credentials" && (
+        <>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              Личный номер Telegram
+            </span>
+            <ApiCredentialsHelp />
+          </div>
+          <div className="flex gap-1.5">
+            <Input
+              value={apiId}
+              onChange={(e) => setApiId(e.target.value)}
+              placeholder="api_id"
+              inputMode="numeric"
+              aria-label="api_id"
+              disabled={busy}
+              className="w-20"
+            />
+            <Input
+              value={apiHash}
+              onChange={(e) => setApiHash(e.target.value)}
+              placeholder="api_hash"
+              aria-label="api_hash"
+              disabled={busy}
+              className="flex-1"
+            />
+          </div>
           <Input
-            id="tg-phone"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="+79991234567"
+            aria-label="Номер телефона"
             disabled={busy}
           />
-          <Button onClick={submitPhone} disabled={busy || !phone.trim()}>
-            {busy && <Loader2Icon className="size-4 animate-spin" />}
+          <Button
+            size="sm"
+            onClick={submitCredentials}
+            disabled={busy || !credentialsValid}
+          >
+            {busy && <Loader2Icon className="size-3.5 animate-spin" />}
             Отправить код
           </Button>
-        </div>
+        </>
       )}
 
       {step === "code" && (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="tg-code" className="text-xs text-muted-foreground">
-            Код из Telegram/SMS
-          </Label>
+        <>
           <Input
-            id="tg-code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            placeholder="12345"
+            placeholder="Код из Telegram/SMS"
+            aria-label="Код из Telegram/SMS"
             disabled={busy}
+            autoFocus
           />
-          <Button onClick={submitCode} disabled={busy || !code.trim()}>
-            {busy && <Loader2Icon className="size-4 animate-spin" />}
+          <Button size="sm" onClick={submitCode} disabled={busy || !code.trim()}>
+            {busy && <Loader2Icon className="size-3.5 animate-spin" />}
             Подтвердить
           </Button>
-        </div>
+        </>
       )}
 
       {step === "password" && (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="tg-password" className="text-xs text-muted-foreground">
-            Пароль двухфакторной аутентификации
-          </Label>
+        <>
           <Input
-            id="tg-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            placeholder="Пароль 2FA"
+            aria-label="Пароль двухфакторной аутентификации"
             disabled={busy}
+            autoFocus
           />
-          <Button onClick={submitPassword} disabled={busy || !password}>
-            {busy && <Loader2Icon className="size-4 animate-spin" />}
+          <Button size="sm" onClick={submitPassword} disabled={busy || !password}>
+            {busy && <Loader2Icon className="size-3.5 animate-spin" />}
             Войти
           </Button>
-        </div>
+        </>
       )}
 
       {step === "connected" && (
-        <div className="flex flex-col gap-2">
+        <>
           <p className="flex items-center gap-1.5 text-sm text-emerald-600">
             <CheckIcon className="size-4" />
             Номер подключён к этой линии
           </p>
           {activationError && (
-            <p className="text-sm text-destructive">
-              Сессия сохранена, но активировать линию не удалось:{" "}
-              {activationError}. Попробуйте открыть настройки канала ещё раз.
+            <p className="text-xs text-destructive">
+              Сессия сохранена, но линия не активировалась: {activationError}.
+              Откройте настройки канала ещё раз.
             </p>
           )}
-        </div>
+        </>
       )}
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

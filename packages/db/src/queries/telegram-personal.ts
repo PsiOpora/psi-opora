@@ -5,14 +5,15 @@ import { telegramPersonalAccounts } from "../schema/telegram-personal";
 export type TelegramPersonalAccount =
   typeof telegramPersonalAccounts.$inferSelect;
 
-export type TelegramPersonalAccountStatus =
-  | "pending_code"
-  | "pending_password"
-  | "connected"
-  | "disconnected"
-  | "error";
+/**
+ * "connected" — обычное состояние строки. "error" — зарезервировано для
+ * Фазы 2 (воркер обнаружил, что сессия отозвана/недействительна), сейчас
+ * никем не устанавливается. Промежуточные шаги логина в эту таблицу не
+ * попадают — см. комментарий у колонки status в schema/telegram-personal.
+ */
+export type TelegramPersonalAccountStatus = "connected" | "error";
 
-/** Все подключённые (или в процессе подключения) номера портала — для карточки в настройках. */
+/** Все подключённые номера портала — для карточки в настройках. */
 export async function listTelegramPersonalAccounts(
   memberId: string,
 ): Promise<TelegramPersonalAccount[]> {
@@ -52,6 +53,8 @@ export async function upsertTelegramPersonalAccountConnected(data: {
   openLineId: string;
   connectorId: string;
   phone: string;
+  apiId: string;
+  apiHashEncrypted: string;
   sessionEncrypted: string;
 }): Promise<void> {
   if (!db) return;
@@ -71,6 +74,8 @@ export async function upsertTelegramPersonalAccountConnected(data: {
       set: {
         connectorId: data.connectorId,
         phone: data.phone,
+        apiId: data.apiId,
+        apiHashEncrypted: data.apiHashEncrypted,
         sessionEncrypted: data.sessionEncrypted,
         status: "connected" satisfies TelegramPersonalAccountStatus,
         lastError: null,

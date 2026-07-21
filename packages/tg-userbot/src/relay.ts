@@ -1,24 +1,26 @@
 import { MemoryStorage } from "@mtcute/core";
 import { TelegramClient } from "@mtcute/node";
 import type { Message } from "@mtcute/node";
-import { env } from "@psi-opora/config";
+import type { TelegramApiCredentials } from "./login";
 
 /**
  * Используется воркером (Фаза 2, apps/tg-userbot-worker) — держит живой
  * MTProto-клиент личного аккаунта для приёма/отправки сообщений. В отличие
  * от login.ts (одноразовые короткие подключения на каждый шаг логина),
  * этот клиент остаётся подключённым постоянно (см. план — always-on
- * процесс, не serverless).
+ * процесс, не serverless). apiId/apiHash/session — то, что было сохранено
+ * для этого номера при подключении (packages/db телеgram_personal_accounts).
  */
-export function createUserbotClient(session: string): TelegramClient {
-  const apiId = env.TG_USERBOT_API_ID;
-  const apiHash = env.TG_USERBOT_API_HASH;
-  if (!apiId || !apiHash) {
-    throw new Error(
-      "TG_USERBOT_API_ID/TG_USERBOT_API_HASH не заданы (получить на my.telegram.org/apps)",
-    );
-  }
-  const tg = new TelegramClient({ apiId, apiHash, storage: new MemoryStorage() });
+export async function createUserbotClient(
+  session: string,
+  credentials: TelegramApiCredentials,
+): Promise<TelegramClient> {
+  const tg = new TelegramClient({
+    apiId: credentials.apiId,
+    apiHash: credentials.apiHash,
+    storage: new MemoryStorage(),
+  });
+  await tg.importSession(session);
   return tg;
 }
 

@@ -1,10 +1,11 @@
-export { decryptSession, encryptSession } from "./crypto";
+export { decryptSecret, encryptSecret } from "./crypto";
 export {
   type ConfirmLoginResult,
   confirmLoginCode,
   confirmLoginPassword,
   type SendLoginCodeResult,
   sendLoginCode,
+  type TelegramApiCredentials,
 } from "./login";
 export {
   type OutboundMessage,

@@ -21,6 +21,10 @@ async function handle(request: Request): Promise<Response> {
   if (request.method === "POST") {
     const form = await request.formData().catch(() => null);
     try {
+      // TODO: проверить на реальном портале Bitrix24, что PLACEMENT_OPTIONS
+      // для SETTING_CONNECTOR действительно содержит LINE в этом виде —
+      // предположение сделано по аналогии с CRM_*_DETAIL_TAB (api/bitrix/widget),
+      // но для настроек коннектора Открытых линий официально не задокументировано.
       const options = JSON.parse(
         String(form?.get("PLACEMENT_OPTIONS") ?? "{}"),
       ) as { LINE?: string | number; CONNECTOR?: string };

@@ -20,17 +20,20 @@ export const submitCode = publicProcedure
       activationError?: string;
     }> => {
       const pending = await getPendingTelegramLogin(input.loginId);
-      if (!pending) {
+      if (!pending || pending.memberId !== context.memberId) {
         return { error: "Сессия логина истекла — начните заново" };
       }
 
       try {
-        const result = await confirmLoginCode({
-          pendingSession: pending.pendingSession,
-          phone: pending.phone,
-          phoneCodeHash: pending.phoneCodeHash,
-          code: input.code,
-        });
+        const result = await confirmLoginCode(
+          {
+            pendingSession: pending.pendingSession,
+            phone: pending.phone,
+            phoneCodeHash: pending.phoneCodeHash,
+            code: input.code,
+          },
+          { apiId: pending.apiId, apiHash: pending.apiHash },
+        );
 
         if (result.status === "password_required") {
           await savePendingTelegramLogin(input.loginId, {
@@ -45,6 +48,8 @@ export const submitCode = publicProcedure
           memberId: pending.memberId,
           lineId: pending.lineId,
           phone: pending.phone,
+          apiId: pending.apiId,
+          apiHash: pending.apiHash,
           session: result.session,
           getBitrixApi: context.getBitrixApi,
         });

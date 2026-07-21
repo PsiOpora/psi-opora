@@ -62,9 +62,10 @@ export const env = createEnv({
     DASHBOARD_BITRIX_CLIENT_SECRET: z.string().optional(),
     DASHBOARD_BITRIX_WEBHOOK_URL: z.string().optional(),
 
-    // Telegram userbot (личный номер как коннектор Открытых линий, mtcute)
-    TG_USERBOT_API_ID: z.coerce.number().optional(),
-    TG_USERBOT_API_HASH: z.string().optional(),
+    // Telegram userbot (личный номер как коннектор Открытых линий, mtcute).
+    // api_id/api_hash приложения НЕ здесь — их вводит администратор в
+    // настройках коннектора (свои на каждый подключаемый номер), см.
+    // packages/api/src/routers/telegram-personal.
     TG_USERBOT_ENCRYPTION_KEY: z.string().optional(),
     TG_USERBOT_CONNECTOR_ID: z.string().default("psiopora_tg_personal"),
 
@@ -117,8 +118,6 @@ export const env = createEnv({
     DASHBOARD_BITRIX_CLIENT_ID: process.env.DASHBOARD_BITRIX_CLIENT_ID,
     DASHBOARD_BITRIX_CLIENT_SECRET: process.env.DASHBOARD_BITRIX_CLIENT_SECRET,
     DASHBOARD_BITRIX_WEBHOOK_URL: process.env.DASHBOARD_BITRIX_WEBHOOK_URL,
-    TG_USERBOT_API_ID: process.env.TG_USERBOT_API_ID,
-    TG_USERBOT_API_HASH: process.env.TG_USERBOT_API_HASH,
     TG_USERBOT_ENCRYPTION_KEY: process.env.TG_USERBOT_ENCRYPTION_KEY,
     TG_USERBOT_CONNECTOR_ID: process.env.TG_USERBOT_CONNECTOR_ID,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,

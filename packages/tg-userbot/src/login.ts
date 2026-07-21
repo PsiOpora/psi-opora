@@ -1,16 +1,9 @@
 import { MemoryStorage, SentCode, tl } from "@mtcute/core";
 import { TelegramClient } from "@mtcute/node";
-import { env } from "@psi-opora/config";
 
-function getApiCredentials(): { apiId: number; apiHash: string } {
-  const apiId = env.TG_USERBOT_API_ID;
-  const apiHash = env.TG_USERBOT_API_HASH;
-  if (!apiId || !apiHash) {
-    throw new Error(
-      "TG_USERBOT_API_ID/TG_USERBOT_API_HASH не заданы (получить на my.telegram.org/apps)",
-    );
-  }
-  return { apiId, apiHash };
+export interface TelegramApiCredentials {
+  apiId: number;
+  apiHash: string;
 }
 
 /**
@@ -19,10 +12,30 @@ function getApiCredentials(): { apiId: number; apiHash: string } {
  * каждый шаг создаёт свежий клиент и восстанавливает состояние через
  * exportSession()/importSession() неавторизованной сессии, а не держит
  * один и тот же процесс/соединение живым между шагами.
+ *
+ * apiId/apiHash приходят от вызывающего (введены администратором в
+ * настройках коннектора — my.telegram.org/apps), а не из env: у каждого
+ * подключаемого номера может быть своё приложение.
  */
-function createClient(): TelegramClient {
-  const { apiId, apiHash } = getApiCredentials();
-  return new TelegramClient({ apiId, apiHash, storage: new MemoryStorage() });
+function createClient(credentials: TelegramApiCredentials): TelegramClient {
+  return new TelegramClient({
+    apiId: credentials.apiId,
+    apiHash: credentials.apiHash,
+    storage: new MemoryStorage(),
+  });
+}
+
+/**
+ * Ошибку destroy() в `finally` не пробрасываем — иначе она заменит собой
+ * более информативную ошибку из основного блока (например PHONE_CODE_INVALID),
+ * если сам разрыв соединения тоже почему-то упал.
+ */
+async function destroySafely(tg: TelegramClient): Promise<void> {
+  try {
+    await tg.destroy();
+  } catch (err) {
+    console.error(`[tg-userbot] ошибка при закрытии клиента: ${(err as Error).message}`);
+  }
 }
 
 export interface SendLoginCodeResult {
@@ -30,8 +43,11 @@ export interface SendLoginCodeResult {
   phoneCodeHash: string;
 }
 
-export async function sendLoginCode(phone: string): Promise<SendLoginCodeResult> {
-  const tg = createClient();
+export async function sendLoginCode(
+  phone: string,
+  credentials: TelegramApiCredentials,
+): Promise<SendLoginCodeResult> {
+  const tg = createClient(credentials);
   try {
     const sentCode = await tg.sendCode({ phone });
     if (!(sentCode instanceof SentCode)) {
@@ -42,7 +58,7 @@ export async function sendLoginCode(phone: string): Promise<SendLoginCodeResult>
     const pendingSession = await tg.exportSession();
     return { pendingSession, phoneCodeHash: sentCode.phoneCodeHash };
   } finally {
-    await tg.destroy();
+    await destroySafely(tg);
   }
 }
 
@@ -50,13 +66,16 @@ export type ConfirmLoginResult =
   | { status: "connected"; session: string }
   | { status: "password_required"; pendingSession: string };
 
-export async function confirmLoginCode(params: {
-  pendingSession: string;
-  phone: string;
-  phoneCodeHash: string;
-  code: string;
-}): Promise<ConfirmLoginResult> {
-  const tg = createClient();
+export async function confirmLoginCode(
+  params: {
+    pendingSession: string;
+    phone: string;
+    phoneCodeHash: string;
+    code: string;
+  },
+  credentials: TelegramApiCredentials,
+): Promise<ConfirmLoginResult> {
+  const tg = createClient(credentials);
   try {
     await tg.importSession(params.pendingSession);
     try {
@@ -76,20 +95,23 @@ export async function confirmLoginCode(params: {
       throw err;
     }
   } finally {
-    await tg.destroy();
+    await destroySafely(tg);
   }
 }
 
-export async function confirmLoginPassword(params: {
-  pendingSession: string;
-  password: string;
-}): Promise<{ status: "connected"; session: string }> {
-  const tg = createClient();
+export async function confirmLoginPassword(
+  params: {
+    pendingSession: string;
+    password: string;
+  },
+  credentials: TelegramApiCredentials,
+): Promise<{ status: "connected"; session: string }> {
+  const tg = createClient(credentials);
   try {
     await tg.importSession(params.pendingSession);
     await tg.checkPassword(params.password);
     return { status: "connected", session: await tg.exportSession() };
   } finally {
-    await tg.destroy();
+    await destroySafely(tg);
   }
 }
