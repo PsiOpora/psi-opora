@@ -2,10 +2,20 @@ import type { BitrixApi } from "@psi-opora/bitrix-client";
 import { createUpstashRedis } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { upsertTelegramPersonalAccountConnected } from "@psi-opora/db/queries";
-import { encryptSession } from "@psi-opora/tg-userbot";
+import { encryptSecret } from "@psi-opora/tg-userbot";
 
-/** Промежуточное состояние логина Telegram-userbot живёт только в Redis — на
- * фронт уходит лишь `loginId`, сырые данные сессии/hash не покидают сервер. */
+/**
+ * Промежуточное состояние логина Telegram-userbot живёт только в Redis — на
+ * фронт уходит лишь `loginId`, сырые данные сессии/hash не покидают сервер.
+ * В отличие от финальной сессии (шифруется перед записью в Postgres, см.
+ * encryptSession), pendingSession здесь хранится как есть: это либо ещё не
+ * авторизованная сессия (после sendCode), либо авторизованная лишь частично
+ * (после signIn, но до подтверждения 2FA-пароля) — в обоих случаях запись
+ * живёт не дольше PENDING_LOGIN_TTL_SECONDS и доступна только серверу
+ * (Redis не читается с фронта), так что риск ниже, чем у постоянного
+ * хранения в БД, но это осознанный компромисс, а не то же самое, что
+ * шифрование финальной сессии.
+ */
 export interface PendingTelegramLogin {
   memberId: string;
   lineId: string;
@@ -13,6 +23,10 @@ export interface PendingTelegramLogin {
   phoneCodeHash: string;
   pendingSession: string;
   awaiting: "code" | "password";
+  /** api_id/api_hash приложения Telegram, введённые администратором на
+   * первом шаге — используются для переподключения на всех следующих. */
+  apiId: number;
+  apiHash: string;
 }
 
 const PENDING_LOGIN_TTL_SECONDS = 10 * 60;
@@ -59,6 +73,8 @@ export async function finalizeConnectedLogin(params: {
   memberId: string;
   lineId: string;
   phone: string;
+  apiId: number;
+  apiHash: string;
   session: string;
   getBitrixApi: () => Promise<BitrixApi | null>;
 }): Promise<{ activationError?: string }> {
@@ -67,7 +83,9 @@ export async function finalizeConnectedLogin(params: {
     openLineId: params.lineId,
     connectorId: connectorId(),
     phone: params.phone,
-    sessionEncrypted: encryptSession(params.session),
+    apiId: String(params.apiId),
+    apiHashEncrypted: encryptSecret(params.apiHash),
+    sessionEncrypted: encryptSecret(params.session),
   });
 
   try {
@@ -76,7 +94,7 @@ export async function finalizeConnectedLogin(params: {
     await api.call("imconnector.activate", {
       CONNECTOR: connectorId(),
       LINE: Number(params.lineId),
-      ACTIVE: "1",
+      ACTIVE: "Y",
     });
     return {};
   } catch (err) {

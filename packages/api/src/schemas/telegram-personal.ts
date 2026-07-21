@@ -3,6 +3,10 @@ import { z } from "zod";
 export const startTelegramLoginSchema = z.object({
   lineId: z.string(),
   phone: z.string().min(5),
+  /** api_id/api_hash приложения Telegram (my.telegram.org/apps) — вводит
+   * администратор, своё приложение на каждый подключаемый номер. */
+  apiId: z.coerce.number().int().positive(),
+  apiHash: z.string().min(1),
 });
 export type StartTelegramLoginInput = z.infer<typeof startTelegramLoginSchema>;
 

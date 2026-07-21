@@ -288,6 +288,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
+        "@types/bun": "1.3.14",
         "@types/node": "26.1.1",
         "tsdown": "^0.22.11",
         "typescript": "6.0.3",

@@ -16,7 +16,7 @@ export const disconnect = publicProcedure
         await api.call("imconnector.activate", {
           CONNECTOR: connectorId(),
           LINE: Number(input.lineId),
-          ACTIVE: "0",
+          ACTIVE: "N",
         });
       }
     } catch (err) {

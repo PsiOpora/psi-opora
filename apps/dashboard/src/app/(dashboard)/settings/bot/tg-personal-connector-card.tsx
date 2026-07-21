@@ -30,7 +30,6 @@ function handlerUrl(): string {
 
 const STATUS_LABELS: Record<string, string> = {
   connected: "подключён",
-  disconnected: "отключён",
   error: "ошибка",
 };
 

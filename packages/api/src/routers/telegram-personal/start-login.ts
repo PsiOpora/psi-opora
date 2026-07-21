@@ -21,6 +21,7 @@ export const startLogin = publicProcedure
       try {
         const { pendingSession, phoneCodeHash } = await sendLoginCode(
           input.phone,
+          { apiId: input.apiId, apiHash: input.apiHash },
         );
         const loginId = crypto.randomUUID();
         await savePendingTelegramLogin(loginId, {
@@ -30,6 +31,8 @@ export const startLogin = publicProcedure
           phoneCodeHash,
           pendingSession,
           awaiting: "code",
+          apiId: input.apiId,
+          apiHash: input.apiHash,
         });
         return { loginId };
       } catch (err) {

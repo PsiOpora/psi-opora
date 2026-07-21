@@ -21,11 +21,11 @@ function getKey(): Buffer {
 }
 
 /**
- * MTProto-сессия личного аккаунта эквивалентна паролю (полный доступ к
- * аккаунту) — храним в БД только в зашифрованном виде. Формат:
- * `iv.authTag.ciphertext`, всё в base64.
+ * Общее шифрование для секретов, которые храним в БД (MTProto-сессия,
+ * api_hash приложения Telegram) — оба эквивалентны как минимум частичному
+ * доступу к аккаунту/приложению. Формат: `iv.authTag.ciphertext`, всё в base64.
  */
-export function encryptSession(plain: string): string {
+export function encryptSecret(plain: string): string {
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, getKey(), iv);
   const ciphertext = Buffer.concat([
@@ -38,7 +38,7 @@ export function encryptSession(plain: string): string {
     .join(".");
 }
 
-export function decryptSession(encrypted: string): string {
+export function decryptSecret(encrypted: string): string {
   const [ivB64, authTagB64, ciphertextB64] = encrypted.split(".");
   if (!ivB64 || !authTagB64 || !ciphertextB64) {
     throw new Error("Некорректный формат зашифрованной сессии");
