@@ -7,6 +7,12 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "12mb",
     },
   },
+  // mtcute (личные Telegram-аккаунты) грузит crypto-примитивы из .wasm через
+  // `new URL('./mtcute-simd.wasm', import.meta.url)` — webpack бандлит только
+  // одну из двух wasm-веток (не-SIMD), из-за чего в проде падает
+  // "Cannot find module '@mtcute/wasm/mtcute-simd.wasm'". Исключаем пакет из
+  // серверного бандла, чтобы он резолвился как обычный node_modules при рантайме.
+  serverExternalPackages: ["@mtcute/wasm", "@mtcute/core", "@mtcute/node"],
   // Приложение открывается во фрейме внутри Битрикс24 (домен портала заранее
   // неизвестен), поэтому X-Frame-Options не выставляем — вместо запрета
   // явно разрешаем встройку с *.bitrix24.* через CSP frame-ancestors.
