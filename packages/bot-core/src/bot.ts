@@ -15,6 +15,7 @@ import {
 } from "./scenario/engine";
 import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
 import type { AppContext, ConsultationSession } from "./types/context";
+import { sendMessageToOpenLine } from "./utils/bitrix";
 import { logBotMessage } from "./utils/message-log";
 import { upsertBotUserProfile } from "./utils/user-profile";
 import { formatUtmLog, parseUtmParams } from "./utils/utm";
@@ -232,6 +233,20 @@ export function createBot({ storage, redis, client }: BotOptions = {}) {
       source: "scenario",
       text,
     });
+
+    // Дублируем в Открытую линию Bitrix24 — вся переписка видна оператору,
+    // и он может ответить прямо оттуда (см. sendMessageToOpenLine).
+    if (ctx.chatId && ctx.from) {
+      await sendMessageToOpenLine({
+        messenger: "telegram",
+        userId: ctx.from.id,
+        chatId: ctx.chatId,
+        text,
+        name: [ctx.from.first_name, ctx.from.last_name]
+          .filter(Boolean)
+          .join(" "),
+      });
+    }
 
     const state = ctx.session.scenario;
     if (!state) return;

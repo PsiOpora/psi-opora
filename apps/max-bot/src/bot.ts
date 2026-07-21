@@ -11,6 +11,7 @@ import {
   logBotMessage,
   parseUtmParams,
   SCENARIO_ACTIONS,
+  sendMessageToOpenLine,
   type ScenarioMessage,
   type ScenarioOutput,
   type ScenarioTexts,
@@ -361,13 +362,29 @@ export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
     if (!text || text.startsWith("/")) return;
 
     // В журнал попадают все входящие — даже вне сценария
+    const userId = appCtx.user?.user_id ?? appCtx.message?.sender?.user_id;
     await logBotMessage({
       messenger: "max",
-      userId: appCtx.user?.user_id ?? appCtx.message?.sender?.user_id,
+      userId,
       direction: "in",
       source: "scenario",
       text,
     });
+
+    // Дублируем в Открытую линию Bitrix24 — вся переписка видна оператору,
+    // и он может ответить прямо оттуда (см. sendMessageToOpenLine). В качестве
+    // внешнего chat.id передаём user_id, а не MAX chat_id: обратная отправка
+    // (sendMessengerMessage → MAX API messages.send) адресуется по user_id,
+    // так что для маршрутизации ответа назад нужен именно он.
+    if (userId) {
+      await sendMessageToOpenLine({
+        messenger: "max",
+        userId,
+        chatId: userId,
+        text,
+        name: appCtx.user?.name,
+      });
+    }
 
     const state = appCtx.session.scenario;
     if (!state) return;

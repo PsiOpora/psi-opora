@@ -31,8 +31,37 @@ export interface BitrixWebhookPayload {
       user?: {
         id?: number;
       };
+      message?: {
+        text?: string;
+      };
     }>;
   };
+}
+
+export interface OperatorReplyMessage {
+  /** ID коннектора (data.CONNECTOR) — по нему определяем мессенджер (TG/MAX). */
+  connector?: string;
+  /** ID чата во внешней системе — тот же chat.id, что бот передавал в imconnector.send.messages. */
+  chatId: number;
+  text: string;
+}
+
+/**
+ * Разбирает событие ONIMCONNECTORMESSAGEADD (ответ оператора в Открытой
+ * линии) — возвращает данные для пересылки обратно в мессенджер, либо
+ * null, если это не оно или текст/chatId отсутствуют.
+ */
+export function getOperatorReplyMessage(
+  payload: BitrixWebhookPayload,
+): OperatorReplyMessage | null {
+  if (payload.event?.toUpperCase() !== "ONIMCONNECTORMESSAGEADD") return null;
+
+  const item = payload.data?.DATA?.[0];
+  const chatId = item?.chat?.id ?? item?.connector?.chat_id;
+  const text = item?.message?.text?.trim();
+  if (!chatId || !text) return null;
+
+  return { connector: payload.data?.CONNECTOR, chatId, text };
 }
 
 const CHAT_KEY_PREFIX = "b24:chat:";
@@ -86,7 +115,11 @@ export async function handleBitrixWebhook(
   }
 }
 
-export function bitrixWebhookHandler(options?: { token?: string }) {
+export function bitrixWebhookHandler(options?: {
+  token?: string;
+  /** Вызывается, когда во входящем событии — ответ оператора Открытой линии. */
+  onOperatorReply?: (reply: OperatorReplyMessage) => void | Promise<void>;
+}) {
   return async (req: Request): Promise<Response> => {
     if (req.method !== "POST") {
       return new Response("ok");
@@ -123,6 +156,11 @@ export function bitrixWebhookHandler(options?: { token?: string }) {
     }
 
     await handleBitrixWebhook(payload, { redisUrl, redisToken });
+
+    const reply = getOperatorReplyMessage(payload);
+    if (reply && options?.onOperatorReply) {
+      await options.onOperatorReply(reply);
+    }
 
     return new Response("ok");
   };

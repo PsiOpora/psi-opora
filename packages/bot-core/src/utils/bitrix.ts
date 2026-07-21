@@ -385,6 +385,79 @@ export async function createBitrixDeal(
   return { contactId, dealId };
 }
 
+// Bitrix отклоняет весь вызов imconnector.send.messages, если user.name не
+// проходит валидацию (только буквы, пробелы, дефисы, апострофы, ≤25 символов) —
+// имена из Telegram/MAX могут содержать эмодзи и цифры, поэтому подставляем
+// поле, только если оно точно пройдёт проверку.
+function sanitizeOpenLineName(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim().slice(0, 25);
+  return /^[\p{L}\s'-]+$/u.test(trimmed) ? trimmed : undefined;
+}
+
+export interface OpenLineMessageData {
+  messenger: string;
+  userId: number;
+  /** ID чата в мессенджере (Telegram chat_id / MAX chat_id) — по этому
+   * значению Bitrix сопоставляет сообщение с уже открытым диалогом. */
+  chatId: number;
+  text: string;
+  /** Имя клиента для отображения в диалоге (необязательно). */
+  name?: string;
+}
+
+/**
+ * Дублирует сообщение клиента в Открытую линию Bitrix24 через
+ * imconnector.send.messages — так оператор видит переписку из бота и
+ * может ответить прямо в Открытой линии. Ответ оператора прилетает
+ * обратным вебхуком (событие ONIMCONNECTORMESSAGEADD) — см.
+ * apps/bitrix-webhook, который пересылает его через sendMessengerMessage.
+ * Без BITRIX_OPEN_LINE_ID тихо пропускаем (коннектор не активирован).
+ */
+export async function sendMessageToOpenLine(
+  data: OpenLineMessageData,
+): Promise<void> {
+  const webhookUrl = getEnv(data.messenger, "BITRIX_WEBHOOK_URL");
+  const lineId = getOpenLineId(data.messenger);
+  if (!webhookUrl || !lineId) return;
+
+  const name = sanitizeOpenLineName(data.name);
+
+  try {
+    await bitrixPost(
+      "imconnector.send.messages",
+      {
+        CONNECTOR: getConnectorId(data.messenger),
+        LINE: lineId,
+        MESSAGES: [
+          {
+            user: {
+              id: String(data.userId),
+              ...(name ? { name } : {}),
+              skip_phone_validate: "Y",
+            },
+            message: {
+              id: `${data.messenger}-${data.userId}-${Date.now()}`,
+              date: Math.floor(Date.now() / 1000),
+              text: data.text,
+            },
+            chat: {
+              id: String(data.chatId),
+              name: data.name || `${data.messenger} #${data.userId}`,
+            },
+          },
+        ],
+      },
+      data.messenger,
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[bitrix] не удалось переслать сообщение в Открытую линию: ${message}`,
+    );
+  }
+}
+
 /**
  * Добавляет комментарий в таймлайн сделки (например, ответ на вопрос
  * о рассылке). Ошибки не пробрасываются — комментарий не критичен.
@@ -466,6 +539,14 @@ export async function registerBitrixSource(messenger: string): Promise<void> {
   }
 }
 
+function getConnectorId(messenger: string): string {
+  return getEnv(messenger, "BITRIX_CONNECTOR_ID") ?? `psiopora_${messenger}_bot`;
+}
+
+function getOpenLineId(messenger: string): string | undefined {
+  return getEnv(messenger, "BITRIX_OPEN_LINE_ID");
+}
+
 export async function registerBitrixConnector(
   messenger: string,
 ): Promise<void> {
@@ -473,9 +554,8 @@ export async function registerBitrixConnector(
   if (!webhookUrl)
     throw new Error(`BITRIX_WEBHOOK_URL не задан для ${messenger}`);
 
-  const connectorId =
-    getEnv(messenger, "BITRIX_CONNECTOR_ID") ?? `psiopora_${messenger}_bot`;
-  const openLineId = getEnv(messenger, "BITRIX_OPEN_LINE_ID");
+  const connectorId = getConnectorId(messenger);
+  const openLineId = getOpenLineId(messenger);
 
   await bitrixPost(
     "imconnector.register",
