@@ -16,10 +16,13 @@
  * @see https://orpc.dev/docs/server/context
  */
 
-import { env, logger } from "@psi-opora/config";
-import { type BitrixApi, resolveBitrixApiForRequest } from "@psi-opora/bitrix-client";
-import { db } from "@psi-opora/db";
 import { ORPCError, os } from "@orpc/server";
+import {
+  type BitrixApi,
+  resolveBitrixApiForRequest,
+} from "@psi-opora/bitrix-client";
+import { env, logger } from "@psi-opora/config";
+import { db } from "@psi-opora/db";
 
 export interface CreateORPCContextOptions {
   /** Request headers, kept on the context for procedures that need them. */
@@ -65,12 +68,19 @@ const o = os.$context<ReturnType<typeof createORPCContext>>();
  */
 const timingMiddleware = o.middleware(async ({ next, path }) => {
   const start = Date.now();
+  const pathStr = Array.isArray(path) ? path.join(".") : path;
 
   try {
     return await next();
+  } catch (err) {
+    logger.error(`orpc.error: ${pathStr}`, err, {
+      path: pathStr,
+      durationMs: Date.now() - start,
+    });
+    throw err;
   } finally {
     logger.info("orpc.request", {
-      path: Array.isArray(path) ? path.join(".") : path,
+      path: pathStr,
       durationMs: Date.now() - start,
     });
   }

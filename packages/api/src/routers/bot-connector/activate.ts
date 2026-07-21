@@ -1,3 +1,4 @@
+import { logger } from "@psi-opora/config";
 import {
   markBotConnectorWebhookConfigured,
   upsertBotConnector,
@@ -41,12 +42,25 @@ export const activate = publicProcedure
         return { error: (err as Error).message };
       }
 
-      await upsertBotConnector({
-        messenger: input.messenger,
-        memberId: context.memberId,
-        openLineId: input.lineId,
-        connectorId: connectorId(input.messenger),
-      });
+      try {
+        await upsertBotConnector({
+          messenger: input.messenger,
+          memberId: context.memberId,
+          openLineId: input.lineId,
+          connectorId: connectorId(input.messenger),
+        });
+      } catch (err) {
+        logger.error(
+          "bot-connector.activate: не удалось сохранить коннектор в БД",
+          err,
+          {
+            messenger: input.messenger,
+          },
+        );
+        return {
+          error: `Не удалось сохранить канал в базе данных: ${(err as Error).message}`,
+        };
+      }
 
       try {
         await setMessengerWebhook(input.messenger);

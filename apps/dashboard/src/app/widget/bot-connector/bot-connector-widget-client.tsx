@@ -30,17 +30,22 @@ export function BotConnectorWidgetClient({
     setStatus("activating");
     setError(null);
     startTransition(async () => {
-      const res = await orpcClient.botConnector.activate({
-        messenger,
-        lineId,
-      });
-      if (res.error) {
-        setError(res.error);
+      try {
+        const res = await orpcClient.botConnector.activate({
+          messenger,
+          lineId,
+        });
+        if (res.error) {
+          setError(res.error);
+          setStatus("error");
+          return;
+        }
+        setWebhookError(res.webhookError ?? null);
+        setStatus("done");
+      } catch (err) {
+        setError((err as Error).message);
         setStatus("error");
-        return;
       }
-      setWebhookError(res.webhookError ?? null);
-      setStatus("done");
     });
   };
 
@@ -52,8 +57,8 @@ export function BotConnectorWidgetClient({
   if (!lineId) {
     return (
       <p className="text-xs text-destructive">
-        Откройте это окно из настроек канала на линии в Контакт-центре —
-        не удалось определить линию.
+        Откройте это окно из настроек канала на линии в Контакт-центре — не
+        удалось определить линию.
       </p>
     );
   }
@@ -75,8 +80,8 @@ export function BotConnectorWidgetClient({
           </p>
           {webhookError && (
             <p className="text-xs text-destructive">
-              Вебхук бота не настроен: {webhookError}. Линия всё равно
-              активна — можно повторить ниже.
+              Вебхук бота не настроен: {webhookError}. Линия всё равно активна —
+              можно повторить ниже.
             </p>
           )}
         </>

@@ -1,3 +1,5 @@
+import { ORPCError } from "@orpc/server";
+import { logger } from "@psi-opora/config";
 import { getBotConnector } from "@psi-opora/db/queries";
 import { publicProcedure } from "../../orpc";
 import type { BotConnectorView } from "./types";
@@ -21,10 +23,21 @@ export const status = publicProcedure.handler(
     telegram: BotConnectorView | null;
     max: BotConnectorView | null;
   }> => {
-    const [telegram, max] = await Promise.all([
-      toView("telegram"),
-      toView("max"),
-    ]);
-    return { telegram, max };
+    try {
+      const [telegram, max] = await Promise.all([
+        toView("telegram"),
+        toView("max"),
+      ]);
+      return { telegram, max };
+    } catch (err) {
+      logger.error(
+        "bot-connector.status: не удалось получить статус коннекторов из БД",
+        err,
+      );
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message:
+          "Не удалось получить статус коннекторов ботов (ошибка базы данных)",
+      });
+    }
   },
 );
