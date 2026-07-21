@@ -1,15 +1,23 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import {
   type ConsultationSession,
   createBot,
   createRedisStorage,
   createUpstashRedis,
 } from "@psi-opora/bot-core";
+import { env } from "@psi-opora/config";
 import { webhookCallback } from "grammy";
 
 const redis = createUpstashRedis();
 const storage = createRedisStorage<ConsultationSession>(redis);
-const bot = createBot({ storage, redis });
+// resolveBitrixApi(undefined) откатывается на DASHBOARD_BITRIX_WEBHOOK_URL,
+// который для imconnector.* не подходит (нужен OAuth) — поэтому передаём
+// bitrixApi только когда BITRIX_MEMBER_ID реально задан.
+const bitrixApi = env.BITRIX_MEMBER_ID
+  ? resolveBitrixApi(env.BITRIX_MEMBER_ID)
+  : undefined;
+const bot = createBot({ storage, redis, bitrixApi: bitrixApi ?? undefined });
 const handleUpdate = webhookCallback(bot, "http");
 
 export default async function handler(

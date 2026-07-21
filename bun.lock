@@ -95,6 +95,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@maxhub/max-bot-api": "0.2.5",
+        "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
@@ -110,6 +111,7 @@
       "name": "@psi-opora/tg-bot",
       "version": "0.0.1",
       "dependencies": {
+        "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
         "@upstash/redis": "^1.38.0",

@@ -3,6 +3,7 @@ import {
   actionLabel,
   applyScenarioAction,
   applyScenarioText,
+  type BitrixApiLike,
   type ConsultationSession,
   dispatchScenarioOutput,
   formatUtmLog,
@@ -97,6 +98,10 @@ export interface MaxBotOptions {
   storage?: StorageAdapter<ConsultationSession>;
   /** Redis для очереди напоминаний; без него напоминания отключены. */
   redis?: Redis;
+  /** OAuth-клиент Bitrix24 (resolveBitrixApi из @psi-opora/bitrix-client) —
+   * для дублирования переписки в Открытую линию. Без него дублирование
+   * отключено (см. sendMessageToOpenLine). */
+  bitrixApi?: BitrixApiLike;
 }
 
 function createInitialSession(): ConsultationSession {
@@ -227,7 +232,11 @@ async function sendMaxGuideFile(
 
 export type MaxBot = Bot<AppContext>;
 
-export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
+export function createMaxBot({
+  storage,
+  redis,
+  bitrixApi,
+}: MaxBotOptions = {}): MaxBot {
   const token = env.MAX_BOT_TOKEN ?? env.BOT_TOKEN ?? "";
   const bot = new Bot<AppContext>(token, { contextType: AppContext });
 
@@ -377,7 +386,7 @@ export function createMaxBot({ storage, redis }: MaxBotOptions = {}): MaxBot {
     // (sendMessengerMessage → MAX API messages.send) адресуется по user_id,
     // так что для маршрутизации ответа назад нужен именно он.
     if (userId) {
-      await sendMessageToOpenLine({
+      await sendMessageToOpenLine(bitrixApi, {
         messenger: "max",
         userId,
         chatId: userId,

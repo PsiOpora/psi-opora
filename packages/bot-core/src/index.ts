@@ -61,6 +61,7 @@ export {
 } from "./storage/upstash";
 export type { AppContext, ConsultationSession } from "./types/context";
 export {
+  type BitrixApiLike,
   type BitrixSource,
   createBitrixDeal,
   type DealData,

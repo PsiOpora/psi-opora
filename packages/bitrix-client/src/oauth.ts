@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { createUpstashRedis } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import {
@@ -55,7 +54,9 @@ async function acquireRefreshLock(
 ): Promise<(() => Promise<void>) | null> {
   const redis = createUpstashRedis();
   const key = refreshLockKey(memberId);
-  const token = randomUUID();
+  // Глобальный Web Crypto API (не node:crypto) — совместимо с Edge Runtime,
+  // где деплоится apps/max-bot.
+  const token = crypto.randomUUID();
   const acquired = await redis.set(key, token, {
     nx: true,
     ex: REFRESH_LOCK_TTL_SECONDS,

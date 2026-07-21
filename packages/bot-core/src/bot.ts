@@ -15,7 +15,7 @@ import {
 } from "./scenario/engine";
 import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
 import type { AppContext, ConsultationSession } from "./types/context";
-import { sendMessageToOpenLine } from "./utils/bitrix";
+import { type BitrixApiLike, sendMessageToOpenLine } from "./utils/bitrix";
 import { logBotMessage } from "./utils/message-log";
 import { upsertBotUserProfile } from "./utils/user-profile";
 import { formatUtmLog, parseUtmParams } from "./utils/utm";
@@ -78,6 +78,10 @@ export interface BotOptions {
   /** Redis для очереди напоминаний; без него напоминания отключены. */
   redis?: Redis;
   client?: ConstructorParameters<typeof Bot>[1]["client"];
+  /** OAuth-клиент Bitrix24 (resolveBitrixApi из @psi-opora/bitrix-client) —
+   * для дублирования переписки в Открытую линию. Без него дублирование
+   * отключено (см. sendMessageToOpenLine). */
+  bitrixApi?: BitrixApiLike;
 }
 
 function toInlineKeyboard(
@@ -118,7 +122,12 @@ export async function sendTelegramScenarioMessage(
   // на email (см. dispatchScenarioOutput/sendGuideEmail)
 }
 
-export function createBot({ storage, redis, client }: BotOptions = {}) {
+export function createBot({
+  storage,
+  redis,
+  client,
+  bitrixApi,
+}: BotOptions = {}) {
   const token = env.TG_BOT_TOKEN ?? env.BOT_TOKEN ?? "";
   const bot = new Bot<AppContext>(token, client ? { client } : undefined);
 
@@ -237,7 +246,7 @@ export function createBot({ storage, redis, client }: BotOptions = {}) {
     // Дублируем в Открытую линию Bitrix24 — вся переписка видна оператору,
     // и он может ответить прямо оттуда (см. sendMessageToOpenLine).
     if (ctx.chatId && ctx.from) {
-      await sendMessageToOpenLine({
+      await sendMessageToOpenLine(bitrixApi, {
         messenger: "telegram",
         userId: ctx.from.id,
         chatId: ctx.chatId,

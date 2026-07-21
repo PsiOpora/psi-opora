@@ -137,6 +137,16 @@ export function CrmWidgetsCard() {
 
         {status === "ready" && (
           <>
+            {b24?.auth.getAuthData()?.member_id && (
+              <p className="text-xs text-muted-foreground">
+                memberId портала (для <code>BITRIX_MEMBER_ID</code> в .env, нужен
+                ботам для дублирования переписки в Открытые линии):{" "}
+                <code className="font-mono">
+                  {b24.auth.getAuthData()?.member_id}
+                </code>
+              </p>
+            )}
+
             <div className="flex flex-wrap gap-2">
               {PLACEMENTS.map(({ code, label }) => (
                 <Badge

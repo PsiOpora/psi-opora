@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@maxhub/max-bot-api": "0.2.5",
+    "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",

@@ -19,6 +19,7 @@
     "build": "tsdown",
     "clean": "git clean -xdf .cache .turbo dist node_modules",
     "dev": "tsdown --watch",
+    "setup:bitrix": "bun run --env-file=../../.env scripts/setup-bitrix-connector.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

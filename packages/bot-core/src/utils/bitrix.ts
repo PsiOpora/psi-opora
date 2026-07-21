@@ -1,3 +1,23 @@
+import { env } from "@psi-opora/config";
+
+/**
+ * Минимальный интерфейс Bitrix24-клиента, который нужен методам `imconnector.*`
+ * (`imconnector.register`/`imconnector.activate`/`imconnector.send.messages`
+ * работают только в контексте OAuth-приложения — обычный входящий вебхук,
+ * которым пользуется остальной этот файл через `bitrixPost`, для них не
+ * подходит: Bitrix отвечает `WRONG_AUTH_TYPE`). Специально не импортируем
+ * `BitrixApi` из `@psi-opora/bitrix-client` — тот пакет сам зависит от
+ * bot-core (использует `createUpstashRedis`), обратная зависимость создала
+ * бы цикл воркспейсов. Вызывающая сторона (apps/tg-bot, apps/max-bot)
+ * передаёт уже готовый клиент через `resolveBitrixApi(memberId)`.
+ */
+export interface BitrixApiLike {
+  call<T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<T>;
+}
+
 export interface DealData {
   name: string;
   phone: string;
@@ -412,44 +432,44 @@ export interface OpenLineMessageData {
  * может ответить прямо в Открытой линии. Ответ оператора прилетает
  * обратным вебхуком (событие ONIMCONNECTORMESSAGEADD) — см.
  * apps/bitrix-webhook, который пересылает его через sendMessengerMessage.
- * Без BITRIX_OPEN_LINE_ID тихо пропускаем (коннектор не активирован).
+ *
+ * Требует OAuth-клиент (см. BitrixApiLike) — вызывающая сторона резолвит
+ * его через `resolveBitrixApi(memberId)` из `@psi-opora/bitrix-client`.
+ * Без `api` или без BITRIX_OPEN_LINE_ID тихо пропускаем (дублирование в
+ * Open Lines не настроено — не критично для остальной работы бота).
  */
 export async function sendMessageToOpenLine(
+  api: BitrixApiLike | undefined,
   data: OpenLineMessageData,
 ): Promise<void> {
-  const webhookUrl = getEnv(data.messenger, "BITRIX_WEBHOOK_URL");
   const lineId = getOpenLineId(data.messenger);
-  if (!webhookUrl || !lineId) return;
+  if (!api || !lineId) return;
 
   const name = sanitizeOpenLineName(data.name);
 
   try {
-    await bitrixPost(
-      "imconnector.send.messages",
-      {
-        CONNECTOR: getConnectorId(data.messenger),
-        LINE: lineId,
-        MESSAGES: [
-          {
-            user: {
-              id: String(data.userId),
-              ...(name ? { name } : {}),
-              skip_phone_validate: "Y",
-            },
-            message: {
-              id: `${data.messenger}-${data.userId}-${Date.now()}`,
-              date: Math.floor(Date.now() / 1000),
-              text: data.text,
-            },
-            chat: {
-              id: String(data.chatId),
-              name: data.name || `${data.messenger} #${data.userId}`,
-            },
+    await api.call("imconnector.send.messages", {
+      CONNECTOR: getConnectorId(data.messenger),
+      LINE: Number(lineId),
+      MESSAGES: [
+        {
+          user: {
+            id: String(data.userId),
+            ...(name ? { name } : {}),
+            skip_phone_validate: "Y",
           },
-        ],
-      },
-      data.messenger,
-    );
+          message: {
+            id: `${data.messenger}-${data.userId}-${Date.now()}`,
+            date: Math.floor(Date.now() / 1000),
+            text: data.text,
+          },
+          chat: {
+            id: String(data.chatId),
+            name: data.name || `${data.messenger} #${data.userId}`,
+          },
+        },
+      ],
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(
@@ -547,37 +567,41 @@ function getOpenLineId(messenger: string): string | undefined {
   return getEnv(messenger, "BITRIX_OPEN_LINE_ID");
 }
 
+// Простая монохромная иконка (бумажный самолётик) — Bitrix отклоняет
+// регистрацию коннектора без иконки (ICON_REQUIRED).
+const CONNECTOR_ICON_SVG =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M2 21l21-9L2 3v7l15 2-15 2z'/%3E%3C/svg%3E";
+
+/**
+ * Регистрирует коннектор Открытых линий для бота (единожды на портал) и
+ * активирует его на линии из env (BITRIX_OPEN_LINE_ID). Требует OAuth-клиент
+ * (imconnector.* — application context, обычный вебхук не подходит). Не
+ * вызывается автоматически из приложения — см. одноразовый скрипт
+ * packages/bitrix-client/scripts/setup-bitrix-connector.ts.
+ */
 export async function registerBitrixConnector(
+  api: BitrixApiLike,
   messenger: string,
 ): Promise<void> {
-  const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
-  if (!webhookUrl)
-    throw new Error(`BITRIX_WEBHOOK_URL не задан для ${messenger}`);
-
   const connectorId = getConnectorId(messenger);
   const openLineId = getOpenLineId(messenger);
 
-  await bitrixPost(
-    "imconnector.register",
-    {
-      ID: connectorId,
-      NAME: `Пси-Опора ${messenger === "telegram" ? "Telegram" : "MAX"} Бот`,
-      ICON: { DATA_IMAGE: "" },
-    },
-    messenger,
-  );
+  await api.call("imconnector.register", {
+    ID: connectorId,
+    NAME: `Пси-Опора ${messenger === "telegram" ? "Telegram" : "MAX"} Бот`,
+    ICON: { DATA_IMAGE: CONNECTOR_ICON_SVG },
+    // Обязателен для imconnector.register, но настраивать тут нечего — токен
+    // и линия уже заданы в .env (см. apps/dashboard/.../bot-connector-info).
+    PLACEMENT_HANDLER: `${env.APP_URL}/api/bitrix/bot-connector-widget`,
+  });
   console.log(`[bitrix] коннектор зарегистрирован: ${connectorId}`);
 
   if (openLineId) {
-    await bitrixPost(
-      "imconnector.activate",
-      {
-        CONNECTOR: connectorId,
-        LINE: openLineId,
-        ACTIVE: "Y",
-      },
-      messenger,
-    );
+    await api.call("imconnector.activate", {
+      CONNECTOR: connectorId,
+      LINE: Number(openLineId),
+      ACTIVE: "Y",
+    });
     console.log(
       `[bitrix] коннектор активирован для линии: ${openLineId} (${messenger})`,
     );
