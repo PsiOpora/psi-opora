@@ -45,6 +45,7 @@ export type {
   EmailCampaignActionResult,
   RecentEmailCampaignInfo,
 } from "./routers/email-broadcast";
+export type { BotConnectorView } from "./routers/bot-connector";
 export type { TelegramPersonalAccountView } from "./routers/telegram-personal";
 export type {
   WidgetEntity,

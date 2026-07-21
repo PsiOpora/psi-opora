@@ -31,6 +31,12 @@ export {
   widgetPollSchema,
   widgetRecipientSchema,
 } from "./broadcast";
+export {
+  type ActivateBotConnectorInput,
+  activateBotConnectorSchema,
+  type DeactivateBotConnectorInput,
+  deactivateBotConnectorSchema,
+} from "./bot-connector";
 export { type AddCostInput, addCostSchema } from "./costs";
 export {
   type DisconnectTelegramPersonalInput,

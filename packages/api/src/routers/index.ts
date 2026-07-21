@@ -19,6 +19,7 @@
 import { adsRouter } from "./ads";
 import { backupRouter } from "./backup";
 import { botRouter } from "./bot";
+import { botConnectorRouter } from "./bot-connector";
 import { broadcastRouter } from "./broadcast";
 import { costsRouter } from "./costs";
 import { emailRouter } from "./email";
@@ -30,6 +31,7 @@ export {
   adsRouter,
   backupRouter,
   botRouter,
+  botConnectorRouter,
   broadcastRouter,
   costsRouter,
   emailRouter,
@@ -41,6 +43,7 @@ export const appRouter = {
   ads: adsRouter,
   backup: backupRouter,
   bot: botRouter,
+  botConnector: botConnectorRouter,
   broadcast: broadcastRouter,
   costs: costsRouter,
   email: emailRouter,

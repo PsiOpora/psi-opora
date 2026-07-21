@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { orpc } from "@/lib/orpc/server";
+import { BotConnectorCard } from "./bot-connector-card";
 import { BotTextsForm } from "./bot-texts-form";
 import { CrmWidgetsCard } from "./crm-widgets-card";
 import { DeleteGuideButton, SetActiveGuideButton } from "./guide-actions";
@@ -134,6 +135,9 @@ export default async function BotTextsPage() {
       </div>
 
       <CrmWidgetsCard />
+
+      <BotConnectorCard messenger="telegram" label="Telegram" />
+      <BotConnectorCard messenger="max" label="MAX" />
 
       <TgPersonalConnectorCard />
 

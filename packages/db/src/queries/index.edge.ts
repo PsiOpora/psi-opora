@@ -3,6 +3,7 @@
  * Использует neon-http драйвер — не содержит node:module зависимостей.
  */
 import { db } from "../client.edge";
+import { getBotConnector as _getBotConnector } from "./bot-connectors";
 import {
   getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
   upsertBotFunnelEvent as _upsertBotFunnelEvent,
@@ -21,6 +22,11 @@ import {
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
 export type { BotMessageEntry } from "./bot-messages";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
+export type { BotConnector } from "./bot-connectors";
+
+export async function getBotConnector(messenger: string) {
+  return _getBotConnector(db, messenger);
+}
 
 export async function insertBotMessage(entry: BotMessageEntry): Promise<void> {
   return _insertBotMessage(db, entry);

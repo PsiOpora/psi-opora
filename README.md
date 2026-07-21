@@ -26,16 +26,34 @@ CRM/маркетинга и интеграция всей переписки с 
 переписку в одну выделенную Открытую линию, чтобы оператор видел диалог и
 мог ответить прямо из Bitrix24.
 
+Регистрация коннектора, привязка к линии и вебхук бота настраиваются
+**полностью через интерфейс Bitrix24** — никаких `.env`-переменных для
+line/connector ID и никакого ручного запуска скриптов из терминала.
+
 **Как это работает:**
-- `sendMessageToOpenLine`/`registerBitrixConnector` (`packages/bot-core/src/utils/bitrix.ts`)
-  вызывают `imconnector.send.messages`/`imconnector.register`/`imconnector.activate`.
-  Эти методы Bitrix24 требуют **OAuth-контекст приложения** — простой входящий
-  вебхук для них не подходит (`WRONG_AUTH_TYPE`).
-- Поэтому боты получают уже готовый OAuth-клиент через инъекцию:
-  `apps/tg-bot/api/webhook.ts` и `apps/max-bot/api/webhook.ts` при холодном
-  старте резолвят `resolveBitrixApi(env.BITRIX_MEMBER_ID)`
-  (`packages/bitrix-client`) и передают его в `createBot`/`createMaxBot`
-  как `bitrixApi`.
+- Карточка «Telegram/MAX — официальный бот» в дашборде (`/settings/bot`,
+  `bot-connector-card.tsx`) — кнопка «Зарегистрировать канал» вызывает
+  `imconnector.register` через `b24.callMethod` прямо из iframe (гарантированный
+  OAuth-контекст приложения — то, что требуют методы `imconnector.*`,
+  простой входящий вебхук для них не подходит, `WRONG_AUTH_TYPE`).
+- Дальше — нативно в Контакт-центре: администратор добавляет канал на нужную
+  линию → Bitrix открывает наш `PLACEMENT_HANDLER`
+  (`/api/bitrix/bot-connector-widget/{messenger}` → `/widget/bot-connector`) —
+  окно без полей ввода, которое само:
+  1. активирует линию (`imconnector.activate`, oRPC `botConnector.activate`,
+     `packages/api/src/routers/bot-connector`);
+  2. сохраняет `connectorId`/`openLineId` в Postgres (`bot_connectors`,
+     `packages/db`) — раньше это было в `.env`;
+  3. **автоматически настраивает вебхук бота** (`setMessengerWebhook`,
+     `packages/jobs/src/messenger.ts`) на `{TG_WEBHOOK_URL|MAX_WEBHOOK_URL}/api/webhook` —
+     заменяет ручной запуск `set-webhook.ts`.
+- На горячем пути (`sendMessageToOpenLine`, `packages/bot-core/src/utils/bitrix.ts`)
+  бот читает `connectorId`/`openLineId` из той же таблицы `bot_connectors`
+  (через `@psi-opora/db/queries.edge` — работает и в Node (`apps/tg-bot`), и в
+  Edge (`apps/max-bot`)), а OAuth-клиент для самого вызова `imconnector.send.messages`
+  резолвится один раз при холодном старте: `apps/tg-bot/api/webhook.ts` и
+  `apps/max-bot/api/webhook.ts` вызывают `resolveBitrixApi(env.BITRIX_MEMBER_ID)`
+  (`packages/bitrix-client`) и передают его в `createBot`/`createMaxBot` как `bitrixApi`.
 - Ответ оператора приходит в `apps/bitrix-webhook` вебхуком
   (событие `ONIMCONNECTORMESSAGEADD`) и пересылается обратно клиенту через
   Bot API (`sendMessengerMessage`, `packages/jobs`).
@@ -46,16 +64,14 @@ CRM/маркетинга и интеграция всей переписки с 
 2. Откройте дашборд внутри портала — рядом с карточкой «Вкладка Мессенджер»
    (`/settings/bot`) появится `memberId` портала. Впишите его в
    `BITRIX_MEMBER_ID` в `.env`.
-3. Задайте `TG_BOT_TOKEN`, `MAX_BOT_TOKEN`, `TG_BITRIX_OPEN_LINE_ID`,
-   `MAX_BITRIX_OPEN_LINE_ID` (ID нужной открытой линии в Bitrix24) и при
-   желании `TG_BITRIX_CONNECTOR_ID`/`MAX_BITRIX_CONNECTOR_ID`.
-4. Зарегистрируйте коннекторы (по одному разу на портал):
-   ```bash
-   cd packages/bitrix-client
-   bun run setup:bitrix -- telegram
-   bun run setup:bitrix -- max
-   ```
-5. В настройках исходящего вебхука Bitrix24 (Разработчикам → Другое →
+3. Задайте `TG_BOT_TOKEN`/`TG_WEBHOOK_URL` и `MAX_BOT_TOKEN`/`MAX_WEBHOOK_URL` —
+   это всё, что нужно самому боту и автонастройке вебхука.
+4. В дашборде (`/settings/bot`) нажмите «Зарегистрировать канал» в карточке
+   нужного бота.
+5. В Bitrix24: Контакт-центр → выбранная линия → каналы → добавить
+   зарегистрированный коннектор — линия активируется и вебхук настроится
+   автоматически (карточка в дашборде покажет статус).
+6. В настройках исходящего вебхука Bitrix24 (Разработчикам → Другое →
    Исходящий вебхук) отметьте событие `OnImConnectorMessageAdd` и укажите
    URL `apps/bitrix-webhook` — иначе ответы оператора не долетят обратно.
 
@@ -141,7 +157,6 @@ OAuth-контекста приложения.
 | Команда                                                        | Что делает                                             |
 | ---------------------------------------------------------------- | --------------------------------------------------------- |
 | `bun run dev:tg` / `dev:max` / `dev:dashboard`                 | Локальный запуск соответствующего приложения            |
-| `cd packages/bitrix-client && bun run setup:bitrix -- telegram\|max` | Регистрирует и активирует коннектор Открытой линии бота |
 | `cd packages/bot-core && bun run setup:bitrix-source -- telegram\|max` | Создаёт источник CRM для бота                     |
 | `cd packages/bot-core && bun run list:bitrix-sources -- telegram\|max` | Показывает существующие источники CRM             |
 | `docker compose up -d --build tg-userbot-worker`               | Запускает воркер личных номеров Telegram                |
@@ -155,10 +170,13 @@ OAuth-контекста приложения.
   нет официального API для личных аккаунтов, только неофициальный
   реверс-инжиниринг (как у сторонних интеграторов) — сознательно не
   реализовывали.
-- Один тип коннектора можно активировать на нескольких открытых линиях
-  (для нескольких личных номеров), но у бота — только одна линия,
-  заданная в `.env`.
+- У каждого официального бота (Telegram/MAX) — ровно один экземпляр
+  (один токен), но линию для него можно переназначить в любой момент прямо
+  в Контакт-центре — просто добавить канал на другой линии, без правки `.env`.
+  Личный номер Telegram, наоборот, поддерживает сколько угодно одновременно
+  подключённых номеров — по одному на линию.
 - Предположение о формате `PLACEMENT_OPTIONS` для плейсмента настроек
   коннектора (`SETTING_CONNECTOR`) сделано по аналогии с плейсментом вкладок
   CRM — официально не задокументировано, стоит перепроверить на реальном
-  портале (см. `TODO` в `apps/dashboard/src/app/api/bitrix/tg-personal-widget/route.ts`).
+  портале (см. `TODO` в `apps/dashboard/src/app/api/bitrix/tg-personal-widget/route.ts`
+  и `.../bot-connector-widget/[messenger]/route.ts`).

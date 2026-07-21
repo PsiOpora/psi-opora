@@ -67,7 +67,6 @@ export {
   type DealData,
   listBitrixSources,
   type OpenLineMessageData,
-  registerBitrixConnector,
   registerBitrixSource,
   sendMessageToOpenLine,
 } from "./utils/bitrix";

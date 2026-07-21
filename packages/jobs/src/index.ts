@@ -9,6 +9,7 @@ export {
   type Messenger,
   SEND_INTERVAL_MS,
   sendMessengerMessage,
+  setMessengerWebhook,
 } from "./messenger";
 export {
   type DeliverBroadcastPayload,

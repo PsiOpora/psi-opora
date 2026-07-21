@@ -4,6 +4,12 @@
  */
 import { db } from "../client";
 import {
+  getBotConnector as _getBotConnector,
+  markBotConnectorWebhookConfigured as _markBotConnectorWebhookConfigured,
+  removeBotConnector as _removeBotConnector,
+  upsertBotConnector as _upsertBotConnector,
+} from "./bot-connectors";
+import {
   getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
   upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
@@ -34,6 +40,27 @@ export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
 export type { BotMessage, BotMessageEntry, NewBotMessage } from "./bot-messages";
 export type { BotText } from "./bot-texts";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
+export type { BotConnector } from "./bot-connectors";
+
+export async function getBotConnector(messenger: string) {
+  return _getBotConnector(db, messenger);
+}
+
+export async function upsertBotConnector(
+  data: Parameters<typeof _upsertBotConnector>[1],
+): Promise<void> {
+  return _upsertBotConnector(db, data);
+}
+
+export async function markBotConnectorWebhookConfigured(
+  messenger: string,
+): Promise<void> {
+  return _markBotConnectorWebhookConfigured(db, messenger);
+}
+
+export async function removeBotConnector(messenger: string): Promise<void> {
+  return _removeBotConnector(db, messenger);
+}
 
 export async function insertBotMessage(entry: BotMessageEntry): Promise<void> {
   return _insertBotMessage(db, entry);

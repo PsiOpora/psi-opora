@@ -165,3 +165,56 @@ export async function sendMessengerMessage(
   if (messenger === "telegram") await sendTelegram(userId, text, buttons);
   else await sendMax(userId, text, buttons);
 }
+
+async function setTelegramWebhook(): Promise<void> {
+  const token = process.env.TG_BOT_TOKEN ?? process.env.BOT_TOKEN;
+  const webhookUrl = process.env.TG_WEBHOOK_URL;
+  if (!token) throw new Error("TG_BOT_TOKEN не задан");
+  if (!webhookUrl) throw new Error("TG_WEBHOOK_URL не задан");
+
+  const url = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
+  const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, drop_pending_updates: true }),
+  });
+  const json = (await res.json()) as { ok: boolean; description?: string };
+  if (!json.ok) {
+    throw new Error(json.description ?? `Telegram HTTP ${res.status}`);
+  }
+}
+
+async function setMaxWebhook(): Promise<void> {
+  const token = process.env.MAX_BOT_TOKEN;
+  const webhookUrl = process.env.MAX_WEBHOOK_URL;
+  if (!token) throw new Error("MAX_BOT_TOKEN не задан");
+  if (!webhookUrl) throw new Error("MAX_WEBHOOK_URL не задан");
+
+  const url = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
+  const res = await fetchWithCa(
+    "https://platform-api2.max.ru/subscriptions",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: token },
+      body: JSON.stringify({ url }),
+    },
+    RUSSIAN_TRUSTED_ROOT_CA,
+  );
+  if (!res.ok) {
+    const json = (await res.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+    throw new Error(json?.message ?? `MAX HTTP ${res.status}`);
+  }
+}
+
+/**
+ * Настраивает вебхук бота на наш деплой (`{WEBHOOK_URL}/api/webhook`) —
+ * вызывается автоматически при активации канала в Контакт-центре
+ * (packages/api/src/routers/bot-connector), заменяет ручной запуск
+ * apps/tg-bot|max-bot/scripts/set-webhook.ts.
+ */
+export async function setMessengerWebhook(messenger: Messenger): Promise<void> {
+  if (messenger === "telegram") await setTelegramWebhook();
+  else await setMaxWebhook();
+}
