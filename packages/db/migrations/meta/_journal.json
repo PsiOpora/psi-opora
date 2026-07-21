@@ -70,6 +70,13 @@
       "when": 1784559959241,
       "tag": "0009_dusty_overlord",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784650914577,
+      "tag": "0010_loud_hardball",
+      "breakpoints": true
     }
   ]
 }
