@@ -29,6 +29,7 @@
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@psi-opora/jobs": "workspace:*",
+    "@psi-opora/tg-userbot": "workspace:*",
     "@psi-opora/unisender-client": "workspace:*",
     "@psi-opora/validators": "workspace:*",
     "@trigger.dev/sdk": "4.5.4",
