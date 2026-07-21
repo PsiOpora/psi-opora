@@ -192,7 +192,7 @@ async function setMaxWebhook(): Promise<void> {
 
   const url = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
   const res = await fetchWithCa(
-    "https://platform-api2.max.ru/subscriptions",
+    new URL("https://platform-api2.max.ru/subscriptions"),
     {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: token },
