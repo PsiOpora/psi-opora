@@ -390,6 +390,47 @@ async function resolveOpenLineDialog(
   }
 }
 
+// Трекер Открытой линии создаёт контакт+сделку по первому сообщению чата
+// асинхронно на стороне Bitrix — к моменту завершения сценария они почти
+// всегда уже есть, но при лаге ждём немного, прежде чем создавать свою
+// сделку (сделка трекера предпочтительнее: к ней Bitrix сам привязывает
+// чат, канал и источник линии). Бюджет ожидания намеренно маленький:
+// бот работает в serverless-обработчике вебхука Telegram, и grammY
+// webhookCallback обязан ответить за 10 секунд — иначе Telegram пришлёт
+// апдейт повторно.
+const OPENLINE_DEAL_WAIT_ATTEMPTS = 4;
+const OPENLINE_DEAL_WAIT_DELAY_MS = 1200;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Резолвит диалог Открытой линии, дожидаясь появления сделки (или лида —
+ * в классическом режиме CRM трекер создаёт лид, ждать сделку бессмысленно),
+ * созданной трекером линии. Если за отведённые попытки CRM-сущность так и
+ * не появилась, возвращает последний известный диалог (возможно, без
+ * сделки) — дальше сработает фолбэк с созданием собственной сделки.
+ */
+async function waitForOpenLineDialog(
+  messenger: string,
+  userId: number,
+  chatId: number,
+): Promise<OpenLineDialog | null> {
+  let dialog: OpenLineDialog | null = null;
+  for (let attempt = 1; attempt <= OPENLINE_DEAL_WAIT_ATTEMPTS; attempt++) {
+    dialog = await resolveOpenLineDialog(messenger, userId, chatId);
+    if (dialog?.dealId || dialog?.leadId) return dialog;
+    if (attempt < OPENLINE_DEAL_WAIT_ATTEMPTS) {
+      console.log(
+        `[bitrix] сделка трекера Открытой линии ещё не создана (попытка ${attempt}/${OPENLINE_DEAL_WAIT_ATTEMPTS}) — ждём ${OPENLINE_DEAL_WAIT_DELAY_MS}мс`,
+      );
+      await sleep(OPENLINE_DEAL_WAIT_DELAY_MS);
+    }
+  }
+  return dialog;
+}
+
 export async function createBitrixDeal(
   data: DealData,
 ): Promise<{ contactId: number; dealId: number }> {
@@ -404,12 +445,17 @@ export async function createBitrixDeal(
 
   // Бот дублирует переписку в Открытую линию (sendMessageToOpenLine), и её
   // CRM-трекер сам заводит контакт+сделку по первому сообщению чата. Чтобы не
-  // плодить вторую сделку, сперва смотрим, что линия уже создала по этому
-  // диалогу, — и обновляем её сущности вместо создания новых.
+  // плодить вторую сделку, дожидаемся (с коротким ретраем), что линия создала
+  // по этому диалогу, — и обновляем её сущности вместо создания новых.
   const dialog =
     data.chatId && data.telegramUserId
-      ? await resolveOpenLineDialog(messenger, data.telegramUserId, data.chatId)
+      ? await waitForOpenLineDialog(messenger, data.telegramUserId, data.chatId)
       : null;
+  if (dialog && !dialog.dealId && !dialog.leadId) {
+    console.warn(
+      `[bitrix] трекер Открытой линии так и не создал сделку по чату ${dialog.chatId} — создаём собственную`,
+    );
+  }
   if (dialog?.leadId) {
     console.warn(
       `[bitrix] по чату уже создан лид id=${dialog.leadId} (Открытая линия работает в классическом режиме CRM) — возможен дубль с создаваемой сделкой`,

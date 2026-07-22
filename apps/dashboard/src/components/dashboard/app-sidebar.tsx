@@ -33,24 +33,47 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-const NAV_ITEMS = [
-  { href: "/", label: "Обзор", icon: LayoutDashboardIcon },
-  { href: "/funnel", label: "Воронка", icon: FilterIcon },
-  { href: "/utm", label: "UTM-отчёт", icon: TagsIcon },
-  { href: "/sources", label: "Источники", icon: BarChart3Icon },
-  { href: "/bot-funnel", label: "Бот-воронка", icon: BotIcon },
-  { href: "/costs", label: "Расходы", icon: WalletIcon },
-  { href: "/ads", label: "Реклама", icon: MegaphoneIcon },
-  { href: "/deals", label: "Сделки", icon: ListIcon },
-  { href: "/clients", label: "Клиенты", icon: MessageSquareIcon },
-  { href: "/broadcast", label: "Рассылка", icon: SendIcon },
-  { href: "/email-broadcast", label: "Email-рассылка", icon: MailIcon },
-  { href: "/builder", label: "Конструктор", icon: SlidersHorizontalIcon },
-  { href: "/settings/bot", label: "Тексты бота", icon: MessageSquareTextIcon },
-  { href: "/settings/connectors", label: "Каналы ботов", icon: PlugIcon },
-  { href: "/settings/ads", label: "Настройки", icon: SettingsIcon },
-  { href: "/settings/backup", label: "Бэкап CRM", icon: DatabaseBackupIcon },
-  { href: "/settings/email", label: "Настройки Unisender", icon: KeyRoundIcon },
+const NAV_GROUPS = [
+  {
+    label: "Главное",
+    items: [{ href: "/", label: "Обзор", icon: LayoutDashboardIcon }],
+  },
+  {
+    label: "Аналитика",
+    items: [
+      { href: "/funnel", label: "Воронка", icon: FilterIcon },
+      { href: "/utm", label: "UTM-отчёт", icon: TagsIcon },
+      { href: "/sources", label: "Источники", icon: BarChart3Icon },
+      { href: "/bot-funnel", label: "Бот-воронка", icon: BotIcon },
+      { href: "/costs", label: "Расходы", icon: WalletIcon },
+      { href: "/ads", label: "Реклама", icon: MegaphoneIcon },
+    ],
+  },
+  {
+    label: "CRM",
+    items: [
+      { href: "/deals", label: "Сделки", icon: ListIcon },
+      { href: "/clients", label: "Клиенты", icon: MessageSquareIcon },
+    ],
+  },
+  {
+    label: "Коммуникации",
+    items: [
+      { href: "/broadcast", label: "Рассылка", icon: SendIcon },
+      { href: "/email-broadcast", label: "Email-рассылка", icon: MailIcon },
+    ],
+  },
+  {
+    label: "Настройки",
+    items: [
+      { href: "/builder", label: "Конструктор", icon: SlidersHorizontalIcon },
+      { href: "/settings/bot", label: "Тексты бота", icon: MessageSquareTextIcon },
+      { href: "/settings/connectors", label: "Каналы ботов", icon: PlugIcon },
+      { href: "/settings/ads", label: "Настройки", icon: SettingsIcon },
+      { href: "/settings/backup", label: "Бэкап CRM", icon: DatabaseBackupIcon },
+      { href: "/settings/email", label: "Настройки Unisender", icon: KeyRoundIcon },
+    ],
+  },
 ];
 
 export function AppSidebar() {
@@ -70,27 +93,29 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Маркетинг</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {NAV_ITEMS.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === item.href}
-                    tooltip={item.label}
-                  >
-                    <Link href={item.href}>
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {NAV_GROUPS.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === item.href}
+                      tooltip={item.label}
+                    >
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
     </Sidebar>
   );
