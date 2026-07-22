@@ -1,4 +1,0 @@
-No config path provided, using default 'drizzle.config.ts'
-Reading config file 'C:\Projects\psi-opora\platform\packages\db\drizzle.config.ts'
-Using 'pg' driver for database querying
-[⣷] applying migrations...[2K[1G[⣷] applying migrations...
