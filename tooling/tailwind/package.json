@@ -15,9 +15,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@tailwindcss/postcss": "4.3.2",
-    "postcss": "^8.5.16",
-    "tailwindcss": "4.3.2"
+    "@tailwindcss/postcss": "4.3.3",
+    "postcss": "^8.5.21",
+    "tailwindcss": "4.3.3"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",

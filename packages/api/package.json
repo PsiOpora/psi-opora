@@ -23,7 +23,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1090.0",
+    "@aws-sdk/client-s3": "^3.1092.0",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
@@ -32,7 +32,7 @@
     "@psi-opora/tg-userbot": "workspace:*",
     "@psi-opora/unisender-client": "workspace:*",
     "@psi-opora/validators": "workspace:*",
-    "@trigger.dev/sdk": "4.5.4",
+    "@trigger.dev/sdk": "4.5.6",
     "@orpc/contract": "^1.14.8",
     "@orpc/server": "^1.14.8",
     "better-auth": "1.6.23",
