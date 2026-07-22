@@ -82,6 +82,9 @@ export interface BotOptions {
    * для дублирования переписки в Открытую линию. Без него дублирование
    * отключено (см. sendMessageToOpenLine). */
   bitrixApi?: BitrixApiLike;
+  /** Токен бота — если не передан, используется legacy env (resolveTelegramBotToken
+   * в utils/token.ts достаёт токен из БД или .env раньше вызова createBot). */
+  token?: string;
 }
 
 function toInlineKeyboard(
@@ -127,9 +130,10 @@ export function createBot({
   redis,
   client,
   bitrixApi,
+  token,
 }: BotOptions = {}) {
-  const token = env.TG_BOT_TOKEN ?? env.BOT_TOKEN ?? "";
-  const bot = new Bot<AppContext>(token, client ? { client } : undefined);
+  const resolvedToken = token || env.TG_BOT_TOKEN || env.BOT_TOKEN || "";
+  const bot = new Bot<AppContext>(resolvedToken, client ? { client } : undefined);
 
   bot.use(
     session({

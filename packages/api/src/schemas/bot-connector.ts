@@ -5,6 +5,7 @@ export const botMessengerSchema = z.enum(["telegram", "max"]);
 export const activateBotConnectorSchema = z.object({
   messenger: botMessengerSchema,
   lineId: z.string(),
+  botToken: z.string().min(1).optional(),
 });
 export type ActivateBotConnectorInput = z.infer<
   typeof activateBotConnectorSchema

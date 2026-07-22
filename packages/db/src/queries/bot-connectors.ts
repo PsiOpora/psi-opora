@@ -24,6 +24,8 @@ export async function upsertBotConnector(
     memberId: string;
     openLineId: string;
     connectorId: string;
+    /** Не передавайте, если токен не менялся — иначе затрёте уже сохранённый. */
+    botTokenEncrypted?: string;
   },
 ): Promise<void> {
   if (!db) return;
@@ -36,6 +38,9 @@ export async function upsertBotConnector(
         memberId: data.memberId,
         openLineId: data.openLineId,
         connectorId: data.connectorId,
+        ...(data.botTokenEncrypted !== undefined
+          ? { botTokenEncrypted: data.botTokenEncrypted }
+          : {}),
         updatedAt: new Date(),
       },
     });

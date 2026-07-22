@@ -1,8 +1,14 @@
 import { ORPCError } from "@orpc/server";
-import { logger } from "@psi-opora/config";
+import { env, logger } from "@psi-opora/config";
 import { getBotConnector } from "@psi-opora/db/queries";
 import { publicProcedure } from "../../orpc";
 import type { BotConnectorView } from "./types";
+
+function legacyTokenConfigured(messenger: "telegram" | "max"): boolean {
+  return messenger === "telegram"
+    ? !!(env.TG_BOT_TOKEN ?? env.BOT_TOKEN)
+    : !!env.MAX_BOT_TOKEN;
+}
 
 async function toView(
   messenger: "telegram" | "max",
@@ -13,6 +19,7 @@ async function toView(
     messenger,
     openLineId: row.openLineId,
     webhookConfigured: !!row.webhookConfiguredAt,
+    hasToken: !!row.botTokenEncrypted || legacyTokenConfigured(messenger),
     updatedAt: row.updatedAt.toISOString(),
   };
 }
