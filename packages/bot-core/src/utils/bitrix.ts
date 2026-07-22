@@ -100,31 +100,21 @@ const MESSENGER_WZ_ID_FIELD: Record<string, string> = {
   telegram: "UF_CRM_TELEGRAMID_WZ",
 };
 
-// Значение IM-поля в формате Открытых линий (`imol|{connector}|{line}|{user_id}|{chat_id}`) —
-// именно в таком виде Битрикс делает иконку мессенджера кликабельной и открывает диалог
-// открытой линии из карточки CRM. ID линии берём из bot_connectors (заполняется при активации
-// канала в Контакт-центре, см. packages/api/src/routers/bot-connector) — раньше здесь читался
-// несуществующий env `BITRIX_OPEN_LINE_ID`, из-за чего это поле никогда не заполнялось. Без
-// chatId или неактивированного канала откатываемся на голый ID пользователя — просто справочная запись.
-async function buildImValue(
-  messenger: string,
-  userId: number,
-  chatId?: number,
-): Promise<string> {
-  const config = chatId ? await getBotConnector(messenger) : null;
-  if (!chatId || !config) return String(userId);
-  return `imol|${messenger}|${config.openLineId}|${userId}|${chatId}`;
-}
-
-/** Поля привязки мессенджера к контакту (IM + UF Wazzup-ID) — используются и при создании, и при линковке к уже найденному контакту. */
-async function buildMessengerLinkFields(data: DealData) {
+// Значение IM-поля — голый ID пользователя в мессенджере, просто справочная
+// запись. Формат `imol|{connector}|{line}|{user_id}|{chat_id}`, которым
+// Bitrix помечает открытую линию как источник мессенджер-идентификатора, —
+// это внутренний, генерируемый самим Bitrix при обработке imconnector.*
+// идентификатор (см. документацию по импорту контактов CRM), а не то, что
+// можно собрать вручную по этой схеме — попытка сконструировать его на
+// стороне бота даёт нерабочее значение.
+function buildMessengerLinkFields(data: DealData) {
   if (!data.telegramUserId) return null;
   const messenger = data.messenger ?? "telegram";
   const wzIdField = MESSENGER_WZ_ID_FIELD[messenger];
   return {
     IM: [
       {
-        VALUE: await buildImValue(messenger, data.telegramUserId, data.chatId),
+        VALUE: String(data.telegramUserId),
         VALUE_TYPE: messenger,
       },
     ],
@@ -147,7 +137,7 @@ function buildProfileComment(data: DealData): string | undefined {
   return lines.length ? `Профиль в мессенджере:\n${lines.join("\n")}` : undefined;
 }
 
-async function buildContactFields(data: DealData) {
+function buildContactFields(data: DealData) {
   const messenger = data.messenger ?? "telegram";
   const profileComment = buildProfileComment(data);
   return {
@@ -166,7 +156,7 @@ async function buildContactFields(data: DealData) {
     // контакта согласие уже получено.
     UF_CRM_CONTACT_1779910236669: 1,
     ...(profileComment ? { COMMENTS: profileComment } : {}),
-    ...((await buildMessengerLinkFields(data)) ?? {}),
+    ...(buildMessengerLinkFields(data) ?? {}),
   };
 }
 
@@ -345,7 +335,7 @@ export async function createBitrixDeal(
     console.log(
       `[bitrix] используем существующий контакт id=${contactId} вместо создания нового (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
     );
-    const messengerLink = await buildMessengerLinkFields(data);
+    const messengerLink = buildMessengerLinkFields(data);
     if (messengerLink) {
       try {
         await bitrixPost(
@@ -364,7 +354,7 @@ export async function createBitrixDeal(
     contactId = await bitrixPost<number>(
       "crm.contact.add",
       {
-        fields: await buildContactFields(data),
+        fields: buildContactFields(data),
       },
       messenger,
     );
