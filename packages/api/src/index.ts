@@ -48,6 +48,7 @@ export type {
 export type { BotConnectorView } from "./routers/bot-connector";
 export type { TelegramPersonalAccountView } from "./routers/telegram-personal";
 export type {
+  WidgetChannel,
   WidgetEntity,
   WidgetHistoryItem,
   WidgetRecipient,
