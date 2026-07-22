@@ -1,6 +1,6 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import { listBotMessages, listTelegramPersonalAccounts } from "@psi-opora/db/queries";
-import { getContactPhone, type RawContact } from "../../broadcast-send";
+import { discoverMessengerFields, getContactPhone, type RawContact } from "../../broadcast-send";
 import { findMaxId, findTelegram } from "../../broadcast-send";
 import type { WidgetChannel, WidgetEntity, WidgetHistoryItem } from "./types";
 
@@ -44,15 +44,50 @@ function maskPhone(phone: string): string {
   return `${phone.slice(0, 4)}···${phone.slice(-2)}`;
 }
 
+interface PersonalTarget {
+  kind: "phone" | "username" | "id";
+  value: string;
+}
+
+/**
+ * Чем адресовать личный аккаунт при отправке этому контакту: телефон в
+ * приоритете (самый надёжный способ «написать первым»), иначе username или
+ * готовый числовой ID из полей контакта — их ищем, только если телефона нет,
+ * чтобы не делать лишний запрос crm.contact.fields на каждый показ виджета.
+ */
+async function resolvePersonalTarget(
+  api: BitrixApi,
+  contact: RawContact,
+  phone: string | undefined,
+): Promise<PersonalTarget | undefined> {
+  if (phone) return { kind: "phone", value: phone };
+
+  const messengerFields = await discoverMessengerFields(api).catch(() => ({
+    telegram: [],
+    max: [],
+  }));
+  const telegram = findTelegram(contact, messengerFields.telegram, {
+    includeUf: true,
+  });
+  if (telegram?.username) return { kind: "username", value: telegram.username };
+  if (telegram?.userId) return { kind: "id", value: telegram.userId };
+  return undefined;
+}
+
 /**
  * Резолвит ID контакта и его каналы из CRM: для сделки сначала берём
  * привязанный контакт. Каналы двух видов:
  * 1. Боты (Telegram/MAX) — только если контакт уже писал (поле IM
  *    «Мессенджер», UF-поля интеграций игнорируются — менеджер видит и
  *    редактирует именно поле Мессенджер).
- * 2. Личные номера Telegram (packages/tg-userbot) — доступны для ЛЮБОГО
- *    контакта с телефоном, независимо от того, писал ли он раньше: именно
- *    в этом их смысл («написать первым», см. resolveClientPhoneNumber).
+ * 2. Личные номера Telegram (packages/tg-userbot) — доступны для «написать
+ *    первым», независимо от того, писал ли клиент раньше. Адресуем по
+ *    первому, что нашлось у контакта: телефон (client.resolvePhoneNumber) →
+ *    username (client.resolvePeer/resolveUsername, includeUf — берём и
+ *    UF-поля интеграций типа TelegramUsername_WZ, в отличие от бот-канала
+ *    выше — MTProto-клиенту, в отличие от Bot API, это доступно) → готовый
+ *    числовой Telegram ID (может не резолвиться, если аккаунт никогда не
+ *    «видел» этого пользователя — ограничение самого Telegram, не наше).
  *    Один портал может подключить несколько номеров — показываем канал на
  *    каждый подключённый (status="connected"), с номером в подписи.
  *
@@ -96,18 +131,26 @@ export async function resolveContact(
   if (maxId) channels.push({ messenger: "max", userId: maxId, label: "MAX" });
 
   const phone = getContactPhone(contact);
-  if (phone && memberId) {
+  if (memberId) {
     const personalAccounts = await listTelegramPersonalAccounts(memberId).catch(
       () => [],
     );
-    for (const account of personalAccounts) {
-      if (account.status !== "connected") continue;
-      channels.push({
-        messenger: "telegram-personal",
-        userId: phone,
-        lineId: account.openLineId,
-        label: `Telegram (личный, ${maskPhone(account.phone)})`,
-      });
+    const connectedAccounts = personalAccounts.filter(
+      (account) => account.status === "connected",
+    );
+    if (connectedAccounts.length) {
+      const personalTarget = await resolvePersonalTarget(api, contact, phone);
+      if (personalTarget) {
+        for (const account of connectedAccounts) {
+          channels.push({
+            messenger: "telegram-personal",
+            userId: personalTarget.value,
+            personalTargetKind: personalTarget.kind,
+            lineId: account.openLineId,
+            label: `Telegram (личный, ${maskPhone(account.phone)})`,
+          });
+        }
+      }
     }
   }
 

@@ -26,13 +26,15 @@ const SEND_RESULT_TIMEOUT_MS = 6000;
 /**
  * Личный номер (в отличие от бота) не держит соединение в этом процессе —
  * задача уходит в очередь always-on воркера (apps/tg-userbot-worker), а
- * результат (резолв номера в Telegram + сама отправка) ждём здесь коротким
+ * результат (резолв Telegram-пира + сама отправка) ждём здесь коротким
  * поллингом, чтобы вернуть внятный ответ в виджет, а не «повесить» кнопку.
+ * Адресация — по тому, что нашлось у контакта (см. resolvePersonalTarget в
+ * helpers.ts): телефон, username или готовый числовой ID.
  */
 async function sendViaPersonalNumber(params: {
   memberId: string;
   openLineId: string;
-  phone: string;
+  target: { kind: "phone" | "username" | "id"; value: string };
   text: string;
 }): Promise<{ ok?: true; error?: string }> {
   const jobId = crypto.randomUUID();
@@ -40,7 +42,13 @@ async function sendViaPersonalNumber(params: {
     memberId: params.memberId,
     openLineId: params.openLineId,
     jobId,
-    phone: params.phone,
+    ...(params.target.kind === "phone" ? { phone: params.target.value } : {}),
+    ...(params.target.kind === "username"
+      ? { telegramUsername: params.target.value }
+      : {}),
+    ...(params.target.kind === "id"
+      ? { telegramUserId: Number(params.target.value) }
+      : {}),
     text: params.text,
   });
 
@@ -116,7 +124,10 @@ export const send = publicProcedure
         const result = await sendViaPersonalNumber({
           memberId: context.memberId,
           openLineId: channel.lineId,
-          phone: channel.userId,
+          target: {
+            kind: channel.personalTargetKind ?? "phone",
+            value: channel.userId,
+          },
           text,
         });
         if (result.error) return result;

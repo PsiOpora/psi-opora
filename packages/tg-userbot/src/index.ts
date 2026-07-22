@@ -19,5 +19,6 @@ export {
   createUserbotClient,
   listenForMessages,
   resolveClientPhoneNumber,
+  resolveClientUsername,
   sendUserbotMessage,
 } from "./relay";

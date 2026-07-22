@@ -7,9 +7,15 @@ export type WidgetMessenger = Messenger | "telegram-personal";
 export interface WidgetChannel {
   messenger: WidgetMessenger;
   /** Для ботов — числовой ID пользователя в мессенджере. Для
-   * telegram-personal — телефон контакта (только цифры), по которому
-   * воркер резолвит Telegram-пира перед первой отправкой. */
+   * telegram-personal — идентификатор контакта, по которому воркер
+   * резолвит Telegram-пира перед первой отправкой (вид см. personalTargetKind):
+   * телефон (цифры), username или готовый числовой Telegram ID. */
   userId: string;
+  /** Только для telegram-personal — как трактовать userId при резолве:
+   * "phone" (по умолчанию, если поле не задано) — client.resolvePhoneNumber,
+   * "username" — client.resolvePeer/resolveUsername, "id" — готовый
+   * числовой Telegram ID передаётся клиенту без резолва. */
+  personalTargetKind?: "phone" | "username" | "id";
   /** Только для telegram-personal — линия конкретного личного номера
    * (packages/db telegram_personal_accounts.openLineId). */
   lineId?: string;

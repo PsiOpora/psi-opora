@@ -10,6 +10,7 @@ import {
   drainOutboundMessages,
   listenForMessages,
   resolveClientPhoneNumber,
+  resolveClientUsername,
   sendUserbotMessage,
   setSendResult,
 } from "@psi-opora/tg-userbot";
@@ -61,12 +62,16 @@ async function relayInboundMessage(
 /**
  * Раз в OUTBOX_POLL_INTERVAL_MS вычитывает очередь для этого номера (см.
  * packages/tg-userbot/src/outbox.ts) и отправляет через уже живой
- * MTProto-клиент — либо ответ оператора на существующий диалог
- * (telegramUserId уже известен, продюсер apps/bitrix-webhook), либо первое
- * сообщение по номеру телефона (продюсер packages/api/.../widget-message —
- * телефон резолвится в Telegram-пира прямо здесь через
- * resolveClientPhoneNumber). Результат каждой задачи пишется в Redis
- * (setSendResult) — так дашборд может дождаться ответа синхронно.
+ * MTProto-клиент. Три варианта адресации задачи (по приоритету):
+ * 1. telegramUserId уже известен — либо ответ оператора на существующий
+ *    диалог (продюсер apps/bitrix-webhook), либо готовый числовой ID из CRM;
+ *    передаётся клиенту как есть, mtcute резолвит сам по своему кэшу пиров.
+ * 2. phone — первое сообщение клиенту, у которого в CRM есть номер
+ *    телефона; резолвится в Telegram-пира через resolveClientPhoneNumber.
+ * 3. telegramUsername — то же самое, но по username, когда телефона в CRM
+ *    нет; резолвится через resolveClientUsername.
+ * Результат каждой задачи пишется в Redis (setSendResult) — так дашборд
+ * может дождаться ответа синхронно.
  */
 function startOutboxPolling(
   account: TelegramPersonalAccount,
@@ -79,9 +84,18 @@ function startOutboxPolling(
     );
     for (const msg of messages) {
       try {
-        const target = msg.telegramUserId
-          ? msg.telegramUserId
-          : await resolveClientPhoneNumber(client, msg.phone ?? "");
+        let target: number | Awaited<ReturnType<typeof resolveClientPhoneNumber>>;
+        if (msg.telegramUserId) {
+          target = msg.telegramUserId;
+        } else if (msg.phone) {
+          target = await resolveClientPhoneNumber(client, msg.phone);
+        } else if (msg.telegramUsername) {
+          target = await resolveClientUsername(client, msg.telegramUsername);
+        } else {
+          throw new Error(
+            "В задаче нет ни telegramUserId, ни phone, ни telegramUsername",
+          );
+        }
         await sendUserbotMessage(client, target, msg.text);
         await setSendResult(msg.jobId, { ok: true });
       } catch (err) {

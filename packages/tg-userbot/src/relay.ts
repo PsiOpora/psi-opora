@@ -70,3 +70,29 @@ export async function resolveClientPhoneNumber(
     throw err;
   }
 }
+
+/**
+ * Резолвит username в Telegram-пира через `contacts.resolveUsername` (то же,
+ * что делает поиск по @username в обычном клиенте) — альтернатива
+ * resolveClientPhoneNumber, когда у контакта в CRM нет телефона, но есть
+ * username (см. TelegramUsername_WZ и подобные UF-поля интеграций).
+ */
+export async function resolveClientUsername(
+  client: TelegramClient,
+  username: string,
+): Promise<tl.TypeInputPeer> {
+  const cleaned = username
+    .trim()
+    .replace(/^https?:\/\/t\.me\//i, "")
+    .replace(/^@/, "");
+  try {
+    return await client.resolvePeer(cleaned);
+  } catch (err) {
+    if (err instanceof MtPeerNotFoundError) {
+      throw new Error(
+        `Клиент не найден в Telegram по username @${cleaned}`,
+      );
+    }
+    throw err;
+  }
+}

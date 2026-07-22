@@ -8,12 +8,18 @@ export interface OutboundMessage {
    * телефону. Для ответов оператора (apps/bitrix-webhook) результат никто
    * не читает, но jobId всё равно генерируется — просто для единообразия. */
   jobId: string;
-  /** Известен для ответа на уже идущий диалог (см. apps/bitrix-webhook). */
+  /** Известен для ответа на уже идущий диалог (см. apps/bitrix-webhook), либо
+   * когда в CRM найден готовый числовой Telegram ID контакта — воркер
+   * передаёт его в клиент как есть, без резолва. */
   telegramUserId?: number;
   /** Известен, когда это первое сообщение клиенту, который ещё не писал
    * (см. widget-message/send.ts) — воркер сам резолвит номер в Telegram-ID
    * через client.resolvePhoneNumber перед отправкой. */
   phone?: string;
+  /** Альтернатива phone, когда у контакта в CRM нет телефона, но есть
+   * Telegram-username — резолвится через client.resolvePeer/resolveUsername
+   * (см. resolveClientUsername в relay.ts). */
+  telegramUsername?: string;
   text: string;
 }
 
