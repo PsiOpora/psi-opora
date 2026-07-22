@@ -4,58 +4,64 @@
  */
 import { db } from "../client";
 import {
-  type ConversationAssignment,
-  assignConversation as _assignConversation,
-  assignConversationIfUnassigned as _assignConversationIfUnassigned,
-  getConversationMeta as _getConversationMeta,
-  markConversationRead as _markConversationRead,
-} from "./bot-conversations";
-import {
   getBotConnector as _getBotConnector,
   markBotConnectorWebhookConfigured as _markBotConnectorWebhookConfigured,
   removeBotConnector as _removeBotConnector,
   upsertBotConnector as _upsertBotConnector,
 } from "./bot-connectors";
 import {
+  assignConversation as _assignConversation,
+  assignConversationIfUnassigned as _assignConversationIfUnassigned,
+  getConversationMeta as _getConversationMeta,
+  markConversationRead as _markConversationRead,
+  type ConversationAssignment,
+} from "./bot-conversations";
+import {
   getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
   upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
 import {
-  type BotMessageEntry,
-  type ClientListItem,
+  getClientMessageStats as _getClientMessageStats,
   insertBotMessage as _insertBotMessage,
   listBotMessages as _listBotMessages,
   listBotMessagesSince as _listBotMessagesSince,
   listClientsWithLastMessage as _listClientsWithLastMessage,
+  type BotMessageEntry,
+  type ClientListItem,
+  type ClientMessageStats,
 } from "./bot-messages";
 import {
   getBotTextsRecord as _getBotTextsRecord,
   saveBotTexts as _saveBotTexts,
 } from "./bot-texts";
 import {
-  type BotUserProfileEntry,
   getBotUserProfile as _getBotUserProfile,
   upsertBotUser as _upsertBotUser,
+  type BotUserProfileEntry,
 } from "./bot-users";
 
 export * from "./ads";
 export * from "./backup";
-export * from "./bot-guides";
-export * from "./broadcast";
-export * from "./email-campaign";
-export * from "./telegram-personal";
-export * from "./unisender";
+export type { BotConnector } from "./bot-connectors";
+export type {
+  BotConversation,
+  ConversationAssignment,
+} from "./bot-conversations";
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
+export * from "./bot-guides";
 export type {
   BotMessage,
   BotMessageEntry,
   ClientListItem,
+  ClientMessageStats,
   NewBotMessage,
 } from "./bot-messages";
 export type { BotText } from "./bot-texts";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
-export type { BotConnector } from "./bot-connectors";
-export type { BotConversation, ConversationAssignment } from "./bot-conversations";
+export * from "./broadcast";
+export * from "./email-campaign";
+export * from "./telegram-personal";
+export * from "./unisender";
 
 export async function getBotConnector(messenger: string) {
   return _getBotConnector(db, messenger);
@@ -127,6 +133,13 @@ export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {
 
 export async function getBotUserProfile(messenger: string, userId: string) {
   return _getBotUserProfile(db, messenger, userId);
+}
+
+export async function getClientMessageStats(
+  messenger: string,
+  userId: string,
+): Promise<ClientMessageStats> {
+  return _getClientMessageStats(db, messenger, userId);
 }
 
 export async function listClientsWithLastMessage(

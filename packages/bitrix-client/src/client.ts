@@ -79,13 +79,24 @@ async function paginate<T>(
 
 /** REST-клиент по OAuth-токенам локального приложения (из Redis, с автопродлением). */
 export function createOAuthApi(memberId: string): BitrixApi {
+  // Кешируем промис токенов на весь жизненный цикл этого api-инстанса (то есть
+  // на один HTTP-запрос дашборда), чтобы пагинация и параллельные вызовы
+  // (fetchDeals x2 + fetchSourceNames и т.п.) не долбили Redis за токенами
+  // на каждую отдельную страницу/метод.
+  let tokensPromise: ReturnType<typeof getValidPortalTokens> | null = null;
+
+  function loadTokens() {
+    tokensPromise ??= getValidPortalTokens(memberId);
+    return tokensPromise;
+  }
+
   async function request(
     method: string,
     params: Record<string, unknown>,
     start?: number,
     attempt = 0,
   ): Promise<RawResponse> {
-    const tokens = await getValidPortalTokens(memberId);
+    const tokens = await loadTokens();
     if (!tokens)
       throw new Error(
         `Нет сохранённой авторизации Bitrix24 для портала ${memberId}`,
@@ -107,7 +118,8 @@ export function createOAuthApi(memberId: string): BitrixApi {
     // повторяем запрос один раз. Это защищает от clock skew и от ситуаций,
     // когда токен истёк между проверкой и фактическим вызовом.
     if (isTokenError(json.error) && attempt < MAX_RETRIES) {
-      await forceRefreshPortalTokens(memberId);
+      tokensPromise = forceRefreshPortalTokens(memberId);
+      await tokensPromise;
       return request(method, params, start, attempt + 1);
     }
 

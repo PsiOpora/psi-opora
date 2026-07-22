@@ -16,6 +16,7 @@
     "dev:tg": "turbo dev --filter=@psi-opora/tg-bot",
     "dev:max": "turbo dev --filter=@psi-opora/max-bot",
     "dev:dashboard": "turbo dev --filter=@psi-opora/dashboard",
+    "dev:clients": "turbo dev --filter=@psi-opora/clients",
     "dev:landing": "turbo dev --filter=@psi-opora/landing",
     "build": "bun --env-file=.env turbo run build",
     "typecheck": "turbo typecheck"

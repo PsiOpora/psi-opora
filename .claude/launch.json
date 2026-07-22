@@ -12,6 +12,12 @@
       "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "dev:landing"],
       "port": 3001
+    },
+    {
+      "name": "clients",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "dev:clients"],
+      "port": 3005
     }
   ]
 }

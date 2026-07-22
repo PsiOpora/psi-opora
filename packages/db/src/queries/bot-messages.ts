@@ -75,6 +75,43 @@ export async function listBotMessagesSince(
     .limit(limit);
 }
 
+export interface ClientMessageStats {
+  totalCount: number;
+  inCount: number;
+  outCount: number;
+  firstMessageAt: Date | null;
+  lastMessageAt: Date | null;
+}
+
+/** Сводка переписки с клиентом — для карточки профиля в инбоксе «Клиенты». */
+export async function getClientMessageStats(
+  db: Database,
+  messenger: string,
+  userId: string,
+): Promise<ClientMessageStats> {
+  const empty: ClientMessageStats = {
+    totalCount: 0,
+    inCount: 0,
+    outCount: 0,
+    firstMessageAt: null,
+    lastMessageAt: null,
+  };
+  if (!db) return empty;
+  const [row] = await db
+    .select({
+      totalCount: sql<number>`count(*)::int`,
+      inCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'in')::int`,
+      outCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'out')::int`,
+      firstMessageAt: sql<Date | null>`min(${botMessages.createdAt})`,
+      lastMessageAt: sql<Date | null>`max(${botMessages.createdAt})`,
+    })
+    .from(botMessages)
+    .where(
+      and(eq(botMessages.messenger, messenger), eq(botMessages.userId, userId)),
+    );
+  return row ?? empty;
+}
+
 export interface ClientListItem {
   messenger: string;
   userId: string;
