@@ -1,4 +1,3 @@
-import { env } from "@psi-opora/config";
 import type { Redis } from "@upstash/redis";
 import type { Api, StorageAdapter } from "grammy";
 import { Bot, InlineKeyboard, session } from "grammy";
@@ -82,8 +81,8 @@ export interface BotOptions {
    * для дублирования переписки в Открытую линию. Без него дублирование
    * отключено (см. sendMessageToOpenLine). */
   bitrixApi?: BitrixApiLike;
-  /** Токен бота — если не передан, используется legacy env (resolveTelegramBotToken
-   * в utils/token.ts достаёт токен из БД или .env раньше вызова createBot). */
+  /** Токен бота — достаётся из БД (resolveTelegramBotToken в utils/token.ts)
+   * раньше вызова createBot; без него бот не создать. */
   token?: string;
 }
 
@@ -132,7 +131,7 @@ export function createBot({
   bitrixApi,
   token,
 }: BotOptions = {}) {
-  const resolvedToken = token || env.TG_BOT_TOKEN || env.BOT_TOKEN || "";
+  const resolvedToken = token || "";
   const bot = new Bot<AppContext>(resolvedToken, client ? { client } : undefined);
 
   bot.use(

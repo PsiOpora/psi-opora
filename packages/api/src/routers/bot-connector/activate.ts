@@ -1,4 +1,4 @@
-import { decryptSecret, encryptSecret, env, logger } from "@psi-opora/config";
+import { decryptSecret, encryptSecret, logger } from "@psi-opora/config";
 import {
   getBotConnector,
   markBotConnectorWebhookConfigured,
@@ -8,12 +8,6 @@ import { setMessengerWebhook } from "@psi-opora/jobs";
 import { publicProcedure } from "../../orpc";
 import { activateBotConnectorSchema } from "../../schemas/bot-connector";
 import { connectorId } from "./helpers";
-
-function legacyToken(messenger: "telegram" | "max"): string {
-  return messenger === "telegram"
-    ? (env.TG_BOT_TOKEN ?? env.BOT_TOKEN ?? "")
-    : (env.MAX_BOT_TOKEN ?? "");
-}
 
 /**
  * Вызывается виджетом настроек канала (apps/dashboard/.../widget/bot-connector) —
@@ -58,8 +52,7 @@ export const activate = publicProcedure
         newToken ||
         (existing?.botTokenEncrypted
           ? decryptSecret(existing.botTokenEncrypted)
-          : "") ||
-        legacyToken(input.messenger);
+          : "");
       if (!effectiveToken) {
         return { tokenRequired: true };
       }

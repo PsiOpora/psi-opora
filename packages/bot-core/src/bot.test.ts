@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
-// Env до импорта бота: grammy требует непустой токен
-process.env.TG_BOT_TOKEN ||= "1:TEST_TOKEN";
-
 // Мокаем слой БД до импорта бота: иначе logBotMessage/getScenarioTexts
 // пытались бы открыть настоящее сетевое соединение на каждый шаг сценария —
 // это и медленно, и не даёт проверить, что журнал сообщений пишется верно.
@@ -34,7 +31,7 @@ interface SentCall {
 
 /** Бот с замоканным Bot API: вызовы копятся в sent, сеть не трогается. */
 function makeBot() {
-  const bot = createBot();
+  const bot = createBot({ token: "1:TEST_TOKEN" });
   bot.botInfo = {
     id: 42,
     is_bot: true,

@@ -41,7 +41,7 @@ async function sendTelegram(
   buttons?: MessengerButton[][],
 ): Promise<void> {
   const token = await resolveTelegramBotToken();
-  if (!token) throw new Error("TG_BOT_TOKEN не задан");
+  if (!token) throw new Error("Токен Telegram-бота не задан в БД");
 
   const replyMarkup = buttons?.length
     ? {
@@ -98,7 +98,7 @@ async function sendMax(
   buttons?: MessengerButton[][],
 ): Promise<void> {
   const token = await resolveMaxBotToken();
-  if (!token) throw new Error("MAX_BOT_TOKEN не задан");
+  if (!token) throw new Error("Токен MAX-бота не задан в БД");
 
   const attachments = buttons?.length
     ? [
@@ -170,7 +170,7 @@ export async function sendMessengerMessage(
 async function setTelegramWebhook(): Promise<void> {
   const token = await resolveTelegramBotToken();
   const webhookUrl = process.env.TG_WEBHOOK_URL;
-  if (!token) throw new Error("TG_BOT_TOKEN не задан");
+  if (!token) throw new Error("Токен Telegram-бота не задан в БД");
   if (!webhookUrl) throw new Error("TG_WEBHOOK_URL не задан");
 
   const url = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
@@ -188,7 +188,7 @@ async function setTelegramWebhook(): Promise<void> {
 async function setMaxWebhook(): Promise<void> {
   const token = await resolveMaxBotToken();
   const webhookUrl = process.env.MAX_WEBHOOK_URL;
-  if (!token) throw new Error("MAX_BOT_TOKEN не задан");
+  if (!token) throw new Error("Токен MAX-бота не задан в БД");
   if (!webhookUrl) throw new Error("MAX_WEBHOOK_URL не задан");
 
   const url = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;

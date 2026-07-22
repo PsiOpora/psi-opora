@@ -4,7 +4,9 @@ import { Bot } from "grammy";
 const token = await resolveTelegramBotToken();
 
 if (!token) {
-  console.error("Нужен TG_BOT_TOKEN (или сохранённый в БД токен) в .env");
+  console.error(
+    "Нужен токен бота в БД — введите его в настройках канала в Открытых линиях",
+  );
   process.exit(1);
 }
 

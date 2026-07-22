@@ -42,11 +42,6 @@ export const env = createEnv({
     AWS_REGION: z.string().default("us-east-1"),
     AWS_S3_BUCKET: z.string().default("acme-bucket"),
 
-    // Bot tokens
-    MAX_BOT_TOKEN: z.string().optional(),
-    BOT_TOKEN: z.string().optional(),
-    TG_BOT_TOKEN: z.string().optional(),
-
     // Webhook URLs
     MAX_WEBHOOK_URL: z.string().optional(),
     TG_WEBHOOK_URL: z.string().optional(),
@@ -110,9 +105,6 @@ export const env = createEnv({
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     AWS_REGION: process.env.AWS_REGION,
     AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
-    MAX_BOT_TOKEN: process.env.MAX_BOT_TOKEN,
-    BOT_TOKEN: process.env.BOT_TOKEN,
-    TG_BOT_TOKEN: process.env.TG_BOT_TOKEN,
     MAX_WEBHOOK_URL: process.env.MAX_WEBHOOK_URL,
     TG_WEBHOOK_URL: process.env.TG_WEBHOOK_URL,
     KV_REST_API_URL: process.env.KV_REST_API_URL,

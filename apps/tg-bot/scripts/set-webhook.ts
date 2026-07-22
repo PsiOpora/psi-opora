@@ -6,7 +6,9 @@ const token = await resolveTelegramBotToken();
 const webhookUrl = env.TG_WEBHOOK_URL;
 
 if (!token || !webhookUrl) {
-  console.error("Нужны TG_BOT_TOKEN (или сохранённый в БД токен) и TG_WEBHOOK_URL в .env");
+  console.error(
+    "Нужен токен бота в БД (введите его в настройках канала в Открытых линиях) и TG_WEBHOOK_URL в .env",
+  );
   process.exit(1);
 }
 

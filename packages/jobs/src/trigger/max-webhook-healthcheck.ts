@@ -1,3 +1,4 @@
+import { resolveMaxBotToken } from "@psi-opora/bot-core";
 import { schedules } from "@trigger.dev/sdk";
 import { RUSSIAN_TRUSTED_ROOT_CA } from "../certs/russian-trusted-ca";
 import { fetchWithCa } from "../fetch-with-ca";
@@ -23,10 +24,12 @@ export const maxWebhookHealthcheck = schedules.task({
   id: "max-webhook-healthcheck",
   cron: "*/10 * * * *",
   run: async () => {
-    const token = process.env.MAX_BOT_TOKEN;
+    const token = await resolveMaxBotToken();
     const webhookUrl = process.env.MAX_WEBHOOK_URL;
     if (!token || !webhookUrl) {
-      throw new Error("MAX_BOT_TOKEN или MAX_WEBHOOK_URL не заданы");
+      throw new Error(
+        "Токен MAX-бота не задан в БД (введите его в настройках канала) или не задан MAX_WEBHOOK_URL",
+      );
     }
     const webhookEndpoint = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
 

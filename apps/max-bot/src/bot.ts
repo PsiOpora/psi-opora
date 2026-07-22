@@ -22,7 +22,6 @@ import {
   type StorageAdapter,
   upsertBotUserProfile,
 } from "@psi-opora/bot-core";
-import { env } from "@psi-opora/config";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
 import type { Redis } from "@upstash/redis";
 
@@ -102,8 +101,8 @@ export interface MaxBotOptions {
    * для дублирования переписки в Открытую линию. Без него дублирование
    * отключено (см. sendMessageToOpenLine). */
   bitrixApi?: BitrixApiLike;
-  /** Токен бота — если не передан, используется legacy env (resolveMaxBotToken
-   * в @psi-opora/bot-core достаёт токен из БД или .env раньше вызова createMaxBot). */
+  /** Токен бота — достаётся из БД (resolveMaxBotToken из @psi-opora/bot-core)
+   * раньше вызова createMaxBot; без него бот не создать. */
   token?: string;
 }
 
@@ -241,7 +240,7 @@ export function createMaxBot({
   bitrixApi,
   token,
 }: MaxBotOptions = {}): MaxBot {
-  const resolvedToken = token || env.MAX_BOT_TOKEN || env.BOT_TOKEN || "";
+  const resolvedToken = token || "";
   const bot = new Bot<AppContext>(resolvedToken, { contextType: AppContext });
 
   bot.use(sessionMiddleware(storage));

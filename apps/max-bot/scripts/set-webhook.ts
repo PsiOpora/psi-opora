@@ -6,7 +6,9 @@ const webhookUrl = env.MAX_WEBHOOK_URL;
 const MAX_API_ROOT = "https://platform-api2.max.ru";
 
 if (!token || !webhookUrl) {
-  console.error("Нужны MAX_BOT_TOKEN (или сохранённый в БД токен) и MAX_WEBHOOK_URL в .env");
+  console.error(
+    "Нужен токен бота в БД (введите его в настройках канала в Открытых линиях) и MAX_WEBHOOK_URL в .env",
+  );
   process.exit(1);
 }
 
