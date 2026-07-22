@@ -12,7 +12,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1092.0",
     "@bitrix24/b24jssdk": "2.0.0",
-    "@hookform/resolvers": "^5.2.2",
+    "@hookform/resolvers": "^5.4.0",
     "@orpc/client": "^1.14.8",
     "@orpc/server": "^1.14.8",
     "@orpc/tanstack-query": "^1.14.8",
@@ -44,7 +44,7 @@
     "react": "^19.2.8",
     "react-day-picker": "^10.0.1",
     "react-dom": "^19.2.8",
-    "react-hook-form": "^7.66.1",
+    "react-hook-form": "^7.82.0",
     "recharts": "3.10.0",
     "server-only": "^0.0.1",
     "shadcn": "^4.13.1",
