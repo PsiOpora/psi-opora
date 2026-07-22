@@ -14,7 +14,11 @@ import {
 } from "./scenario/engine";
 import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
 import type { AppContext, ConsultationSession } from "./types/context";
-import { type BitrixApiLike, sendMessageToOpenLine } from "./utils/bitrix";
+import {
+  type BitrixApiLike,
+  sendMessageToOpenLine,
+  updateMessageInOpenLine,
+} from "./utils/bitrix";
 import { logBotMessage } from "./utils/message-log";
 import { upsertBotUserProfile } from "./utils/user-profile";
 import { formatUtmLog, parseUtmParams } from "./utils/utm";
@@ -122,6 +126,29 @@ export async function sendTelegramScenarioMessage(
   }
   // PDF-гайд в Telegram отдельным документом не шлём — он уходит вложением
   // на email (см. dispatchScenarioOutput/sendGuideEmail)
+}
+
+/**
+ * Строит прямую (временную) ссылку на файл Telegram для пересылки вложения
+ * в Открытую линию (message.files в imconnector.send.messages). Ссылка
+ * держится ограниченное время — этого достаточно, чтобы оператор открыл её
+ * вскоре после получения; постоянного хранилища для вложений бота нет.
+ */
+async function resolveTelegramFileUrl(
+  api: Api,
+  token: string,
+  fileId: string,
+): Promise<string | null> {
+  try {
+    const file = await api.getFile(fileId);
+    if (!file.file_path) return null;
+    return `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+  } catch (err) {
+    console.error(
+      `[bitrix] не удалось получить ссылку на файл Telegram: ${(err as Error).message}`,
+    );
+    return null;
+  }
 }
 
 export function createBot({
@@ -255,6 +282,7 @@ export function createBot({
         userId: ctx.from.id,
         chatId: ctx.chatId,
         text,
+        messageId: ctx.message.message_id,
         name: [ctx.from.first_name, ctx.from.last_name]
           .filter(Boolean)
           .join(" "),
@@ -270,6 +298,81 @@ export function createBot({
 
     await dispatch(ctx, out, texts);
   });
+
+  // Клиент отредактировал уже отправленное сообщение — пересылаем правку
+  // в Открытую линию (см. updateMessageInOpenLine), чтобы оператор видел
+  // актуальный текст, а не устаревший. Telegram Bot API не сообщает об
+  // удалении сообщений клиентом — такие правки в Открытую линию попасть
+  // не могут, это ограничение платформы, а не пробел в реализации.
+  bot.on("edited_message:text", async (ctx) => {
+    const text = ctx.editedMessage.text.trim();
+    if (!text || !ctx.chatId || !ctx.from) return;
+
+    await updateMessageInOpenLine(bitrixApi, {
+      messenger: "telegram",
+      userId: ctx.from.id,
+      chatId: ctx.chatId,
+      text,
+      messageId: ctx.editedMessage.message_id,
+      name: [ctx.from.first_name, ctx.from.last_name]
+        .filter(Boolean)
+        .join(" "),
+    });
+  });
+
+  // Фото/документы/голосовые/видео — пересылаем как вложение в Открытую
+  // линию (message.files), в сценарий бота эти сообщения не попадают:
+  // все шаги сценария текстовые, вложения тут не ожидаются.
+  bot.on(
+    ["message:photo", "message:document", "message:voice", "message:video", "message:audio"],
+    async (ctx) => {
+      if (!ctx.chatId || !ctx.from) return;
+      const caption = ctx.message.caption?.trim() ?? "";
+
+      let fileId: string | undefined;
+      let fileName = "file";
+      if (ctx.message.photo) {
+        fileId = ctx.message.photo[ctx.message.photo.length - 1]?.file_id;
+        fileName = "photo.jpg";
+      } else if (ctx.message.document) {
+        fileId = ctx.message.document.file_id;
+        fileName = ctx.message.document.file_name ?? "document";
+      } else if (ctx.message.voice) {
+        fileId = ctx.message.voice.file_id;
+        fileName = "voice.ogg";
+      } else if (ctx.message.video) {
+        fileId = ctx.message.video.file_id;
+        fileName = "video.mp4";
+      } else if (ctx.message.audio) {
+        fileId = ctx.message.audio.file_id;
+        fileName = ctx.message.audio.file_name ?? "audio.mp3";
+      }
+      if (!fileId) return;
+
+      await logBotMessage({
+        messenger: "telegram",
+        userId: ctx.from.id,
+        direction: "in",
+        source: "scenario",
+        text: caption || `[${fileName}]`,
+      });
+
+      const url = await resolveTelegramFileUrl(ctx.api, resolvedToken, fileId);
+      if (!url) return;
+
+      await sendMessageToOpenLine(bitrixApi, {
+        messenger: "telegram",
+        userId: ctx.from.id,
+        chatId: ctx.chatId,
+        text: caption,
+        messageId: ctx.message.message_id,
+        files: [{ url, name: fileName }],
+        name: [ctx.from.first_name, ctx.from.last_name]
+          .filter(Boolean)
+          .join(" "),
+      });
+    },
+  );
 
   bot.catch((err) => {
     const ctx = err.ctx as AppContext;

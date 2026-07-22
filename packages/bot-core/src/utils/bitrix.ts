@@ -461,6 +461,22 @@ export interface OpenLineMessageData {
   text: string;
   /** Имя клиента для отображения в диалоге (необязательно). */
   name?: string;
+  /** Собственный ID сообщения во внешней системе (Telegram message_id) —
+   * делает внешний ID сообщения в Bitrix детерминированным, чтобы потом
+   * адресно обновить его через updateMessageInOpenLine (правка сообщения
+   * в Telegram). Без него используется текущее время — обновить такое
+   * сообщение позже уже нельзя. */
+  messageId?: number;
+  /** Вложения (фото/документ/голосовое) — прямая ссылка и имя файла. */
+  files?: { url: string; name: string }[];
+}
+
+function buildExternalMessageId(
+  data: Pick<OpenLineMessageData, "messenger" | "userId" | "messageId">,
+): string {
+  return data.messageId != null
+    ? `${data.messenger}-${data.userId}-${data.messageId}`
+    : `${data.messenger}-${data.userId}-${Date.now()}`;
 }
 
 /**
@@ -500,7 +516,56 @@ export async function sendMessageToOpenLine(
             skip_phone_validate: "Y",
           },
           message: {
-            id: `${data.messenger}-${data.userId}-${Date.now()}`,
+            id: buildExternalMessageId(data),
+            date: Math.floor(Date.now() / 1000),
+            text: data.text,
+            ...(data.files?.length ? { files: data.files } : {}),
+          },
+          chat: {
+            id: String(data.chatId),
+            name: data.name || `${data.messenger} #${data.userId}`,
+          },
+        },
+      ],
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[bitrix] не удалось переслать сообщение в Открытую линию: ${message}`,
+    );
+  }
+}
+
+/**
+ * Пересылает правку уже отправленного сообщения (Telegram edited_message)
+ * в Открытую линию через imconnector.update.messages — находит нужное
+ * сообщение по тому же внешнему ID, что был использован при исходной
+ * отправке (см. buildExternalMessageId), поэтому messageId здесь обязателен:
+ * без него нечего обновлять — id совпадёт лишь случайно.
+ */
+export async function updateMessageInOpenLine(
+  api: BitrixApiLike | undefined,
+  data: OpenLineMessageData & { messageId: number },
+): Promise<void> {
+  if (!api) return;
+  const config = await getBotConnector(data.messenger);
+  if (!config) return;
+
+  const name = sanitizeOpenLineName(data.name);
+
+  try {
+    await api.call("imconnector.update.messages", {
+      CONNECTOR: config.connectorId,
+      LINE: Number(config.openLineId),
+      MESSAGES: [
+        {
+          user: {
+            id: String(data.userId),
+            ...(name ? { name } : {}),
+            skip_phone_validate: "Y",
+          },
+          message: {
+            id: buildExternalMessageId(data),
             date: Math.floor(Date.now() / 1000),
             text: data.text,
           },
@@ -514,7 +579,7 @@ export async function sendMessageToOpenLine(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(
-      `[bitrix] не удалось переслать сообщение в Открытую линию: ${message}`,
+      `[bitrix] не удалось переслать правку сообщения в Открытую линию: ${message}`,
     );
   }
 }

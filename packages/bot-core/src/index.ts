@@ -67,6 +67,7 @@ export {
   type OpenLineMessageData,
   registerBitrixSource,
   sendMessageToOpenLine,
+  updateMessageInOpenLine,
 } from "./utils/bitrix";
 export {
   type SubmitDealParams,
