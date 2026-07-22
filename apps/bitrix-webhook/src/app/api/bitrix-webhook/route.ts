@@ -5,7 +5,9 @@ import {
 } from "@psi-opora/bitrix-webhook-api";
 import { env } from "@psi-opora/config";
 import {
+  assignConversationIfUnassigned,
   getTelegramPersonalAccountByLine,
+  insertBotMessage,
   removeBotConnector,
 } from "@psi-opora/db/queries";
 import { sendMessengerMessage, type Messenger } from "@psi-opora/jobs";
@@ -20,6 +22,51 @@ function messengerByConnector(connector: string | undefined): Messenger | null {
   if (connector === (process.env.MAX_BITRIX_CONNECTOR_ID ?? "psiopora_max_bot"))
     return "max";
   return null;
+}
+
+/**
+ * Журналирует ответ оператора в bot_messages (виден в едином инбоксе
+ * дашборда, apps/dashboard/src/app/(dashboard)/clients) и, если у диалога
+ * ещё нет ответственного, назначает ответившего оператора — «первый
+ * ответивший — ответственный», как в Wazzup. Ошибка здесь не должна
+ * блокировать доставку ответа клиенту, поэтому только логируется.
+ */
+async function logOperatorReply(
+  messenger: string,
+  reply: OperatorReplyMessage,
+): Promise<void> {
+  const userId = String(reply.chatId);
+  try {
+    await insertBotMessage({
+      messenger,
+      userId,
+      direction: "out",
+      source: "operator",
+      text: reply.text,
+      operatorId:
+        reply.operatorUserId !== undefined
+          ? String(reply.operatorUserId)
+          : undefined,
+    });
+  } catch (err) {
+    console.error(
+      `[bitrix-webhook] не удалось записать ответ оператора в журнал: ${(err as Error).message}`,
+    );
+  }
+
+  if (reply.operatorUserId === undefined) return;
+  try {
+    await assignConversationIfUnassigned({
+      messenger,
+      userId,
+      operatorId: String(reply.operatorUserId),
+      operatorName: `Оператор #${reply.operatorUserId}`,
+    });
+  } catch (err) {
+    console.error(
+      `[bitrix-webhook] не удалось назначить ответственного по ответу оператора: ${(err as Error).message}`,
+    );
+  }
 }
 
 /**
@@ -52,6 +99,7 @@ async function relayToTelegramPersonal(
   console.log(
     `[bitrix-webhook] ответ оператора поставлен в очередь личного номера ${account.phone} chat=${reply.chatId}`,
   );
+  await logOperatorReply("telegram-personal", reply);
   return true;
 }
 
@@ -76,6 +124,8 @@ async function relayOperatorReply(reply: OperatorReplyMessage): Promise<void> {
       `[bitrix-webhook] не удалось переслать ответ оператора в ${messenger}: ${(err as Error).message}`,
     );
   }
+
+  await logOperatorReply(messenger, reply);
 }
 
 /**

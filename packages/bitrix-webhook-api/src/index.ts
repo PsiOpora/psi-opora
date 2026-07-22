@@ -26,6 +26,9 @@ export interface BitrixWebhookPayload {
       };
       message?: {
         text?: string;
+        /** Bitrix-ID пользователя, от имени которого отправлено сообщение
+         * (оператор Открытой линии). */
+        user_id?: number;
       };
     }>;
   };
@@ -41,6 +44,10 @@ export interface OperatorReplyMessage {
   /** ID чата во внешней системе — тот же chat.id, что бот передавал в imconnector.send.messages. */
   chatId: number;
   text: string;
+  /** Bitrix-ID оператора, отправившего ответ (data.DATA[].message.user_id) —
+   * для журналирования в bot_messages/назначения ответственного, см.
+   * apps/bitrix-webhook. Может отсутствовать в старых версиях события. */
+  operatorUserId?: number;
 }
 
 /**
@@ -63,6 +70,7 @@ export function getOperatorReplyMessage(
     lineId: payload.data?.LINE ?? item?.connector?.line_id,
     chatId,
     text,
+    operatorUserId: item?.message?.user_id,
   };
 }
 

@@ -4,6 +4,13 @@
  */
 import { db } from "../client";
 import {
+  type ConversationAssignment,
+  assignConversation as _assignConversation,
+  assignConversationIfUnassigned as _assignConversationIfUnassigned,
+  getConversationMeta as _getConversationMeta,
+  markConversationRead as _markConversationRead,
+} from "./bot-conversations";
+import {
   getBotConnector as _getBotConnector,
   markBotConnectorWebhookConfigured as _markBotConnectorWebhookConfigured,
   removeBotConnector as _removeBotConnector,
@@ -15,9 +22,11 @@ import {
 } from "./bot-funnel";
 import {
   type BotMessageEntry,
+  type ClientListItem,
   insertBotMessage as _insertBotMessage,
   listBotMessages as _listBotMessages,
   listBotMessagesSince as _listBotMessagesSince,
+  listClientsWithLastMessage as _listClientsWithLastMessage,
 } from "./bot-messages";
 import {
   getBotTextsRecord as _getBotTextsRecord,
@@ -37,10 +46,16 @@ export * from "./email-campaign";
 export * from "./telegram-personal";
 export * from "./unisender";
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
-export type { BotMessage, BotMessageEntry, NewBotMessage } from "./bot-messages";
+export type {
+  BotMessage,
+  BotMessageEntry,
+  ClientListItem,
+  NewBotMessage,
+} from "./bot-messages";
 export type { BotText } from "./bot-texts";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
 export type { BotConnector } from "./bot-connectors";
+export type { BotConversation, ConversationAssignment } from "./bot-conversations";
 
 export async function getBotConnector(messenger: string) {
   return _getBotConnector(db, messenger);
@@ -112,4 +127,33 @@ export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {
 
 export async function getBotUserProfile(messenger: string, userId: string) {
   return _getBotUserProfile(db, messenger, userId);
+}
+
+export async function listClientsWithLastMessage(
+  options?: Parameters<typeof _listClientsWithLastMessage>[1],
+): Promise<ClientListItem[]> {
+  return _listClientsWithLastMessage(db, options);
+}
+
+export async function markConversationRead(
+  messenger: string,
+  userId: string,
+): Promise<void> {
+  return _markConversationRead(db, messenger, userId);
+}
+
+export async function assignConversation(
+  entry: ConversationAssignment,
+): Promise<void> {
+  return _assignConversation(db, entry);
+}
+
+export async function assignConversationIfUnassigned(
+  entry: ConversationAssignment,
+): Promise<void> {
+  return _assignConversationIfUnassigned(db, entry);
+}
+
+export async function getConversationMeta(messenger: string, userId: string) {
+  return _getConversationMeta(db, messenger, userId);
 }

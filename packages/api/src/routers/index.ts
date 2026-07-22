@@ -24,6 +24,7 @@ import { broadcastRouter } from "./broadcast";
 import { costsRouter } from "./costs";
 import { emailRouter } from "./email";
 import { emailBroadcastRouter } from "./email-broadcast";
+import { messagesRouter } from "./messages";
 import { telegramPersonalRouter } from "./telegram-personal";
 import { widgetMessageRouter } from "./widget-message";
 
@@ -36,6 +37,7 @@ export {
   costsRouter,
   emailRouter,
   emailBroadcastRouter,
+  messagesRouter,
   telegramPersonalRouter,
   widgetMessageRouter,
 };
@@ -48,6 +50,7 @@ export const appRouter = {
   costs: costsRouter,
   email: emailRouter,
   emailBroadcast: emailBroadcastRouter,
+  messages: messagesRouter,
   telegramPersonal: telegramPersonalRouter,
   widgetMessage: widgetMessageRouter,
 };

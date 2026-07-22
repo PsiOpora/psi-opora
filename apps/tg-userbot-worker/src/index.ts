@@ -26,10 +26,17 @@ function accountLabel(account: TelegramPersonalAccount): string {
  * Дублирует входящее сообщение личного аккаунта в Открытую линию через
  * imconnector.send.messages — CONNECTOR/LINE берутся из самой записи
  * аккаунта (не из env, как у бота: у каждого личного номера своя линия).
+ *
+ * `user.phone`, когда он виден (не скрыт настройками приватности
+ * отправителя), передаём отдельно от `user.id` — по нему CRM-трекер
+ * Bitrix ищет и привязывает существующий контакт/лид вместо создания
+ * нового «неопознанного» на каждое сообщение (см. «Каждый чат открытых
+ * линий связан с объектом CRM» в документации imopenlines).
  */
 async function relayInboundMessage(
   account: TelegramPersonalAccount,
-  userId: number,
+  senderId: number,
+  senderPhone: string | null,
   chatId: number,
   text: string,
 ): Promise<void> {
@@ -42,13 +49,17 @@ async function relayInboundMessage(
       LINE: Number(account.openLineId),
       MESSAGES: [
         {
-          user: { id: String(userId), skip_phone_validate: "Y" },
+          user: {
+            id: String(senderId),
+            ...(senderPhone ? { phone: senderPhone } : {}),
+            skip_phone_validate: "Y",
+          },
           message: {
-            id: `tg-personal-${userId}-${Date.now()}`,
+            id: `tg-personal-${senderId}-${Date.now()}`,
             date: Math.floor(Date.now() / 1000),
             text,
           },
-          chat: { id: String(chatId), name: `Telegram #${userId}` },
+          chat: { id: String(chatId), name: `Telegram #${senderId}` },
         },
       ],
     });
@@ -130,9 +141,17 @@ async function startAccountWorker(
     listenForMessages(client, (message) => {
       const text = message.text;
       if (!text) return;
+      const rawPhone =
+        "phoneNumber" in message.sender ? message.sender.phoneNumber : null;
+      const senderPhone = rawPhone
+        ? rawPhone.startsWith("+")
+          ? rawPhone
+          : `+${rawPhone}`
+        : null;
       void relayInboundMessage(
         account,
         message.sender.id,
+        senderPhone,
         message.chat.id,
         text,
       );

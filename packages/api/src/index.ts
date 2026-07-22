@@ -53,6 +53,11 @@ export type {
   WidgetHistoryItem,
   WidgetRecipient,
 } from "./routers/widget-message";
+export type {
+  ClientListItem,
+  ClientMessageItem,
+  InboxMessenger,
+} from "./routers/messages";
 export {
   type AdCampaign,
   type AdStatsResult,

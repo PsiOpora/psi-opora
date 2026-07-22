@@ -1,8 +1,59 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import { listBotMessages, listTelegramPersonalAccounts } from "@psi-opora/db/queries";
+import { getSendResult, pushOutboundMessage } from "@psi-opora/tg-userbot";
 import { discoverMessengerFields, getContactPhone, type RawContact } from "../../broadcast-send";
 import { findMaxId, findTelegram } from "../../broadcast-send";
 import type { WidgetChannel, WidgetEntity, WidgetHistoryItem } from "./types";
+
+const SEND_RESULT_POLL_INTERVAL_MS = 300;
+const SEND_RESULT_TIMEOUT_MS = 6000;
+
+/**
+ * Личный номер (в отличие от бота) не держит соединение в этом процессе —
+ * задача уходит в очередь always-on воркера (apps/tg-userbot-worker), а
+ * результат (резолв Telegram-пира + сама отправка) ждём здесь коротким
+ * поллингом, чтобы вернуть внятный ответ вызывающему, а не «повесить» кнопку.
+ * Используется и вкладкой CRM (send.ts), и единым инбоксом
+ * (packages/api/src/routers/messages/send.ts).
+ */
+export async function sendViaPersonalNumber(params: {
+  memberId: string;
+  openLineId: string;
+  target: { kind: "phone" | "username" | "id"; value: string };
+  text: string;
+}): Promise<{ ok?: true; error?: string }> {
+  const jobId = crypto.randomUUID();
+  await pushOutboundMessage({
+    memberId: params.memberId,
+    openLineId: params.openLineId,
+    jobId,
+    ...(params.target.kind === "phone" ? { phone: params.target.value } : {}),
+    ...(params.target.kind === "username"
+      ? { telegramUsername: params.target.value }
+      : {}),
+    ...(params.target.kind === "id"
+      ? { telegramUserId: Number(params.target.value) }
+      : {}),
+    text: params.text,
+  });
+
+  const deadline = Date.now() + SEND_RESULT_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const result = await getSendResult(jobId);
+    if (result) {
+      return result.ok
+        ? { ok: true }
+        : { error: `Не отправлено: ${result.error ?? "неизвестная ошибка"}` };
+    }
+    await new Promise((resolve) =>
+      setTimeout(resolve, SEND_RESULT_POLL_INTERVAL_MS),
+    );
+  }
+  return {
+    error:
+      "Не удалось дождаться ответа от воркера личного номера — проверьте, что apps/tg-userbot-worker запущен",
+  };
+}
 
 export const HISTORY_LIMIT = 30;
 

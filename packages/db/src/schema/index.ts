@@ -1,6 +1,7 @@
 export * from "./ads";
 export * from "./backup";
 export * from "./bot-connectors";
+export * from "./bot-conversations";
 export * from "./bot-funnel";
 export * from "./bot-guides";
 export * from "./bot-messages";

@@ -52,3 +52,15 @@ export {
   type UnisenderSettingsInput,
   unisenderSettingsSchema,
 } from "./unisender";
+export {
+  type AssignConversationInput,
+  assignConversationSchema,
+  type ClientPollInput,
+  clientPollSchema,
+  type ClientThreadInput,
+  clientThreadSchema,
+  type ListClientsInput,
+  listClientsSchema,
+  type SendClientMessageInput,
+  sendClientMessageSchema,
+} from "./messages";

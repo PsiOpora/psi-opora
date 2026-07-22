@@ -1,12 +1,11 @@
 import { insertBotMessage } from "@psi-opora/db/queries";
 import { sendMessengerMessage } from "@psi-opora/jobs";
-import { getSendResult, pushOutboundMessage } from "@psi-opora/tg-userbot";
 import { publicProcedure } from "../../orpc";
 import {
   MESSAGE_MAX_LENGTH,
   sendWidgetMessageSchema,
 } from "../../schemas/broadcast";
-import { resolveContact } from "./helpers";
+import { resolveContact, sendViaPersonalNumber } from "./helpers";
 
 const MESSENGER_ERROR_MESSAGES: Record<string, string> = {
   "error.dialog.notfound":
@@ -18,56 +17,6 @@ function formatSendError(message: string): string {
     if (message.includes(code)) return text;
   }
   return message;
-}
-
-const SEND_RESULT_POLL_INTERVAL_MS = 300;
-const SEND_RESULT_TIMEOUT_MS = 6000;
-
-/**
- * Личный номер (в отличие от бота) не держит соединение в этом процессе —
- * задача уходит в очередь always-on воркера (apps/tg-userbot-worker), а
- * результат (резолв Telegram-пира + сама отправка) ждём здесь коротким
- * поллингом, чтобы вернуть внятный ответ в виджет, а не «повесить» кнопку.
- * Адресация — по тому, что нашлось у контакта (см. resolvePersonalTarget в
- * helpers.ts): телефон, username или готовый числовой ID.
- */
-async function sendViaPersonalNumber(params: {
-  memberId: string;
-  openLineId: string;
-  target: { kind: "phone" | "username" | "id"; value: string };
-  text: string;
-}): Promise<{ ok?: true; error?: string }> {
-  const jobId = crypto.randomUUID();
-  await pushOutboundMessage({
-    memberId: params.memberId,
-    openLineId: params.openLineId,
-    jobId,
-    ...(params.target.kind === "phone" ? { phone: params.target.value } : {}),
-    ...(params.target.kind === "username"
-      ? { telegramUsername: params.target.value }
-      : {}),
-    ...(params.target.kind === "id"
-      ? { telegramUserId: Number(params.target.value) }
-      : {}),
-    text: params.text,
-  });
-
-  const deadline = Date.now() + SEND_RESULT_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const result = await getSendResult(jobId);
-    if (result) {
-      return result.ok
-        ? { ok: true }
-        : { error: `Не отправлено: ${result.error ?? "неизвестная ошибка"}` };
-    }
-    await new Promise((resolve) =>
-      setTimeout(resolve, SEND_RESULT_POLL_INTERVAL_MS),
-    );
-  }
-  return {
-    error:
-      "Не удалось дождаться ответа от воркера личного номера — проверьте, что apps/tg-userbot-worker запущен",
-  };
 }
 
 /**

@@ -11,11 +11,14 @@ export const botMessages = pgTable(
     id: text("id").primaryKey(),
     messenger: text("messenger").notNull(),
     userId: text("user_id").notNull(),
-    /** in — от клиента, out — от бота. */
+    /** in — от клиента, out — от бота/оператора. */
     direction: text("direction").notNull(),
-    /** scenario | reminder | widget | broadcast. */
+    /** scenario | reminder | widget | broadcast | operator. */
     source: text("source").notNull().default("scenario"),
     text: text("text").notNull(),
+    /** Bitrix-ID оператора — только для source="operator" (ответ прямо из
+     * Открытой линии, см. apps/bitrix-webhook). */
+    operatorId: text("operator_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
