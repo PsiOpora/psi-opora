@@ -30,7 +30,13 @@ const minLevel = resolveMinLevel();
 
 function serializeError(error: unknown): LogMeta {
   if (error instanceof Error) {
-    return { name: error.name, message: error.message, stack: error.stack };
+    const { cause } = error;
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      ...(cause === undefined ? {} : { cause: serializeError(cause) }),
+    };
   }
   return { error: String(error) };
 }
