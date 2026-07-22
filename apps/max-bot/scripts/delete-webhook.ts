@@ -1,11 +1,12 @@
+import { resolveMaxBotToken } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 
-const token = env.MAX_BOT_TOKEN;
+const token = await resolveMaxBotToken();
 const webhookUrl = env.MAX_WEBHOOK_URL;
 const MAX_API_ROOT = "https://platform-api2.max.ru";
 
 if (!token || !webhookUrl) {
-  console.error("Нужны MAX_BOT_TOKEN и MAX_WEBHOOK_URL в .env");
+  console.error("Нужны MAX_BOT_TOKEN (или сохранённый в БД токен) и MAX_WEBHOOK_URL в .env");
   process.exit(1);
 }
 

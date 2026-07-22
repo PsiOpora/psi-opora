@@ -1,10 +1,10 @@
+import { resolveTelegramBotToken } from "@psi-opora/bot-core";
 import { Bot } from "grammy";
-import { env } from "@psi-opora/config";
 
-const token = env.TG_BOT_TOKEN;
+const token = await resolveTelegramBotToken();
 
 if (!token) {
-  console.error("Нужен TG_BOT_TOKEN в .env");
+  console.error("Нужен TG_BOT_TOKEN (или сохранённый в БД токен) в .env");
   process.exit(1);
 }
 

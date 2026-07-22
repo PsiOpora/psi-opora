@@ -38,7 +38,8 @@ function handlerUrl(messenger: Messenger): string {
  * привязка к конкретной линии происходит нативно в Контакт-центре Bitrix24
  * (администратор добавляет канал на линии — откроется наше окно активации,
  * которое само привяжет линию и настроит вебхук бота, см.
- * /widget/bot-connector). Токен бота задаётся в .env — здесь вводить нечего.
+ * /widget/bot-connector). Токен бота вводится там же, если ещё не сохранён
+ * в БД (см. bot-connector-widget-client.tsx) — здесь только бейдж статуса.
  */
 export function BotConnectorCard({
   messenger,
@@ -155,6 +156,9 @@ export function BotConnectorCard({
                     {config.webhookConfigured
                       ? "вебхук настроен"
                       : "вебхук не настроен"}
+                  </Badge>
+                  <Badge variant={config.hasToken ? "default" : "destructive"}>
+                    {config.hasToken ? "токен задан" : "токен не задан"}
                   </Badge>
                 </>
               )}

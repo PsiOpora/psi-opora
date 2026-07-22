@@ -102,6 +102,9 @@ export interface MaxBotOptions {
    * для дублирования переписки в Открытую линию. Без него дублирование
    * отключено (см. sendMessageToOpenLine). */
   bitrixApi?: BitrixApiLike;
+  /** Токен бота — если не передан, используется legacy env (resolveMaxBotToken
+   * в @psi-opora/bot-core достаёт токен из БД или .env раньше вызова createMaxBot). */
+  token?: string;
 }
 
 function createInitialSession(): ConsultationSession {
@@ -236,9 +239,10 @@ export function createMaxBot({
   storage,
   redis,
   bitrixApi,
+  token,
 }: MaxBotOptions = {}): MaxBot {
-  const token = env.MAX_BOT_TOKEN ?? env.BOT_TOKEN ?? "";
-  const bot = new Bot<AppContext>(token, { contextType: AppContext });
+  const resolvedToken = token || env.MAX_BOT_TOKEN || env.BOT_TOKEN || "";
+  const bot = new Bot<AppContext>(resolvedToken, { contextType: AppContext });
 
   bot.use(sessionMiddleware(storage));
 

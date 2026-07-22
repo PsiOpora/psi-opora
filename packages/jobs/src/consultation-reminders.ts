@@ -1,26 +1,21 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import { getScenarioTexts } from "@psi-opora/bot-core";
 import type { Redis } from "@upstash/redis";
+import {
+  DEAL_CATEGORY_ID,
+  DEAL_STAGE_IDS,
+  MESSENGER_CONNECTOR_MAP,
+  MESSENGER_FIELD,
+  extractClientContactId,
+  formatConsultationTime,
+  normalizeConsultationDt,
+  pickChatIdForConnector,
+  renderReminderMessage,
+  toTimestamp,
+} from "./reminders/shared";
 
-// Портал psi-opora.bitrix24.ru: воронка и стадии сделки, на которых
-// отслеживаем дату консультации (см. старый Bitrix-модуль
-// calls_consultation_reminders/config/app_config.php).
-const DEAL_CATEGORY_ID = 0;
-const DEAL_STAGE_IDS = ["EXECUTING", "UC_WWIO8W"];
 const CONSULTATION_DT_FIELD = "UF_CRM_1779802779513";
-const MESSENGER_FIELD = "UF_CRM_1779643796551";
 const RESPONSIBLE_USER_ID = 1;
-
-// Значения поля "Мессенджер" → подстрока CONNECTOR_ID чата Открытой линии.
-// "326" (MAX) подтверждён реальным ответом imopenlines.crm.chat.get
-// (CONNECTOR_ID: "max", без префикса "wz_" — старое значение никогда не
-// совпадало). "328" (Telegram) пока не перепроверен вживую — если
-// напоминания в Telegram не долетают, см. no_openlines_chat в логах и
-// свериться с реальным CONNECTOR_ID через imopenlines.crm.chat.get.
-const MESSENGER_CONNECTOR_MAP: Record<string, string> = {
-  "326": "max",
-  "328": "telegram",
-};
 
 // Напоминание шлём, если консультация через 0–65 минут — запас на случай
 // редких прогонов крона.
@@ -59,49 +54,6 @@ async function writeState(
 
 async function dropFromIndex(redis: Redis, dealId: number): Promise<void> {
   await redis.srem(INDEX_KEY, String(dealId));
-}
-
-/** Нормализует дату из поля сделки к ISO-строке; Bitrix отдаёт datetime уже со смещением. */
-function normalizeConsultationDt(raw: unknown): string | null {
-  const value = String(raw ?? "").trim();
-  if (!value) return null;
-  const ts = new Date(value).getTime();
-  return Number.isFinite(ts) ? new Date(ts).toISOString() : null;
-}
-
-function toTimestamp(iso: string): number {
-  const ts = new Date(iso).getTime();
-  return Number.isFinite(ts) ? ts : 0;
-}
-
-/** Время консультации по Москве для подстановки в шаблон напоминания, напр. "11:00". */
-function formatConsultationTime(iso: string): string {
-  return new Intl.DateTimeFormat("ru-RU", {
-    timeZone: "Europe/Moscow",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
-}
-
-function renderReminderMessage(
-  template: string,
-  vars: { name: string; time: string },
-): string {
-  return template
-    .replaceAll("{name}", vars.name)
-    .replaceAll("{time}", vars.time);
-}
-
-function extractClientContactId(deal: Record<string, unknown>): number {
-  const contactId = Number(deal.CONTACT_ID ?? 0);
-  if (contactId > 0) return contactId;
-
-  const ids = deal.CONTACT_IDS;
-  if (Array.isArray(ids) && ids.length > 0) {
-    const first = Number(ids[0] ?? 0);
-    return first > 0 ? first : 0;
-  }
-  return 0;
 }
 
 interface BitrixActivity {
@@ -295,36 +247,6 @@ export async function handleConsultationDealUpdate(
     newActivityId,
     completedOld,
   };
-}
-
-interface OpenLinesChat {
-  CHAT_ID?: string | number;
-  CONNECTOR_ID?: string;
-}
-
-async function pickChatIdForConnector(
-  api: BitrixApi,
-  clientContactId: number,
-  connectorContains: string,
-): Promise<number> {
-  const chats = await api.call<OpenLinesChat[]>("imopenlines.crm.chat.get", {
-    CRM_ENTITY_TYPE: "contact",
-    CRM_ENTITY: clientContactId,
-    ACTIVE_ONLY: "N",
-  });
-  const list = chats ?? [];
-
-  if (!connectorContains) {
-    return Number(list[0]?.CHAT_ID ?? 0);
-  }
-
-  for (const chat of list) {
-    const connectorId = String(chat.CONNECTOR_ID ?? "");
-    if (connectorId?.includes(connectorContains)) {
-      return Number(chat.CHAT_ID ?? 0);
-    }
-  }
-  return 0;
 }
 
 export interface SendConsultationRemindersResult {

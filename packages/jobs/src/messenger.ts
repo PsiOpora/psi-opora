@@ -1,3 +1,4 @@
+import { resolveMaxBotToken, resolveTelegramBotToken } from "@psi-opora/bot-core";
 import { fetchWithCa } from "./fetch-with-ca";
 import { RUSSIAN_TRUSTED_ROOT_CA } from "./certs/russian-trusted-ca";
 
@@ -39,7 +40,7 @@ async function sendTelegram(
   text: string,
   buttons?: MessengerButton[][],
 ): Promise<void> {
-  const token = process.env.TG_BOT_TOKEN ?? process.env.BOT_TOKEN;
+  const token = await resolveTelegramBotToken();
   if (!token) throw new Error("TG_BOT_TOKEN не задан");
 
   const replyMarkup = buttons?.length
@@ -96,7 +97,7 @@ async function sendMax(
   text: string,
   buttons?: MessengerButton[][],
 ): Promise<void> {
-  const token = process.env.MAX_BOT_TOKEN;
+  const token = await resolveMaxBotToken();
   if (!token) throw new Error("MAX_BOT_TOKEN не задан");
 
   const attachments = buttons?.length
@@ -167,7 +168,7 @@ export async function sendMessengerMessage(
 }
 
 async function setTelegramWebhook(): Promise<void> {
-  const token = process.env.TG_BOT_TOKEN ?? process.env.BOT_TOKEN;
+  const token = await resolveTelegramBotToken();
   const webhookUrl = process.env.TG_WEBHOOK_URL;
   if (!token) throw new Error("TG_BOT_TOKEN не задан");
   if (!webhookUrl) throw new Error("TG_WEBHOOK_URL не задан");
@@ -185,7 +186,7 @@ async function setTelegramWebhook(): Promise<void> {
 }
 
 async function setMaxWebhook(): Promise<void> {
-  const token = process.env.MAX_BOT_TOKEN;
+  const token = await resolveMaxBotToken();
   const webhookUrl = process.env.MAX_WEBHOOK_URL;
   if (!token) throw new Error("MAX_BOT_TOKEN не задан");
   if (!webhookUrl) throw new Error("MAX_WEBHOOK_URL не задан");

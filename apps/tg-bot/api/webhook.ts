@@ -5,6 +5,7 @@ import {
   createBot,
   createRedisStorage,
   createUpstashRedis,
+  resolveTelegramBotToken,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { webhookCallback } from "grammy";
@@ -17,7 +18,8 @@ const storage = createRedisStorage<ConsultationSession>(redis);
 const bitrixApi = env.BITRIX_MEMBER_ID
   ? resolveBitrixApi(env.BITRIX_MEMBER_ID)
   : undefined;
-const bot = createBot({ storage, redis, bitrixApi: bitrixApi ?? undefined });
+const token = await resolveTelegramBotToken();
+const bot = createBot({ storage, redis, bitrixApi: bitrixApi ?? undefined, token });
 const handleUpdate = webhookCallback(bot, "http");
 
 export default async function handler(

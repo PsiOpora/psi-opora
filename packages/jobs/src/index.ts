@@ -23,6 +23,7 @@ export {
 export { type CrmBackupPayload, crmBackup } from "./trigger/crm-backup";
 export { scenarioReminders } from "./trigger/scenario-reminders";
 export { consultationReminders } from "./trigger/consultation-reminders";
+export { diagnosticReminders } from "./trigger/diagnostic-reminders";
 export { maxWebhookHealthcheck } from "./trigger/max-webhook-healthcheck";
 export {
   type ConsultationDealUpdateResult,
@@ -30,3 +31,7 @@ export {
   handleConsultationDealUpdate,
   sendConsultationReminders,
 } from "./consultation-reminders";
+export {
+  type SendDiagnosticRemindersResult,
+  sendDiagnosticReminders,
+} from "./diagnostic-reminders";

@@ -3,6 +3,7 @@ import {
   type ConsultationSession,
   createRedisStorage,
   createUpstashRedis,
+  resolveMaxBotToken,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { createMaxBot, processUpdate } from "../src/bot.js";
@@ -15,7 +16,8 @@ const storage = createRedisStorage<ConsultationSession>(redis);
 const bitrixApi = env.BITRIX_MEMBER_ID
   ? resolveBitrixApi(env.BITRIX_MEMBER_ID)
   : undefined;
-const bot = createMaxBot({ storage, redis, bitrixApi: bitrixApi ?? undefined });
+const token = await resolveMaxBotToken();
+const bot = createMaxBot({ storage, redis, bitrixApi: bitrixApi ?? undefined, token });
 
 export async function POST(request: Request): Promise<Response> {
   const body = await request.json();
