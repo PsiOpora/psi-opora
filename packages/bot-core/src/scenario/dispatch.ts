@@ -23,6 +23,9 @@ export interface ScenarioDispatchDeps {
   /** Имя из профиля мессенджера — попадает в сделку. */
   userName?: string;
   userId?: number;
+  /** Внешний ID чата (тот же, что передаётся в imconnector.send.messages
+   * как chat.id) — нужен для привязки сделки к диалогу Открытой линии. */
+  chatId?: number;
   source?: string;
   campaign?: string;
 }
@@ -86,6 +89,7 @@ export async function dispatchScenarioOutput(
       email: out.lead.email,
       messenger: deps.messenger,
       userId: deps.userId,
+      chatId: deps.chatId,
       source: deps.source,
       campaign: deps.campaign,
       comment: describeLead(out.lead, deps.texts),

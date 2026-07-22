@@ -34,6 +34,7 @@ export const poll = publicProcedure
           api,
           input.entity,
           input.id,
+          context.memberId,
         );
         if (error || !contact) return { error };
 

@@ -1,4 +1,4 @@
-import { MemoryStorage } from "@mtcute/core";
+import { MemoryStorage, MtPeerNotFoundError, type tl } from "@mtcute/core";
 import { TelegramClient } from "@mtcute/node";
 import type { Message } from "@mtcute/node";
 import type { TelegramApiCredentials } from "./login";
@@ -41,8 +41,32 @@ export function listenForMessages(
 
 export async function sendUserbotMessage(
   client: TelegramClient,
-  telegramUserId: number,
+  target: number | tl.TypeInputPeer,
   text: string,
 ): Promise<void> {
-  await client.sendText(telegramUserId, text);
+  await client.sendText(target, text);
+}
+
+/**
+ * Резолвит номер телефона в Telegram-пира через официальный
+ * `contacts.resolvePhone` (то же самое, что делает обычный клиент Telegram,
+ * когда ищет человека по номеру) — так работает «написать клиенту первым»
+ * (packages/api/src/routers/widget-message). Бросает читаемую ошибку, если
+ * у номера нет Telegram-аккаунта либо владелец скрыл номер в настройках
+ * приватности («Кто видит мой номер телефона»).
+ */
+export async function resolveClientPhoneNumber(
+  client: TelegramClient,
+  phone: string,
+): Promise<tl.TypeInputPeer> {
+  try {
+    return await client.resolvePhoneNumber(phone);
+  } catch (err) {
+    if (err instanceof MtPeerNotFoundError) {
+      throw new Error(
+        "Клиент не найден в Telegram по этому номеру — либо у него нет Telegram, либо скрыт номер телефона в настройках приватности",
+      );
+    }
+    throw err;
+  }
 }

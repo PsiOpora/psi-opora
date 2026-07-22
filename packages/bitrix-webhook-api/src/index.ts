@@ -1,12 +1,5 @@
 import { env } from "@psi-opora/config";
 
-export interface BitrixChatInfo {
-  chatId: number;
-  operatorId: number;
-  sessionId: number;
-  ts: number;
-}
-
 export interface BitrixWebhookPayload {
   event: string;
   auth?: {
@@ -73,78 +66,51 @@ export function getOperatorReplyMessage(
   };
 }
 
-const CHAT_KEY_PREFIX = "b24:chat:";
-
-export interface BitrixWebhookHandlerOptions {
-  redisUrl: string;
-  redisToken: string;
-  prefix?: string;
+export interface ConnectorDisabledInfo {
+  connector?: string;
+  lineId?: number;
 }
 
-export async function handleBitrixWebhook(
+/**
+ * Разбирает события ONIMCONNECTORSTATUSDELETE (администратор отключил канал
+ * на линии) и ONIMCONNECTORLINEDELETE (линию удалили целиком) — в обоих
+ * случаях коннектор/линия из bot_connectors больше не рабочие, запись нужно
+ * удалить, иначе бот продолжит слать сообщения в неактивную линию.
+ *
+ * Точный состав полей payload для этих двух событий не проверялся на живом
+ * портале (см. общий разбор data.CONNECTOR/data.LINE, который уже
+ * подтверждён для ONIMCONNECTORMESSAGEADD) — при первом реальном срабатывании
+ * стоит свериться с логом ниже.
+ */
+export function getConnectorDisabledInfo(
   payload: BitrixWebhookPayload,
-  options: BitrixWebhookHandlerOptions,
-): Promise<void> {
-  const { redisUrl, redisToken, prefix = CHAT_KEY_PREFIX } = options;
-
-  const { data } = payload;
-
-  if (!data?.DATA || data.DATA.length === 0) {
-    return;
+): ConnectorDisabledInfo | null {
+  const event = payload.event?.toUpperCase();
+  if (event !== "ONIMCONNECTORSTATUSDELETE" && event !== "ONIMCONNECTORLINEDELETE") {
+    return null;
   }
-
-  const item = data.DATA[0];
-  if (!item) return;
-
-  const chatId = item.connector?.chat_id ?? item.chat?.id;
-  const userId = item.connector?.user_id ?? item.user?.id;
-  const sessionId = item.session?.id;
-
-  console.log(
-    `[bitrix-webhook] event=${payload.event} chatId=${chatId} userId=${userId} sessionId=${sessionId}`,
-  );
-
-  if (!chatId) return;
-
-  if (userId && userId > 0) {
-    const { Redis } = await import("@upstash/redis");
-    const redis = new Redis({ url: redisUrl, token: redisToken });
-    const key = `${prefix}${userId}`;
-
-    await redis.set(key, {
-      chatId,
-      operatorId: 0,
-      sessionId: sessionId ?? 0,
-      ts: Date.now(),
-    });
-
-    console.log(
-      `[bitrix-webhook] сохранён chatId=${chatId} для userId=${userId}`,
-    );
-  }
+  return {
+    connector: payload.data?.CONNECTOR,
+    lineId: payload.data?.LINE,
+  };
 }
 
 export function bitrixWebhookHandler(options?: {
   token?: string;
   /** Вызывается, когда во входящем событии — ответ оператора Открытой линии. */
   onOperatorReply?: (reply: OperatorReplyMessage) => void | Promise<void>;
+  /** Вызывается, когда канал отключили от линии или линию удалили —
+   * см. getConnectorDisabledInfo. */
+  onConnectorDisabled?: (
+    info: ConnectorDisabledInfo,
+  ) => void | Promise<void>;
 }) {
   return async (req: Request): Promise<Response> => {
     if (req.method !== "POST") {
       return new Response("ok");
     }
 
-    const redisUrl = env.KV_REST_API_URL;
-    const redisToken = env.KV_REST_API_TOKEN;
     const webhookToken = options?.token ?? env.BITRIX_WEBHOOK_TOKEN;
-
-    if (!redisUrl || !redisToken) {
-      console.error(
-        "[bitrix-webhook] KV_REST_API_URL или KV_REST_API_TOKEN не заданы",
-      );
-      return new Response("Internal Server Error", { status: 500 });
-    }
-
     if (!webhookToken) {
       console.error("[bitrix-webhook] BITRIX_WEBHOOK_TOKEN не задан");
       return new Response("Internal Server Error", { status: 500 });
@@ -164,11 +130,20 @@ export function bitrixWebhookHandler(options?: {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    await handleBitrixWebhook(payload, { redisUrl, redisToken });
-
     const reply = getOperatorReplyMessage(payload);
     if (reply && options?.onOperatorReply) {
       await options.onOperatorReply(reply);
+    }
+
+    const disabled = getConnectorDisabledInfo(payload);
+    if (disabled) {
+      console.log(
+        `[bitrix-webhook] событие ${payload.event}, payload:`,
+        JSON.stringify(payload),
+      );
+      if (options?.onConnectorDisabled) {
+        await options.onConnectorDisabled(disabled);
+      }
     }
 
     return new Response("ok");

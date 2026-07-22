@@ -1,13 +1,26 @@
 import type { Messenger } from "@psi-opora/jobs";
 
+/** "telegram-personal" — личный номер (packages/tg-userbot), а не бот:
+ * доступен по номеру телефона контакта даже без предыдущей переписки. */
+export type WidgetMessenger = Messenger | "telegram-personal";
+
 export interface WidgetChannel {
-  messenger: Messenger;
+  messenger: WidgetMessenger;
+  /** Для ботов — числовой ID пользователя в мессенджере. Для
+   * telegram-personal — телефон контакта (только цифры), по которому
+   * воркер резолвит Telegram-пира перед первой отправкой. */
   userId: string;
+  /** Только для telegram-personal — линия конкретного личного номера
+   * (packages/db telegram_personal_accounts.openLineId). */
+  lineId?: string;
+  /** Подпись кнопки канала — для telegram-personal включает номер
+   * (может быть несколько личных номеров на портал). */
+  label: string;
 }
 
 export interface WidgetHistoryItem {
   id: string;
-  messenger: Messenger;
+  messenger: WidgetMessenger;
   direction: "in" | "out";
   source: string;
   text: string;

@@ -53,10 +53,8 @@ export {
   type ScenarioTexts,
 } from "./scenario/texts";
 export {
-  type BitrixChatInfo,
   createRedisStorage,
   createUpstashRedis,
-  getBitrixChatInfo,
   type StorageAdapter,
 } from "./storage/upstash";
 export type { AppContext, ConsultationSession } from "./types/context";

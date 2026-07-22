@@ -1,15 +1,8 @@
-import { listBotMessages } from "@psi-opora/db/queries";
 import type { BitrixApi } from "@psi-opora/bitrix-client";
-import type { RawContact } from "../../broadcast-send";
-import {
-  findMaxId,
-  findTelegram,
-} from "../../broadcast-send";
-import type {
-  WidgetChannel,
-  WidgetEntity,
-  WidgetHistoryItem,
-} from "./types";
+import { listBotMessages, listTelegramPersonalAccounts } from "@psi-opora/db/queries";
+import { getContactPhone, type RawContact } from "../../broadcast-send";
+import { findMaxId, findTelegram } from "../../broadcast-send";
+import type { WidgetChannel, WidgetEntity, WidgetHistoryItem } from "./types";
 
 export const HISTORY_LIMIT = 30;
 
@@ -46,11 +39,22 @@ export interface ResolvedContact {
   telegramUsername?: string;
 }
 
+function maskPhone(phone: string): string {
+  if (phone.length <= 6) return phone;
+  return `${phone.slice(0, 4)}···${phone.slice(-2)}`;
+}
+
 /**
- * Резолвит ID контакта и его каналы (Telegram/MAX) из CRM: для сделки
- * сначала берём привязанный контакт, у контакта ищем мессенджеры только в
- * стандартном поле IM (Мессенджер). UF-поля интеграций игнорируются,
- * потому что менеджер видит и редактирует именно поле Мессенджер.
+ * Резолвит ID контакта и его каналы из CRM: для сделки сначала берём
+ * привязанный контакт. Каналы двух видов:
+ * 1. Боты (Telegram/MAX) — только если контакт уже писал (поле IM
+ *    «Мессенджер», UF-поля интеграций игнорируются — менеджер видит и
+ *    редактирует именно поле Мессенджер).
+ * 2. Личные номера Telegram (packages/tg-userbot) — доступны для ЛЮБОГО
+ *    контакта с телефоном, независимо от того, писал ли он раньше: именно
+ *    в этом их смысл («написать первым», см. resolveClientPhoneNumber).
+ *    Один портал может подключить несколько номеров — показываем канал на
+ *    каждый подключённый (status="connected"), с номером в подписи.
  *
  * Используется и для отображения виджета, и для отправки — так отправка
  * никогда не доверяет messenger/userId, присланным из браузера напрямую,
@@ -60,6 +64,7 @@ export async function resolveContact(
   api: BitrixApi,
   entity: WidgetEntity,
   id: string,
+  memberId: string | null,
 ): Promise<{ contact?: ResolvedContact; error?: string }> {
   let contactId = id;
   if (entity === "deal") {
@@ -81,10 +86,30 @@ export async function resolveContact(
   const channels: WidgetChannel[] = [];
   const telegram = findTelegram(contact, [], { includeUf: false });
   if (telegram?.userId) {
-    channels.push({ messenger: "telegram", userId: telegram.userId });
+    channels.push({
+      messenger: "telegram",
+      userId: telegram.userId,
+      label: "Telegram",
+    });
   }
   const maxId = findMaxId(contact, [], { includeUf: false });
-  if (maxId) channels.push({ messenger: "max", userId: maxId });
+  if (maxId) channels.push({ messenger: "max", userId: maxId, label: "MAX" });
+
+  const phone = getContactPhone(contact);
+  if (phone && memberId) {
+    const personalAccounts = await listTelegramPersonalAccounts(memberId).catch(
+      () => [],
+    );
+    for (const account of personalAccounts) {
+      if (account.status !== "connected") continue;
+      channels.push({
+        messenger: "telegram-personal",
+        userId: phone,
+        lineId: account.openLineId,
+        label: `Telegram (личный, ${maskPhone(account.phone)})`,
+      });
+    }
+  }
 
   return {
     contact: {

@@ -41,8 +41,20 @@ export interface RawContact {
   NAME?: string;
   LAST_NAME?: string;
   IM?: RawContactIm[];
+  PHONE?: RawContactIm[];
   /** UF-поля интеграций (Wazzup и др.): TelegramId_WZ, TelegramUsername_WZ… */
   [ufCode: string]: unknown;
+}
+
+/**
+ * Первый телефон контакта в виде голых цифр (для resolvePhoneNumber в
+ * Telegram — тот принимает только цифры, без "+"/пробелов/скобок).
+ */
+export function getContactPhone(contact: RawContact): string | undefined {
+  const value = contact.PHONE?.[0]?.VALUE;
+  if (!value) return undefined;
+  const digits = value.replace(/[^\d]/g, "");
+  return digits || undefined;
 }
 
 /** Коды UF-полей контакта, в которых интеграции хранят данные мессенджеров. */

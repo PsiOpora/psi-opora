@@ -1,5 +1,6 @@
 import { insertBotMessage } from "@psi-opora/db/queries";
 import { sendMessengerMessage } from "@psi-opora/jobs";
+import { getSendResult, pushOutboundMessage } from "@psi-opora/tg-userbot";
 import { publicProcedure } from "../../orpc";
 import {
   MESSAGE_MAX_LENGTH,
@@ -19,14 +20,56 @@ function formatSendError(message: string): string {
   return message;
 }
 
+const SEND_RESULT_POLL_INTERVAL_MS = 300;
+const SEND_RESULT_TIMEOUT_MS = 6000;
+
 /**
- * Отправляет сообщение клиенту от имени бота выбранного мессенджера
- * и фиксирует его комментарием в таймлайне контакта.
+ * Личный номер (в отличие от бота) не держит соединение в этом процессе —
+ * задача уходит в очередь always-on воркера (apps/tg-userbot-worker), а
+ * результат (резолв номера в Telegram + сама отправка) ждём здесь коротким
+ * поллингом, чтобы вернуть внятный ответ в виджет, а не «повесить» кнопку.
+ */
+async function sendViaPersonalNumber(params: {
+  memberId: string;
+  openLineId: string;
+  phone: string;
+  text: string;
+}): Promise<{ ok?: true; error?: string }> {
+  const jobId = crypto.randomUUID();
+  await pushOutboundMessage({
+    memberId: params.memberId,
+    openLineId: params.openLineId,
+    jobId,
+    phone: params.phone,
+    text: params.text,
+  });
+
+  const deadline = Date.now() + SEND_RESULT_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const result = await getSendResult(jobId);
+    if (result) {
+      return result.ok
+        ? { ok: true }
+        : { error: `Не отправлено: ${result.error ?? "неизвестная ошибка"}` };
+    }
+    await new Promise((resolve) =>
+      setTimeout(resolve, SEND_RESULT_POLL_INTERVAL_MS),
+    );
+  }
+  return {
+    error:
+      "Не удалось дождаться ответа от воркера личного номера — проверьте, что apps/tg-userbot-worker запущен",
+  };
+}
+
+/**
+ * Отправляет сообщение клиенту от имени бота выбранного мессенджера (или
+ * с личного номера Telegram) и фиксирует его комментарием в таймлайне контакта.
  *
- * userId получателя намеренно не принимается от клиента: его значение
- * пересчитывается здесь же из актуальных данных CRM (resolveContact),
- * иначе вызывающий мог бы подставить произвольный messenger/userId
- * и разослать сообщение через бота кому угодно, минуя привязку к контакту.
+ * userId/lineId получателя намеренно не принимаются от клиента напрямую для
+ * отправки — канал ищется среди пересчитанных здесь же из актуальных данных
+ * CRM (resolveContact), иначе вызывающий мог бы подставить произвольные
+ * значения и отправить сообщение кому угодно, минуя привязку к контакту.
  */
 export const send = publicProcedure
   .input(sendWidgetMessageSchema)
@@ -47,6 +90,7 @@ export const send = publicProcedure
         api,
         input.entity,
         input.entityId,
+        context.memberId,
       ).catch((err) => ({
         error: (err as Error).message,
         contact: undefined,
@@ -56,22 +100,38 @@ export const send = publicProcedure
       }
 
       const channel = contact.channels.find(
-        (c) => c.messenger === input.messenger,
+        (c) =>
+          c.messenger === input.messenger &&
+          (input.messenger !== "telegram-personal" ||
+            c.lineId === input.lineId),
       );
       if (!channel) {
         return { error: "У контакта нет такого канала — обновите страницу" };
       }
 
-      try {
-        await sendMessengerMessage(channel.messenger, channel.userId, text);
-      } catch (err) {
-        const error = err as Error;
-        console.error(
-          `[widget] ошибка отправки ${channel.messenger}: ${error.message}`,
-          error.cause ?? "",
-          error.stack ?? "",
-        );
-        return { error: `Не отправлено: ${formatSendError(error.message)}` };
+      if (channel.messenger === "telegram-personal") {
+        if (!context.memberId || !channel.lineId) {
+          return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
+        }
+        const result = await sendViaPersonalNumber({
+          memberId: context.memberId,
+          openLineId: channel.lineId,
+          phone: channel.userId,
+          text,
+        });
+        if (result.error) return result;
+      } else {
+        try {
+          await sendMessengerMessage(channel.messenger, channel.userId, text);
+        } catch (err) {
+          const error = err as Error;
+          console.error(
+            `[widget] ошибка отправки ${channel.messenger}: ${error.message}`,
+            error.cause ?? "",
+            error.stack ?? "",
+          );
+          return { error: `Не отправлено: ${formatSendError(error.message)}` };
+        }
       }
 
       // Журнал сообщений — история видна во вкладке при следующем открытии
@@ -99,7 +159,7 @@ export const send = publicProcedure
           fields: {
             ENTITY_ID: Number(contact.contactId),
             ENTITY_TYPE: "contact",
-            COMMENT: `🤖 Отправлено ботом (${channel.messenger === "telegram" ? "Telegram" : "MAX"}):\n${text}`,
+            COMMENT: `🤖 Отправлено ботом (${channel.label}):\n${text}`,
           },
         });
       } catch (err) {

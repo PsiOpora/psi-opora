@@ -24,6 +24,7 @@ export const loadRecipient = publicProcedure
           api,
           input.entity,
           input.id,
+          context.memberId,
         );
         if (error || !contact) return { error };
 

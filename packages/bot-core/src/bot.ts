@@ -152,6 +152,7 @@ export function createBot({
     await dispatchScenarioOutput(out, {
       messenger: "telegram",
       sessionKey: String(chatId),
+      chatId,
       redis,
       texts,
       sendMessage: (message) =>

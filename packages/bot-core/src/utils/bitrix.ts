@@ -26,8 +26,10 @@ export interface DealData {
   source?: string;
   telegramUserId?: number;
   messenger?: string;
+  /** Внешний ID чата, переданный в imconnector.send.messages (chat.id) —
+   * нужен, чтобы через USER_CODE найти настоящий внутренний ID диалога
+   * Bitrix (см. resolveOpenLineChatId). */
   chatId?: number;
-  operatorId?: number;
   /** Дополнительный комментарий к сделке (выбор пользователя в сценарии). */
   comment?: string;
   /** Ветка сценария (см. scenario/engine.ts) — попадает в заголовок и «Продукт». */
@@ -318,6 +320,42 @@ async function linkBitrixTrace(
   }
 }
 
+/**
+ * Резолвит настоящий внутренний ID диалога Bitrix (нужен для
+ * imopenlines.crm.chat.user.add — CHAT_ID там означает внутренний ID чата,
+ * а не наш внешний user_id/chat_id) через imopenlines.dialog.get по
+ * USER_CODE. Формат USER_CODE — `{connector}|{line}|{chat_id}|{user_id}` —
+ * это то же самое, что мы уже передаём в imconnector.send.messages
+ * (chat.id/user.id), так что дополнительно ничего не нужно хранить.
+ * ACCESS_ERROR — нормальная ситуация, если диалог ещё не создан (сообщение
+ * через коннектор ещё не отправлялось) — не логируем как ошибку.
+ */
+async function resolveOpenLineChatId(
+  messenger: string,
+  userId: number,
+  chatId: number,
+): Promise<number | null> {
+  const config = await getBotConnector(messenger);
+  if (!config) return null;
+  const userCode = `${config.connectorId}|${config.openLineId}|${chatId}|${userId}`;
+  try {
+    const result = await bitrixPost<{ id?: number }>(
+      "imopenlines.dialog.get",
+      { USER_CODE: userCode },
+      messenger,
+    );
+    return result?.id ?? null;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes("ACCESS_ERROR")) {
+      console.error(
+        `[bitrix] не удалось получить диалог по USER_CODE ${userCode}: ${message}`,
+      );
+    }
+    return null;
+  }
+}
+
 export async function createBitrixDeal(
   data: DealData,
 ): Promise<{ contactId: number; dealId: number }> {
@@ -373,24 +411,31 @@ export async function createBitrixDeal(
 
   await linkBitrixTrace(messenger, contactId, dealId, data);
 
-  if (data.chatId) {
-    try {
-      await bitrixPost(
-        "imopenlines.crm.chat.user.add",
-        {
-          CRM_ENTITY_TYPE: "contact",
-          CRM_ENTITY: contactId,
-          USER_ID: data.operatorId ?? 0,
-          CHAT_ID: data.chatId,
-        },
-        messenger,
-      );
-      console.log(
-        `[bitrix] чат ${data.chatId} привязан к контакту ${contactId}`,
-      );
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[bitrix] не удалось привязать чат к контакту: ${message}`);
+  if (data.chatId && data.telegramUserId) {
+    const realChatId = await resolveOpenLineChatId(
+      messenger,
+      data.telegramUserId,
+      data.chatId,
+    );
+    if (realChatId) {
+      try {
+        await bitrixPost(
+          "imopenlines.crm.chat.user.add",
+          {
+            CRM_ENTITY_TYPE: "contact",
+            CRM_ENTITY: contactId,
+            USER_ID: 0,
+            CHAT_ID: realChatId,
+          },
+          messenger,
+        );
+        console.log(
+          `[bitrix] чат ${realChatId} привязан к контакту ${contactId}`,
+        );
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[bitrix] не удалось привязать чат к контакту: ${message}`);
+      }
     }
   }
 

@@ -1,17 +1,21 @@
 import {
   bitrixWebhookHandler,
+  type ConnectorDisabledInfo,
   type OperatorReplyMessage,
 } from "@psi-opora/bitrix-webhook-api";
 import { env } from "@psi-opora/config";
-import { getTelegramPersonalAccountByLine } from "@psi-opora/db/queries";
+import {
+  getTelegramPersonalAccountByLine,
+  removeBotConnector,
+} from "@psi-opora/db/queries";
 import { sendMessengerMessage, type Messenger } from "@psi-opora/jobs";
 import { pushOutboundMessage } from "@psi-opora/tg-userbot";
 
-// Совпадает с getConnectorId() в packages/bot-core/src/utils/bitrix.ts —
+// Совпадает с CONNECTOR_IDS в packages/api/src/routers/bot-connector/helpers.ts —
 // по CONNECTOR из события определяем, какому боту переслать ответ оператора.
 function messengerByConnector(connector: string | undefined): Messenger | null {
   if (!connector) return null;
-  if (connector === (process.env.TG_BITRIX_CONNECTOR_ID ?? "psiopora_telegram_bot"))
+  if (connector === (process.env.TG_BITRIX_CONNECTOR_ID ?? "psiopora_tg_bot"))
     return "telegram";
   if (connector === (process.env.MAX_BITRIX_CONNECTOR_ID ?? "psiopora_max_bot"))
     return "max";
@@ -41,6 +45,7 @@ async function relayToTelegramPersonal(
   await pushOutboundMessage({
     memberId: account.memberId,
     openLineId: account.openLineId,
+    jobId: crypto.randomUUID(),
     telegramUserId: reply.chatId,
     text: reply.text,
   });
@@ -73,9 +78,34 @@ async function relayOperatorReply(reply: OperatorReplyMessage): Promise<void> {
   }
 }
 
+/**
+ * Канал отключили от линии (или линию удалили) прямо в Bitrix, в обход
+ * кнопки «Отключить» в дашборде — запись в bot_connectors подчищаем сами,
+ * иначе бот продолжит слать сообщения в уже неактивную линию.
+ * Личные номера (packages/tg-userbot) не трогаем — у них своя таблица
+ * и свой процесс отключения.
+ */
+async function handleConnectorDisabled(
+  info: ConnectorDisabledInfo,
+): Promise<void> {
+  const messenger = messengerByConnector(info.connector);
+  if (!messenger) return;
+  try {
+    await removeBotConnector(messenger);
+    console.log(
+      `[bitrix-webhook] канал ${messenger} отключён на стороне Bitrix — запись в bot_connectors удалена`,
+    );
+  } catch (err) {
+    console.error(
+      `[bitrix-webhook] не удалось удалить bot_connectors для ${messenger}: ${(err as Error).message}`,
+    );
+  }
+}
+
 const handler = bitrixWebhookHandler({
   token: env.BITRIX_WEBHOOK_TOKEN,
   onOperatorReply: relayOperatorReply,
+  onConnectorDisabled: handleConnectorDisabled,
 });
 
 export async function POST(request: Request) {

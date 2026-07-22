@@ -1,12 +1,12 @@
 "use client";
 
 import type {
+  WidgetChannel,
   WidgetEntity,
   WidgetHistoryItem,
   WidgetRecipient,
 } from "@psi-opora/api";
 import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
-import type { Messenger } from "@psi-opora/jobs";
 import {
   BoldIcon,
   CheckIcon,
@@ -15,7 +15,6 @@ import {
   Link2Icon,
   Loader2Icon,
   SendIcon,
-  XIcon,
 } from "lucide-react";
 import type * as React from "react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
@@ -85,12 +84,22 @@ const MARKDOWN_ACTIONS: Array<{
   { label: "Код", icon: CodeIcon, before: "`", after: "`", placeholder: "код" },
 ];
 
-const MESSENGER_LABELS: Record<Messenger, string> = {
+// Подпись канала в истории переписки — для ботов фиксированная, для
+// telegram-personal показываем то, что вернул сервер (с номером), см.
+// historyLabel() ниже (WidgetHistoryItem не хранит label каналов).
+const MESSENGER_LABELS: Record<string, string> = {
   telegram: "Telegram",
   max: "MAX",
+  "telegram-personal": "Telegram (личный)",
 };
 
-const ALL_MESSENGERS: Messenger[] = ["telegram", "max"];
+function historyLabel(messenger: string): string {
+  return MESSENGER_LABELS[messenger] ?? messenger;
+}
+
+function channelKey(channel: Pick<WidgetChannel, "messenger" | "lineId">): string {
+  return `${channel.messenger}:${channel.lineId ?? ""}`;
+}
 
 const SOURCE_LABELS: Record<string, string> = {
   reminder: "напоминание",
@@ -153,7 +162,7 @@ function HistoryList({ history }: { history: HistoryEntry[] }) {
               ? ` · ${SOURCE_LABELS[item.source]}`
               : ""}
             {" · "}
-            {MESSENGER_LABELS[item.messenger]}
+            {historyLabel(item.messenger)}
             {item.pending ? " · отправляется…" : ""}
           </div>
         </div>
@@ -192,9 +201,10 @@ function mergeHistory(
 }
 
 /**
- * Форма отправки сообщения клиенту через бота из карточки CRM.
- * Канал выбирается по тому, что записано в полях контакта
- * (IM telegram/max от наших ботов или UF-поля интеграций).
+ * Форма отправки сообщения клиенту из карточки CRM. Список каналов —
+ * динамический (recipient.channels): боты — только если контакт уже писал
+ * (поля контакта), личный(е) номер(а) Telegram — всегда, если у контакта
+ * есть телефон (можно писать первым, см. packages/tg-userbot).
  */
 export function MessageWidget({
   entity,
@@ -208,7 +218,7 @@ export function MessageWidget({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [channel, setChannel] = useState<Messenger | null>(null);
+  const [channel, setChannel] = useState<WidgetChannel | null>(null);
   const [text, setText] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [sentAt, setSentAt] = useState<Date | null>(null);
@@ -277,11 +287,7 @@ export function MessageWidget({
         sinceRef.current =
           loaded.history[loaded.history.length - 1]?.createdAt ??
           new Date().toISOString();
-        setChannel(
-          ALL_MESSENGERS.find((m) =>
-            loaded.channels.some((c) => c.messenger === m),
-          ) ?? null,
-        );
+        setChannel(loaded.channels[0] ?? null);
       })
       .catch((err) => setLoadError((err as Error).message))
       .finally(() => setLoading(false));
@@ -342,15 +348,14 @@ export function MessageWidget({
 
   const send = () => {
     if (!recipient || !channel || !trimmedText || overLimit || sending) return;
-    const target = recipient.channels.find((c) => c.messenger === channel);
-    if (!target) return;
 
     setSendError(null);
     startSending(async () => {
       const result = await orpcClient.widgetMessage.send({
         entity,
         entityId,
-        messenger: target.messenger,
+        messenger: channel.messenger,
+        lineId: channel.lineId,
         text: trimmedText,
       });
       if (result.error) {
@@ -366,7 +371,7 @@ export function MessageWidget({
         ...prev,
         {
           id: pendingId,
-          messenger: target.messenger,
+          messenger: channel.messenger,
           direction: "out",
           source: "widget",
           text: trimmedText,
@@ -419,9 +424,6 @@ export function MessageWidget({
 
   if (!recipient) return null;
 
-  // Если каналов нет, форму всё равно показываем — кнопки каналов будут
-  // отключены, а подсказка выведена в блоке выбора канала.
-
   return (
     <div className="flex max-w-xl flex-col gap-4">
       <div>
@@ -435,44 +437,32 @@ export function MessageWidget({
 
       <div className="flex flex-col gap-2">
         <p className="text-xs text-muted-foreground">Канал отправки</p>
-        <div className="flex flex-wrap gap-2">
-          {ALL_MESSENGERS.map((m) => {
-            const available = recipient.channels.some((c) => c.messenger === m);
-            const selected = channel === m;
-            return (
-              <button
-                key={m}
-                type="button"
-                disabled={!available}
-                onClick={() => available && setChannel(m)}
-                title={
-                  available
-                    ? "Заполнено в карточке контакта"
-                    : "Не заполнено в карточке контакта"
-                }
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors",
-                  selected
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : available
-                      ? "hover:bg-muted"
-                      : "cursor-not-allowed opacity-60",
-                )}
-              >
-                {available ? (
+        {recipient.channels.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {recipient.channels.map((c) => {
+              const selected = channel && channelKey(channel) === channelKey(c);
+              return (
+                <button
+                  key={channelKey(c)}
+                  type="button"
+                  onClick={() => setChannel(c)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors",
+                    selected
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "hover:bg-muted",
+                  )}
+                >
                   <CheckIcon className="size-3.5 text-emerald-500" />
-                ) : (
-                  <XIcon className="size-3.5 text-muted-foreground" />
-                )}
-                {MESSENGER_LABELS[m]}
-              </button>
-            );
-          })}
-        </div>
-        {recipient.channels.length === 0 && (
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
           <p className="text-xs text-muted-foreground">
             {recipient.note ??
-              "У контакта не найден Telegram или MAX. Мессенджер появляется в полях контакта, когда клиент пишет нашему боту."}
+              "У контакта не найден Telegram/MAX и нет телефона. Мессенджер появляется в полях контакта, когда клиент пишет нашему боту, либо станет доступен личный номер Telegram, если указан телефон."}
           </p>
         )}
       </div>

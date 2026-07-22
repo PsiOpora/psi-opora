@@ -9,7 +9,9 @@ import {
   decryptSecret,
   drainOutboundMessages,
   listenForMessages,
+  resolveClientPhoneNumber,
   sendUserbotMessage,
+  setSendResult,
 } from "@psi-opora/tg-userbot";
 
 const OUTBOX_POLL_INTERVAL_MS = 3000;
@@ -56,9 +58,16 @@ async function relayInboundMessage(
   }
 }
 
-/** Раз в OUTBOX_POLL_INTERVAL_MS вычитывает ответы оператора для этого
- * номера (см. packages/tg-userbot/src/outbox.ts, продюсер — apps/bitrix-webhook)
- * и отправляет их через уже живой MTProto-клиент. */
+/**
+ * Раз в OUTBOX_POLL_INTERVAL_MS вычитывает очередь для этого номера (см.
+ * packages/tg-userbot/src/outbox.ts) и отправляет через уже живой
+ * MTProto-клиент — либо ответ оператора на существующий диалог
+ * (telegramUserId уже известен, продюсер apps/bitrix-webhook), либо первое
+ * сообщение по номеру телефона (продюсер packages/api/.../widget-message —
+ * телефон резолвится в Telegram-пира прямо здесь через
+ * resolveClientPhoneNumber). Результат каждой задачи пишется в Redis
+ * (setSendResult) — так дашборд может дождаться ответа синхронно.
+ */
 function startOutboxPolling(
   account: TelegramPersonalAccount,
   client: Awaited<ReturnType<typeof createUserbotClient>>,
@@ -70,11 +79,17 @@ function startOutboxPolling(
     );
     for (const msg of messages) {
       try {
-        await sendUserbotMessage(client, msg.telegramUserId, msg.text);
+        const target = msg.telegramUserId
+          ? msg.telegramUserId
+          : await resolveClientPhoneNumber(client, msg.phone ?? "");
+        await sendUserbotMessage(client, target, msg.text);
+        await setSendResult(msg.jobId, { ok: true });
       } catch (err) {
+        const message = (err as Error).message;
         console.error(
-          `[tg-userbot-worker] не удалось отправить ответ оператора (${accountLabel(account)}): ${(err as Error).message}`,
+          `[tg-userbot-worker] не удалось отправить сообщение (${accountLabel(account)}): ${message}`,
         );
+        await setSendResult(msg.jobId, { ok: false, error: message });
       }
     }
   }, OUTBOX_POLL_INTERVAL_MS);

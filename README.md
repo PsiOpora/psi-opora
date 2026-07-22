@@ -74,8 +74,10 @@ line/connector ID и никакого ручного запуска скрипт
    Telegram или платформа MAX). Линия активируется и вебхук настроится
    автоматически (карточка в дашборде покажет статус).
 6. В настройках исходящего вебхука Bitrix24 (Разработчикам → Другое →
-   Исходящий вебхук) отметьте событие `OnImConnectorMessageAdd` и укажите
-   URL `apps/bitrix-webhook` — иначе ответы оператора не долетят обратно.
+   Исходящий вебхук) отметьте события `OnImConnectorMessageAdd` (иначе
+   ответы оператора не долетят обратно), `OnImConnectorStatusDelete` и
+   `OnImConnectorLineDelete` (иначе запись в `bot_connectors` не подчистится
+   сама при отключении канала прямо в Bitrix) и укажите URL `apps/bitrix-webhook`.
 
 ### 2. Личный номер Telegram (MTProto, `packages/tg-userbot`)
 

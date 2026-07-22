@@ -280,6 +280,10 @@ export function createMaxBot({
     await dispatchScenarioOutput(out, {
       messenger: "max",
       sessionKey: sessionKeyOf(ctx),
+      // Bitrix-коннектор получает в качестве chat.id именно user_id (см.
+      // комментарий у sendMessageToOpenLine ниже) — тот же ID используем
+      // здесь для поиска диалога через USER_CODE.
+      chatId: ctx.user?.user_id,
       redis,
       texts,
       sendMessage: (message) => replyScenarioMessage(ctx, message),
