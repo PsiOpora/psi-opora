@@ -1,53 +1,29 @@
-import { MEMBER_ID_COOKIE, savePortalTokens } from "@psi-opora/bitrix-client";
+import { MEMBER_ID_COOKIE } from "@psi-opora/bitrix-client";
 import { NextResponse } from "next/server";
 
-interface SessionPayload {
-  memberId: string;
-  domain: string;
-  clientEndpoint: string;
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-  scope: string;
-}
-
-function isValidPayload(body: unknown): body is SessionPayload {
-  if (!body || typeof body !== "object") return false;
-  const b = body as Record<string, unknown>;
-  return (
-    typeof b.memberId === "string" &&
-    typeof b.domain === "string" &&
-    typeof b.clientEndpoint === "string" &&
-    typeof b.accessToken === "string" &&
-    typeof b.refreshToken === "string" &&
-    typeof b.expiresAt === "number"
-  );
-}
-
 /**
- * Принимает авторизационные данные, полученные фронтендом от B24Frame
- * (@bitrix24/b24jssdk) при открытии приложения внутри Битрикс24, сохраняет их
- * в Redis и привязывает браузер к порталу через cookie. Копия
- * apps/dashboard/src/app/api/bitrix/session — токены общие (тот же Redis).
+ * Привязывает браузер к порталу Битрикс24 через cookie с member_id.
+ *
+ * В отличие от apps/dashboard, OAuth-токены здесь НЕ сохраняем: приложение
+ * «Диалоги» зарегистрировано на портале отдельным локальным приложением со
+ * своим client_id, и если бы оба писали токены под общий ключ
+ * `bitrix24:dashboard:portal:{memberId}`, они бы затирали друг друга (refresh
+ * чужого токена с creds дашборда падает с invalid_client). Все серверные
+ * REST-вызовы идут по токенам, которые сохраняет dashboard — он должен быть
+ * установлен на том же портале.
  */
 export async function POST(request: Request) {
   const body: unknown = await request.json();
-  if (!isValidPayload(body)) {
+  const memberId =
+    body && typeof body === "object"
+      ? (body as Record<string, unknown>).memberId
+      : undefined;
+  if (typeof memberId !== "string" || memberId.length === 0) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }
 
-  await savePortalTokens({
-    memberId: body.memberId,
-    domain: body.domain,
-    clientEndpoint: body.clientEndpoint,
-    accessToken: body.accessToken,
-    refreshToken: body.refreshToken,
-    expiresAt: body.expiresAt,
-    scope: body.scope ?? "",
-  });
-
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(MEMBER_ID_COOKIE, body.memberId, {
+  response.cookies.set(MEMBER_ID_COOKIE, memberId, {
     httpOnly: true,
     secure: true,
     // Приложение открывается во фрейме на другом домене (портал Битрикс24),
