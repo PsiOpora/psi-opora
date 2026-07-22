@@ -12,12 +12,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { orpc } from "@/lib/orpc/server";
-import { BotConnectorCard } from "./bot-connector-card";
 import { BotTextsForm } from "./bot-texts-form";
-import { CrmWidgetsCard } from "./crm-widgets-card";
 import { DeleteGuideButton, SetActiveGuideButton } from "./guide-actions";
 import { GuideUploadForm } from "./guide-upload-form";
-import { TgPersonalConnectorCard } from "./tg-personal-connector-card";
 
 function groupDefs(): Array<{ group: string; defs: ScenarioTextDef[] }> {
   const groups: Array<{ group: string; defs: ScenarioTextDef[] }> = [];
@@ -133,13 +130,6 @@ export default async function BotTextsPage() {
           Поддерживается Markdown. Боты подхватывают изменения в течение минуты.
         </p>
       </div>
-
-      <CrmWidgetsCard />
-
-      <BotConnectorCard messenger="telegram" label="Telegram" />
-      <BotConnectorCard messenger="max" label="MAX" />
-
-      <TgPersonalConnectorCard />
 
       <GuidesLibraryCard guides={guides} activeS3Key={activeS3Key} />
 
