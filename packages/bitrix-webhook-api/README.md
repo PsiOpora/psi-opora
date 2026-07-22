@@ -6,7 +6,7 @@
 
 Когда оператор отвечает клиенту в Открытой линии, Битрикс24 отправляет исходящий вебхук с событием `ONIMCONNECTORMESSAGEADD`. Этот пакет принимает вебхук, валидирует токен, разбирает payload и отдаёт данные для пересылки ответа обратно в Telegram/MAX.
 
-Привязка чата к CRM-контакту (`imopenlines.crm.chat.user.add`) при создании сделки резолвит настоящий внутренний `CHAT_ID` через `imopenlines.dialog.get` по `USER_CODE` (`{connector}|{line}|{chat_id}|{user_id}` — те же значения, что бот передаёт в `imconnector.send.messages`), без промежуточного хранения в Redis — см. `resolveOpenLineChatId` в `packages/bot-core/src/utils/bitrix.ts`.
+При создании сделки бот резолвит диалог Открытой линии через `imopenlines.dialog.get` по `USER_CODE` (`{connector}|{line}|{chat_id}|{user_id}` — те же значения, что бот передаёт в `imconnector.send.messages`), без промежуточного хранения в Redis — см. `resolveOpenLineDialog` в `packages/bot-core/src/utils/bitrix.ts`. Оттуда берётся настоящий внутренний `CHAT_ID` (для `imopenlines.crm.chat.user.add`) и CRM-сущности, уже созданные трекером линии по чату (`entity_data_2`): если трекер уже завёл контакт/сделку, бот обновляет их собранными данными вместо создания дублей.
 
 ## Поток данных
 
@@ -84,4 +84,4 @@ interface OperatorReplyMessage {
 ## Связанные пакеты
 
 - `apps/bitrix-webhook` — Next.js приложение, деплоится отдельно и предоставляет HTTP endpoint для Битрикс24
-- `packages/bot-core` — `sendMessageToOpenLine()`/`createBitrixDeal()` (пересылка сообщений в Открытую линию и резолв реального `CHAT_ID` через `imopenlines.dialog.get`)
+- `packages/bot-core` — `sendMessageToOpenLine()`/`createBitrixDeal()` (пересылка сообщений в Открытую линию и переиспользование сделки/контакта, созданных трекером линии, через `imopenlines.dialog.get`)

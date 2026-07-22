@@ -27,8 +27,8 @@ export interface DealData {
   telegramUserId?: number;
   messenger?: string;
   /** Внешний ID чата, переданный в imconnector.send.messages (chat.id) —
-   * нужен, чтобы через USER_CODE найти настоящий внутренний ID диалога
-   * Bitrix (см. resolveOpenLineChatId). */
+   * нужен, чтобы через USER_CODE найти диалог Bitrix и созданные по нему
+   * трекером Открытой линии контакт/сделку (см. resolveOpenLineDialog). */
   chatId?: number;
   /** Дополнительный комментарий к сделке (выбор пользователя в сценарии). */
   comment?: string;
@@ -320,31 +320,65 @@ async function linkBitrixTrace(
   }
 }
 
+interface OpenLineDialog {
+  /** Внутренний ID чата Bitrix (для imopenlines.crm.chat.user.add). */
+  chatId: number;
+  /** Контакт, который CRM-трекер Открытой линии создал по чату. */
+  contactId: number | null;
+  /** Сделка, которую CRM-трекер Открытой линии создал по чату. */
+  dealId: number | null;
+  leadId: number | null;
+}
+
 /**
- * Резолвит настоящий внутренний ID диалога Bitrix (нужен для
- * imopenlines.crm.chat.user.add — CHAT_ID там означает внутренний ID чата,
- * а не наш внешний user_id/chat_id) через imopenlines.dialog.get по
- * USER_CODE. Формат USER_CODE — `{connector}|{line}|{chat_id}|{user_id}` —
+ * entity_data_2 диалога — привязки CRM парами `TYPE|ID`:
+ * `LEAD|0|COMPANY|0|CONTACT|123|DEAL|456` (0 = привязки нет).
+ */
+function parseDialogCrmBindings(
+  raw: string | undefined,
+): Pick<OpenLineDialog, "contactId" | "dealId" | "leadId"> {
+  const bindings: Record<string, number> = {};
+  const parts = (raw ?? "").split("|");
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const type = parts[i];
+    const id = Number(parts[i + 1]);
+    if (type && Number.isFinite(id) && id > 0) bindings[type] = id;
+  }
+  return {
+    contactId: bindings.CONTACT ?? null,
+    dealId: bindings.DEAL ?? null,
+    leadId: bindings.LEAD ?? null,
+  };
+}
+
+/**
+ * Резолвит диалог Открытой линии через imopenlines.dialog.get по USER_CODE:
+ * настоящий внутренний ID чата Bitrix (нужен для imopenlines.crm.chat.user.add —
+ * CHAT_ID там означает внутренний ID чата, а не наш внешний user_id/chat_id)
+ * плюс CRM-сущности, которые трекер линии уже успел создать по этому чату
+ * (entity_data_2) — их используем вместо создания дублей.
+ * Формат USER_CODE — `{connector}|{line}|{chat_id}|{user_id}` —
  * это то же самое, что мы уже передаём в imconnector.send.messages
  * (chat.id/user.id), так что дополнительно ничего не нужно хранить.
  * ACCESS_ERROR — нормальная ситуация, если диалог ещё не создан (сообщение
  * через коннектор ещё не отправлялось) — не логируем как ошибку.
  */
-async function resolveOpenLineChatId(
+async function resolveOpenLineDialog(
   messenger: string,
   userId: number,
   chatId: number,
-): Promise<number | null> {
+): Promise<OpenLineDialog | null> {
   const config = await getBotConnector(messenger);
   if (!config) return null;
   const userCode = `${config.connectorId}|${config.openLineId}|${chatId}|${userId}`;
   try {
-    const result = await bitrixPost<{ id?: number }>(
+    const result = await bitrixPost<{ id?: number; entity_data_2?: string }>(
       "imopenlines.dialog.get",
       { USER_CODE: userCode },
       messenger,
     );
-    return result?.id ?? null;
+    if (!result?.id) return null;
+    return { chatId: result.id, ...parseDialogCrmBindings(result.entity_data_2) };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     if (!message.includes("ACCESS_ERROR")) {
@@ -368,74 +402,128 @@ export async function createBitrixDeal(
     return { contactId: 0, dealId: 0 };
   }
 
-  let contactId = await findExistingContactId(data);
-  if (contactId) {
-    console.log(
-      `[bitrix] используем существующий контакт id=${contactId} вместо создания нового (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
-    );
-    const messengerLink = buildMessengerLinkFields(data);
-    if (messengerLink) {
-      try {
-        await bitrixPost(
-          "crm.contact.update",
-          { id: contactId, fields: messengerLink },
-          messenger,
-        );
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(
-          `[bitrix] не удалось привязать мессенджер к контакту ${contactId}: ${message}`,
-        );
-      }
-    }
-  } else {
-    contactId = await bitrixPost<number>(
-      "crm.contact.add",
-      {
-        fields: buildContactFields(data),
-      },
-      messenger,
+  // Бот дублирует переписку в Открытую линию (sendMessageToOpenLine), и её
+  // CRM-трекер сам заводит контакт+сделку по первому сообщению чата. Чтобы не
+  // плодить вторую сделку, сперва смотрим, что линия уже создала по этому
+  // диалогу, — и обновляем её сущности вместо создания новых.
+  const dialog =
+    data.chatId && data.telegramUserId
+      ? await resolveOpenLineDialog(messenger, data.telegramUserId, data.chatId)
+      : null;
+  if (dialog?.leadId) {
+    console.warn(
+      `[bitrix] по чату уже создан лид id=${dialog.leadId} (Открытая линия работает в классическом режиме CRM) — возможен дубль с создаваемой сделкой`,
     );
   }
 
-  const dealId = await bitrixPost<number>(
-    "crm.deal.add",
-    {
-      fields: buildDealFields(data, contactId),
-    },
-    messenger,
-  );
-  console.log(
-    `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
-  );
+  let contactId = dialog?.contactId ?? null;
+  if (contactId) {
+    // Контакт трекера линии — «пустышка» с именем из мессенджера: дополняем
+    // его собранными ботом данными (телефон, email, согласие, профиль).
+    console.log(
+      `[bitrix] используем контакт Открытой линии id=${contactId} (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
+    );
+    try {
+      await bitrixPost(
+        "crm.contact.update",
+        { id: contactId, fields: buildContactFields(data) },
+        messenger,
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[bitrix] не удалось обновить контакт Открытой линии ${contactId}: ${message}`,
+      );
+    }
+  } else {
+    contactId = await findExistingContactId(data);
+    if (contactId) {
+      console.log(
+        `[bitrix] используем существующий контакт id=${contactId} вместо создания нового (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
+      );
+      const messengerLink = buildMessengerLinkFields(data);
+      if (messengerLink) {
+        try {
+          await bitrixPost(
+            "crm.contact.update",
+            { id: contactId, fields: messengerLink },
+            messenger,
+          );
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(
+            `[bitrix] не удалось привязать мессенджер к контакту ${contactId}: ${message}`,
+          );
+        }
+      }
+    } else {
+      contactId = await bitrixPost<number>(
+        "crm.contact.add",
+        {
+          fields: buildContactFields(data),
+        },
+        messenger,
+      );
+    }
+  }
+
+  let dealId = 0;
+  if (dialog?.dealId) {
+    // Сделку уже создал трекер Открытой линии — наполняем её данными бота
+    // вместо создания дубля. При сбое обновления (сделку могли удалить)
+    // откатываемся на прежнее поведение — создаём новую.
+    try {
+      await bitrixPost(
+        "crm.deal.update",
+        { id: dialog.dealId, fields: buildDealFields(data, contactId) },
+        messenger,
+      );
+      dealId = dialog.dealId;
+      console.log(
+        `[bitrix] обновлена сделка Открытой линии id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[bitrix] не удалось обновить сделку Открытой линии ${dialog.dealId}, создаём новую: ${message}`,
+      );
+    }
+  }
+  if (!dealId) {
+    dealId = await bitrixPost<number>(
+      "crm.deal.add",
+      {
+        fields: buildDealFields(data, contactId),
+      },
+      messenger,
+    );
+    console.log(
+      `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
+    );
+  }
 
   await linkBitrixTrace(messenger, contactId, dealId, data);
 
-  if (data.chatId && data.telegramUserId) {
-    const realChatId = await resolveOpenLineChatId(
-      messenger,
-      data.telegramUserId,
-      data.chatId,
-    );
-    if (realChatId) {
-      try {
-        await bitrixPost(
-          "imopenlines.crm.chat.user.add",
-          {
-            CRM_ENTITY_TYPE: "contact",
-            CRM_ENTITY: contactId,
-            USER_ID: 0,
-            CHAT_ID: realChatId,
-          },
-          messenger,
-        );
-        console.log(
-          `[bitrix] чат ${realChatId} привязан к контакту ${contactId}`,
-        );
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[bitrix] не удалось привязать чат к контакту: ${message}`);
-      }
+  // Привязка чата к контакту нужна, только если контакт не от трекера линии
+  // (свой чат трекер привязывает сам при создании).
+  if (dialog && dialog.contactId !== contactId) {
+    try {
+      await bitrixPost(
+        "imopenlines.crm.chat.user.add",
+        {
+          CRM_ENTITY_TYPE: "contact",
+          CRM_ENTITY: contactId,
+          USER_ID: 0,
+          CHAT_ID: dialog.chatId,
+        },
+        messenger,
+      );
+      console.log(
+        `[bitrix] чат ${dialog.chatId} привязан к контакту ${contactId}`,
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[bitrix] не удалось привязать чат к контакту: ${message}`);
     }
   }
 

@@ -43,6 +43,22 @@ function unwrap(json: RawResponse, method: string): unknown {
   return json.result;
 }
 
+/** Разбирает ответ Bitrix24, бросая понятную ошибку вместо невнятного SyntaxError,
+ * если сервер вернул не-JSON (HTML-страницу ошибки, пустое тело и т.п.). */
+async function parseBitrixResponse(
+  res: Response,
+  method: string,
+): Promise<RawResponse> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as RawResponse;
+  } catch {
+    throw new Error(
+      `Bitrix24 [${method}]: некорректный ответ (HTTP ${res.status}): ${text.slice(0, 300)}`,
+    );
+  }
+}
+
 async function paginate<T>(
   callPage: (start: number) => Promise<RawResponse>,
   method: string,
@@ -85,7 +101,7 @@ export function createOAuthApi(memberId: string): BitrixApi {
         auth: tokens.accessToken,
       }),
     });
-    const json = (await res.json()) as RawResponse;
+    const json = await parseBitrixResponse(res, method);
 
     // Если Битрикс24 ответил, что токен протух — принудительно обновляем и
     // повторяем запрос один раз. Это защищает от clock skew и от ситуаций,
@@ -127,7 +143,7 @@ export function createWebhookApi(webhookUrl: string): BitrixApi {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...params, ...(start ? { start } : {}) }),
     });
-    return (await res.json()) as RawResponse;
+    return parseBitrixResponse(res, method);
   }
 
   return {
