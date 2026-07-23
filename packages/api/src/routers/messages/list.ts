@@ -23,6 +23,7 @@ export const list = publicProcedure
         lastMessageDirection: row.lastMessageDirection,
         lastMessageAt: row.lastMessageAt.toISOString(),
         unread: row.unread,
+        unreadCount: row.unreadCount,
         assignedOperatorId: row.assignedOperatorId,
         assignedOperatorName: row.assignedOperatorName,
         tags: row.tags,

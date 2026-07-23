@@ -12,6 +12,7 @@ import {
   findMaxId,
   findTelegram,
   getContactPhone,
+  type MessengerFieldCodes,
   type RawContact,
 } from "../../broadcast-send";
 import type { WidgetChannel, WidgetEntity, WidgetHistoryItem } from "./types";
@@ -144,20 +145,15 @@ interface PersonalTarget {
 /**
  * Чем адресовать личный аккаунт при отправке этому контакту: телефон в
  * приоритете (самый надёжный способ «написать первым»), иначе username или
- * готовый числовой ID из полей контакта — их ищем, только если телефона нет,
- * чтобы не делать лишний запрос crm.contact.fields на каждый показ виджета.
+ * готовый числовой ID из полей контакта.
  */
-async function resolvePersonalTarget(
-  api: BitrixApi,
+function resolvePersonalTarget(
   contact: RawContact,
   phone: string | undefined,
-): Promise<PersonalTarget | undefined> {
+  messengerFields: MessengerFieldCodes,
+): PersonalTarget | undefined {
   if (phone) return { kind: "phone", value: phone };
 
-  const messengerFields = await discoverMessengerFields(api).catch(() => ({
-    telegram: [],
-    max: [],
-  }));
   const telegram = findTelegram(contact, messengerFields.telegram, {
     includeUf: true,
   });
@@ -214,8 +210,20 @@ export async function resolveContact(
   });
   if (!contact) return { error: "Контакт не найден" };
 
+  // UF-поля интеграций (Wazzup и др.: TelegramId_WZ, TelegramUsername_WZ…)
+  // находятся динамически по всем полям контакта — они нужны и для канала
+  // бота (числовой ID ниже), и для личного номера (username/ID, см.
+  // resolvePersonalTarget). Раньше канал бота их игнорировал, так что
+  // исторические контакты, пришедшие через сторонние интеграции (например,
+  // старый Wazzup), не получали канал «Telegram»/«MAX» даже при наличии
+  // числового ID, с которым бот технически уже может переписываться.
+  const messengerFields = await discoverMessengerFields(api).catch(() => ({
+    telegram: [],
+    max: [],
+  }));
+
   const channels: WidgetChannel[] = [];
-  const telegram = findTelegram(contact, [], { includeUf: false });
+  const telegram = findTelegram(contact, messengerFields.telegram);
   if (telegram?.userId) {
     channels.push({
       messenger: "telegram",
@@ -223,7 +231,7 @@ export async function resolveContact(
       label: "Telegram",
     });
   }
-  const maxId = findMaxId(contact, [], { includeUf: false });
+  const maxId = findMaxId(contact, messengerFields.max);
   if (maxId) channels.push({ messenger: "max", userId: maxId, label: "MAX" });
 
   const phone = getContactPhone(contact);
@@ -235,7 +243,11 @@ export async function resolveContact(
       (account) => account.status === "connected",
     );
     if (connectedAccounts.length) {
-      const personalTarget = await resolvePersonalTarget(api, contact, phone);
+      const personalTarget = resolvePersonalTarget(
+        contact,
+        phone,
+        messengerFields,
+      );
       if (personalTarget) {
         for (const account of connectedAccounts) {
           channels.push({

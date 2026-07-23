@@ -20,6 +20,8 @@ export interface ClientListItem {
   lastMessageDirection: "in" | "out";
   lastMessageAt: string;
   unread: boolean;
+  /** Число непрочитанных входящих — бейдж-кружок в списке, как в Wazzup. */
+  unreadCount: number;
   assignedOperatorId: string | null;
   assignedOperatorName: string | null;
   tags: string[];

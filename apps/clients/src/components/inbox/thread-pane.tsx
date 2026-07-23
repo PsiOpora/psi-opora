@@ -29,11 +29,11 @@ const THREAD_POLL_INTERVAL_MS = 5000;
  * (sent → delivered → read), не только новые строки, поэтому нельзя
  * полагаться на порядок массива и брать «последний» элемент. */
 function latestUpdatedAt(messages: { updatedAt: string }[]): string {
-  if (messages.length === 0) return new Date().toISOString();
-  return messages.reduce(
-    (max, m) => (m.updatedAt > max ? m.updatedAt : max),
-    messages[0].updatedAt,
+  const max = messages.reduce(
+    (acc, m) => (m.updatedAt > acc ? m.updatedAt : acc),
+    "",
   );
+  return max || new Date().toISOString();
 }
 
 export interface SelectedClient {

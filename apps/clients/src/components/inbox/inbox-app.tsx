@@ -134,7 +134,7 @@ export function InboxApp() {
         .then(() => {
           patchListCache((c) =>
             c.messenger === item.messenger && c.userId === item.userId
-              ? { ...c, unread: false }
+              ? { ...c, unread: false, unreadCount: 0 }
               : c,
           );
         });

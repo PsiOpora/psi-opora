@@ -237,8 +237,10 @@ export function ClientList({
                       {c.lastMessageDirection === "out" ? "Вы: " : ""}
                       {c.lastMessageText}
                     </span>
-                    {c.unread && (
-                      <span className="size-2.5 shrink-0 rounded-full bg-primary" />
+                    {c.unreadCount > 0 && (
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted-foreground/80 px-1 text-[11px] font-medium text-background tabular-nums">
+                        {c.unreadCount > 99 ? "99+" : c.unreadCount}
+                      </span>
                     )}
                   </div>
                   {(c.assignedOperatorName || c.tags.length > 0) && (

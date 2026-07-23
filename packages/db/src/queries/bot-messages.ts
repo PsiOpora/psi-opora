@@ -151,6 +151,8 @@ export interface ClientListItem {
   lastMessageDirection: "in" | "out";
   lastMessageAt: Date;
   unread: boolean;
+  /** Число входящих сообщений после lastReadAt — бейдж-кружок в списке, как в Wazzup. */
+  unreadCount: number;
   assignedOperatorId: string | null;
   assignedOperatorName: string | null;
   tags: string[];
@@ -198,10 +200,18 @@ export async function listClientsWithLastMessage(
       lastMessageText: lastMessage.text,
       lastMessageDirection: lastMessage.direction,
       lastMessageAt: lastMessage.createdAt,
-      lastReadAt: botConversations.lastReadAt,
       assignedOperatorId: botConversations.assignedOperatorId,
       assignedOperatorName: botConversations.assignedOperatorName,
       tags: botConversations.tags,
+      // Точное число непрочитанных, а не только флаг «есть ли» — бейдж в
+      // списке (как в Wazzup) показывает именно счётчик, а не точку.
+      unreadCount: sql<number>`(
+        select count(*)::int from bot_messages
+        where bot_messages.messenger = ${lastMessage.messenger}
+          and bot_messages.user_id = ${lastMessage.userId}
+          and bot_messages.direction = 'in'
+          and bot_messages.created_at > coalesce(${botConversations.lastReadAt}, to_timestamp(0))
+      )`,
     })
     .from(lastMessage)
     .leftJoin(
@@ -232,9 +242,8 @@ export async function listClientsWithLastMessage(
     lastMessageText: row.lastMessageText,
     lastMessageDirection: row.lastMessageDirection as "in" | "out",
     lastMessageAt: row.lastMessageAt,
-    unread:
-      row.lastMessageDirection === "in" &&
-      (!row.lastReadAt || row.lastMessageAt > row.lastReadAt),
+    unread: row.unreadCount > 0,
+    unreadCount: row.unreadCount,
     assignedOperatorId: row.assignedOperatorId,
     assignedOperatorName: row.assignedOperatorName,
     tags: row.tags ?? [],
