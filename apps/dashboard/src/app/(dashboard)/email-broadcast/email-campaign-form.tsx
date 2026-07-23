@@ -3,19 +3,7 @@
 import type { UnisenderTemplate } from "@psi-opora/unisender-client";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,7 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -36,22 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import type {
-  EmailRecipient,
   EmailRecipientsReport,
   RecentEmailCampaignInfo,
 } from "@psi-opora/api";
-import { LARGE_AUDIENCE_THRESHOLD } from "@psi-opora/api/schemas";
 import { orpcClient } from "@/lib/orpc/client";
 import { emailCampaignsListKey } from "./history";
+import { RecipientsReport } from "./recipients-report";
+import { SendConfirmation } from "./send-confirmation";
 
 export interface StageOption {
   stageId: string;
@@ -59,357 +38,6 @@ export interface StageOption {
   sort: number;
   categoryId: string;
   categoryName: string;
-}
-
-const STATUS_BADGE: Record<
-  EmailRecipient["status"],
-  {
-    label: string;
-    variant: "default" | "secondary" | "destructive" | "outline";
-  }
-> = {
-  pending: { label: "Готов к отправке", variant: "secondary" },
-  skipped: { label: "Пропущен", variant: "outline" },
-};
-
-const STATUS_FILTERS = [
-  { value: "all", label: "Все статусы" },
-  { value: "pending", label: "Готов к отправке" },
-  { value: "skipped", label: "Пропущен" },
-] as const;
-
-const PAGE_SIZE = 20;
-
-type TestResult = { ok: boolean; error?: string };
-
-function formatDateTime(date: Date | null): string {
-  if (!date) return "—";
-  return new Intl.DateTimeFormat("ru-RU", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(date));
-}
-
-function WarningBox({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm">
-      ⚠️ {children}
-    </div>
-  );
-}
-
-function RecipientsReport({
-  report,
-  subject,
-  templateId,
-  selectedIds,
-  onToggle,
-  onToggleMany,
-}: {
-  report: EmailRecipientsReport;
-  subject: string;
-  templateId: string;
-  selectedIds: Set<string>;
-  onToggle: (contactId: string) => void;
-  onToggleMany: (contactIds: string[], checked: boolean) => void;
-}) {
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
-  const [testResults, setTestResults] = useState<Record<string, TestResult>>(
-    {},
-  );
-  const [testingId, setTestingId] = useState<string | null>(null);
-  const [testCandidate, setTestCandidate] = useState<EmailRecipient | null>(
-    null,
-  );
-  const [, startTransition] = useTransition();
-
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return report.recipients.filter((r) => {
-      if (statusFilter !== "all" && r.status !== statusFilter) return false;
-      if (
-        query &&
-        !r.contactName.toLowerCase().includes(query) &&
-        !r.dealTitle.toLowerCase().includes(query) &&
-        !(r.email ?? "").toLowerCase().includes(query)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [report.recipients, statusFilter, search]);
-
-  const selectableIds = useMemo(
-    () =>
-      filtered.filter((r) => r.status === "pending").map((r) => r.contactId),
-    [filtered],
-  );
-  const selectedInFilter = selectableIds.filter((id) => selectedIds.has(id));
-  const allFilteredSelected =
-    selectableIds.length > 0 &&
-    selectedInFilter.length === selectableIds.length;
-  const someFilteredSelected =
-    selectedInFilter.length > 0 && !allFilteredSelected;
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount - 1);
-  const rows = filtered.slice(
-    currentPage * PAGE_SIZE,
-    (currentPage + 1) * PAGE_SIZE,
-  );
-
-  const confirmTest = () => {
-    if (!testCandidate?.email) return;
-    const { email, contactId } = testCandidate;
-    setTestingId(contactId);
-    startTransition(async () => {
-      const toastId = toast.loading("Отправляем тестовое письмо…");
-      const result = await orpcClient.emailBroadcast.sendTest({
-        email,
-        templateId,
-        subject,
-      });
-      setTestResults((prev) => ({ ...prev, [contactId]: result }));
-      setTestingId(null);
-      if (result.ok) {
-        toast.success("Тест отправлен", { id: toastId });
-      } else {
-        toast.error(result.error ?? "Ошибка теста", { id: toastId });
-      }
-    });
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          {report.dryRun ? "Предпросмотр получателей" : "Результат рассылки"}
-        </CardTitle>
-        <CardDescription>
-          Сделок на стадии: {report.totalDeals} · Получателей:{" "}
-          {report.recipients.length} · Без email или отписаны: {report.skipped}
-          {report.dryRun &&
-            " · Кнопка «Тест» отправляет письмо выбранного шаблона только выбранному контакту."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {report.recipients.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            На выбранной стадии нет сделок с привязанными контактами.
-          </p>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(200px,2fr)_minmax(160px,1fr)]">
-              <Input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(0);
-                }}
-                placeholder="Поиск по контакту, сделке или email…"
-              />
-              <Select
-                value={statusFilter}
-                onValueChange={(v) => {
-                  setStatusFilter(v);
-                  setPage(0);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_FILTERS.map((f) => (
-                    <SelectItem key={f.value} value={f.value}>
-                      {f.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {report.dryRun && (
-              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="text-muted-foreground">
-                  {selectedIds.size > 0
-                    ? `Отмечено получателей: ${selectedIds.size}. Письмо получат только они.`
-                    : "Никто не отмечен — письмо получат все готовые к отправке."}
-                </span>
-                {selectedIds.size > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onToggleMany([...selectedIds], false)}
-                  >
-                    Сбросить выбор
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Никто не подходит под выбранные фильтры.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {report.dryRun && (
-                      <TableHead className="w-8">
-                        <Checkbox
-                          checked={
-                            allFilteredSelected
-                              ? true
-                              : someFilteredSelected
-                                ? "indeterminate"
-                                : false
-                          }
-                          disabled={selectableIds.length === 0}
-                          onCheckedChange={(checked) =>
-                            onToggleMany(selectableIds, checked === true)
-                          }
-                          aria-label="Выбрать всех подходящих под фильтр"
-                        />
-                      </TableHead>
-                    )}
-                    <TableHead>Контакт</TableHead>
-                    <TableHead>Сделка</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Статус</TableHead>
-                    {report.dryRun && <TableHead />}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((r) => {
-                    const badge = STATUS_BADGE[r.status];
-                    const test = testResults[r.contactId];
-                    return (
-                      <TableRow key={r.contactId}>
-                        {report.dryRun && (
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedIds.has(r.contactId)}
-                              disabled={r.status !== "pending"}
-                              onCheckedChange={() => onToggle(r.contactId)}
-                              aria-label={`Выбрать ${r.contactName}`}
-                            />
-                          </TableCell>
-                        )}
-                        <TableCell>{r.contactName}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {r.dealTitle}
-                        </TableCell>
-                        <TableCell>{r.email ?? "—"}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-0.5">
-                            <Badge variant={badge.variant}>{badge.label}</Badge>
-                            {r.error && (
-                              <span className="text-xs text-muted-foreground">
-                                {r.error}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        {report.dryRun && (
-                          <TableCell className="text-right">
-                            {r.email ? (
-                              <div className="flex flex-col items-end gap-0.5">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={
-                                    !subject.trim() || testingId !== null
-                                  }
-                                  onClick={() => setTestCandidate(r)}
-                                >
-                                  {testingId === r.contactId
-                                    ? "Отправка…"
-                                    : "Тест"}
-                                </Button>
-                                {test &&
-                                  (test.ok ? (
-                                    <span className="text-xs text-muted-foreground">
-                                      Тест отправлен
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs text-destructive">
-                                      {test.error ?? "Ошибка теста"}
-                                    </span>
-                                  ))}
-                              </div>
-                            ) : null}
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-
-            {pageCount > 1 && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  {currentPage * PAGE_SIZE + 1}–
-                  {Math.min((currentPage + 1) * PAGE_SIZE, filtered.length)} из{" "}
-                  {filtered.length}
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === 0}
-                    onClick={() => setPage(currentPage - 1)}
-                  >
-                    Назад
-                  </Button>
-                  <span className="text-sm text-muted-foreground self-center">
-                    {currentPage + 1} / {pageCount}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage >= pageCount - 1}
-                    onClick={() => setPage(currentPage + 1)}
-                  >
-                    Вперёд
-                  </Button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        <AlertDialog
-          open={testCandidate !== null}
-          onOpenChange={(open) => {
-            if (!open) setTestCandidate(null);
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Отправить тестовое письмо?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Письмо по выбранному шаблону получит один контакт «
-                {testCandidate?.contactName}» на адрес {testCandidate?.email}.
-                Это реальное письмо реальному человеку — остальные получатели
-                ничего не получат.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Отмена</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmTest}>
-                Отправить тест
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </CardContent>
-    </Card>
-  );
 }
 
 export function EmailCampaignForm({
@@ -746,90 +374,23 @@ export function EmailCampaignForm({
       )}
 
       {confirming && previewFresh && report && (
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle>Подтверждение отправки</CardTitle>
-            <CardDescription>
-              Проверьте всё ещё раз — отменить рассылку после запуска
-              невозможно.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="text-sm">
-              <p>
-                <span className="text-muted-foreground">Стадия:</span>{" "}
-                {stageLabel}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Шаблон:</span>{" "}
-                {selectedTemplate?.title ?? templateId}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Тема:</span>{" "}
-                {trimmedSubject}
-              </p>
-              <p>
-                <span className="text-muted-foreground">
-                  Получат письмо:
-                </span>{" "}
-                {sendableCount} контактов
-                {selectedContactIds.size > 0
-                  ? " (отмечены вручную, остальные пропущены)"
-                  : ""}
-                {report.skipped > 0 &&
-                  ` (ещё ${report.skipped} будут пропущены — нет email или отписаны)`}
-              </p>
-            </div>
-
-            {recentCampaign && (
-              <WarningBox>
-                По этой стадии уже была email-рассылка{" "}
-                {formatDateTime(recentCampaign.startedAt)} (получателей:{" "}
-                {recentCampaign.recipientsCount ?? "—"}). Убедитесь, что не
-                отправляете то же самое повторно.
-              </WarningBox>
-            )}
-            {sendableCount > LARGE_AUDIENCE_THRESHOLD && (
-              <WarningBox>
-                Большая аудитория: {sendableCount} получателей. Рекомендуем
-                сначала отправить тест себе кнопкой «Тест» в предпросмотре.
-              </WarningBox>
-            )}
-
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={ackChecked}
-                onChange={(e) => setAckChecked(e.target.checked)}
-                className="mt-0.5"
-              />
-              <span>
-                Я проверил(а) список получателей, тему и шаблон письма. Понимаю,
-                что письмо уйдёт реальным клиентам через Unisender.
-              </span>
-            </label>
-
-            <div className="flex gap-2">
-              <Button
-                variant="destructive"
-                disabled={!ackChecked || isPending}
-                onClick={runSend}
-              >
-                {isPending ? "Отправка…" : `Отправить ${sendableCount} писем`}
-              </Button>
-              <Button
-                variant="outline"
-                disabled={isPending}
-                onClick={() => {
-                  setConfirming(false);
-                  setAckChecked(false);
-                }}
-              >
-                Отмена
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <SendConfirmation
+          stageLabel={stageLabel}
+          templateLabel={selectedTemplate?.title ?? templateId}
+          subject={trimmedSubject}
+          sendableCount={sendableCount}
+          hasManualSelection={selectedContactIds.size > 0}
+          skippedCount={report.skipped}
+          recentCampaign={recentCampaign}
+          ackChecked={ackChecked}
+          onAckChange={setAckChecked}
+          onConfirm={runSend}
+          onCancel={() => {
+            setConfirming(false);
+            setAckChecked(false);
+          }}
+          isPending={isPending}
+        />
       )}
 
       {report && (

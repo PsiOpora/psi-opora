@@ -12,7 +12,7 @@ RUN bunx turbo prune @psi-opora/bitrix-webhook --docker
 # --- Builder: собираем только зависимости, сам bitrix-webhook Bun запускает из исходников ---
 FROM base AS builder
 COPY --from=prepare /app/out/json/ .
-RUN bun install --frozen-lockfile
+RUN bun install
 COPY --from=prepare /app/out/full/ .
 RUN bunx turbo run build --filter=@psi-opora/bitrix-webhook^...
 

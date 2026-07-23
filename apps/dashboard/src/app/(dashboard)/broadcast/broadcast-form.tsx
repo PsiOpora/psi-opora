@@ -266,74 +266,7 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <Label
-                  htmlFor="message"
-                  className="text-xs text-muted-foreground"
-                >
-                  Текст сообщения
-                </Label>
-                <div className="flex items-center gap-0.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    title="Жирный — *текст*"
-                    onClick={() => applyFormat("bold")}
-                  >
-                    <BoldIcon className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    title="Курсив — _текст_"
-                    onClick={() => applyFormat("italic")}
-                  >
-                    <ItalicIcon className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    title="Моноширинный — `текст`"
-                    onClick={() => applyFormat("code")}
-                  >
-                    <CodeIcon className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    title="Ссылка — [текст](https://…)"
-                    onClick={() => applyFormat("link")}
-                  >
-                    <LinkIcon className="size-4" />
-                  </Button>
-                </div>
-              </div>
-              <textarea
-                id="message"
-                ref={messageRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                rows={8}
-                placeholder="Здравствуйте! Напоминаем о записи на консультацию…"
-                className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex w-full flex-1 rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
-              />
-              <span
-                className={`text-xs ${overLimit ? "text-destructive" : "text-muted-foreground"}`}
-              >
-                {trimmed.length} / {MESSAGE_MAX_LENGTH}
-                {overLimit &&
-                  " — мессенджеры не примут такое длинное сообщение"}
-              </span>
-              <p className="text-xs text-muted-foreground">
-                Разметка Telegram: *жирный* _курсив_ `код` [ссылка](https://…).
-                MAX получит то же форматирование.
-              </p>
-            </div>
+            <MessageEditor value={message} onChange={setMessage} />
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs text-muted-foreground">
                 Как увидит клиент в Telegram
@@ -375,96 +308,23 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
       )}
 
       {confirming && previewFresh && report && (
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle>Подтверждение отправки</CardTitle>
-            <CardDescription>
-              Проверьте всё ещё раз — отменить рассылку после запуска
-              невозможно.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="text-sm">
-              <p>
-                <span className="text-muted-foreground">Стадия:</span>{" "}
-                {stageLabel}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Канал:</span>{" "}
-                {CHANNEL_LABEL[channel]}
-              </p>
-              <p>
-                <span className="text-muted-foreground">
-                  Получат сообщение:
-                </span>{" "}
-                {sendableCount} контактов
-                {selectedContactIds.size > 0
-                  ? " (отмечены вручную, остальные пропущены)"
-                  : ""}
-                {report.skipped > 0 &&
-                  ` (ещё ${report.skipped} будут пропущены — нет мессенджера)`}
-              </p>
-            </div>
-
-            {recentBroadcast && (
-              <WarningBox>
-                По этой стадии уже была рассылка{" "}
-                {formatDateTime(recentBroadcast.startedAt)} (отправлено:{" "}
-                {recentBroadcast.sentCount}). Убедитесь, что не отправляете то
-                же самое повторно.
-              </WarningBox>
-            )}
-            {sendableCount > LARGE_AUDIENCE_THRESHOLD && (
-              <WarningBox>
-                Большая аудитория: {sendableCount} получателей. Отправка займёт
-                несколько минут, не закрывайте страницу. Рекомендуем сначала
-                отправить тест себе кнопкой «Тест» в предпросмотре.
-              </WarningBox>
-            )}
-
-            <div className="flex flex-col gap-1">
-              <p className="text-xs text-muted-foreground">
-                Сообщение, которое получат клиенты:
-              </p>
-              <TelegramPreview text={trimmed} />
-            </div>
-
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={ackChecked}
-                onChange={(e) => setAckChecked(e.target.checked)}
-                className="mt-0.5"
-              />
-              <span>
-                Я проверил(а) список получателей и текст сообщения. Понимаю, что
-                сообщение уйдёт реальным клиентам.
-              </span>
-            </label>
-
-            <div className="flex gap-2">
-              <Button
-                variant="destructive"
-                disabled={!ackChecked || isPending}
-                onClick={runSend}
-              >
-                {isPending
-                  ? "Отправка…"
-                  : `Отправить ${sendableCount} сообщений`}
-              </Button>
-              <Button
-                variant="outline"
-                disabled={isPending}
-                onClick={() => {
-                  setConfirming(false);
-                  setAckChecked(false);
-                }}
-              >
-                Отмена
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <SendConfirmation
+          stageLabel={stageLabel}
+          channelLabel={CHANNEL_LABEL[channel]}
+          message={trimmed}
+          sendableCount={sendableCount}
+          hasManualSelection={selectedContactIds.size > 0}
+          skippedCount={report.skipped}
+          recentBroadcast={recentBroadcast}
+          ackChecked={ackChecked}
+          onAckChange={setAckChecked}
+          onConfirm={runSend}
+          onCancel={() => {
+            setConfirming(false);
+            setAckChecked(false);
+          }}
+          isPending={isPending}
+        />
       )}
 
       {report && (
