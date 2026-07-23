@@ -95,7 +95,9 @@ export const env = createEnv({
   client: {
     NEXT_PUBLIC_APP_NAME: z.string().default('Психологический центр "Опора"'),
     NEXT_PUBLIC_APP_SHORT_NAME: z.string().default("Опора"),
-    NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
+    NEXT_PUBLIC_APP_URL: z
+      .string()
+      .default("https://psi-opora-dashboard.orixon.ru"),
     // Публичный адрес apps/bitrix-webhook — дашборд использует его в браузере
     // (b24.callMethod("event.bind", ...)), чтобы при регистрации коннектора
     // сразу подписаться на OnImConnectorMessageAdd и т.п., см.
