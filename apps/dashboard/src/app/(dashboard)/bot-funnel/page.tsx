@@ -1,3 +1,5 @@
+import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
+import { FunnelChart } from "@/components/dashboard/funnel-chart";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -17,17 +19,15 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  type BotFunnelStepStats,
   fetchBotFunnelEvents,
   funnelByMessenger,
   funnelBySourceCampaign,
   funnelStepStats,
-  type BotFunnelStepStats,
 } from "@/lib/analytics/bot-funnel";
 import { parseDateRange } from "@/lib/analytics/date-range";
-import { isRedisConfigured } from "@/lib/redis";
 import { formatNumber, formatPercent } from "@/lib/format";
-import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
-import { FunnelChart } from "@/components/dashboard/funnel-chart";
+import { isRedisConfigured } from "@/lib/redis";
 
 const MESSENGER_LABELS: Record<string, string> = {
   telegram: "Telegram",

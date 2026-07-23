@@ -1,4 +1,5 @@
 import { env } from "@psi-opora/config";
+import type { BitrixAppName } from "./app-name";
 import { forceRefreshPortalTokens, getValidPortalTokens } from "./oauth";
 import { getPortalTokens } from "./tokens";
 
@@ -78,7 +79,10 @@ async function paginate<T>(
 }
 
 /** REST-клиент по OAuth-токенам локального приложения (из Redis, с автопродлением). */
-export function createOAuthApi(memberId: string): BitrixApi {
+export function createOAuthApi(
+  memberId: string,
+  app: BitrixAppName = "dashboard",
+): BitrixApi {
   // Кешируем промис токенов на весь жизненный цикл этого api-инстанса (то есть
   // на один HTTP-запрос дашборда), чтобы пагинация и параллельные вызовы
   // (fetchDeals x2 + fetchSourceNames и т.п.) не долбили Redis за токенами
@@ -86,7 +90,7 @@ export function createOAuthApi(memberId: string): BitrixApi {
   let tokensPromise: ReturnType<typeof getValidPortalTokens> | null = null;
 
   function loadTokens() {
-    tokensPromise ??= getValidPortalTokens(memberId);
+    tokensPromise ??= getValidPortalTokens(memberId, app);
     return tokensPromise;
   }
 
@@ -118,7 +122,7 @@ export function createOAuthApi(memberId: string): BitrixApi {
     // повторяем запрос один раз. Это защищает от clock skew и от ситуаций,
     // когда токен истёк между проверкой и фактическим вызовом.
     if (isTokenError(json.error) && attempt < MAX_RETRIES) {
-      tokensPromise = forceRefreshPortalTokens(memberId);
+      tokensPromise = forceRefreshPortalTokens(memberId, app);
       await tokensPromise;
       return request(method, params, start, attempt + 1);
     }
@@ -177,8 +181,11 @@ export function createWebhookApi(webhookUrl: string): BitrixApi {
  * Клиент Bitrix24 без привязки к HTTP-запросу (для фоновых заданий):
  * по memberId — OAuth-токены портала, иначе — dev-вебхук из env.
  */
-export function resolveBitrixApi(memberId?: string): BitrixApi | null {
-  if (memberId) return createOAuthApi(memberId);
+export function resolveBitrixApi(
+  memberId?: string,
+  app: BitrixAppName = "dashboard",
+): BitrixApi | null {
+  if (memberId) return createOAuthApi(memberId, app);
   if (env.DASHBOARD_BITRIX_WEBHOOK_URL)
     return createWebhookApi(env.DASHBOARD_BITRIX_WEBHOOK_URL);
   return null;
@@ -192,10 +199,11 @@ export function resolveBitrixApi(memberId?: string): BitrixApi | null {
  */
 export async function resolveBitrixApiForRequest(
   memberId: string | null,
+  app: BitrixAppName = "dashboard",
 ): Promise<BitrixApi | null> {
   if (memberId) {
-    const tokens = await getPortalTokens(memberId);
-    if (tokens) return createOAuthApi(memberId);
+    const tokens = await getPortalTokens(memberId, app);
+    if (tokens) return createOAuthApi(memberId, app);
   }
   if (env.DASHBOARD_BITRIX_WEBHOOK_URL)
     return createWebhookApi(env.DASHBOARD_BITRIX_WEBHOOK_URL);

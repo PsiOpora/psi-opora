@@ -3,6 +3,7 @@ import {
   createUpstashRedis,
   type StorageAdapter,
 } from "@psi-opora/bot-core";
+import type { BitrixAppName } from "./app-name";
 
 export interface PortalTokens {
   memberId: string;
@@ -22,20 +23,29 @@ function getStorage(): StorageAdapter<PortalTokens> {
   return storage;
 }
 
-function redisKey(memberId: string): string {
-  return `bitrix24:dashboard:portal:${memberId}`;
+// Токены хранятся отдельно на каждое Bitrix24-приложение (свой client_id/secret),
+// даже если оба приложения авторизованы на одном и том же портале (memberId).
+function redisKey(app: BitrixAppName, memberId: string): string {
+  return `bitrix24:${app}:portal:${memberId}`;
 }
 
 export async function getPortalTokens(
   memberId: string,
+  app: BitrixAppName = "dashboard",
 ): Promise<PortalTokens | undefined> {
-  return getStorage().read(redisKey(memberId));
+  return getStorage().read(redisKey(app, memberId));
 }
 
-export async function savePortalTokens(tokens: PortalTokens): Promise<void> {
-  await getStorage().write(redisKey(tokens.memberId), tokens);
+export async function savePortalTokens(
+  tokens: PortalTokens,
+  app: BitrixAppName = "dashboard",
+): Promise<void> {
+  await getStorage().write(redisKey(app, tokens.memberId), tokens);
 }
 
-export async function deletePortalTokens(memberId: string): Promise<void> {
-  await getStorage().delete(redisKey(memberId));
+export async function deletePortalTokens(
+  memberId: string,
+  app: BitrixAppName = "dashboard",
+): Promise<void> {
+  await getStorage().delete(redisKey(app, memberId));
 }

@@ -56,6 +56,8 @@ export const env = createEnv({
     DASHBOARD_BITRIX_CLIENT_ID: z.string().optional(),
     DASHBOARD_BITRIX_CLIENT_SECRET: z.string().optional(),
     DASHBOARD_BITRIX_WEBHOOK_URL: z.string().optional(),
+    CLIENTS_BITRIX_CLIENT_ID: z.string().optional(),
+    CLIENTS_BITRIX_CLIENT_SECRET: z.string().optional(),
     // memberId портала, куда деплоятся боты (apps/tg-bot, apps/max-bot) —
     // нужен, чтобы резолвить OAuth-клиент (resolveBitrixApi) для дублирования
     // переписки в Открытые линии. Не мультитенантно — один деплой, один портал.
@@ -127,6 +129,8 @@ export const env = createEnv({
     DASHBOARD_BITRIX_CLIENT_ID: process.env.DASHBOARD_BITRIX_CLIENT_ID,
     DASHBOARD_BITRIX_CLIENT_SECRET: process.env.DASHBOARD_BITRIX_CLIENT_SECRET,
     DASHBOARD_BITRIX_WEBHOOK_URL: process.env.DASHBOARD_BITRIX_WEBHOOK_URL,
+    CLIENTS_BITRIX_CLIENT_ID: process.env.CLIENTS_BITRIX_CLIENT_ID,
+    CLIENTS_BITRIX_CLIENT_SECRET: process.env.CLIENTS_BITRIX_CLIENT_SECRET,
     BITRIX_MEMBER_ID: process.env.BITRIX_MEMBER_ID,
     TG_USERBOT_ENCRYPTION_KEY: process.env.TG_USERBOT_ENCRYPTION_KEY,
     TG_USERBOT_CONNECTOR_ID: process.env.TG_USERBOT_CONNECTOR_ID,

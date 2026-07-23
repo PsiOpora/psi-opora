@@ -1,6 +1,6 @@
+import { getBroadcast, listBroadcastRecipients } from "@psi-opora/db/queries";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getBroadcast, listBroadcastRecipients } from "@psi-opora/db/queries";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,

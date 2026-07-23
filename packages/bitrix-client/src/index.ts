@@ -1,3 +1,4 @@
+export type { BitrixAppName } from "./app-name";
 export {
   type BitrixApi,
   MEMBER_ID_COOKIE,

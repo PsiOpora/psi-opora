@@ -1,5 +1,6 @@
 import { createUpstashRedis } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
+import type { BitrixAppName } from "./app-name";
 import {
   deletePortalTokens,
   getPortalTokens,
@@ -13,20 +14,34 @@ const OAUTH_SERVER = "https://oauth.bitrix24.tech/oauth/token/";
 const TOKEN_REFRESH_MARGIN_SECONDS = 5 * 60; // обновляем токен за 5 минут до истечения
 const REFRESH_LOCK_TTL_SECONDS = 10;
 
-function getClientId(): string {
-  const id = env.DASHBOARD_BITRIX_CLIENT_ID;
-  if (!id) throw new Error("DASHBOARD_BITRIX_CLIENT_ID не задан");
+const CLIENT_CREDENTIALS: Record<
+  BitrixAppName,
+  { id: string | undefined; secret: string | undefined }
+> = {
+  dashboard: {
+    id: env.DASHBOARD_BITRIX_CLIENT_ID,
+    secret: env.DASHBOARD_BITRIX_CLIENT_SECRET,
+  },
+  clients: {
+    id: env.CLIENTS_BITRIX_CLIENT_ID,
+    secret: env.CLIENTS_BITRIX_CLIENT_SECRET,
+  },
+};
+
+function getClientId(app: BitrixAppName): string {
+  const id = CLIENT_CREDENTIALS[app].id;
+  if (!id) throw new Error(`${app}: BITRIX_CLIENT_ID не задан`);
   return id;
 }
 
-function getClientSecret(): string {
-  const secret = env.DASHBOARD_BITRIX_CLIENT_SECRET;
-  if (!secret) throw new Error("DASHBOARD_BITRIX_CLIENT_SECRET не задан");
+function getClientSecret(app: BitrixAppName): string {
+  const secret = CLIENT_CREDENTIALS[app].secret;
+  if (!secret) throw new Error(`${app}: BITRIX_CLIENT_SECRET не задан`);
   return secret;
 }
 
-function refreshLockKey(memberId: string): string {
-  return `bitrix24:dashboard:portal:refresh-lock:${memberId}`;
+function refreshLockKey(app: BitrixAppName, memberId: string): string {
+  return `bitrix24:${app}:portal:refresh-lock:${memberId}`;
 }
 
 function nowSeconds(): number {
@@ -50,10 +65,11 @@ interface OAuthTokenResponse {
  * одноразовым, и повторный вызов со старым кодом падает).
  */
 async function acquireRefreshLock(
+  app: BitrixAppName,
   memberId: string,
 ): Promise<(() => Promise<void>) | null> {
   const redis = createUpstashRedis();
-  const key = refreshLockKey(memberId);
+  const key = refreshLockKey(app, memberId);
   // Глобальный Web Crypto API (не node:crypto) — совместимо с Edge Runtime,
   // где деплоится apps/max-bot.
   const token = crypto.randomUUID();
@@ -72,14 +88,15 @@ async function acquireRefreshLock(
 }
 
 async function withRefreshLock<T>(
+  app: BitrixAppName,
   memberId: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const release = await acquireRefreshLock(memberId);
+  const release = await acquireRefreshLock(app, memberId);
   if (!release) {
     // Другой процесс уже обновляет токены; подождем и перечитаем.
     await new Promise((resolve) => setTimeout(resolve, 150));
-    return withRefreshLock(memberId, fn);
+    return withRefreshLock(app, memberId, fn);
   }
 
   try {
@@ -95,11 +112,12 @@ async function withRefreshLock<T>(
  */
 export async function refreshPortalTokens(
   tokens: PortalTokens,
+  app: BitrixAppName = "dashboard",
 ): Promise<PortalTokens> {
   const url = new URL(OAUTH_SERVER);
   url.searchParams.set("grant_type", "refresh_token");
-  url.searchParams.set("client_id", getClientId());
-  url.searchParams.set("client_secret", getClientSecret());
+  url.searchParams.set("client_id", getClientId(app));
+  url.searchParams.set("client_secret", getClientSecret(app));
   url.searchParams.set("refresh_token", tokens.refreshToken);
 
   const res = await fetch(url, { method: "GET" });
@@ -107,7 +125,7 @@ export async function refreshPortalTokens(
   if (json.error) {
     // refresh_token протух или отозван — сбрасываем авторизацию.
     if (json.error === "invalid_grant") {
-      await deletePortalTokens(tokens.memberId);
+      await deletePortalTokens(tokens.memberId, app);
     }
     throw new Error(
       `Bitrix24 OAuth refresh: ${json.error} — ${json.error_description ?? ""}`,
@@ -122,41 +140,43 @@ export async function refreshPortalTokens(
     scope: json.scope,
     expiresAt: nowSeconds() + json.expires_in,
   };
-  await savePortalTokens(updated);
+  await savePortalTokens(updated, app);
   return updated;
 }
 
 /** Возвращает актуальные токены портала, обновляя их при необходимости. */
 export async function getValidPortalTokens(
   memberId: string,
+  app: BitrixAppName = "dashboard",
 ): Promise<PortalTokens | undefined> {
-  const tokens = await getPortalTokens(memberId);
+  const tokens = await getPortalTokens(memberId, app);
   if (!tokens) return undefined;
 
   const isExpiringSoon =
     tokens.expiresAt - nowSeconds() < TOKEN_REFRESH_MARGIN_SECONDS;
   if (!isExpiringSoon) return tokens;
 
-  return withRefreshLock(memberId, async () => {
+  return withRefreshLock(app, memberId, async () => {
     // Пока мы ждали лока, другой процесс мог уже обновить токены.
-    const current = await getPortalTokens(memberId);
+    const current = await getPortalTokens(memberId, app);
     if (!current) return undefined;
 
     const stillExpiringSoon =
       current.expiresAt - nowSeconds() < TOKEN_REFRESH_MARGIN_SECONDS;
     if (!stillExpiringSoon) return current;
 
-    return refreshPortalTokens(current);
+    return refreshPortalTokens(current, app);
   });
 }
 
 /** Принудительно обновляет токены портала (используется при expired_token). */
 export async function forceRefreshPortalTokens(
   memberId: string,
+  app: BitrixAppName = "dashboard",
 ): Promise<PortalTokens | undefined> {
-  return withRefreshLock(memberId, async () => {
-    const tokens = await getPortalTokens(memberId);
+  return withRefreshLock(app, memberId, async () => {
+    const tokens = await getPortalTokens(memberId, app);
     if (!tokens) return undefined;
-    return refreshPortalTokens(tokens);
+    return refreshPortalTokens(tokens, app);
   });
 }
