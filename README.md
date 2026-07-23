@@ -67,18 +67,30 @@ line/connector ID и никакого ручного запуска скрипт
    `BITRIX_MEMBER_ID` в `.env`.
 3. Задайте `TG_WEBHOOK_URL`/`MAX_WEBHOOK_URL` — этого достаточно для
    автонастройки вебхука; сами токены ботов в `.env` не задаются.
-4. В дашборде (`/settings/bot`) нажмите «Зарегистрировать канал» в карточке
-   нужного бота.
-5. В Bitrix24: Контакт-центр → выбранная линия → каналы → добавить
+4. Задайте `NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL` — публичный адрес
+   `apps/bitrix-webhook`. Нужен, чтобы дашборд сам подписался на события
+   коннектора при регистрации (см. шаг 5) — без него придётся настраивать
+   шаг 6 руками.
+5. В дашборде (`/settings/bot`) нажмите «Зарегистрировать канал» в карточке
+   нужного бота — помимо `imconnector.register` дашборд сразу вызовет
+   `event.bind` на `OnImConnectorMessageAdd`, `OnImConnectorStatusDelete` и
+   `OnImConnectorLineDelete` (см. `apps/dashboard/src/lib/bitrix/connector-events.ts`),
+   иначе ответы оператора не долетят обратно, а запись в `bot_connectors` не
+   подчистится сама при отключении канала прямо в Bitrix. Если подписка не
+   удалась — появится тост с ошибкой; Bitrix пришлёт события с собственным
+   `application_token` приложения — возьмите его из первого лога
+   `apps/bitrix-webhook` (`неверный токен: получено=...`) и допишите через
+   запятую в `BITRIX_WEBHOOK_TOKEN`.
+6. В Bitrix24: Контакт-центр → выбранная линия → каналы → добавить
    зарегистрированный коннектор — откроется наше окно активации; если токен
    бота ещё не сохранён в БД, окно попросит его ввести (@BotFather для
    Telegram или платформа MAX). Линия активируется и вебхук настроится
    автоматически (карточка в дашборде покажет статус).
-6. В настройках исходящего вебхука Bitrix24 (Разработчикам → Другое →
-   Исходящий вебхук) отметьте события `OnImConnectorMessageAdd` (иначе
-   ответы оператора не долетят обратно), `OnImConnectorStatusDelete` и
-   `OnImConnectorLineDelete` (иначе запись в `bot_connectors` не подчистится
-   сама при отключении канала прямо в Bitrix) и укажите URL `apps/bitrix-webhook`.
+7. Без дашборда (`NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL` не задан) — в
+   настройках исходящего вебхука Bitrix24 (Разработчикам → Другое →
+   Исходящий вебхук) отметьте события `OnImConnectorMessageAdd`,
+   `OnImConnectorStatusDelete` и `OnImConnectorLineDelete` вручную и укажите
+   URL `apps/bitrix-webhook`.
 
 ### 2. Личный номер Telegram (MTProto, `packages/tg-userbot`)
 

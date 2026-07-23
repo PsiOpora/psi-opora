@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { BotConnectorWidgetClient } from "./bot-connector-widget-client";
 
 /**
@@ -10,6 +11,14 @@ import { BotConnectorWidgetClient } from "./bot-connector-widget-client";
  * номера — вводить нечего, окно само активирует линию и настраивает вебхук.
  */
 export default function BotConnectorWidgetPage() {
+  return (
+    <Suspense fallback={null}>
+      <BotConnectorWidgetPageContent />
+    </Suspense>
+  );
+}
+
+function BotConnectorWidgetPageContent() {
   const searchParams = useSearchParams();
   const messenger =
     searchParams.get("messenger") === "max" ? "max" : "telegram";

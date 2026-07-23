@@ -4,6 +4,7 @@ import type { CostEntry } from "@psi-opora/api";
 import { useQuery } from "@tanstack/react-query";
 import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
 import { NotConnected } from "@/components/dashboard/not-connected";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -95,6 +96,14 @@ function buildRoiRows(
 }
 
 export default function CostsPage() {
+  return (
+    <PageSuspense>
+      <CostsPageContent />
+    </PageSuspense>
+  );
+}
+
+function CostsPageContent() {
   const range = useDashboardRange();
   const { data: bitrixData, isLoading: bitrixLoading } = useBitrixData([
     "deals",

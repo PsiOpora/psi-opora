@@ -10,11 +10,20 @@ import { useBitrixData } from "@/hooks/use-bitrix-data";
 import { GroupStatsCard } from "@/components/dashboard/group-stats-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { NotConnected } from "@/components/dashboard/not-connected";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { TrendChart } from "@/components/dashboard/trend-chart";
 
 const TOP_LIMIT = 5;
 
 export default function OverviewPage() {
+  return (
+    <PageSuspense>
+      <OverviewPageContent />
+    </PageSuspense>
+  );
+}
+
+function OverviewPageContent() {
   const { data, isLoading, isError } = useBitrixData([
     "deals",
     "previousDeals",

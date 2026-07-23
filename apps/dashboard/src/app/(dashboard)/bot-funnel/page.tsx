@@ -29,6 +29,7 @@ import {
   funnelStepStats,
 } from "@/lib/analytics/bot-funnel";
 import { useDashboardRange } from "@/hooks/use-bitrix-data";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { formatNumber, formatPercent } from "@/lib/format";
 
 const MESSENGER_LABELS: Record<string, string> = {
@@ -38,6 +39,14 @@ const MESSENGER_LABELS: Record<string, string> = {
 };
 
 export default function BotFunnelPage() {
+  return (
+    <PageSuspense>
+      <BotFunnelPageContent />
+    </PageSuspense>
+  );
+}
+
+function BotFunnelPageContent() {
   const range = useDashboardRange();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboard-bot-funnel", range.from.toISOString(), range.to.toISOString()],

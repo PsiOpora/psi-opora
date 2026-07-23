@@ -136,8 +136,18 @@ export function bitrixWebhookHandler(options?: {
       `[bitrix-webhook] входящий запрос, длина тела=${rawBody.length}`,
     );
 
-    const webhookToken = options?.token ?? env.BITRIX_WEBHOOK_TOKEN;
-    if (!webhookToken) {
+    // Через запятую можно перечислить несколько валидных токенов: помимо
+    // токена вручную настроенного «Исходящего вебхука» (Разработчикам →
+    // Другое → Исходящий вебхук) сюда попадает application_token, который
+    // Bitrix присваивает самому приложению дашборда и передаёт в каждом
+    // событии, доставленном через event.bind (см.
+    // apps/dashboard/src/lib/bitrix/connector-events.ts) — это другой токен,
+    // не совпадающий с токеном исходящего вебхука.
+    const webhookTokens = (options?.token ?? env.BITRIX_WEBHOOK_TOKEN ?? "")
+      .split(",")
+      .map((token) => token.trim())
+      .filter(Boolean);
+    if (webhookTokens.length === 0) {
       console.error("[bitrix-webhook] BITRIX_WEBHOOK_TOKEN не задан");
       return new Response("Internal Server Error", { status: 500 });
     }
@@ -157,9 +167,12 @@ export function bitrixWebhookHandler(options?: {
       JSON.stringify(redactAuthToken(payload)),
     );
 
-    if (payload.auth?.application_token !== webhookToken) {
+    if (
+      !payload.auth?.application_token ||
+      !webhookTokens.includes(payload.auth.application_token)
+    ) {
       console.warn(
-        `[bitrix-webhook] неверный токен: получено=${payload.auth?.application_token} ожидалось=${webhookToken}`,
+        `[bitrix-webhook] неверный токен: получено=${payload.auth?.application_token}`,
       );
       return new Response("Unauthorized", { status: 401 });
     }

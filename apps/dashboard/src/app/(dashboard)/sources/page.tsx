@@ -3,10 +3,19 @@
 import { GroupBarChart } from "@/components/dashboard/group-bar-chart";
 import { GroupStatsCard } from "@/components/dashboard/group-stats-card";
 import { NotConnected } from "@/components/dashboard/not-connected";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { useBitrixData } from "@/hooks/use-bitrix-data";
 import { groupBySource } from "@/lib/analytics/aggregate";
 
 export default function SourcesPage() {
+  return (
+    <PageSuspense>
+      <SourcesPageContent />
+    </PageSuspense>
+  );
+}
+
+function SourcesPageContent() {
   const { data, isLoading, isError } = useBitrixData([
     "deals",
     "sourceNames",

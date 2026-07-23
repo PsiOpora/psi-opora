@@ -10,8 +10,17 @@ import {
 import { useBitrixData } from "@/hooks/use-bitrix-data";
 import { DealsTable } from "@/components/dashboard/deals-table";
 import { NotConnected } from "@/components/dashboard/not-connected";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 
 export default function DealsPage() {
+  return (
+    <PageSuspense>
+      <DealsPageContent />
+    </PageSuspense>
+  );
+}
+
+function DealsPageContent() {
   const { data, isLoading, isError } = useBitrixData(["deals"]);
 
   if (isLoading) {

@@ -96,6 +96,11 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_NAME: z.string().default('Психологический центр "Опора"'),
     NEXT_PUBLIC_APP_SHORT_NAME: z.string().default("Опора"),
     NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
+    // Публичный адрес apps/bitrix-webhook — дашборд использует его в браузере
+    // (b24.callMethod("event.bind", ...)), чтобы при регистрации коннектора
+    // сразу подписаться на OnImConnectorMessageAdd и т.п., см.
+    // apps/dashboard/src/lib/bitrix/connector-events.ts.
+    NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL: z.string().optional(),
   },
   clientPrefix: "NEXT_PUBLIC_",
   runtimeEnv: {
@@ -145,6 +150,8 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_APP_SHORT_NAME: process.env.NEXT_PUBLIC_APP_SHORT_NAME,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL:
+      process.env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL,
   },
   skipValidation:
     !!process.env.CI || process.env.npm_lifecycle_event === "lint",

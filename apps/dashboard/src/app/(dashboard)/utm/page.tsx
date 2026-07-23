@@ -3,6 +3,7 @@
 import { GroupBarChart } from "@/components/dashboard/group-bar-chart";
 import { GroupStatsCard } from "@/components/dashboard/group-stats-card";
 import { NotConnected } from "@/components/dashboard/not-connected";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { UtmLegendCard } from "@/components/dashboard/utm-legend-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBitrixData } from "@/hooks/use-bitrix-data";
@@ -16,6 +17,14 @@ import {
 import { utmHint } from "@/lib/analytics/utm-tags";
 
 export default function UtmReportPage() {
+  return (
+    <PageSuspense>
+      <UtmReportPageContent />
+    </PageSuspense>
+  );
+}
+
+function UtmReportPageContent() {
   const { data, isLoading, isError } = useBitrixData(["deals", "dealDomain"]);
 
   if (isLoading) {

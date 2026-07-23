@@ -1,6 +1,7 @@
 "use client";
 
 import type { WhatsappPersonalAccountView } from "@psi-opora/api";
+import { env } from "@psi-opora/config";
 import { Loader2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -14,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { subscribeConnectorEvents } from "@/lib/bitrix/connector-events";
 import { orpcClient } from "@/lib/orpc/client";
 
 const CONNECTOR_ID = "psiopora_wa_personal";
@@ -92,6 +94,22 @@ export function WaPersonalConnectorCard() {
         }
         setRegistered(true);
         toast.success("Коннектор зарегистрирован", { id: toastId });
+
+        if (env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL) {
+          const failures = await subscribeConnectorEvents(
+            b24,
+            `${env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL}/api/bitrix-webhook`,
+          );
+          if (failures.length > 0) {
+            toast.error(
+              `Не удалось подписаться на события: ${failures.join("; ")}`,
+            );
+          }
+        } else {
+          toast.warning(
+            "NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL не задан — ответы оператора не будут доставляться без ручной настройки исходящего вебхука в Bitrix24",
+          );
+        }
       } catch (err) {
         const message = (err as Error).message;
         setError(message);

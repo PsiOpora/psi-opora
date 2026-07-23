@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { WaPersonalConnectorClient } from "./wa-personal-connector-client";
 
 /**
@@ -13,6 +14,14 @@ import { WaPersonalConnectorClient } from "./wa-personal-connector-client";
  * внешние отступы минимальны.
  */
 export default function WaPersonalConnectorPage() {
+  return (
+    <Suspense fallback={null}>
+      <WaPersonalConnectorPageContent />
+    </Suspense>
+  );
+}
+
+function WaPersonalConnectorPageContent() {
   const searchParams = useSearchParams();
   const lineId = searchParams.get("line") ?? "";
 

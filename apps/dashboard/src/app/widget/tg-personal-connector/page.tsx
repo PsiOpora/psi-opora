@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { TgPersonalConnectorClient } from "./tg-personal-connector-client";
 
 /**
@@ -13,6 +14,14 @@ import { TgPersonalConnectorClient } from "./tg-personal-connector-client";
  * внешние отступы минимальны.
  */
 export default function TgPersonalConnectorPage() {
+  return (
+    <Suspense fallback={null}>
+      <TgPersonalConnectorPageContent />
+    </Suspense>
+  );
+}
+
+function TgPersonalConnectorPageContent() {
   const searchParams = useSearchParams();
   const lineId = searchParams.get("line") ?? "";
 

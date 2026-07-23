@@ -4,6 +4,7 @@ import type { UnisenderTemplate } from "@psi-opora/unisender-client";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { NotConnected } from "@/components/dashboard/not-connected";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { useBitrixData } from "@/hooks/use-bitrix-data";
 import { EmailCampaignForm, type StageOption } from "./email-campaign-form";
 import { EmailCampaignHistory } from "./history";
@@ -21,6 +22,14 @@ interface TemplatesResponse {
 }
 
 export default function EmailBroadcastPage() {
+  return (
+    <PageSuspense>
+      <EmailBroadcastPageContent />
+    </PageSuspense>
+  );
+}
+
+function EmailBroadcastPageContent() {
   const { data, isLoading, isError } = useBitrixData([
     "stageNames",
     "categoryNames",

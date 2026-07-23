@@ -11,8 +11,17 @@ import { funnelByStage, groupDealsByCategory } from "@/lib/analytics/aggregate";
 import { useBitrixData } from "@/hooks/use-bitrix-data";
 import { FunnelStages } from "@/components/dashboard/funnel-stages";
 import { NotConnected } from "@/components/dashboard/not-connected";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 
 export default function FunnelPage() {
+  return (
+    <PageSuspense>
+      <FunnelPageContent />
+    </PageSuspense>
+  );
+}
+
+function FunnelPageContent() {
   const { data, isLoading, isError } = useBitrixData([
     "deals",
     "stageNames",

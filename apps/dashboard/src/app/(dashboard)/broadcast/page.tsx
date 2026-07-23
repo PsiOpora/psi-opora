@@ -1,6 +1,7 @@
 "use client";
 
 import { NotConnected } from "@/components/dashboard/not-connected";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { useBitrixData } from "@/hooks/use-bitrix-data";
 import type { StageOption } from "./broadcast-form";
 import { BroadcastForm } from "./broadcast-form";
@@ -12,6 +13,14 @@ function categoryOfStage(stageId: string): string {
 }
 
 export default function BroadcastPage() {
+  return (
+    <PageSuspense>
+      <BroadcastPageContent />
+    </PageSuspense>
+  );
+}
+
+function BroadcastPageContent() {
   const { data, isLoading, isError } = useBitrixData([
     "stageNames",
     "categoryNames",
