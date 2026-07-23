@@ -1,17 +1,21 @@
 "use client";
 
-import type { WidgetChannel, WidgetEntity, WidgetRecipient } from "@psi-opora/api";
+import type {
+  WidgetChannel,
+  WidgetEntity,
+  WidgetRecipient,
+} from "@psi-opora/api";
 import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
 import { CheckIcon, Loader2Icon, SendIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import {
   type HistoryEntry,
   HistoryList,
   mergeHistory,
 } from "@/components/messaging/history-list";
 import { MessageComposer } from "@/components/messaging/message-composer";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +47,9 @@ function writeDraft(key: string, value: string): void {
   }
 }
 
-function channelKey(channel: Pick<WidgetChannel, "messenger" | "lineId">): string {
+function channelKey(
+  channel: Pick<WidgetChannel, "messenger" | "lineId">,
+): string {
   return `${channel.messenger}:${channel.lineId ?? ""}`;
 }
 
@@ -260,7 +266,7 @@ export function MessageWidget({
         ) : (
           <p className="text-xs text-muted-foreground">
             {recipient.note ??
-              "У контакта не найден Telegram/MAX и нет телефона. Мессенджер появляется в полях контакта, когда клиент пишет нашему боту, либо станет доступен личный номер Telegram, если указан телефон."}
+              "У контакта не найден Telegram/MAX и нет телефона. Мессенджер появляется в полях контакта, когда клиент пишет нашему боту, либо станут доступны личные номера Telegram/WhatsApp, если указан телефон."}
           </p>
         )}
       </div>

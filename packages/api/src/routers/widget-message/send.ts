@@ -5,7 +5,18 @@ import {
   MESSAGE_MAX_LENGTH,
   sendWidgetMessageSchema,
 } from "../../schemas/broadcast";
-import { resolveContact, sendViaPersonalNumber } from "./helpers";
+import {
+  resolveContact,
+  sendViaPersonalNumber,
+  sendViaWhatsappPersonal,
+} from "./helpers";
+
+/** Каналы, где один и тот же messenger может быть подключён несколькими
+ * личными номерами — канал однозначно определяется только парой
+ * (messenger, lineId). */
+function needsLineMatch(messenger: string): boolean {
+  return messenger === "telegram-personal" || messenger === "whatsapp-personal";
+}
 
 const MESSENGER_ERROR_MESSAGES: Record<string, string> = {
   "error.dialog.notfound":
@@ -59,8 +70,7 @@ export const send = publicProcedure
       const channel = contact.channels.find(
         (c) =>
           c.messenger === input.messenger &&
-          (input.messenger !== "telegram-personal" ||
-            c.lineId === input.lineId),
+          (!needsLineMatch(input.messenger) || c.lineId === input.lineId),
       );
       if (!channel) {
         return { error: "У контакта нет такого канала — обновите страницу" };
@@ -77,6 +87,17 @@ export const send = publicProcedure
             kind: channel.personalTargetKind ?? "phone",
             value: channel.userId,
           },
+          text,
+        });
+        if (result.error) return result;
+      } else if (channel.messenger === "whatsapp-personal") {
+        if (!context.memberId || !channel.lineId) {
+          return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
+        }
+        const result = await sendViaWhatsappPersonal({
+          memberId: context.memberId,
+          openLineId: channel.lineId,
+          jid: channel.userId,
           text,
         });
         if (result.error) return result;

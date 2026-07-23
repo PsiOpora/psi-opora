@@ -1,8 +1,19 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
-import { listBotMessages, listTelegramPersonalAccounts } from "@psi-opora/db/queries";
+import {
+  getWhatsappPersonalAccount,
+  listBotMessages,
+  listTelegramPersonalAccounts,
+  listWhatsappPersonalAccounts,
+} from "@psi-opora/db/queries";
 import { getSendResult, pushOutboundMessage } from "@psi-opora/tg-userbot";
-import { discoverMessengerFields, getContactPhone, type RawContact } from "../../broadcast-send";
-import { findMaxId, findTelegram } from "../../broadcast-send";
+import { jidFromPhone, wahaSendText } from "@psi-opora/waha";
+import {
+  discoverMessengerFields,
+  findMaxId,
+  findTelegram,
+  getContactPhone,
+  type RawContact,
+} from "../../broadcast-send";
 import type { WidgetChannel, WidgetEntity, WidgetHistoryItem } from "./types";
 
 const SEND_RESULT_POLL_INTERVAL_MS = 300;
@@ -53,6 +64,32 @@ export async function sendViaPersonalNumber(params: {
     error:
       "Не удалось дождаться ответа от воркера личного номера — проверьте, что apps/tg-userbot-worker запущен",
   };
+}
+
+/**
+ * Отправка через личный номер WhatsApp — в отличие от Telegram (личный номер
+ * держит соединение в отдельном always-on процессе, apps/tg-userbot-worker),
+ * WhatsApp обслуживает контейнер WAHA по REST, поэтому шлём синхронно, без
+ * очереди и поллинга результата.
+ */
+export async function sendViaWhatsappPersonal(params: {
+  memberId: string;
+  openLineId: string;
+  jid: string;
+  text: string;
+}): Promise<{ ok?: true; error?: string }> {
+  const account = await getWhatsappPersonalAccount(
+    params.memberId,
+    params.openLineId,
+  );
+  if (!account) return { error: "Личный номер WhatsApp не подключён" };
+
+  try {
+    await wahaSendText(account.sessionName, params.jid, params.text);
+    return { ok: true };
+  } catch (err) {
+    return { error: `Не отправлено: ${(err as Error).message}` };
+  }
 }
 
 export const HISTORY_LIMIT = 30;
@@ -141,6 +178,10 @@ async function resolvePersonalTarget(
  *    «видел» этого пользователя — ограничение самого Telegram, не наше).
  *    Один портал может подключить несколько номеров — показываем канал на
  *    каждый подключённый (status="connected"), с номером в подписи.
+ * 3. Личные номера WhatsApp (packages/waha) — тоже «написать первым», но
+ *    только по телефону: у WhatsApp нет публичных username или устойчивых
+ *    числовых ID, которые можно было бы резолвить без предыдущей переписки,
+ *    поэтому без телефона в карточке контакта канал не показываем.
  *
  * Используется и для отображения виджета, и для отправки — так отправка
  * никогда не доверяет messenger/userId, присланным из браузера напрямую,
@@ -201,6 +242,23 @@ export async function resolveContact(
             label: `Telegram (личный, ${maskPhone(account.phone)})`,
           });
         }
+      }
+    }
+
+    if (phone) {
+      const whatsappAccounts = await listWhatsappPersonalAccounts(
+        memberId,
+      ).catch(() => []);
+      const jid = jidFromPhone(phone);
+      for (const account of whatsappAccounts.filter(
+        (a) => a.status === "connected",
+      )) {
+        channels.push({
+          messenger: "whatsapp-personal",
+          userId: jid,
+          lineId: account.openLineId,
+          label: `WhatsApp (личный, ${maskPhone(account.phone)})`,
+        });
       }
     }
   }
