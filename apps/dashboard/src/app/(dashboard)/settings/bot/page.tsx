@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  GUIDE_FILE_S3_KEY,
-  SCENARIO_TEXT_DEFS,
-  type ScenarioTextDef,
-} from "@psi-opora/bot-core";
+import type { ScenarioTextDef } from "@psi-opora/bot-core";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,9 +15,11 @@ import { BotTextsForm } from "./bot-texts-form";
 import { DeleteGuideButton, SetActiveGuideButton } from "./guide-actions";
 import { GuideUploadForm } from "./guide-upload-form";
 
-function groupDefs(): Array<{ group: string; defs: ScenarioTextDef[] }> {
+function groupDefs(
+  defs: ScenarioTextDef[],
+): Array<{ group: string; defs: ScenarioTextDef[] }> {
   const groups: Array<{ group: string; defs: ScenarioTextDef[] }> = [];
-  for (const def of SCENARIO_TEXT_DEFS) {
+  for (const def of defs) {
     const existing = groups.find((g) => g.group === def.group);
     if (existing) existing.defs.push(def);
     else groups.push({ group: def.group, defs: [def] });
@@ -118,8 +116,21 @@ function GuidesLibraryCard({
 export default function BotTextsPage() {
   const { data: overrides = {} } = useQuery(orpc.bot.getTexts.queryOptions());
   const { data: guides = [] } = useQuery(orpc.bot.listGuides.queryOptions());
-  const groups = groupDefs();
-  const activeS3Key = overrides[GUIDE_FILE_S3_KEY]?.trim() ?? "";
+  const { data: defsData } = useQuery({
+    queryKey: ["dashboard-bot-texts-defs"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/bot-texts-defs");
+      if (!res.ok) throw new Error("Не удалось загрузить тексты бота");
+      return (await res.json()) as {
+        defs: ScenarioTextDef[];
+        guideFileS3Key: string;
+      };
+    },
+  });
+  const groups = groupDefs(defsData?.defs ?? []);
+  const activeS3Key = defsData
+    ? (overrides[defsData.guideFileS3Key]?.trim() ?? "")
+    : "";
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl">

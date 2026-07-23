@@ -21,16 +21,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  type BotFunnelEvent,
-  type BotFunnelStepStats,
-  funnelByMessenger,
-  funnelBySourceCampaign,
-  funnelStepStats,
+import type {
+  BotFunnelSourceRow,
+  BotFunnelStepStats,
 } from "@/lib/analytics/bot-funnel";
 import { useDashboardRange } from "@/hooks/use-bitrix-data";
 import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { formatNumber, formatPercent } from "@/lib/format";
+
+interface BotFunnelResponse {
+  steps: BotFunnelStepStats[];
+  byMessenger: Array<{ messenger: string; steps: BotFunnelStepStats[] }>;
+  bySource: BotFunnelSourceRow[];
+  redisConfigured: boolean;
+}
 
 const MESSENGER_LABELS: Record<string, string> = {
   telegram: "Telegram",
@@ -57,10 +61,7 @@ function BotFunnelPageContent() {
       });
       const res = await fetch(`/api/dashboard/bot-funnel?${params}`);
       if (!res.ok) throw new Error("Не удалось загрузить воронку бота");
-      return (await res.json()) as {
-        events: BotFunnelEvent[];
-        redisConfigured: boolean;
-      };
+      return (await res.json()) as BotFunnelResponse;
     },
   });
 
@@ -75,10 +76,13 @@ function BotFunnelPageContent() {
     );
   }
 
-  const events = data?.events ?? [];
+  const steps = data?.steps ?? [];
+  const byMessenger = data?.byMessenger ?? [];
+  const bySource = data?.bySource ?? [];
   const redisConfigured = data?.redisConfigured ?? false;
+  const isEmpty = steps.every((s) => s.count === 0);
 
-  if (events.length === 0) {
+  if (isEmpty) {
     return (
       <Card>
         <CardHeader>
@@ -92,10 +96,6 @@ function BotFunnelPageContent() {
       </Card>
     );
   }
-
-  const steps = funnelStepStats(events);
-  const byMessenger = funnelByMessenger(events);
-  const bySource = funnelBySourceCampaign(events);
 
   const messengerTabs: Array<{
     value: string;
@@ -182,11 +182,7 @@ function BotFunnelPageContent() {
   );
 }
 
-function SourceTable({
-  rows,
-}: {
-  rows: ReturnType<typeof funnelBySourceCampaign>;
-}) {
+function SourceTable({ rows }: { rows: BotFunnelSourceRow[] }) {
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
