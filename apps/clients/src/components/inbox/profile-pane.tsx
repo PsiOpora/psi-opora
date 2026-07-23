@@ -88,8 +88,11 @@ export function ProfilePane({
     [profile.firstName, profile.lastName].filter(Boolean).join(" ");
   const displayName = fullName || profile.username || profile.userId;
 
+  const isTelegramChannel =
+    profile.messenger === "telegram" ||
+    profile.messenger === "telegram-personal";
   const usernameLink =
-    profile.username && profile.messenger !== "max" ? (
+    profile.username && isTelegramChannel ? (
       <a
         href={`https://t.me/${profile.username}`}
         target="_blank"

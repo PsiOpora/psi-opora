@@ -9,8 +9,13 @@ export const MESSENGER_META: Record<
   max: { label: "MAX", short: "MAX", dotClassName: "bg-violet-500" },
   "telegram-personal": {
     label: "Telegram (личный)",
-    short: "Личный",
+    short: "TG личный",
     dotClassName: "bg-emerald-500",
+  },
+  "whatsapp-personal": {
+    label: "WhatsApp",
+    short: "WhatsApp",
+    dotClassName: "bg-green-600",
   },
 };
 
@@ -18,6 +23,7 @@ export const MESSENGER_ORDER: InboxMessenger[] = [
   "telegram",
   "max",
   "telegram-personal",
+  "whatsapp-personal",
 ];
 
 export function messengerLabel(messenger: string): string {

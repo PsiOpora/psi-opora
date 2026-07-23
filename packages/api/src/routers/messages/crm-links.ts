@@ -4,7 +4,11 @@ import {
   getPortalTokens,
 } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
-import { getBotConnector } from "@psi-opora/db/queries";
+import {
+  getBotConnector,
+  listTelegramPersonalAccounts,
+  listWhatsappPersonalAccounts,
+} from "@psi-opora/db/queries";
 import { publicProcedure } from "../../orpc";
 import { clientThreadSchema } from "../../schemas/messages";
 import type { CrmDealLink, CrmLinksResult } from "./types";
@@ -93,6 +97,11 @@ async function loadDealStageNames(
  * разработка) обычно нет скоупа imopenlines, а у вебхука ботов — есть.
  */
 function botWebhookUrl(messenger: string): string | null {
+  if (messenger !== "telegram" && messenger !== "max") {
+    // Личные номера (telegram-personal/whatsapp-personal) не имеют своего
+    // вебхука бота — фолбэка для них нет, есть только OAuth-сессия дашборда.
+    return null;
+  }
   const prefix = messenger === "telegram" ? "TG" : "MAX";
   return (
     process.env[`${prefix}_BITRIX_WEBHOOK_URL`] ??
@@ -146,6 +155,37 @@ async function getOpenLineDialog(
   }
 }
 
+/**
+ * Резолвит диалог Открытой линии для личного номера (telegram-personal /
+ * whatsapp-personal): в отличие от ботов, каждый номер — своя пара
+ * connector/line (packages/db telegram_personal_accounts /
+ * whatsapp_personal_accounts), поэтому единого коннектора на весь мессенджер
+ * нет. Chat и user в imconnector.send.messages для этих каналов всегда
+ * совпадают (см. apps/tg-userbot-worker relayInboundMessage, apps/bitrix-webhook
+ * waha-webhook), поэтому USER_CODE — `{connector}|{line}|{userId}|{userId}`.
+ * Проверяем все подключённые номера портала (обычно один) — первый, у
+ * которого нашёлся диалог с этим userId.
+ */
+async function resolvePersonalDialog(
+  api: BitrixApi,
+  messenger: "telegram-personal" | "whatsapp-personal",
+  memberId: string | null,
+  userId: string,
+): Promise<OpenLineDialogRaw | null> {
+  if (!memberId) return null;
+  const accounts =
+    messenger === "telegram-personal"
+      ? await listTelegramPersonalAccounts(memberId)
+      : await listWhatsappPersonalAccounts(memberId);
+
+  for (const account of accounts.filter((a) => a.status === "connected")) {
+    const userCode = `${account.connectorId}|${account.openLineId}|${userId}|${userId}`;
+    const dialog = await getOpenLineDialog(api, messenger, userCode);
+    if (dialog?.id) return dialog;
+  }
+  return null;
+}
+
 interface RawDeal {
   ID?: string | number;
   TITLE?: string;
@@ -168,8 +208,9 @@ const DEALS_LIMIT = 10;
  *   CRM-трекер Открытой линии создал по этому чату. Для Telegram в личном
  *   диалоге chat_id совпадает с user_id; для MAX может отличаться — тогда
  *   диалог не найдётся и вернём пустой результат (не ошибка).
- * - telegram-personal: userId — это телефон, ищем контакт через
- *   `crm.duplicate.findbycomm`.
+ * - telegram-personal/whatsapp-personal: то же самое, но connector/line
+ *   берутся из записи конкретного подключённого номера (см.
+ *   resolvePersonalDialog) — единого коннектора на мессенджер здесь нет.
  */
 export const crmLinks = publicProcedure
   .input(clientThreadSchema)
@@ -188,12 +229,21 @@ export const crmLinks = publicProcedure
       let dealId: string | null = null;
       let leadId: string | null = null;
 
-      if (input.messenger === "telegram-personal") {
-        const found = await api.call<{ CONTACT?: number[] }>(
-          "crm.duplicate.findbycomm",
-          { entity_type: "CONTACT", type: "PHONE", values: [input.userId] },
+      if (
+        input.messenger === "telegram-personal" ||
+        input.messenger === "whatsapp-personal"
+      ) {
+        const dialog = await resolvePersonalDialog(
+          api,
+          input.messenger,
+          context.memberId,
+          input.userId,
         );
-        contactId = found?.CONTACT?.[0] ? String(found.CONTACT[0]) : null;
+        if (dialog?.id) {
+          ({ contactId, dealId, leadId } = parseCrmBindings(
+            dialog.entity_data_2,
+          ));
+        }
       } else {
         const connector = await getBotConnector(input.messenger);
         if (connector) {

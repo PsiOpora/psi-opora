@@ -1,8 +1,10 @@
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import {
+  insertBotMessage,
   listConnectedTelegramPersonalAccounts,
   markTelegramPersonalAccountError,
   type TelegramPersonalAccount,
+  upsertBotUser,
 } from "@psi-opora/db/queries";
 import {
   createUserbotClient,
@@ -20,6 +22,46 @@ const ACCOUNTS_RESCAN_INTERVAL_MS = 60_000;
 
 function accountLabel(account: TelegramPersonalAccount): string {
   return `${account.memberId}:${account.openLineId} (${account.phone})`;
+}
+
+/**
+ * Журналирует входящее сообщение личного номера в bot_messages/bot_users —
+ * без этого единый инбокс дашборда (apps/clients) видел бы только реплики,
+ * отправленные из него самого, без единого сообщения от клиента. Не
+ * блокирует пересылку в Открытую линию при сбое — только логируется.
+ */
+async function logInboundMessage(
+  senderId: number,
+  text: string,
+  profile: {
+    firstName?: string;
+    lastName?: string;
+    username?: string | null;
+    isPremium?: boolean;
+  },
+): Promise<void> {
+  const userId = String(senderId);
+  try {
+    await upsertBotUser({
+      messenger: "telegram-personal",
+      userId,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      username: profile.username ?? undefined,
+      isPremium: profile.isPremium,
+    });
+    await insertBotMessage({
+      messenger: "telegram-personal",
+      userId,
+      direction: "in",
+      source: "scenario",
+      text,
+    });
+  } catch (err) {
+    console.error(
+      `[tg-userbot-worker] не удалось записать входящее сообщение в журнал: ${(err as Error).message}`,
+    );
+  }
 }
 
 /**
@@ -95,7 +137,9 @@ function startOutboxPolling(
     );
     for (const msg of messages) {
       try {
-        let target: number | Awaited<ReturnType<typeof resolveClientPhoneNumber>>;
+        let target:
+          | number
+          | Awaited<ReturnType<typeof resolveClientPhoneNumber>>;
         if (msg.telegramUserId) {
           target = msg.telegramUserId;
         } else if (msg.phone) {
@@ -148,6 +192,17 @@ async function startAccountWorker(
           ? rawPhone
           : `+${rawPhone}`
         : null;
+      void logInboundMessage(message.sender.id, text, {
+        firstName:
+          "firstName" in message.sender ? message.sender.firstName : undefined,
+        lastName:
+          "lastName" in message.sender
+            ? (message.sender.lastName ?? undefined)
+            : undefined,
+        username: message.sender.username,
+        isPremium:
+          "isPremium" in message.sender ? message.sender.isPremium : undefined,
+      });
       void relayInboundMessage(
         account,
         message.sender.id,
@@ -161,7 +216,9 @@ async function startAccountWorker(
     console.log(`[tg-userbot-worker] запущен: ${label}`);
   } catch (err) {
     const message = (err as Error).message;
-    console.error(`[tg-userbot-worker] не удалось запустить ${label}: ${message}`);
+    console.error(
+      `[tg-userbot-worker] не удалось запустить ${label}: ${message}`,
+    );
     await markTelegramPersonalAccountError(
       account.memberId,
       account.openLineId,

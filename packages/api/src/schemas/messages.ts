@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { MESSAGE_MAX_LENGTH } from "./broadcast";
 
-const inboxMessengerSchema = z.enum(["telegram", "max", "telegram-personal"]);
+const inboxMessengerSchema = z.enum([
+  "telegram",
+  "max",
+  "telegram-personal",
+  "whatsapp-personal",
+]);
 
 export const listClientsSchema = z.object({
   search: z.string().optional(),
@@ -26,8 +31,8 @@ export type ClientPollInput = z.infer<typeof clientPollSchema>;
 export const sendClientMessageSchema = z.object({
   messenger: inboxMessengerSchema,
   userId: z.string(),
-  /** Только для messenger="telegram-personal" — на портале может быть
-   * несколько подключённых номеров, каждый на своей линии. */
+  /** Только для messenger="telegram-personal"/"whatsapp-personal" — на
+   * портале может быть несколько подключённых номеров, каждый на своей линии. */
   lineId: z.string().optional(),
   text: z.string().max(MESSAGE_MAX_LENGTH),
 });

@@ -1,7 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
-import { getWhatsappPersonalAccountBySession } from "@psi-opora/db/queries";
+import {
+  getWhatsappPersonalAccountBySession,
+  insertBotMessage,
+  upsertBotUser,
+} from "@psi-opora/db/queries";
 import { phoneFromJid } from "@psi-opora/waha";
 
 /**
@@ -89,6 +93,28 @@ export async function POST(request: Request): Promise<Response> {
     payload?._data?.notifyName ??
     payload?._data?.pushName ??
     `WhatsApp ${senderPhone ?? chatId}`;
+
+  // Журналируем в bot_messages/bot_users — без этого единый инбокс дашборда
+  // (apps/clients) видел бы только реплики, отправленные из него самого, без
+  // единого сообщения от клиента. Не блокирует пересылку в Открытую линию.
+  try {
+    await upsertBotUser({
+      messenger: "whatsapp-personal",
+      userId: chatId,
+      name: senderName,
+    });
+    await insertBotMessage({
+      messenger: "whatsapp-personal",
+      userId: chatId,
+      direction: "in",
+      source: "scenario",
+      text,
+    });
+  } catch (err) {
+    console.error(
+      `[waha-webhook] не удалось записать входящее сообщение в журнал: ${(err as Error).message}`,
+    );
+  }
 
   try {
     await api.call("imconnector.send.messages", {

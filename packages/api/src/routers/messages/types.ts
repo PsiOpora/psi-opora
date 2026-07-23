@@ -1,7 +1,11 @@
 import type { Messenger } from "@psi-opora/jobs";
 
-/** "telegram-personal" — личный номер (packages/tg-userbot), а не бот. */
-export type InboxMessenger = Messenger | "telegram-personal";
+/** "telegram-personal"/"whatsapp-personal" — личные номера
+ * (packages/tg-userbot, packages/waha), а не боты. */
+export type InboxMessenger =
+  | Messenger
+  | "telegram-personal"
+  | "whatsapp-personal";
 
 export interface ClientListItem {
   messenger: InboxMessenger;

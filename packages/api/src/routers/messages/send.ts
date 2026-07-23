@@ -1,11 +1,93 @@
 import {
   insertBotMessage,
   listTelegramPersonalAccounts,
+  listWhatsappPersonalAccounts,
 } from "@psi-opora/db/queries";
 import { sendMessengerMessage } from "@psi-opora/jobs";
+import { wahaSendText } from "@psi-opora/waha";
 import { publicProcedure } from "../../orpc";
 import { sendClientMessageSchema } from "../../schemas/messages";
 import { sendViaPersonalNumber } from "../widget-message/helpers";
+
+/**
+ * Отправляет через личный номер Telegram — userId диалога здесь тот же
+ * численный chat/sender id, что и в bot_messages для этого канала (см.
+ * apps/tg-userbot-worker logInboundMessage и apps/bitrix-webhook
+ * logOperatorReply, где userId = String(chatId)), а не телефон — поэтому
+ * адресуем как kind: "id", в отличие от вкладки CRM (widget-message/send.ts),
+ * где телефон известен из карточки контакта и это kind: "phone".
+ */
+async function sendTelegramPersonal(
+  memberId: string | null,
+  userId: string,
+  lineId: string | undefined,
+  text: string,
+): Promise<{ ok?: true; error?: string }> {
+  if (!memberId) {
+    return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
+  }
+  let openLineId = lineId;
+  if (!openLineId) {
+    const accounts = (await listTelegramPersonalAccounts(memberId)).filter(
+      (a) => a.status === "connected",
+    );
+    if (accounts.length === 0) {
+      return { error: "Личный номер Telegram не подключён" };
+    }
+    if (accounts.length > 1) {
+      return {
+        error:
+          "На портале несколько личных номеров Telegram — отправка из единого инбокса пока поддерживает один",
+      };
+    }
+    const account = accounts[0];
+    if (!account) return { error: "Личный номер Telegram не подключён" };
+    openLineId = account.openLineId;
+  }
+
+  return sendViaPersonalNumber({
+    memberId,
+    openLineId,
+    target: { kind: "id", value: userId },
+    text,
+  });
+}
+
+/**
+ * Отправляет через личный номер WhatsApp — userId диалога это jid
+ * (`"79991234567@c.us"`, см. packages/waha phoneFromJid/jidFromPhone),
+ * WAHA отправляет по нему напрямую, без отдельного шага резолва пира.
+ */
+async function sendWhatsappPersonal(
+  memberId: string | null,
+  userId: string,
+  lineId: string | undefined,
+  text: string,
+): Promise<{ ok?: true; error?: string }> {
+  if (!memberId) {
+    return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
+  }
+  const accounts = (await listWhatsappPersonalAccounts(memberId)).filter(
+    (a) => a.status === "connected",
+  );
+  const account = lineId
+    ? accounts.find((a) => a.openLineId === lineId)
+    : accounts[0];
+  if (!account) return { error: "Личный номер WhatsApp не подключён" };
+  if (!lineId && accounts.length > 1) {
+    return {
+      error:
+        "На портале несколько личных номеров WhatsApp — отправка из единого инбокса пока поддерживает один",
+    };
+  }
+
+  try {
+    await wahaSendText(account.sessionName, userId, text);
+    return { ok: true };
+  } catch (err) {
+    return { error: `Не отправлено: ${(err as Error).message}` };
+  }
+}
 
 /**
  * Отправляет сообщение клиенту из единого инбокса («Клиенты»). В отличие от
@@ -22,37 +104,20 @@ export const send = publicProcedure
       if (!text) return { error: "Введите текст сообщения" };
 
       if (input.messenger === "telegram-personal") {
-        if (!context.memberId) {
-          return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
-        }
-        let openLineId = input.lineId;
-        if (!openLineId) {
-          const accounts = (
-            await listTelegramPersonalAccounts(context.memberId)
-          ).filter((a) => a.status === "connected");
-          if (accounts.length === 0) {
-            return { error: "Личный номер Telegram не подключён" };
-          }
-          if (accounts.length > 1) {
-            return {
-              error:
-                "На портале несколько личных номеров Telegram — отправка из единого инбокса пока поддерживает один",
-            };
-          }
-          const account = accounts[0];
-          if (!account) return { error: "Личный номер Telegram не подключён" };
-          openLineId = account.openLineId;
-        }
-
-        const result = await sendViaPersonalNumber({
-          memberId: context.memberId,
-          openLineId,
-          // Существующий диалог уже адресован этим userId при первом резолве
-          // (packages/api/src/routers/widget-message/helpers.ts) — по
-          // умолчанию это телефон, как и в остальном коде.
-          target: { kind: "phone", value: input.userId },
+        const result = await sendTelegramPersonal(
+          context.memberId,
+          input.userId,
+          input.lineId,
           text,
-        });
+        );
+        if (result.error) return result;
+      } else if (input.messenger === "whatsapp-personal") {
+        const result = await sendWhatsappPersonal(
+          context.memberId,
+          input.userId,
+          input.lineId,
+          text,
+        );
         if (result.error) return result;
       } else {
         try {
