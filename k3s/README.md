@@ -50,9 +50,7 @@ containerd на самой ноде k3s.
 
    ```bash
    htpasswd -Bbn deploy '<пароль>' > /tmp/htpasswd
-   kubectl create secret generic registry-htpasswd \
-     --from-file=htpasswd=/tmp/htpasswd \
-     --namespace psi-opora
+   kubectl create secret generic registry-htpasswd --from-file=htpasswd=/tmp/htpasswd --namespace psi-opora
    rm /tmp/htpasswd
    ```
 
@@ -86,9 +84,7 @@ done
 
 ```bash
 kubectl apply -f k3s/namespace.yaml
-kubectl create secret generic psi-opora-env \
-  --from-env-file=.env \
-  --namespace psi-opora
+kubectl create secret generic psi-opora-env --from-env-file=.env --namespace psi-opora
 ```
 
 Все поды получают переменные через `envFrom.secretRef` — секрет общий,
@@ -114,13 +110,13 @@ RollingUpdate.
 ## Порты (NodePort)
 
 | Сервис          | NodePort | Порт в контейнере |
-| ---------------- | -------- | ------------------ |
-| clients          | 30005    | 3000                |
-| dashboard        | 30010    | 3000                |
-| bitrix-webhook   | 30020    | 3000                |
-| waha             | 30050    | 3000                |
-| minio (API)      | 30900    | 9000                |
-| minio (консоль)  | 30901    | 9001                |
+| --------------- | -------- | ----------------- |
+| clients         | 30005    | 3000              |
+| dashboard       | 30010    | 3000              |
+| bitrix-webhook  | 30020    | 3000              |
+| waha            | 30050    | 3000              |
+| minio (API)     | 30900    | 9000              |
+| minio (консоль) | 30901    | 9001              |
 
 `tg-bot`, `max-bot`, `tg-userbot-worker` без Service — им не нужен входящий
 трафик (long polling исходящий).
@@ -149,9 +145,11 @@ Workflow [.github/workflows/deploy-k3s.yml](../.github/workflows/deploy-k3s.yml)
 В репозитории (Settings → Secrets and variables → Actions) нужно завести:
 
 **Variables:**
+
 - `REGISTRY` — `registry.orixon.ru`, тот же адрес, что и в манифестах.
 
 **Secrets:**
+
 - `REGISTRY_USER`, `REGISTRY_PASSWORD` — логин/пароль из шага 0 выше (htpasswd).
 - `KUBECONFIG` — содержимое `/etc/rancher/k3s/k3s.yaml` в base64, с полем
   `server:` переписанным на реальный адрес сервера (по умолчанию там
