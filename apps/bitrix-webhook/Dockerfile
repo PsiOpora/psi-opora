@@ -9,24 +9,18 @@ FROM base AS prepare
 COPY . .
 RUN bunx turbo prune @psi-opora/bitrix-webhook --docker
 
-# --- Builder ---
+# --- Builder: собираем только зависимости, сам bitrix-webhook Bun запускает из исходников ---
 FROM base AS builder
 COPY --from=prepare /app/out/json/ .
 RUN bun install --frozen-lockfile
 COPY --from=prepare /app/out/full/ .
-ARG POSTGRES_URL
-ENV POSTGRES_URL=$POSTGRES_URL
-RUN bunx turbo run build --filter=@psi-opora/bitrix-webhook...
+RUN bunx turbo run build --filter=@psi-opora/bitrix-webhook^...
 
 # --- Runner ---
-# Полный node_modules (не .next/standalone): @mtcute/wasm грузит .wasm через
-# `new URL(..., import.meta.url)`, трейсинг файлов Next.js это не видит и
-# в standalone-сборке падает "Cannot find module 'mtcute-simd.wasm'"
-# (см. apps/bitrix-webhook и serverExternalPackages в next.config.ts).
 FROM base AS runner
-RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
-USER nextjs
-COPY --from=builder --chown=nextjs:nodejs /app .
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 bitrix-webhook
+USER bitrix-webhook
+COPY --from=builder --chown=bitrix-webhook:nodejs /app .
 
 WORKDIR /app/apps/bitrix-webhook
 ENV PORT=3000
