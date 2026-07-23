@@ -1,0 +1,12 @@
+# Общий редирект http -> https, используется всеми *-http IngressRoute
+# в этом namespace (см. registry.yaml, clients.yaml, dashboard.yaml,
+# bitrix-webhook.yaml, tg-bot.yaml, max-bot.yaml).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-to-https
+  namespace: psi-opora
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true

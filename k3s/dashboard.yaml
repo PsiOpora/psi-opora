@@ -38,3 +38,37 @@ spec:
     - port: 3000
       targetPort: 3000
       nodePort: 30010
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dashboard-http
+  namespace: psi-opora
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`psi-opora-dashboard.orixon.ru`)
+      kind: Rule
+      services:
+        - name: dashboard
+          port: 3000
+      middlewares:
+        - name: redirect-to-https
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dashboard-https
+  namespace: psi-opora
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`psi-opora-dashboard.orixon.ru`)
+      kind: Rule
+      services:
+        - name: dashboard
+          port: 3000
+  tls:
+    certResolver: letsencrypt

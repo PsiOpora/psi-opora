@@ -22,6 +22,58 @@ spec:
         - name: max-bot
           image: registry.orixon.ru/psi-opora-max-bot:latest
           imagePullPolicy: IfNotPresent
+          # Порт для webhook-сервера (api/webhook.ts) — сейчас образ ещё
+          # запускает src/dev.ts (long polling), Service/Ingress ниже
+          # заработают только после переключения CMD на webhook-режим.
+          ports:
+            - containerPort: 3000
           envFrom:
             - secretRef:
                 name: psi-opora-env
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: max-bot
+  namespace: psi-opora
+spec:
+  type: ClusterIP
+  selector:
+    app: max-bot
+  ports:
+    - port: 3000
+      targetPort: 3000
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: max-bot-http
+  namespace: psi-opora
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`psi-opora-max.orixon.ru`)
+      kind: Rule
+      services:
+        - name: max-bot
+          port: 3000
+      middlewares:
+        - name: redirect-to-https
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: max-bot-https
+  namespace: psi-opora
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`psi-opora-max.orixon.ru`)
+      kind: Rule
+      services:
+        - name: max-bot
+          port: 3000
+  tls:
+    certResolver: letsencrypt

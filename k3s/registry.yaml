@@ -114,24 +114,36 @@ spec:
     - port: 5000
       targetPort: 5000
 ---
-# Без TLS — трафик по http, домен только для имени, а не для сертификата.
-# Докер-демону раннера и containerd на ноде k3s всё ещё нужно разрешить
-# ходить сюда как insecure-registry, см. k3s/README.md.
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
 metadata:
-  name: registry
+  name: registry-http
   namespace: psi-opora
 spec:
-  ingressClassName: traefik
-  rules:
-    - host: registry.orixon.ru
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: registry
-                port:
-                  number: 5000
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`registry.orixon.ru`)
+      kind: Rule
+      services:
+        - name: registry
+          port: 5000
+      middlewares:
+        - name: redirect-to-https
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: registry-https
+  namespace: psi-opora
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`registry.orixon.ru`)
+      kind: Rule
+      services:
+        - name: registry
+          port: 5000
+  tls:
+    certResolver: letsencrypt

@@ -14,38 +14,21 @@ PersistentVolumeClaim (сессии WhatsApp / файлы MinIO) — без не
 
 Реестр — [zot](https://zotregistry.dev) внутри кластера: в отличие от
 классического `registry:2` конфигурируется JSON-файлом (`registry-config`
-ConfigMap), а не переменными окружения. Авторизация — htpasswd, без TLS
-(наружу торчит доменом `registry.orixon.ru` через встроенный в k3s Traefik
-Ingress, но по http — сертификат не заводим). Из-за отсутствия TLS его
-нужно явно разрешить как insecure и докер-демону раннера GitHub Actions, и
-containerd на самой ноде k3s.
+ConfigMap), а не переменными окружения. Авторизация — htpasswd. Наружу
+торчит доменом `registry.orixon.ru` через `IngressRoute` (Traefik CRD, см.
+`k3s/registry.yaml`) с TLS через уже настроенный в кластере ACME
+`certResolver: letsencrypt` — тот же, что используют остальные сервисы
+(шаг "Домены" ниже). Отдельного cert-manager не нужно, docker/containerd
+доверяют сертификату по умолчанию.
 
 В `registry-config` в `accessControl` захардкожен пользователь `deploy` с
 правами на чтение/запись (остальным — только чтение). Если нужен другой
 логин, поменяйте имя в `k3s/registry.yaml` (`accessControl.repositories."**".policies[0].users`)
 на своё.
 
-1. Направить DNS A-запись `registry.orixon.ru` на IP сервера с k3s (порт 80
-   снаружи должен быть открыт — его слушает встроенный в k3s Traefik).
+1. Направить DNS A-запись `registry.orixon.ru` на IP сервера с k3s.
 
-2. Разрешить containerd на ноде k3s ходить в этот реестр по http — создать
-   `/etc/rancher/k3s/registries.yaml`:
-
-   ```yaml
-   mirrors:
-     "registry.orixon.ru":
-       endpoint:
-         - "http://registry.orixon.ru"
-   configs:
-     "registry.orixon.ru":
-       auth:
-         username: deploy
-         password: <пароль>
-   ```
-
-   и перечитать конфиг: `sudo systemctl restart k3s`.
-
-3. Создать htpasswd-секрет с пользователем `deploy` (файл с паролем в git не
+2. Создать htpasswd-секрет с пользователем `deploy` (файл с паролем в git не
    попадает — секрет создаётся вручную, один раз):
 
    ```bash
@@ -118,11 +101,39 @@ RollingUpdate.
 | minio (API)     | 30900    | 9000              |
 | minio (консоль) | 30901    | 9001              |
 
-`tg-bot`, `max-bot`, `tg-userbot-worker` без Service — им не нужен входящий
-трафик (long polling исходящий).
+`tg-userbot-worker` без Service — ему не нужен входящий трафик (MTProto
+исходящий).
 
-`registry` — не NodePort, а Ingress на `registry.orixon.ru` (порты 80/443
-через встроенный в k3s Traefik), см. шаг 0.
+`registry` — без NodePort, доступен через `IngressRoute` (см. шаг 0 и
+раздел "Домены" ниже).
+
+## Домены (IngressRoute)
+
+Наружу торчат через Traefik `IngressRoute` (не стандартный `networking.k8s.io/v1
+Ingress` — CRD, специфичный для Traefik) с TLS через ACME `certResolver:
+letsencrypt`, уже настроенный в кластере. Для каждого домена — пара
+IngressRoute: на `web` (порт 80) с редиректом на https через общий
+`Middleware` `redirect-to-https` (`k3s/middleware.yaml`), и на `websecure`
+(порт 443) с `tls.certResolver: letsencrypt`.
+
+| Сервис          | Домен                               |
+| --------------- | ------------------------------------ |
+| registry        | registry.orixon.ru                   |
+| clients         | psi-opora-clients.orixon.ru          |
+| dashboard       | psi-opora-dashboard.orixon.ru        |
+| bitrix-webhook  | psi-opora-bitrix-webhook.orixon.ru   |
+| tg-bot          | psi-opora-tg.orixon.ru               |
+| max-bot         | psi-opora-max.orixon.ru              |
+
+Для каждого — направить DNS A-запись на IP сервера с k3s.
+
+`tg-bot` и `max-bot` в манифестах уже получили `containerPort: 3000` +
+Service + IngressRoute, но сам образ пока запускает `src/dev.ts` (long
+polling, см. раздел выше) — маршрут начнёт из чего-то отвечать только
+после того, как CMD в `apps/tg-bot/Dockerfile` / `apps/max-bot/Dockerfile`
+переключится на webhook-сервер (обработчик уже есть в `api/webhook.ts`,
+сейчас используется только для деплоя на Vercel) и после
+`set-webhook`/`delete-webhook` скриптов для регистрации URL в Telegram/MAX.
 
 ## Проверка
 
