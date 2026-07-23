@@ -1,28 +1,15 @@
-FROM oven/bun:1-alpine AS base
-
-# --- Prune: собираем минимальный поддеревь монорепо для dashboard ---
-FROM base AS pruner
-WORKDIR /app
-COPY . .
-RUN bunx turbo prune @psi-opora/dashboard --docker
-
-# --- Install & build ---
-FROM base AS installer
-WORKDIR /app
+FROM oven/bun:1-alpine
 
 # @mtcute/node (через @psi-opora/tg-userbot) тянет нативные аддоны
 # (better-sqlite3), которым в Alpine-образе нужны Python и компилятор.
-RUN apk add --no-cache python3 g++ make
+# git — потому что packages/* (например @psi-opora/api) перед сборкой делают
+# `git clean -xdf .cache dist` (см. .dockerignore, где .git не исключён).
+RUN apk add --no-cache python3 g++ make git
 
-COPY --from=pruner /app/out/json/ .
-RUN bun install --frozen-lockfile
-COPY --from=pruner /app/out/full/ .
-RUN bunx turbo run build --filter=@psi-opora/dashboard...
-
-# --- Runner: только рантайм-артефакты ---
-FROM base AS runner
 WORKDIR /app
-COPY --from=installer /app .
+COPY . .
+RUN bun install --frozen-lockfile
+RUN bunx turbo run build --filter=@psi-opora/dashboard...
 
 WORKDIR /app/apps/dashboard
 ENV PORT=3000
