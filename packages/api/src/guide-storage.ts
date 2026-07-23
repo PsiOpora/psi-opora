@@ -2,7 +2,6 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
-  S3Client,
 } from "@aws-sdk/client-s3";
 import {
   GUIDE_FILE_NAME_KEY,
@@ -10,12 +9,8 @@ import {
   GUIDE_FILE_SIZE_KEY,
   GUIDE_FILE_URL_KEY,
 } from "@psi-opora/bot-core";
-import {
-  createBotGuide,
-  getBackupCredentials,
-  listBotGuides,
-  saveBotTexts,
-} from "@psi-opora/db/queries";
+import { createBotGuide, listBotGuides, saveBotTexts } from "@psi-opora/db/queries";
+import { createS3 } from "./s3-client";
 
 /**
  * Хранилище PDF-гайда (лид-магнита) в S3.
@@ -27,38 +22,6 @@ const GUIDE_PREFIX = "bot/guide/";
 
 /** Telegram скачивает документ по URL сам; его лимит — 20 МБ, наш — с запасом. */
 export const MAX_GUIDE_SIZE = 10 * 1024 * 1024;
-
-async function createS3(): Promise<{ client: S3Client; bucket: string }> {
-  const creds = await getBackupCredentials();
-  if (
-    !creds?.s3Endpoint ||
-    !creds.s3Bucket ||
-    !creds.s3AccessKeyId ||
-    !creds.s3SecretAccessKey
-  ) {
-    throw new Error(
-      "S3-хранилище не настроено — заполните раздел «Бэкап CRM» в настройках",
-    );
-  }
-
-  // MinIO (локальная разработка) не резолвит поддомены вида bucket.host,
-  // поэтому для локальных эндпоинтов используем path-style обращение к бакету
-  const isLocalEndpoint = /localhost|127\.0\.0\.1|minio/i.test(
-    creds.s3Endpoint,
-  );
-
-  const client = new S3Client({
-    endpoint: creds.s3Endpoint,
-    region: creds.s3Region || "ru-central1",
-    credentials: {
-      accessKeyId: creds.s3AccessKeyId,
-      secretAccessKey: creds.s3SecretAccessKey,
-    },
-    forcePathStyle: isLocalEndpoint,
-  });
-
-  return { client, bucket: creds.s3Bucket };
-}
 
 /** Загружает PDF и возвращает ключ объекта в S3. */
 export async function uploadGuidePdf(

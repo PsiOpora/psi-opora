@@ -31,6 +31,7 @@ export type {
   BroadcastRecipient,
   BroadcastReport,
 } from "./broadcast-send";
+export { getAvatarStream } from "./avatar-storage";
 export type { CostEntry } from "./costs-store";
 export type {
   EmailRecipient,

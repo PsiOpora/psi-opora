@@ -1,4 +1,6 @@
 export {
+  type AvatarUploadResult,
+  type AvatarUploader,
   type BotOptions,
   createBot,
   log,

@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       return Response.json({ success: false, message: "No deal id" });
     }
 
-    const api = resolveBitrixApi();
+    const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
     if (!api) {
       return Response.json(
         { success: false, message: "Bitrix24 не подключён" },

@@ -144,6 +144,9 @@ export interface BotOptions {
   /** Токен бота — достаётся из БД (resolveTelegramBotToken в utils/token.ts)
    * раньше вызова createBot; без него бот не создать. */
   token?: string;
+  /** Перезаливка аватара клиента в наше S3 (см. AvatarUploader). Без неё
+   * аватар Telegram не сохраняется — только временный photoFileId. */
+  uploadAvatar?: AvatarUploader;
 }
 
 function toInlineKeyboard(
@@ -222,6 +225,7 @@ export function createBot({
   client,
   bitrixApi,
   token,
+  uploadAvatar,
 }: BotOptions = {}) {
   const resolvedToken = token || "";
   const bot = new Bot<AppContext>(resolvedToken, client ? { client } : undefined);
@@ -279,7 +283,13 @@ export function createBot({
       source: "scenario",
       text: rawParam ? `/start ${rawParam}` : "/start",
     });
-    await collectTelegramProfile(ctx, ctx.session.source, ctx.session.campaign);
+    await collectTelegramProfile(
+      ctx,
+      ctx.session.source,
+      ctx.session.campaign,
+      resolvedToken,
+      uploadAvatar,
+    );
 
     const texts = await getScenarioTexts();
     await dispatch(ctx, startScenario(texts), texts);
