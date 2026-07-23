@@ -1,5 +1,6 @@
 "use client";
 
+import { BotIcon, HeadsetIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { formatDayLabel, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -14,13 +15,26 @@ export interface ThreadMessage {
   pending?: boolean;
 }
 
-/** Подпись источника исходящего сообщения — откуда оно было отправлено. */
-const SOURCE_LABELS: Record<string, string> = {
-  scenario: "бот",
-  reminder: "напоминание",
-  widget: "оператор",
-  broadcast: "рассылка",
-  operator: "оператор",
+/** Кто фактически отправил исходящее сообщение — определяет цвет пузыря и иконку:
+ * бот/автоматика получает один стиль, живой оператор — другой. */
+const SOURCE_META: Record<
+  string,
+  { label: string; category: "bot" | "operator" }
+> = {
+  scenario: { label: "бот", category: "bot" },
+  reminder: { label: "напоминание", category: "bot" },
+  broadcast: { label: "рассылка", category: "bot" },
+  widget: { label: "оператор", category: "operator" },
+  operator: { label: "оператор", category: "operator" },
+};
+
+const DEFAULT_SOURCE_META = { label: null, category: "operator" as const };
+
+const BUBBLE_STYLES = {
+  in: "self-start rounded-bl-md border bg-message-client text-message-client-foreground border-message-client-border",
+  bot: "self-end rounded-br-md bg-message-bot text-message-bot-foreground",
+  operator:
+    "self-end rounded-br-md bg-message-operator text-message-operator-foreground",
 };
 
 /** Насколько близко к низу нужно быть, чтобы новое сообщение автоскроллило —
@@ -79,18 +93,33 @@ export function MessageList({ messages }: { messages: ThreadMessage[] }) {
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      className="flex h-full flex-col gap-1.5 overflow-y-auto px-4 py-3"
+      className="flex h-full flex-col overflow-y-auto px-4 py-3"
     >
       {messages.map((item, index) => {
         const prev = messages[index - 1];
         const showDay =
           !prev || dayKey(prev.createdAt) !== dayKey(item.createdAt);
-        const sourceLabel =
-          item.direction === "out" ? SOURCE_LABELS[item.source] : null;
+        const meta =
+          item.direction === "out"
+            ? (SOURCE_META[item.source] ?? DEFAULT_SOURCE_META)
+            : null;
+        const groupedWithPrev =
+          !showDay &&
+          !!prev &&
+          prev.direction === item.direction &&
+          prev.source === item.source;
+        const Icon = meta?.category === "bot" ? BotIcon : HeadsetIcon;
+
         return (
-          <div key={item.id} className="flex flex-col gap-1.5">
+          <div
+            key={item.id}
+            className={cn(
+              "flex flex-col",
+              showDay ? "mt-0" : groupedWithPrev ? "mt-1" : "mt-3",
+            )}
+          >
             {showDay && (
-              <div className="my-2 flex items-center gap-3">
+              <div className="my-3 flex items-center gap-3">
                 <div className="h-px flex-1 bg-border" />
                 <span className="text-xs text-muted-foreground">
                   {formatDayLabel(item.createdAt)}
@@ -100,24 +129,26 @@ export function MessageList({ messages }: { messages: ThreadMessage[] }) {
             )}
             <div
               className={cn(
-                "max-w-[70%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap",
-                item.direction === "out"
-                  ? "self-end rounded-br-md bg-primary text-primary-foreground"
-                  : "self-start rounded-bl-md bg-muted",
+                "max-w-[70%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap shadow-sm",
+                BUBBLE_STYLES[item.direction === "in" ? "in" : meta!.category],
                 item.pending && "opacity-60",
               )}
             >
               {item.text}
               <div
                 className={cn(
-                  "mt-1 flex items-center gap-1 text-[10px]",
-                  item.direction === "out"
-                    ? "justify-end text-primary-foreground/70"
-                    : "text-muted-foreground",
+                  "mt-1 flex items-center gap-1 text-[10px] opacity-70",
+                  item.direction === "out" ? "justify-end" : "",
                 )}
               >
+                {meta?.label && (
+                  <>
+                    <Icon className="size-3" />
+                    <span>{meta.label}</span>
+                    <span>·</span>
+                  </>
+                )}
                 <span>{formatTime(item.createdAt)}</span>
-                {sourceLabel && <span>· {sourceLabel}</span>}
                 {item.pending && <span>· отправляется…</span>}
               </div>
             </div>
