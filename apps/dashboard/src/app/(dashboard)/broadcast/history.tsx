@@ -1,4 +1,7 @@
-import { listBroadcasts } from "@psi-opora/db/queries";
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import type { Broadcast } from "@psi-opora/db/queries";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,16 +26,26 @@ const CHANNEL_SHORT: Record<string, string> = {
   max: "MAX",
 };
 
-export function formatDateTime(date: Date | null): string {
+export const broadcastsListKey = ["dashboard-broadcasts"];
+
+export function formatDateTime(date: Date | string | null): string {
   if (!date) return "—";
   return new Intl.DateTimeFormat("ru-RU", {
     dateStyle: "short",
     timeStyle: "short",
-  }).format(date);
+  }).format(new Date(date));
 }
 
-export async function BroadcastHistory() {
-  const broadcasts = await listBroadcasts();
+export function BroadcastHistory() {
+  const { data: broadcasts = [], isLoading } = useQuery({
+    queryKey: broadcastsListKey,
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/broadcasts");
+      if (!res.ok) throw new Error("Не удалось загрузить историю рассылок");
+      const json = (await res.json()) as { broadcasts: Broadcast[] };
+      return json.broadcasts;
+    },
+  });
 
   return (
     <Card>
@@ -44,7 +57,9 @@ export async function BroadcastHistory() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {broadcasts.length === 0 ? (
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Загрузка…</p>
+        ) : broadcasts.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Рассылок ещё не было. История появится после первой отправки
             (требуется подключённая база данных).

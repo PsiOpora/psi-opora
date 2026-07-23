@@ -1,11 +1,12 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { orpc } from "@/lib/orpc/client";
 
 interface UploadResponse {
   ok?: boolean;
@@ -14,7 +15,7 @@ interface UploadResponse {
 
 /** Загрузка через XHR (не server action), чтобы показать прогресс отправки файла. */
 export function GuideUploadForm() {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const formRef = useRef<HTMLFormElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
 
@@ -48,7 +49,7 @@ export function GuideUploadForm() {
       if (xhr.status >= 200 && xhr.status < 300 && data.ok) {
         toast.success("Гайд добавлен в библиотеку");
         formRef.current?.reset();
-        router.refresh();
+        queryClient.invalidateQueries({ queryKey: orpc.bot.listGuides.key() });
       } else {
         toast.error(data.error ?? "Не удалось загрузить файл");
       }

@@ -1,29 +1,33 @@
-import { parseDateRange } from "@/lib/analytics/date-range";
-import {
-  fetchCategoryNames,
-  fetchDeals,
-  fetchSourceNames,
-  fetchStageNames,
-} from "@/lib/analytics/deals";
-import { getBitrixApi } from "@/lib/bitrix/session";
+"use client";
+
+import { useBitrixData } from "@/hooks/use-bitrix-data";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { ReportBuilder } from "@/components/dashboard/report-builder";
 
-export default async function BuilderPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const api = await getBitrixApi();
-  if (!api) return <NotConnected />;
-
-  const range = parseDateRange(await searchParams);
-  const [deals, sourceNames, categoryNames, stageNames] = await Promise.all([
-    fetchDeals(api, range),
-    fetchSourceNames(api),
-    fetchCategoryNames(api),
-    fetchStageNames(api),
+export default function BuilderPage() {
+  const { data, isLoading, isError } = useBitrixData([
+    "deals",
+    "sourceNames",
+    "categoryNames",
+    "stageNames",
   ]);
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+  }
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive">
+        Не удалось загрузить данные. Попробуйте обновить страницу.
+      </p>
+    );
+  }
+  if (!data?.connected) return <NotConnected />;
+
+  const deals = data.deals ?? [];
+  const sourceNames = data.sourceNames ?? new Map<string, string>();
+  const categoryNames = data.categoryNames ?? new Map<string, string>();
+  const stageNames = data.stageNames ?? new Map();
 
   return (
     <ReportBuilder

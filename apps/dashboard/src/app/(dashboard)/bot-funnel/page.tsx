@@ -1,3 +1,6 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
 import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
 import { FunnelChart } from "@/components/dashboard/funnel-chart";
 import { Badge } from "@/components/ui/badge";
@@ -19,15 +22,14 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  type BotFunnelEvent,
   type BotFunnelStepStats,
-  fetchBotFunnelEvents,
   funnelByMessenger,
   funnelBySourceCampaign,
   funnelStepStats,
 } from "@/lib/analytics/bot-funnel";
-import { parseDateRange } from "@/lib/analytics/date-range";
+import { useDashboardRange } from "@/hooks/use-bitrix-data";
 import { formatNumber, formatPercent } from "@/lib/format";
-import { isRedisConfigured } from "@/lib/redis";
 
 const MESSENGER_LABELS: Record<string, string> = {
   telegram: "Telegram",
@@ -35,13 +37,37 @@ const MESSENGER_LABELS: Record<string, string> = {
   all: "Все мессенджеры",
 };
 
-export default async function BotFunnelPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const range = parseDateRange(await searchParams);
-  const events = await fetchBotFunnelEvents(range);
+export default function BotFunnelPage() {
+  const range = useDashboardRange();
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["dashboard-bot-funnel", range.from.toISOString(), range.to.toISOString()],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        from: range.from.toISOString(),
+        to: range.to.toISOString(),
+      });
+      const res = await fetch(`/api/dashboard/bot-funnel?${params}`);
+      if (!res.ok) throw new Error("Не удалось загрузить воронку бота");
+      return (await res.json()) as {
+        events: BotFunnelEvent[];
+        redisConfigured: boolean;
+      };
+    },
+  });
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+  }
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive">
+        Не удалось загрузить данные. Попробуйте обновить страницу.
+      </p>
+    );
+  }
+
+  const events = data?.events ?? [];
+  const redisConfigured = data?.redisConfigured ?? false;
 
   if (events.length === 0) {
     return (
@@ -49,7 +75,7 @@ export default async function BotFunnelPage({
         <CardHeader>
           <CardTitle>Воронка бота</CardTitle>
           <CardDescription>
-            {isRedisConfigured()
+            {redisConfigured
               ? "За выбранный период событий нет. Счётчики шагов начинают накапливаться после деплоя ботов с трекингом — исторические данные до этого момента недоступны."
               : "Хранилище событий недоступно: переменные KV_REST_API_URL и KV_REST_API_TOKEN не заданы. На проде (Vercel) они настроены — локально страница работает только с подключённым Redis."}
           </CardDescription>

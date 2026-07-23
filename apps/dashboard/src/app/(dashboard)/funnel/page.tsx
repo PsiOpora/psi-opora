@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Card,
   CardContent,
@@ -6,30 +8,32 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { funnelByStage, groupDealsByCategory } from "@/lib/analytics/aggregate";
-import { parseDateRange } from "@/lib/analytics/date-range";
-import {
-  fetchCategoryNames,
-  fetchDeals,
-  fetchStageNames,
-} from "@/lib/analytics/deals";
-import { getBitrixApi } from "@/lib/bitrix/session";
+import { useBitrixData } from "@/hooks/use-bitrix-data";
 import { FunnelStages } from "@/components/dashboard/funnel-stages";
 import { NotConnected } from "@/components/dashboard/not-connected";
 
-export default async function FunnelPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const api = await getBitrixApi();
-  if (!api) return <NotConnected />;
-
-  const range = parseDateRange(await searchParams);
-  const [deals, stageNames, categoryNames] = await Promise.all([
-    fetchDeals(api, range),
-    fetchStageNames(api),
-    fetchCategoryNames(api),
+export default function FunnelPage() {
+  const { data, isLoading, isError } = useBitrixData([
+    "deals",
+    "stageNames",
+    "categoryNames",
   ]);
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+  }
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive">
+        Не удалось загрузить данные. Попробуйте обновить страницу.
+      </p>
+    );
+  }
+  if (!data?.connected) return <NotConnected />;
+
+  const deals = data.deals ?? [];
+  const stageNames = data.stageNames ?? new Map();
+  const categoryNames = data.categoryNames ?? new Map();
 
   const byCategory = [...groupDealsByCategory(deals).entries()].sort(
     ([, a], [, b]) => b.length - a.length,

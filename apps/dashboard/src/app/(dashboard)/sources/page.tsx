@@ -1,26 +1,33 @@
-import { groupBySource } from "@/lib/analytics/aggregate";
-import { parseDateRange } from "@/lib/analytics/date-range";
-import { fetchDeals, fetchSourceNames } from "@/lib/analytics/deals";
-import { getBitrixPortalDomain } from "@/lib/bitrix/deal-link";
-import { getBitrixApi } from "@/lib/bitrix/session";
+"use client";
+
 import { GroupBarChart } from "@/components/dashboard/group-bar-chart";
 import { GroupStatsCard } from "@/components/dashboard/group-stats-card";
 import { NotConnected } from "@/components/dashboard/not-connected";
+import { useBitrixData } from "@/hooks/use-bitrix-data";
+import { groupBySource } from "@/lib/analytics/aggregate";
 
-export default async function SourcesPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const api = await getBitrixApi();
-  if (!api) return <NotConnected />;
-
-  const range = parseDateRange(await searchParams);
-  const [deals, sourceNames, dealDomain] = await Promise.all([
-    fetchDeals(api, range),
-    fetchSourceNames(api),
-    getBitrixPortalDomain(),
+export default function SourcesPage() {
+  const { data, isLoading, isError } = useBitrixData([
+    "deals",
+    "sourceNames",
+    "dealDomain",
   ]);
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+  }
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive">
+        Не удалось загрузить данные. Попробуйте обновить страницу.
+      </p>
+    );
+  }
+  if (!data?.connected) return <NotConnected />;
+
+  const deals = data.deals ?? [];
+  const sourceNames = data.sourceNames ?? new Map<string, string>();
+  const dealDomain = data.dealDomain ?? null;
   const bySource = groupBySource(deals, sourceNames);
 
   return (

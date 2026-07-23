@@ -1,4 +1,7 @@
+"use client";
+
 import type { CostEntry } from "@psi-opora/api";
+import { useQuery } from "@tanstack/react-query";
 import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { Badge } from "@/components/ui/badge";
@@ -18,14 +21,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { parseDateRange } from "@/lib/analytics/date-range";
-import { fetchDeals } from "@/lib/analytics/deals";
+import { useBitrixData, useDashboardRange } from "@/hooks/use-bitrix-data";
 import type { DealRecord } from "@/lib/analytics/types";
-import { getBitrixApi } from "@/lib/bitrix/session";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { monthIntersectsRange } from "@/lib/marketing/costs";
-import { orpc } from "@/lib/orpc/server";
-import { isRedisConfigured } from "@/lib/redis";
+import { orpc } from "@/lib/orpc/client";
 import { AddCostForm } from "./add-cost-form";
 import { DeleteCostButton } from "./delete-cost-button";
 
@@ -94,15 +94,29 @@ function buildRoiRows(
     .sort((a, b) => b.spend - a.spend);
 }
 
-export default async function CostsPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const api = await getBitrixApi();
-  if (!api) return <NotConnected />;
+export default function CostsPage() {
+  const range = useDashboardRange();
+  const { data: bitrixData, isLoading: bitrixLoading } = useBitrixData([
+    "deals",
+  ]);
+  const { data: redisStatus } = useQuery({
+    queryKey: ["dashboard-redis-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/redis-status");
+      if (!res.ok) throw new Error("Не удалось проверить Redis");
+      return (await res.json()) as { configured: boolean };
+    },
+  });
+  const { data: costs = [], isLoading: costsLoading } = useQuery(
+    orpc.costs.list.queryOptions(),
+  );
 
-  if (!isRedisConfigured()) {
+  if (bitrixLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+  }
+  if (!bitrixData?.connected) return <NotConnected />;
+
+  if (redisStatus && !redisStatus.configured) {
     return (
       <Card>
         <CardHeader>
@@ -117,11 +131,11 @@ export default async function CostsPage({
     );
   }
 
-  const range = parseDateRange(await searchParams);
-  const [costs, deals] = await Promise.all([
-    orpc.costs.list(),
-    fetchDeals(api, range),
-  ]);
+  if (costsLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+  }
+
+  const deals = bitrixData.deals ?? [];
   const roiRows = buildRoiRows(costs, deals, range.from, range.to);
 
   return (

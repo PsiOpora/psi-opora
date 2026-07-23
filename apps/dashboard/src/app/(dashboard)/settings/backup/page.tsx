@@ -1,3 +1,6 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -14,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { orpc } from "@/lib/orpc/server";
+import { orpc } from "@/lib/orpc/client";
 import { AutoRefresh } from "./auto-refresh";
 import { BackupCredentialsForm } from "./credentials-form";
 import { RunBackupButton } from "./run-backup-button";
@@ -31,11 +34,9 @@ const STATUS_LABEL: Record<string, string> = {
   error: "Ошибка",
 };
 
-export default async function BackupSettingsPage() {
-  const [creds, runs] = await Promise.all([
-    orpc.backup.getCredentials().catch(() => null),
-    orpc.backup.listRuns().catch(() => []),
-  ]);
+export default function BackupSettingsPage() {
+  const { data: creds } = useQuery(orpc.backup.getCredentials.queryOptions());
+  const { data: runs = [] } = useQuery(orpc.backup.listRuns.queryOptions());
 
   const hasRunningBackup = runs.some((run) => run.status === "running");
 
@@ -69,7 +70,7 @@ export default async function BackupSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <BackupCredentialsForm initialCredentials={creds} />
+          <BackupCredentialsForm initialCredentials={creds ?? null} />
         </CardContent>
       </Card>
 

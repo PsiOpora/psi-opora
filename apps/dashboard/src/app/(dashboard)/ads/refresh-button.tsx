@@ -1,6 +1,8 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCwIcon } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,12 +10,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { orpcClient } from "@/lib/orpc/client";
+import { orpc, orpcClient } from "@/lib/orpc/client";
 
 export function AdRefreshButton() {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
 
   const handleRefresh = async () => {
@@ -23,7 +23,8 @@ export function AdRefreshButton() {
       const result = await orpcClient.ads.refreshStats();
       if (result.ok) {
         toast.success("Данные обновлены", { id: toastId });
-        router.refresh();
+        queryClient.invalidateQueries({ queryKey: ["dashboard-ad-stats"] });
+        queryClient.invalidateQueries({ queryKey: orpc.ads.stats.key() });
       } else {
         toast.error(result.error ?? "Не удалось обновить данные", {
           id: toastId,

@@ -106,6 +106,12 @@ export function getConnectorDisabledInfo(
   };
 }
 
+/** Токен — общий секрет с Bitrix, светить его в логах целиком нельзя. */
+function redactAuthToken(payload: BitrixWebhookPayload): unknown {
+  if (!payload.auth?.application_token) return payload;
+  return { ...payload, auth: { ...payload.auth, application_token: "***" } };
+}
+
 export function bitrixWebhookHandler(options?: {
   token?: string;
   /** Вызывается, когда во входящем событии — ответ оператора Открытой линии. */
@@ -121,6 +127,15 @@ export function bitrixWebhookHandler(options?: {
       return new Response("ok");
     }
 
+    // Лог каждого входящего POST-а до всяких проверок — иначе при обрыве
+    // на токене/парсинге/маршрутизации в логах не остаётся ни следа того,
+    // что Bitrix вообще стучался сюда, и непонятно, где искать причину
+    // пропажи ответа оператора.
+    const rawBody = await req.text();
+    console.log(
+      `[bitrix-webhook] входящий запрос, длина тела=${rawBody.length}`,
+    );
+
     const webhookToken = options?.token ?? env.BITRIX_WEBHOOK_TOKEN;
     if (!webhookToken) {
       console.error("[bitrix-webhook] BITRIX_WEBHOOK_TOKEN не задан");
@@ -129,10 +144,18 @@ export function bitrixWebhookHandler(options?: {
 
     let payload: BitrixWebhookPayload;
     try {
-      payload = (await req.json()) as BitrixWebhookPayload;
+      payload = JSON.parse(rawBody) as BitrixWebhookPayload;
     } catch {
+      console.warn(
+        `[bitrix-webhook] невалидный JSON в теле запроса: ${rawBody.slice(0, 500)}`,
+      );
       return new Response("Invalid JSON", { status: 400 });
     }
+
+    console.log(
+      `[bitrix-webhook] событие=${payload.event}, payload:`,
+      JSON.stringify(redactAuthToken(payload)),
+    );
 
     if (payload.auth?.application_token !== webhookToken) {
       console.warn(
@@ -154,19 +177,13 @@ export function bitrixWebhookHandler(options?: {
       // оператора было невозможно.
       console.warn(
         `[bitrix-webhook] ONIMCONNECTORMESSAGEADD без chatId/text, payload:`,
-        JSON.stringify(payload),
+        JSON.stringify(redactAuthToken(payload)),
       );
     }
 
     const disabled = getConnectorDisabledInfo(payload);
-    if (disabled) {
-      console.log(
-        `[bitrix-webhook] событие ${payload.event}, payload:`,
-        JSON.stringify(payload),
-      );
-      if (options?.onConnectorDisabled) {
-        await options.onConnectorDisabled(disabled);
-      }
+    if (disabled && options?.onConnectorDisabled) {
+      await options.onConnectorDisabled(disabled);
     }
 
     return new Response("ok");

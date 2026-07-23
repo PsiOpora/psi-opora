@@ -1,4 +1,11 @@
+"use client";
+
+import { GroupBarChart } from "@/components/dashboard/group-bar-chart";
+import { GroupStatsCard } from "@/components/dashboard/group-stats-card";
+import { NotConnected } from "@/components/dashboard/not-connected";
+import { UtmLegendCard } from "@/components/dashboard/utm-legend-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useBitrixData } from "@/hooks/use-bitrix-data";
 import {
   groupByUtmCampaign,
   groupByUtmContent,
@@ -6,29 +13,25 @@ import {
   groupByUtmSource,
   groupByUtmTerm,
 } from "@/lib/analytics/aggregate";
-import { parseDateRange } from "@/lib/analytics/date-range";
-import { fetchDeals } from "@/lib/analytics/deals";
 import { utmHint } from "@/lib/analytics/utm-tags";
-import { getBitrixPortalDomain } from "@/lib/bitrix/deal-link";
-import { getBitrixApi } from "@/lib/bitrix/session";
-import { GroupBarChart } from "@/components/dashboard/group-bar-chart";
-import { GroupStatsCard } from "@/components/dashboard/group-stats-card";
-import { NotConnected } from "@/components/dashboard/not-connected";
-import { UtmLegendCard } from "@/components/dashboard/utm-legend-card";
 
-export default async function UtmReportPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const api = await getBitrixApi();
-  if (!api) return <NotConnected />;
+export default function UtmReportPage() {
+  const { data, isLoading, isError } = useBitrixData(["deals", "dealDomain"]);
 
-  const range = parseDateRange(await searchParams);
-  const [deals, dealDomain] = await Promise.all([
-    fetchDeals(api, range),
-    getBitrixPortalDomain(),
-  ]);
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+  }
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive">
+        Не удалось загрузить данные. Попробуйте обновить страницу.
+      </p>
+    );
+  }
+  if (!data?.connected) return <NotConnected />;
+
+  const deals = data.deals ?? [];
+  const dealDomain = data.dealDomain ?? null;
 
   const dimensions = [
     {

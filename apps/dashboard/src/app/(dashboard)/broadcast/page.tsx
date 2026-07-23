@@ -1,7 +1,9 @@
+"use client";
+
 import { NotConnected } from "@/components/dashboard/not-connected";
-import { fetchCategoryNames, fetchStageNames } from "@/lib/analytics/deals";
-import { getBitrixApi } from "@/lib/bitrix/session";
-import { BroadcastForm, type StageOption } from "./broadcast-form";
+import { useBitrixData } from "@/hooks/use-bitrix-data";
+import type { StageOption } from "./broadcast-form";
+import { BroadcastForm } from "./broadcast-form";
 import { BroadcastHistory } from "./history";
 
 /** CATEGORY_ID из STAGE_ID: "C5:NEW" → "5", "NEW" (основная воронка) → "0". */
@@ -9,14 +11,26 @@ function categoryOfStage(stageId: string): string {
   return stageId.match(/^C(\d+):/)?.[1] ?? "0";
 }
 
-export default async function BroadcastPage() {
-  const api = await getBitrixApi();
-  if (!api) return <NotConnected />;
-
-  const [stages, categories] = await Promise.all([
-    fetchStageNames(api),
-    fetchCategoryNames(api).catch(() => new Map<string, string>()),
+export default function BroadcastPage() {
+  const { data, isLoading, isError } = useBitrixData([
+    "stageNames",
+    "categoryNames",
   ]);
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+  }
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive">
+        Не удалось загрузить данные. Попробуйте обновить страницу.
+      </p>
+    );
+  }
+  if (!data?.connected) return <NotConnected />;
+
+  const stages = data.stageNames ?? new Map();
+  const categories = data.categoryNames ?? new Map();
 
   const options: StageOption[] = [...stages.entries()]
     .map(([stageId, info]) => {

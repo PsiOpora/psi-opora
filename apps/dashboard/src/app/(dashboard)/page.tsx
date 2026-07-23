@@ -1,13 +1,12 @@
+"use client";
+
 import {
   groupBySource,
   groupByUtmSource,
   summarize,
   trendByDay,
 } from "@/lib/analytics/aggregate";
-import { parseDateRange, previousRange } from "@/lib/analytics/date-range";
-import { fetchDeals, fetchSourceNames } from "@/lib/analytics/deals";
-import { getBitrixPortalDomain } from "@/lib/bitrix/deal-link";
-import { getBitrixApi } from "@/lib/bitrix/session";
+import { useBitrixData } from "@/hooks/use-bitrix-data";
 import { GroupStatsCard } from "@/components/dashboard/group-stats-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { NotConnected } from "@/components/dashboard/not-connected";
@@ -15,32 +14,31 @@ import { TrendChart } from "@/components/dashboard/trend-chart";
 
 const TOP_LIMIT = 5;
 
-export default async function OverviewPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const api = await getBitrixApi();
-  if (!api) return <NotConnected />;
+export default function OverviewPage() {
+  const { data, isLoading, isError } = useBitrixData([
+    "deals",
+    "previousDeals",
+    "sourceNames",
+    "dealDomain",
+  ]);
 
-  const range = parseDateRange(await searchParams);
-  let deals: Awaited<ReturnType<typeof fetchDeals>>;
-  let previousDeals: Awaited<ReturnType<typeof fetchDeals>>;
-  let sourceNames: Awaited<ReturnType<typeof fetchSourceNames>>;
-  let dealDomain: Awaited<ReturnType<typeof getBitrixPortalDomain>>;
-  try {
-    [deals, previousDeals, sourceNames, dealDomain] = await Promise.all([
-      fetchDeals(api, range),
-      fetchDeals(api, previousRange(range)),
-      fetchSourceNames(api),
-      getBitrixPortalDomain(),
-    ]);
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("INVALID_CREDENTIALS")) {
-      return <NotConnected />;
-    }
-    throw error;
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
   }
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive">
+        Не удалось загрузить данные. Попробуйте обновить страницу.
+      </p>
+    );
+  }
+  if (!data?.connected) return <NotConnected />;
+
+  const deals = data.deals ?? [];
+  const previousDeals = data.previousDeals ?? [];
+  const sourceNames = data.sourceNames ?? new Map<string, string>();
+  const dealDomain = data.dealDomain ?? null;
+
   const summary = summarize(deals);
   const previousSummary = summarize(previousDeals);
   const trend = trendByDay(deals);

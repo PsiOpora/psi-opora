@@ -1,3 +1,6 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -5,11 +8,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { orpc } from "@/lib/orpc/server";
+import { orpc } from "@/lib/orpc/client";
 import { AdCredentialsForm } from "./credentials-form";
 
-export default async function AdSettingsPage() {
-  const creds = await orpc.ads.getCredentials().catch(() => null);
+export default function AdSettingsPage() {
+  const { data: creds, isLoading } = useQuery(
+    orpc.ads.getCredentials.queryOptions(),
+  );
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl">
@@ -37,7 +42,11 @@ export default async function AdSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AdCredentialsForm initialCredentials={creds} />
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Загрузка…</p>
+          ) : (
+            <AdCredentialsForm initialCredentials={creds ?? null} />
+          )}
         </CardContent>
       </Card>
     </div>

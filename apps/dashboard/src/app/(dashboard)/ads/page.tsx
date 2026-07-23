@@ -1,3 +1,7 @@
+"use client";
+
+import type { AdStatsResult } from "@psi-opora/api";
+import { useQuery } from "@tanstack/react-query";
 import { AdStatsError } from "@/components/dashboard/ad-stats-error";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,16 +19,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  type AdStatsResult,
-  fetchAdStats,
-  getCachedAdStats,
-} from "@psi-opora/api";
 import { formatMoney, formatNumber } from "@/lib/format";
-import { orpc } from "@/lib/orpc/server";
-import { getRedisOrNull } from "@/lib/redis";
+import { orpc } from "@/lib/orpc/client";
 import { AdRefreshButton } from "./refresh-button";
-import { AdTrendChart } from "./trend-chart-client";
+import { AdTrendChart } from "./trend-chart";
 
 function formatCtr(clicks: number, impressions: number): string {
   if (impressions === 0) return "—";
@@ -51,35 +49,32 @@ function StatusBadge({
   );
 }
 
-export default async function AdsPage() {
-  const redis = getRedisOrNull();
-  const today = new Date();
-  const dateTo = today.toISOString().split("T")[0];
-  const dateFrom = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0];
+export default function AdsPage() {
+  const { data: liveResult, isLoading: liveLoading } = useQuery({
+    queryKey: ["dashboard-ad-stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/ad-stats");
+      if (!res.ok) throw new Error("Не удалось загрузить данные рекламы");
+      return (await res.json()) as {
+        data: AdStatsResult | null;
+        redisConfigured: boolean;
+      };
+    },
+  });
 
-  let data: AdStatsResult | null = null;
-  let loadError = false;
+  const { data: dbStats } = useQuery(orpc.ads.stats.queryOptions({ input: {} }));
 
-  if (redis) {
-    data = await getCachedAdStats(redis);
+  if (liveLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
   }
 
-  if (!data) {
-    try {
-      const creds = await orpc.ads.getCredentials().catch(() => null);
-      data = await fetchAdStats(redis, creds);
-    } catch (_err) {
-      loadError = true;
-    }
-  }
+  const liveData = liveResult?.data ?? null;
 
-  if (loadError || !data) {
+  if (!liveData) {
     return (
       <AdStatsError
         message={
-          !redis
+          !liveResult?.redisConfigured
             ? "Redis не настроен. Настройте KV_REST_API_URL и KV_REST_API_TOKEN."
             : "Не удалось загрузить данные. Проверьте API-ключи."
         }
@@ -87,13 +82,12 @@ export default async function AdsPage() {
     );
   }
 
-  // data is guaranteed non-null here — we returned early above
-  const liveData = data;
-
-  const dbStats = await orpc.ads.stats({ dateFrom, dateTo }).catch(() => ({
-    summary: { totalSpend: 0, totalImpressions: 0, totalClicks: 0 },
-    rows: [],
-  }));
+  const dbSummary = dbStats?.summary ?? {
+    totalSpend: 0,
+    totalImpressions: 0,
+    totalClicks: 0,
+  };
+  const dbRows = dbStats?.rows ?? [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -120,10 +114,10 @@ export default async function AdsPage() {
             <div className="text-2xl font-bold">
               {formatMoney(liveData.totalSpend)}
             </div>
-            {dbStats.summary.totalSpend > 0 &&
-              dbStats.summary.totalSpend !== liveData.totalSpend && (
+            {dbSummary.totalSpend > 0 &&
+              dbSummary.totalSpend !== liveData.totalSpend && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  БД: {formatMoney(dbStats.summary.totalSpend)}
+                  БД: {formatMoney(dbSummary.totalSpend)}
                 </p>
               )}
           </CardContent>
@@ -154,7 +148,7 @@ export default async function AdsPage() {
         </Card>
       </div>
 
-      {dbStats.rows.length > 0 && (
+      {dbRows.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Динамика за 7 дней</CardTitle>
@@ -163,7 +157,7 @@ export default async function AdsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AdTrendChart rows={dbStats.rows} />
+            <AdTrendChart rows={dbRows} />
           </CardContent>
         </Card>
       )}

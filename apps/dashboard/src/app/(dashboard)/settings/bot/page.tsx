@@ -1,8 +1,11 @@
+"use client";
+
 import {
   GUIDE_FILE_S3_KEY,
   SCENARIO_TEXT_DEFS,
   type ScenarioTextDef,
 } from "@psi-opora/bot-core";
+import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -11,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { orpc } from "@/lib/orpc/server";
+import { orpc } from "@/lib/orpc/client";
 import { BotTextsForm } from "./bot-texts-form";
 import { DeleteGuideButton, SetActiveGuideButton } from "./guide-actions";
 import { GuideUploadForm } from "./guide-upload-form";
@@ -112,11 +115,9 @@ function GuidesLibraryCard({
   );
 }
 
-export default async function BotTextsPage() {
-  const [overrides, guides] = await Promise.all([
-    orpc.bot.getTexts().catch(() => ({}) as Record<string, string>),
-    orpc.bot.listGuides().catch(() => []),
-  ]);
+export default function BotTextsPage() {
+  const { data: overrides = {} } = useQuery(orpc.bot.getTexts.queryOptions());
+  const { data: guides = [] } = useQuery(orpc.bot.listGuides.queryOptions());
   const groups = groupDefs();
   const activeS3Key = overrides[GUIDE_FILE_S3_KEY]?.trim() ?? "";
 

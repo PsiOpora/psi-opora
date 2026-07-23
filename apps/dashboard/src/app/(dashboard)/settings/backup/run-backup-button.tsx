@@ -1,13 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { orpcClient } from "@/lib/orpc/client";
+import { orpc, orpcClient } from "@/lib/orpc/client";
 
 export function RunBackupButton() {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
 
   const onClick = () => {
@@ -31,7 +31,7 @@ export function RunBackupButton() {
           { id: toastId },
         );
       }
-      router.refresh();
+      queryClient.invalidateQueries({ queryKey: orpc.backup.listRuns.key() });
     });
   };
 
