@@ -1,16 +1,13 @@
-import {
-  type BitrixApi,
-  createWebhookApi,
-  getPortalTokens,
-} from "@psi-opora/bitrix-client";
+import { type BitrixApi, getPortalTokens } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
-import {
-  getBotConnector,
-  listTelegramPersonalAccounts,
-  listWhatsappPersonalAccounts,
-} from "@psi-opora/db/queries";
+import { getBotConnector } from "@psi-opora/db/queries";
 import { publicProcedure } from "../../orpc";
 import { clientThreadSchema } from "../../schemas/messages";
+import {
+  getOpenLineDialog,
+  parseCrmBindings,
+  resolvePersonalDialog,
+} from "./crm-contact";
 import type { CrmDealLink, CrmLinksResult } from "./types";
 
 /**
@@ -42,31 +39,6 @@ function crmUrl(
   return domain ? `https://${domain}/crm/${entity}/details/${id}/` : null;
 }
 
-/**
- * entity_data_2 диалога Открытой линии — привязки CRM парами `TYPE|ID`:
- * `LEAD|0|COMPANY|0|CONTACT|123|DEAL|456` (0 = привязки нет). Тот же формат
- * разбирает бот при создании сделки — см.
- * packages/bot-core/src/utils/bitrix.ts (parseDialogCrmBindings).
- */
-function parseCrmBindings(raw: string | undefined): {
-  contactId: string | null;
-  dealId: string | null;
-  leadId: string | null;
-} {
-  const bindings: Record<string, number> = {};
-  const parts = (raw ?? "").split("|");
-  for (let i = 0; i + 1 < parts.length; i += 2) {
-    const type = parts[i];
-    const id = Number(parts[i + 1]);
-    if (type && Number.isFinite(id) && id > 0) bindings[type] = id;
-  }
-  return {
-    contactId: bindings.CONTACT ? String(bindings.CONTACT) : null,
-    dealId: bindings.DEAL ? String(bindings.DEAL) : null,
-    leadId: bindings.LEAD ? String(bindings.LEAD) : null,
-  };
-}
-
 /** STATUS_ID → NAME для всех воронок сделок (DEAL_STAGE, DEAL_STAGE_2, …). */
 async function loadDealStageNames(
   api: BitrixApi,
@@ -88,102 +60,6 @@ async function loadDealStageNames(
     }
   }
   return names;
-}
-
-/**
- * Вебхук ботов для методов Открытых линий — та же логика выбора env, что у
- * bot-core (getWebhookBase): {TG|MAX}_BITRIX_WEBHOOK_URL, иначе общий
- * BITRIX_WEBHOOK_URL. Нужен как фолбэк: у вебхука дашборда (локальная
- * разработка) обычно нет скоупа imopenlines, а у вебхука ботов — есть.
- */
-function botWebhookUrl(messenger: string): string | null {
-  if (messenger !== "telegram" && messenger !== "max") {
-    // Личные номера (telegram-personal/whatsapp-personal) не имеют своего
-    // вебхука бота — фолбэка для них нет, есть только OAuth-сессия дашборда.
-    return null;
-  }
-  const prefix = messenger === "telegram" ? "TG" : "MAX";
-  return (
-    process.env[`${prefix}_BITRIX_WEBHOOK_URL`] ??
-    process.env.BITRIX_WEBHOOK_URL ??
-    null
-  );
-}
-
-interface OpenLineDialogRaw {
-  id?: number;
-  entity_data_2?: string;
-}
-
-/** Ошибки прав/скоупа — повод попробовать другой ключ, а не падать. */
-function isCredentialsError(message: string): boolean {
-  return /INVALID_CREDENTIALS|insufficient_scope|ACCESS_DENIED/i.test(message);
-}
-
-/**
- * Диалог Открытой линии по USER_CODE: сперва через основной API (OAuth в
- * проде), при нехватке прав — через вебхук ботов. ACCESS_ERROR означает
- * «диалога ещё нет» (клиент не писал через коннектор) — это null, не сбой.
- */
-async function getOpenLineDialog(
-  api: BitrixApi,
-  messenger: string,
-  userCode: string,
-): Promise<OpenLineDialogRaw | null> {
-  const call = (a: BitrixApi) =>
-    a.call<OpenLineDialogRaw>("imopenlines.dialog.get", {
-      USER_CODE: userCode,
-    });
-
-  try {
-    return await call(api);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("ACCESS_ERROR")) return null;
-    if (!isCredentialsError(message)) throw err;
-
-    const webhookUrl = botWebhookUrl(messenger);
-    if (!webhookUrl) throw err;
-    try {
-      return await call(createWebhookApi(webhookUrl));
-    } catch (retryErr) {
-      const retryMessage =
-        retryErr instanceof Error ? retryErr.message : String(retryErr);
-      if (retryMessage.includes("ACCESS_ERROR")) return null;
-      throw retryErr;
-    }
-  }
-}
-
-/**
- * Резолвит диалог Открытой линии для личного номера (telegram-personal /
- * whatsapp-personal): в отличие от ботов, каждый номер — своя пара
- * connector/line (packages/db telegram_personal_accounts /
- * whatsapp_personal_accounts), поэтому единого коннектора на весь мессенджер
- * нет. Chat и user в imconnector.send.messages для этих каналов всегда
- * совпадают (см. apps/tg-userbot-worker relayInboundMessage, apps/bitrix-webhook
- * waha-webhook), поэтому USER_CODE — `{connector}|{line}|{userId}|{userId}`.
- * Проверяем все подключённые номера портала (обычно один) — первый, у
- * которого нашёлся диалог с этим userId.
- */
-async function resolvePersonalDialog(
-  api: BitrixApi,
-  messenger: "telegram-personal" | "whatsapp-personal",
-  memberId: string | null,
-  userId: string,
-): Promise<OpenLineDialogRaw | null> {
-  if (!memberId) return null;
-  const accounts =
-    messenger === "telegram-personal"
-      ? await listTelegramPersonalAccounts(memberId)
-      : await listWhatsappPersonalAccounts(memberId);
-
-  for (const account of accounts.filter((a) => a.status === "connected")) {
-    const userCode = `${account.connectorId}|${account.openLineId}|${userId}|${userId}`;
-    const dialog = await getOpenLineDialog(api, messenger, userCode);
-    if (dialog?.id) return dialog;
-  }
-  return null;
 }
 
 interface RawDeal {

@@ -1,3 +1,4 @@
+import { logger } from "@psi-opora/config";
 import type { Redis } from "@upstash/redis";
 import type { Api, StorageAdapter } from "grammy";
 import { Bot, InlineKeyboard, session } from "grammy";
@@ -117,12 +118,21 @@ export async function sendTelegramScenarioMessage(
     link_preview_options: { is_disabled: true },
   };
   try {
-    await api.sendMessage(chatId, message.text, {
-      ...options,
-      parse_mode: "Markdown",
+    try {
+      await api.sendMessage(chatId, message.text, {
+        ...options,
+        parse_mode: "Markdown",
+      });
+    } catch {
+      await api.sendMessage(chatId, message.text, options);
+    }
+    logger.info("bot.scenario_message.sent", { messenger: "telegram", chatId });
+  } catch (err) {
+    logger.error("bot.scenario_message.failed", err, {
+      messenger: "telegram",
+      chatId,
     });
-  } catch {
-    await api.sendMessage(chatId, message.text, options);
+    throw err;
   }
   // PDF-гайд в Telegram отдельным документом не шлём — он уходит вложением
   // на email (см. dispatchScenarioOutput/sendGuideEmail)

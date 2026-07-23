@@ -1,4 +1,5 @@
 import { resolveMaxBotToken, resolveTelegramBotToken } from "@psi-opora/bot-core";
+import { logger } from "@psi-opora/config";
 import { fetchWithCa } from "./fetch-with-ca";
 import { RUSSIAN_TRUSTED_ROOT_CA } from "./certs/russian-trusted-ca";
 
@@ -71,22 +72,55 @@ async function sendTelegram(
       description?: string;
       parameters?: { retry_after?: number };
     };
-    if (json.ok) return;
+    if (json.ok) {
+      logger.info("messenger.send.ok", {
+        messenger: "telegram",
+        userId,
+        attempt,
+      });
+      return;
+    }
     if (
       res.status === 400 &&
       withMarkdown &&
       /parse entities/i.test(json.description ?? "")
     ) {
+      logger.warn("messenger.send.retry.markdown_fallback", {
+        messenger: "telegram",
+        userId,
+        attempt,
+        description: json.description,
+      });
       withMarkdown = false;
       continue;
     }
     if (res.status === 429) {
+      const waitSec = (json.parameters?.retry_after ?? 2) + 1;
+      logger.warn("messenger.send.retry.rate_limited", {
+        messenger: "telegram",
+        userId,
+        attempt,
+        waitSec,
+      });
       // Telegram сам говорит, сколько ждать; добавляем секунду сверху
-      await sleep(((json.parameters?.retry_after ?? 2) + 1) * 1000);
+      await sleep(waitSec * 1000);
       continue;
     }
+    logger.error("messenger.send.failed", undefined, {
+      messenger: "telegram",
+      userId,
+      attempt,
+      status: res.status,
+      description: json.description,
+    });
     throw new Error(json.description ?? `Telegram HTTP ${res.status}`);
   }
+  logger.error("messenger.send.failed", undefined, {
+    messenger: "telegram",
+    userId,
+    reason: "rate_limit_exhausted",
+    attempts: RATE_LIMIT_ATTEMPTS,
+  });
   throw new Error(
     `Telegram: лимит запросов (429) не снялся после ${RATE_LIMIT_ATTEMPTS} попыток`,
   );
@@ -134,8 +168,20 @@ async function sendMax(
       },
       RUSSIAN_TRUSTED_ROOT_CA,
     );
-    if (res.ok) return;
+    if (res.ok) {
+      logger.info("messenger.send.ok", {
+        messenger: "max",
+        userId,
+        attempt,
+      });
+      return;
+    }
     if (res.status === 400 && withMarkdown) {
+      logger.warn("messenger.send.retry.markdown_fallback", {
+        messenger: "max",
+        userId,
+        attempt,
+      });
       withMarkdown = false;
       continue;
     }
@@ -143,14 +189,33 @@ async function sendMax(
       const retryAfter = Number(res.headers.get("retry-after"));
       const waitSec =
         Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter + 1 : 3;
+      logger.warn("messenger.send.retry.rate_limited", {
+        messenger: "max",
+        userId,
+        attempt,
+        waitSec,
+      });
       await sleep(waitSec * 1000);
       continue;
     }
     const json = (await res.json().catch(() => null)) as {
       message?: string;
     } | null;
+    logger.error("messenger.send.failed", undefined, {
+      messenger: "max",
+      userId,
+      attempt,
+      status: res.status,
+      description: json?.message,
+    });
     throw new Error(json?.message ?? `MAX HTTP ${res.status}`);
   }
+  logger.error("messenger.send.failed", undefined, {
+    messenger: "max",
+    userId,
+    reason: "rate_limit_exhausted",
+    attempts: RATE_LIMIT_ATTEMPTS,
+  });
   throw new Error(
     `MAX: лимит запросов (429) не снялся после ${RATE_LIMIT_ATTEMPTS} попыток`,
   );

@@ -1,4 +1,5 @@
 import { Bot, Context, Keyboard, type MiddlewareFn } from "@maxhub/max-bot-api";
+import { logger } from "@psi-opora/config";
 import {
   actionLabel,
   applyScenarioAction,
@@ -251,13 +252,23 @@ export function createMaxBot({
   ) => {
     const keyboard = toMaxKeyboard(message);
     const attachments = keyboard ? [keyboard] : undefined;
+    const userId = ctx.user?.user_id;
     try {
-      await replyWithFallback(ctx, message.text, {
-        format: "markdown",
-        attachments,
+      try {
+        await replyWithFallback(ctx, message.text, {
+          format: "markdown",
+          attachments,
+        });
+      } catch {
+        await replyWithFallback(ctx, message.text, { attachments });
+      }
+      logger.info("bot.scenario_message.sent", { messenger: "max", userId });
+    } catch (err) {
+      logger.error("bot.scenario_message.failed", err, {
+        messenger: "max",
+        userId,
       });
-    } catch {
-      await replyWithFallback(ctx, message.text, { attachments });
+      throw err;
     }
 
     if (message.guide) {
