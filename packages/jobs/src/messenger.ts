@@ -1,7 +1,12 @@
-import { resolveMaxBotToken, resolveTelegramBotToken } from "@psi-opora/bot-core";
+import {
+  resolveMaxBotToken,
+  resolveTelegramBotToken,
+  resolveMaxBotToken,
+  resolveTelegramBotToken,
+} from "@psi-opora/bot-core";
 import { logger } from "@psi-opora/config";
-import { fetchWithCa } from "./fetch-with-ca";
 import { RUSSIAN_TRUSTED_ROOT_CA } from "./certs/russian-trusted-ca";
+import { fetchWithCa } from "./fetch-with-ca";
 
 export type Messenger = "telegram" | "max";
 
@@ -238,7 +243,7 @@ async function setTelegramWebhook(): Promise<void> {
   if (!token) throw new Error("Токен Telegram-бота не задан в БД");
   if (!webhookUrl) throw new Error("TG_WEBHOOK_URL не задан");
 
-  const url = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
+  const url = `${webhookUrl.replace(/\/$/, "")}`;
   const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -256,7 +261,7 @@ async function setMaxWebhook(): Promise<void> {
   if (!token) throw new Error("Токен MAX-бота не задан в БД");
   if (!webhookUrl) throw new Error("MAX_WEBHOOK_URL не задан");
 
-  const url = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
+  const url = `${webhookUrl.replace(/\/$/, "")}`;
   const res = await fetchWithCa(
     new URL("https://platform-api2.max.ru/subscriptions"),
     {
@@ -275,7 +280,7 @@ async function setMaxWebhook(): Promise<void> {
 }
 
 /**
- * Настраивает вебхук бота на наш деплой (`{WEBHOOK_URL}/api/webhook`) —
+ * Настраивает вебхук бота на наш деплой (`{WEBHOOK_URL}`) —
  * вызывается автоматически при активации канала в Контакт-центре
  * (packages/api/src/routers/bot-connector), заменяет ручной запуск
  * apps/tg-bot|max-bot/scripts/set-webhook.ts.

@@ -10,18 +10,25 @@ PersistentVolumeClaim (сессии WhatsApp / файлы MinIO) — без не
 в свой реестр (`registry.yaml`), поднятый в этом же кластере. Разделы ниже —
 разовая настройка перед первым деплоем.
 
-## 0. Свой реестр (registry.yaml)
+## 0. Свой реестр (registry.yaml, zot)
 
-Реестр — обычный `registry:2` внутри кластера, с базовой (htpasswd) авторизацией
-и без TLS (сертификат для голого IP/тестового сервера — лишняя возня). Из-за
-отсутствия TLS его нужно явно разрешить как insecure и докер-демону раннера
-GitHub Actions, и containerd на самой ноде k3s.
+Реестр — [zot](https://zotregistry.dev) внутри кластера: в отличие от
+классического `registry:2` конфигурируется JSON-файлом (`registry-config`
+ConfigMap), а не переменными окружения. Авторизация — htpasswd, без TLS
+(сертификат для голого IP/тестового сервера — лишняя возня). Из-за отсутствия
+TLS его нужно явно разрешить как insecure и докер-демону раннера GitHub
+Actions, и containerd на самой ноде k3s.
 
-1. Придумать логин/пароль для пуша в реестр и создать htpasswd-секрет
-   (файл с паролем в git не попадает — секрет создаётся вручную, один раз):
+В `registry-config` в `accessControl` захардкожен пользователь `deploy` с
+правами на чтение/запись (остальным — только чтение). Если нужен другой
+логин, поменяйте имя в `k3s/registry.yaml` (`accessControl.repositories."**".policies[0].users`)
+на своё.
+
+1. Создать htpasswd-секрет с пользователем `deploy` (файл с паролем в git не
+   попадает — секрет создаётся вручную, один раз):
 
    ```bash
-   htpasswd -Bbn <логин> '<пароль>' > /tmp/htpasswd
+   htpasswd -Bbn deploy '<пароль>' > /tmp/htpasswd
    kubectl create secret generic registry-htpasswd \
      --from-file=htpasswd=/tmp/htpasswd \
      --namespace psi-opora
@@ -40,7 +47,7 @@ GitHub Actions, и containerd на самой ноде k3s.
    configs:
      "REGISTRY_HOST:30500":
        auth:
-         username: <логин>
+         username: deploy
          password: <пароль>
        tls:
          insecure_skip_verify: true
@@ -66,7 +73,7 @@ GitHub Actions, и containerd на самой ноде k3s.
 
 ```bash
 REGISTRY=<реальный адрес сервера>:30500
-docker login "$REGISTRY" -u <логин> -p '<пароль>'
+docker login "$REGISTRY" -u deploy -p '<пароль>'
 for app in tg-bot max-bot tg-userbot-worker bitrix-webhook dashboard clients; do
   docker build -t "$REGISTRY/psi-opora-$app:latest" -f "apps/$app/Dockerfile" .
   docker push "$REGISTRY/psi-opora-$app:latest"

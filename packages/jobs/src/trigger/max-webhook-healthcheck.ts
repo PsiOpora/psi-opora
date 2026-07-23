@@ -31,7 +31,7 @@ export const maxWebhookHealthcheck = schedules.task({
         "Токен MAX-бота не задан в БД (введите его в настройках канала) или не задан MAX_WEBHOOK_URL",
       );
     }
-    const webhookEndpoint = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
+    const webhookEndpoint = `${webhookUrl.replace(/\/$/, "")}`;
 
     const listRes = await fetchWithCa(
       new URL(`${MAX_API_ROOT}/subscriptions`),

@@ -9,6 +9,47 @@ spec:
     requests:
       storage: 20Gi
 ---
+# Конфиг zot (JSON, не env-переменные, как у registry:2) — путь до htpasswd
+# ниже соответствует mountPath секрета registry-htpasswd в Deployment.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: registry-config
+  namespace: psi-opora
+data:
+  config.json: |
+    {
+      "distSpecVersion": "1.1.0",
+      "storage": {
+        "rootDirectory": "/var/lib/registry"
+      },
+      "http": {
+        "address": "0.0.0.0",
+        "port": "5000",
+        "auth": {
+          "htpasswd": {
+            "path": "/etc/zot/secret/htpasswd"
+          }
+        },
+        "accessControl": {
+          "repositories": {
+            "**": {
+              "policies": [
+                {
+                  "users": ["deploy"],
+                  "actions": ["read", "create", "update", "delete"]
+                }
+              ],
+              "defaultPolicy": ["read"]
+            }
+          }
+        }
+      },
+      "log": {
+        "level": "info"
+      }
+    }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,29 +71,32 @@ spec:
     spec:
       containers:
         - name: registry
-          image: registry:2
+          image: ghcr.io/project-zot/zot-linux-amd64:latest
           imagePullPolicy: IfNotPresent
+          args: ["serve", "/etc/zot/config.json"]
           ports:
             - containerPort: 5000
-          env:
-            - name: REGISTRY_AUTH
-              value: htpasswd
-            - name: REGISTRY_AUTH_HTPASSWD_REALM
-              value: "psi-opora registry"
-            - name: REGISTRY_AUTH_HTPASSWD_PATH
-              value: /auth/htpasswd
           volumeMounts:
             - name: data
               mountPath: /var/lib/registry
+            - name: config
+              mountPath: /etc/zot/config.json
+              subPath: config.json
+              readOnly: true
             # Секрет registry-htpasswd создаётся вручную одной командой,
             # см. k3s/README.md — файл с паролями в git не хранится.
+            # Пользователь в htpasswd должен называться "deploy" (или
+            # поменяйте имя в accessControl выше на своё).
             - name: auth
-              mountPath: /auth
+              mountPath: /etc/zot/secret
               readOnly: true
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: registry-data
+        - name: config
+          configMap:
+            name: registry-config
         - name: auth
           secret:
             secretName: registry-htpasswd

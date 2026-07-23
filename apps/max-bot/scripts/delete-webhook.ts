@@ -12,7 +12,7 @@ if (!token || !webhookUrl) {
   process.exit(1);
 }
 
-const webhookEndpoint = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
+const webhookEndpoint = `${webhookUrl.replace(/\/$/, "")}`;
 
 const res = await fetch(
   `${MAX_API_ROOT}/subscriptions?url=${encodeURIComponent(webhookEndpoint)}`,

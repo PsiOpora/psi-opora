@@ -13,7 +13,7 @@ if (!token || !webhookUrl) {
 }
 
 const bot = new Bot(token);
-const url = `${webhookUrl.replace(/\/$/, "")}/api/webhook`;
+const url = `${webhookUrl.replace(/\/$/, "")}`;
 
 await bot.api.setWebhook(url, { drop_pending_updates: true });
 const info = await bot.api.getWebhookInfo();

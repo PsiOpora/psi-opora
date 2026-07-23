@@ -3,6 +3,7 @@
 import type { InboxMessenger } from "@psi-opora/api";
 import { useState } from "react";
 import { MESSENGER_META } from "@/components/inbox/messenger-meta";
+import { MessengerIcon } from "@/components/inbox/messenger-icon";
 import { cn } from "@/lib/utils";
 
 const FALLBACK_COLORS = [
@@ -78,15 +79,20 @@ export function ClientAvatar({
           {initials(name)}
         </div>
       )}
-      {meta && (
+      {meta && messenger && (
         <span
           title={meta.label}
           className={cn(
-            "absolute -right-0.5 -bottom-0.5 rounded-full ring-2 ring-background",
+            "absolute -right-0.5 -bottom-0.5 flex items-center justify-center rounded-full text-white ring-2 ring-background",
             meta.dotClassName,
-            size === "lg" ? "size-4" : "size-3",
+            size === "lg" ? "size-5" : "size-4",
           )}
-        />
+        >
+          <MessengerIcon
+            messenger={messenger}
+            className={size === "lg" ? "size-3" : "size-2.5"}
+          />
+        </span>
       )}
     </div>
   );
