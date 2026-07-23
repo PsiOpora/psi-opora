@@ -1,5 +1,6 @@
 "use client";
 
+import type { ClientListItem } from "@psi-opora/api";
 import { useQuery } from "@tanstack/react-query";
 import {
   ActivityIcon,
@@ -11,7 +12,12 @@ import {
 } from "lucide-react";
 import { ClientAvatar } from "@/components/inbox/client-avatar";
 import { messengerLabel } from "@/components/inbox/messenger-meta";
-import type { SelectedClient } from "@/components/inbox/thread-pane";
+import { NotesSection } from "@/components/inbox/notes-section";
+import { TagsEditor } from "@/components/inbox/tags-editor";
+import type {
+  CurrentOperator,
+  SelectedClient,
+} from "@/components/inbox/thread-pane";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { formatFullDate } from "@/lib/format";
@@ -47,7 +53,17 @@ function Section({
   );
 }
 
-export function ProfilePane({ selected }: { selected: SelectedClient }) {
+export function ProfilePane({
+  selected,
+  client,
+  operator,
+  onTagsSaved,
+}: {
+  selected: SelectedClient;
+  client: ClientListItem | undefined;
+  operator: CurrentOperator | null;
+  onTagsSaved: (tags: string[]) => void;
+}) {
   const { data, isLoading } = useQuery(
     orpc.messages.profile.queryOptions({
       input: { messenger: selected.messenger, userId: selected.userId },
@@ -112,6 +128,18 @@ export function ProfilePane({ selected }: { selected: SelectedClient }) {
           {profile.bio}
         </p>
       )}
+
+      <Separator />
+
+      <TagsEditor
+        selected={selected}
+        tags={client?.tags ?? []}
+        onSaved={onTagsSaved}
+      />
+
+      <Separator />
+
+      <NotesSection selected={selected} operator={operator} />
 
       <Separator />
 

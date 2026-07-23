@@ -28,6 +28,12 @@ interface ClientListProps {
   onOnlyUnreadChange: (value: boolean) => void;
   onlyMine: boolean;
   onOnlyMineChange: (value: boolean) => void;
+  /** Только диалоги, где последнее слово за клиентом. */
+  onlyAwaiting: boolean;
+  onOnlyAwaitingChange: (value: boolean) => void;
+  /** null — фильтр по тегу выключен. */
+  tagFilter: string | null;
+  onTagFilterChange: (value: string | null) => void;
   /** null — оператор неизвестен (standalone), фильтр «Мои» скрыт. */
   operatorId: string | null;
   selectedKey: string | null;
@@ -71,11 +77,19 @@ export function ClientList({
   onOnlyUnreadChange,
   onlyMine,
   onOnlyMineChange,
+  onlyAwaiting,
+  onOnlyAwaitingChange,
+  tagFilter,
+  onTagFilterChange,
   operatorId,
   selectedKey,
   onSelect,
 }: ClientListProps) {
   const unreadTotal = allItems.filter((c) => c.unread).length;
+  const awaitingTotal = allItems.filter(
+    (c) => c.lastMessageDirection === "in",
+  ).length;
+  const allTags = [...new Set(allItems.flatMap((c) => c.tags))].sort();
   const countByMessenger = (messenger: InboxMessenger) =>
     allItems.filter((c) => c.messenger === messenger).length;
 
@@ -120,6 +134,15 @@ export function ClientList({
             );
           })}
           <FilterChip
+            active={onlyAwaiting}
+            onClick={() => onOnlyAwaitingChange(!onlyAwaiting)}
+          >
+            Ждут ответа
+            {awaitingTotal > 0 && (
+              <span className="opacity-70">{awaitingTotal}</span>
+            )}
+          </FilterChip>
+          <FilterChip
             active={onlyUnread}
             onClick={() => onOnlyUnreadChange(!onlyUnread)}
           >
@@ -137,6 +160,21 @@ export function ClientList({
             </FilterChip>
           )}
         </div>
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {allTags.map((tag) => (
+              <FilterChip
+                key={tag}
+                active={tagFilter === tag}
+                onClick={() =>
+                  onTagFilterChange(tagFilter === tag ? null : tag)
+                }
+              >
+                #{tag}
+              </FilterChip>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -203,13 +241,28 @@ export function ClientList({
                       <span className="size-2.5 shrink-0 rounded-full bg-primary" />
                     )}
                   </div>
-                  {c.assignedOperatorName && (
-                    <Badge
-                      variant="outline"
-                      className="h-4 max-w-full self-start px-1 text-[10px]"
-                    >
-                      <span className="truncate">{c.assignedOperatorName}</span>
-                    </Badge>
+                  {(c.assignedOperatorName || c.tags.length > 0) && (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {c.assignedOperatorName && (
+                        <Badge
+                          variant="outline"
+                          className="h-4 max-w-full px-1 text-[10px]"
+                        >
+                          <span className="truncate">
+                            {c.assignedOperatorName}
+                          </span>
+                        </Badge>
+                      )}
+                      {c.tags.map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className="h-4 px-1 text-[10px]"
+                        >
+                          #{tag}
+                        </Badge>
+                      ))}
+                    </div>
                   )}
                 </div>
               </button>

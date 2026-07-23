@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 /**
  * Метаданные диалога с клиентом для единого инбокса дашборда («Клиенты»):
@@ -17,6 +17,8 @@ export const botConversations = pgTable(
     userId: text("user_id").notNull(),
     assignedOperatorId: text("assigned_operator_id"),
     assignedOperatorName: text("assigned_operator_name"),
+    /** Теги диалога для фильтрации в инбоксе «Клиенты» (apps/clients). */
+    tags: jsonb("tags").$type<string[]>(),
     lastReadAt: timestamp("last_read_at"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

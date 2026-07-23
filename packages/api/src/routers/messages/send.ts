@@ -1,4 +1,7 @@
-import { insertBotMessage, listTelegramPersonalAccounts } from "@psi-opora/db/queries";
+import {
+  insertBotMessage,
+  listTelegramPersonalAccounts,
+} from "@psi-opora/db/queries";
 import { sendMessengerMessage } from "@psi-opora/jobs";
 import { publicProcedure } from "../../orpc";
 import { sendClientMessageSchema } from "../../schemas/messages";

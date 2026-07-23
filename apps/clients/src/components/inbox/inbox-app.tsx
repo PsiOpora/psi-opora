@@ -6,8 +6,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { RefreshCwIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { BellIcon, BellOffIcon, RefreshCwIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useB24Frame } from "@/components/bitrix/frame-provider";
 import {
   ClientList,
@@ -39,8 +39,11 @@ export function InboxApp() {
     useState<MessengerFilter>("all");
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [onlyMine, setOnlyMine] = useState(false);
+  const [onlyAwaiting, setOnlyAwaiting] = useState(false);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState<SelectedClient | null>(null);
   const [showProfile, setShowProfile] = useState(true);
+  const [notificationsOn, setNotificationsOn] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(
@@ -90,11 +93,21 @@ export function InboxApp() {
         if (messengerFilter !== "all" && c.messenger !== messengerFilter)
           return false;
         if (onlyUnread && !c.unread) return false;
+        if (onlyAwaiting && c.lastMessageDirection !== "in") return false;
+        if (tagFilter && !c.tags.includes(tagFilter)) return false;
         if (onlyMine && operator && c.assignedOperatorId !== operator.id)
           return false;
         return true;
       }),
-    [allItems, messengerFilter, onlyUnread, onlyMine, operator],
+    [
+      allItems,
+      messengerFilter,
+      onlyUnread,
+      onlyAwaiting,
+      tagFilter,
+      onlyMine,
+      operator,
+    ],
   );
 
   /** Точечно правит строки в кэше списка — без ожидания следующего поллинга. */
@@ -145,6 +158,18 @@ export function InboxApp() {
     [selected, patchListCache],
   );
 
+  const handleTagsSaved = useCallback(
+    (tags: string[]) => {
+      if (!selected) return;
+      patchListCache((c) =>
+        c.messenger === selected.messenger && c.userId === selected.userId
+          ? { ...c, tags }
+          : c,
+      );
+    },
+    [selected, patchListCache],
+  );
+
   const selectedClient = selected
     ? allItems.find(
         (c) =>
@@ -152,6 +177,53 @@ export function InboxApp() {
       )
     : undefined;
   const unreadTotal = allItems.filter((c) => c.unread).length;
+  const awaitingTotal = allItems.filter(
+    (c) => c.lastMessageDirection === "in",
+  ).length;
+
+  // Счётчик непрочитанных в заголовке вкладки — видно, не открывая инбокс.
+  useEffect(() => {
+    document.title =
+      unreadTotal > 0 ? `(${unreadTotal}) Клиенты` : "Пси-Опора — Клиенты";
+  }, [unreadTotal]);
+
+  // Браузерные уведомления о новых входящих (opt-in по кнопке-колокольчику).
+  const knownUnreadRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const unreadKeys = new Set(
+      allItems
+        .filter((c) => c.unread)
+        .map((c) => clientKey(c.messenger, c.userId)),
+    );
+    const known = knownUnreadRef.current;
+    knownUnreadRef.current = unreadKeys;
+    // Первая загрузка — только запоминаем, не уведомляем о старом.
+    if (!known || !notificationsOn) return;
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission !== "granted") return;
+
+    for (const c of allItems) {
+      const key = clientKey(c.messenger, c.userId);
+      if (!c.unread || known.has(key)) continue;
+      new Notification(c.name, {
+        body: c.lastMessageText.slice(0, 120),
+        tag: key,
+      });
+    }
+  }, [allItems, notificationsOn]);
+
+  const toggleNotifications = useCallback(async () => {
+    if (notificationsOn) {
+      setNotificationsOn(false);
+      return;
+    }
+    if (typeof Notification === "undefined") return;
+    const permission =
+      Notification.permission === "granted"
+        ? "granted"
+        : await Notification.requestPermission();
+    if (permission === "granted") setNotificationsOn(true);
+  }, [notificationsOn]);
 
   return (
     <div className="flex h-svh flex-col">
@@ -162,6 +234,11 @@ export function InboxApp() {
         </Badge>
         {unreadTotal > 0 && (
           <Badge className="text-xs">{unreadTotal} непрочитанных</Badge>
+        )}
+        {awaitingTotal > 0 && (
+          <Badge variant="outline" className="text-xs">
+            {awaitingTotal} ждут ответа
+          </Badge>
         )}
         <div className="ml-auto flex items-center gap-2">
           <span
@@ -177,6 +254,22 @@ export function InboxApp() {
             />
             {status === "ready" ? "Битрикс24" : "Автономный режим"}
           </span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={toggleNotifications}
+            title={
+              notificationsOn
+                ? "Выключить уведомления о новых сообщениях"
+                : "Включить уведомления о новых сообщениях"
+            }
+          >
+            {notificationsOn ? (
+              <BellIcon className="size-4" />
+            ) : (
+              <BellOffIcon className="size-4 text-muted-foreground" />
+            )}
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -203,6 +296,10 @@ export function InboxApp() {
           onOnlyUnreadChange={setOnlyUnread}
           onlyMine={onlyMine}
           onOnlyMineChange={setOnlyMine}
+          onlyAwaiting={onlyAwaiting}
+          onOnlyAwaitingChange={setOnlyAwaiting}
+          tagFilter={tagFilter}
+          onTagFilterChange={setTagFilter}
           operatorId={operator?.id ?? null}
           selectedKey={
             selected ? clientKey(selected.messenger, selected.userId) : null
@@ -218,7 +315,14 @@ export function InboxApp() {
           onAfterSend={refreshList}
           onAssigned={handleAssigned}
         />
-        {selected && showProfile && <ProfilePane selected={selected} />}
+        {selected && showProfile && (
+          <ProfilePane
+            selected={selected}
+            client={selectedClient}
+            operator={operator}
+            onTagsSaved={handleTagsSaved}
+          />
+        )}
       </div>
     </div>
   );

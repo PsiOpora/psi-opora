@@ -56,8 +56,10 @@ export type {
 export type {
   ClientListItem,
   ClientMessageItem,
+  ClientNoteItem,
   ClientProfile,
   InboxMessenger,
+  QuickReplyItem,
 } from "./routers/messages";
 export type { TelegramPersonalAccountView } from "./routers/telegram-personal";
 export type {

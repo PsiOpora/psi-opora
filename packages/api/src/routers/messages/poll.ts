@@ -7,7 +7,9 @@ import type { ClientMessageItem } from "./types";
 export const poll = publicProcedure
   .input(clientPollSchema)
   .handler(
-    async ({ input }): Promise<{ messages?: ClientMessageItem[]; error?: string }> => {
+    async ({
+      input,
+    }): Promise<{ messages?: ClientMessageItem[]; error?: string }> => {
       const since = new Date(input.sinceIso);
       if (Number.isNaN(since.getTime())) return { error: "Некорректная дата" };
 

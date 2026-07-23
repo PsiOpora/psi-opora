@@ -14,6 +14,7 @@ import {
   assignConversationIfUnassigned as _assignConversationIfUnassigned,
   getConversationMeta as _getConversationMeta,
   markConversationRead as _markConversationRead,
+  setConversationTags as _setConversationTags,
   type ConversationAssignment,
 } from "./bot-conversations";
 import {
@@ -39,6 +40,17 @@ import {
   upsertBotUser as _upsertBotUser,
   type BotUserProfileEntry,
 } from "./bot-users";
+import {
+  addClientNote as _addClientNote,
+  deleteClientNote as _deleteClientNote,
+  listClientNotes as _listClientNotes,
+  type NewClientNoteEntry,
+} from "./client-notes";
+import {
+  deleteQuickReply as _deleteQuickReply,
+  listQuickReplies as _listQuickReplies,
+  saveQuickReply as _saveQuickReply,
+} from "./quick-replies";
 
 export * from "./ads";
 export * from "./backup";
@@ -58,6 +70,8 @@ export type {
 } from "./bot-messages";
 export type { BotText } from "./bot-texts";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
+export type { ClientNote, NewClientNoteEntry } from "./client-notes";
+export type { QuickReply } from "./quick-replies";
 export * from "./broadcast";
 export * from "./email-campaign";
 export * from "./telegram-personal";
@@ -169,4 +183,40 @@ export async function assignConversationIfUnassigned(
 
 export async function getConversationMeta(messenger: string, userId: string) {
   return _getConversationMeta(db, messenger, userId);
+}
+
+export async function setConversationTags(
+  messenger: string,
+  userId: string,
+  tags: string[],
+): Promise<void> {
+  return _setConversationTags(db, messenger, userId, tags);
+}
+
+export async function listClientNotes(messenger: string, userId: string) {
+  return _listClientNotes(db, messenger, userId);
+}
+
+export async function addClientNote(entry: NewClientNoteEntry) {
+  return _addClientNote(db, entry);
+}
+
+export async function deleteClientNote(noteId: string): Promise<void> {
+  return _deleteClientNote(db, noteId);
+}
+
+export async function listQuickReplies() {
+  return _listQuickReplies(db);
+}
+
+export async function saveQuickReply(entry: {
+  id?: string;
+  title: string;
+  text: string;
+}) {
+  return _saveQuickReply(db, entry);
+}
+
+export async function deleteQuickReply(id: string): Promise<void> {
+  return _deleteQuickReply(db, id);
 }

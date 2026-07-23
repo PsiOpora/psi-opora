@@ -89,6 +89,24 @@ export async function assignConversationIfUnassigned(
     });
 }
 
+/** Полностью заменяет набор тегов диалога (пустой массив — снять все теги). */
+export async function setConversationTags(
+  db: Database,
+  messenger: string,
+  userId: string,
+  tags: string[],
+): Promise<void> {
+  if (!db) return;
+  const id = makeId(messenger, userId);
+  await db
+    .insert(botConversations)
+    .values({ id, messenger, userId, tags })
+    .onConflictDoUpdate({
+      target: botConversations.id,
+      set: { tags, updatedAt: new Date() },
+    });
+}
+
 export async function getConversationMeta(
   db: Database,
   messenger: string,

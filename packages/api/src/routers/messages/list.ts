@@ -25,6 +25,7 @@ export const list = publicProcedure
         unread: row.unread,
         assignedOperatorId: row.assignedOperatorId,
         assignedOperatorName: row.assignedOperatorName,
+        tags: row.tags,
       })),
     };
   });

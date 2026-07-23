@@ -17,6 +17,7 @@ import {
   type ThreadMessage,
 } from "@/components/inbox/message-list";
 import { messengerLabel } from "@/components/inbox/messenger-meta";
+import { QuickReplies } from "@/components/inbox/quick-replies";
 import { MessageComposer } from "@/components/messaging/message-composer";
 import { Button } from "@/components/ui/button";
 import { orpcClient } from "@/lib/orpc/client";
@@ -270,11 +271,18 @@ export function ThreadPane({
           placeholder="Ответить клиенту… (Enter — отправить, Shift+Enter — новая строка)"
         />
         <div className="mt-1.5 flex items-center justify-between gap-2">
-          {sendError ? (
-            <p className="text-sm text-destructive">{sendError}</p>
-          ) : (
-            <span />
-          )}
+          <div className="flex items-center gap-2">
+            <QuickReplies
+              onInsert={(template) =>
+                setText((prev) =>
+                  prev.trim() ? `${prev}\n${template}` : template,
+                )
+              }
+            />
+            {sendError && (
+              <p className="text-sm text-destructive">{sendError}</p>
+            )}
+          </div>
           <Button onClick={send} disabled={sending || !text.trim()}>
             {sending ? (
               <Loader2Icon className="size-4 animate-spin" />

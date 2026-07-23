@@ -60,7 +60,6 @@ export function MessageList({ messages }: { messages: ThreadMessage[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: скроллим по факту изменения списка
   useEffect(() => {
     const el = containerRef.current;
     if (el && stickToBottomRef.current && messages.length > 0) {

@@ -94,25 +94,23 @@ async function bitrixPost<T = unknown>(
   return json.result as T;
 }
 
-// Поле контакта в Wazzup-интеграции (кнопка «написать клиенту» в CRM),
-// заполняется автоматически только при обращении через Open Line Wazzup —
-// контактам, созданным ботом напрямую через API, нужно проставлять вручную.
-const MESSENGER_WZ_ID_FIELD: Record<string, string> = {
-  max: "UF_CRM_MAXID_WZ",
-  telegram: "UF_CRM_TELEGRAMID_WZ",
-};
-
-// Значение IM-поля — голый ID пользователя в мессенджере, просто справочная
-// запись. Формат `imol|{connector}|{line}|{user_id}|{chat_id}`, которым
-// Bitrix помечает открытую линию как источник мессенджер-идентификатора, —
-// это внутренний, генерируемый самим Bitrix при обработке imconnector.*
-// идентификатор (см. документацию по импорту контактов CRM), а не то, что
-// можно собрать вручную по этой схеме — попытка сконструировать его на
-// стороне бота даёт нерабочее значение.
-function buildMessengerLinkFields(data: DealData) {
+// Привязка мессенджера в карточке контакта — мультиполе IM с типом OPENLINE
+// и значением `imol|{connector}|{line}|{chat_id}|{внутренний id чата Bitrix}`
+// (пример: imol|psiopora_max_bot|6|358982080|430) — тот же формат, которым
+// Bitrix помечает контакты, созданные трекером Открытой линии. Последний
+// сегмент — внутренний id чата, известный только после resolveOpenLineDialog,
+// поэтому готовое значение собирается там (OpenLineDialog.imol). Без диалога
+// оставляем голый ID пользователя как справочную запись.
+// `imol === null` — привязку не добавлять вовсе (контакт создан трекером
+// линии: Bitrix уже проставил IM сам, повторная передача без ID мультиполя
+// добавила бы дублирующую строку).
+function buildMessengerLinkFields(data: DealData, imol?: string | null) {
+  if (imol === null) return null;
+  if (imol) {
+    return { IM: [{ VALUE: imol, VALUE_TYPE: "OPENLINE" }] };
+  }
   if (!data.telegramUserId) return null;
   const messenger = data.messenger ?? "telegram";
-  const wzIdField = MESSENGER_WZ_ID_FIELD[messenger];
   return {
     IM: [
       {
@@ -120,7 +118,6 @@ function buildMessengerLinkFields(data: DealData) {
         VALUE_TYPE: messenger,
       },
     ],
-    ...(wzIdField ? { [wzIdField]: String(data.telegramUserId) } : {}),
   };
 }
 
@@ -139,7 +136,7 @@ function buildProfileComment(data: DealData): string | undefined {
   return lines.length ? `Профиль в мессенджере:\n${lines.join("\n")}` : undefined;
 }
 
-function buildContactFields(data: DealData) {
+function buildContactFields(data: DealData, imol?: string | null) {
   const messenger = data.messenger ?? "telegram";
   const profileComment = buildProfileComment(data);
   return {
@@ -158,22 +155,8 @@ function buildContactFields(data: DealData) {
     // контакта согласие уже получено.
     UF_CRM_CONTACT_1779910236669: 1,
     ...(profileComment ? { COMMENTS: profileComment } : {}),
-    ...(buildMessengerLinkFields(data) ?? {}),
+    ...(buildMessengerLinkFields(data, imol) ?? {}),
   };
-}
-
-async function findContactIdByMessengerId(
-  messenger: string,
-  telegramUserId: number,
-): Promise<number | null> {
-  const wzIdField = MESSENGER_WZ_ID_FIELD[messenger];
-  if (!wzIdField) return null;
-  const contacts = await bitrixPost<{ ID: string }[]>(
-    "crm.contact.list",
-    { filter: { [wzIdField]: String(telegramUserId) }, select: ["ID"] },
-    messenger,
-  );
-  return contacts[0] ? Number(contacts[0].ID) : null;
 }
 
 async function findContactIdByComm(
@@ -191,21 +174,15 @@ async function findContactIdByComm(
 
 /**
  * Ищет контакт, уже существующий в Bitrix, перед созданием нового —
- * сперва по ID в мессенджере (самый точный признак), затем по телефону
- * и email, — чтобы не плодить дубликаты для одного и того же человека.
+ * по телефону и email, — чтобы не плодить дубликаты для одного и того же
+ * человека. (Контакт, привязанный к чату мессенджера, находится раньше —
+ * через диалог Открытой линии, см. resolveOpenLineDialog.)
  * Ошибки поиска не пробрасываются: при сбое просто создаём новый контакт,
  * как раньше.
  */
 async function findExistingContactId(data: DealData): Promise<number | null> {
   const messenger = data.messenger ?? "telegram";
   try {
-    if (data.telegramUserId) {
-      const byMessenger = await findContactIdByMessengerId(
-        messenger,
-        data.telegramUserId,
-      );
-      if (byMessenger) return byMessenger;
-    }
     if (data.phone) {
       const byPhone = await findContactIdByComm(messenger, "PHONE", data.phone);
       if (byPhone) return byPhone;
@@ -323,6 +300,10 @@ async function linkBitrixTrace(
 interface OpenLineDialog {
   /** Внутренний ID чата Bitrix (для imopenlines.crm.chat.user.add). */
   chatId: number;
+  /** Значение для мультиполя IM контакта (тип OPENLINE):
+   * `imol|{connector}|{line}|{chat_id}|{внутренний id чата Bitrix}` —
+   * см. buildMessengerLinkFields. */
+  imol: string;
   /** Контакт, который CRM-трекер Открытой линии создал по чату. */
   contactId: number | null;
   /** Сделка, которую CRM-трекер Открытой линии создал по чату. */
@@ -378,7 +359,11 @@ async function resolveOpenLineDialog(
       messenger,
     );
     if (!result?.id) return null;
-    return { chatId: result.id, ...parseDialogCrmBindings(result.entity_data_2) };
+    return {
+      chatId: result.id,
+      imol: `imol|${config.connectorId}|${config.openLineId}|${chatId}|${result.id}`,
+      ...parseDialogCrmBindings(result.entity_data_2),
+    };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     if (!message.includes("ACCESS_ERROR")) {
@@ -466,13 +451,14 @@ export async function createBitrixDeal(
   if (contactId) {
     // Контакт трекера линии — «пустышка» с именем из мессенджера: дополняем
     // его собранными ботом данными (телефон, email, согласие, профиль).
+    // IM-привязку не передаём (imol: null) — трекер уже проставил её сам.
     console.log(
       `[bitrix] используем контакт Открытой линии id=${contactId} (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
     );
     try {
       await bitrixPost(
         "crm.contact.update",
-        { id: contactId, fields: buildContactFields(data) },
+        { id: contactId, fields: buildContactFields(data, null) },
         messenger,
       );
     } catch (err: unknown) {
@@ -487,7 +473,7 @@ export async function createBitrixDeal(
       console.log(
         `[bitrix] используем существующий контакт id=${contactId} вместо создания нового (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
       );
-      const messengerLink = buildMessengerLinkFields(data);
+      const messengerLink = buildMessengerLinkFields(data, dialog?.imol);
       if (messengerLink) {
         try {
           await bitrixPost(
@@ -506,7 +492,7 @@ export async function createBitrixDeal(
       contactId = await bitrixPost<number>(
         "crm.contact.add",
         {
-          fields: buildContactFields(data),
+          fields: buildContactFields(data, dialog?.imol),
         },
         messenger,
       );

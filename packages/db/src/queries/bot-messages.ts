@@ -124,6 +124,7 @@ export interface ClientListItem {
   unread: boolean;
   assignedOperatorId: string | null;
   assignedOperatorName: string | null;
+  tags: string[];
 }
 
 /**
@@ -171,6 +172,7 @@ export async function listClientsWithLastMessage(
       lastReadAt: botConversations.lastReadAt,
       assignedOperatorId: botConversations.assignedOperatorId,
       assignedOperatorName: botConversations.assignedOperatorName,
+      tags: botConversations.tags,
     })
     .from(lastMessage)
     .leftJoin(
@@ -206,5 +208,6 @@ export async function listClientsWithLastMessage(
       (!row.lastReadAt || row.lastMessageAt > row.lastReadAt),
     assignedOperatorId: row.assignedOperatorId,
     assignedOperatorName: row.assignedOperatorName,
+    tags: row.tags ?? [],
   }));
 }

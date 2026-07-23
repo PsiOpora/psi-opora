@@ -57,7 +57,7 @@ export function ClientAvatar({
       {showImage ? (
         // Аватары приходят по внешним URL мессенджеров — next/image здесь не
         // используем, чтобы не описывать все возможные хосты в конфиге.
-        // eslint-disable-next-line @next/next/no-img-element
+        // biome-ignore lint/performance/noImgElement: внешние URL аватаров
         <img
           src={avatarUrl}
           alt=""

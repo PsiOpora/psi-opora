@@ -40,3 +40,38 @@ export const assignConversationSchema = z.object({
   operatorName: z.string(),
 });
 export type AssignConversationInput = z.infer<typeof assignConversationSchema>;
+
+export const setConversationTagsSchema = z.object({
+  messenger: inboxMessengerSchema,
+  userId: z.string(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20),
+});
+export type SetConversationTagsInput = z.infer<
+  typeof setConversationTagsSchema
+>;
+
+export const addClientNoteSchema = z.object({
+  messenger: inboxMessengerSchema,
+  userId: z.string(),
+  text: z.string().trim().min(1).max(2000),
+  operatorId: z.string().optional(),
+  operatorName: z.string().optional(),
+});
+export type AddClientNoteInput = z.infer<typeof addClientNoteSchema>;
+
+export const deleteClientNoteSchema = z.object({
+  noteId: z.string(),
+});
+export type DeleteClientNoteInput = z.infer<typeof deleteClientNoteSchema>;
+
+export const saveQuickReplySchema = z.object({
+  id: z.string().optional(),
+  title: z.string().trim().min(1).max(80),
+  text: z.string().trim().min(1).max(MESSAGE_MAX_LENGTH),
+});
+export type SaveQuickReplyInput = z.infer<typeof saveQuickReplySchema>;
+
+export const deleteQuickReplySchema = z.object({
+  id: z.string(),
+});
+export type DeleteQuickReplyInput = z.infer<typeof deleteQuickReplySchema>;

@@ -15,6 +15,21 @@ export interface ClientListItem {
   unread: boolean;
   assignedOperatorId: string | null;
   assignedOperatorName: string | null;
+  tags: string[];
+}
+
+export interface ClientNoteItem {
+  id: string;
+  text: string;
+  operatorId: string | null;
+  operatorName: string | null;
+  createdAt: string;
+}
+
+export interface QuickReplyItem {
+  id: string;
+  title: string;
+  text: string;
 }
 
 export interface ClientProfile {
