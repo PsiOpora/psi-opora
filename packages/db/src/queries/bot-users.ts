@@ -18,6 +18,7 @@ export interface BotUserProfileEntry {
   bio?: string;
   avatarUrl?: string;
   photoFileId?: string;
+  avatarS3Key?: string;
   source?: string;
   campaign?: string;
   rawProfile?: unknown;
@@ -54,6 +55,7 @@ export async function upsertBotUser(
     bio: entry.bio,
     avatarUrl: entry.avatarUrl,
     photoFileId: entry.photoFileId,
+    avatarS3Key: entry.avatarS3Key,
     source: entry.source,
     campaign: entry.campaign,
     rawProfile: entry.rawProfile,
@@ -75,6 +77,7 @@ export async function upsertBotUser(
         bio: sql`coalesce(${values.bio ?? null}, ${botUsers.bio})`,
         avatarUrl: sql`coalesce(${values.avatarUrl ?? null}, ${botUsers.avatarUrl})`,
         photoFileId: sql`coalesce(${values.photoFileId ?? null}, ${botUsers.photoFileId})`,
+        avatarS3Key: sql`coalesce(${values.avatarS3Key ?? null}, ${botUsers.avatarS3Key})`,
         source: sql`coalesce(${botUsers.source}, ${values.source ?? null})`,
         campaign: sql`coalesce(${botUsers.campaign}, ${values.campaign ?? null})`,
         rawProfile: sql`coalesce(${values.rawProfile ?? null}, ${botUsers.rawProfile})`,

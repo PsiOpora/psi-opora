@@ -33,6 +33,30 @@ function createInitialSession(): ConsultationSession {
 }
 
 /**
+ * Результат перезаливки аватара пользователя в собственное хранилище —
+ * возвращается инжектируемым uploadAvatar (см. BotOptions), т.к. bot-core
+ * должен оставаться совместимым с Edge Runtime (см. avatarUploader ниже)
+ * и не может напрямую тянуть S3-клиент/node-postgres.
+ */
+export interface AvatarUploadResult {
+  avatarUrl: string;
+  avatarS3Key: string;
+}
+
+/**
+ * Скачивает и перезаливает аватар пользователя в наше хранилище — инжектируется
+ * извне (apps/tg-bot), т.к. требует S3-клиента и getBackupCredentials
+ * (node-postgres), которые нельзя тянуть в bot-core: этот пакет собирается и в
+ * Edge Runtime (max-bot), где node-postgres не работает.
+ */
+export type AvatarUploader = (params: {
+  bytes: Uint8Array;
+  contentType: string;
+  messenger: "telegram";
+  userId: number;
+}) => Promise<AvatarUploadResult>;
+
+/**
  * Сохраняет профиль клиента в bot_users: поля из апдейта (всегда доступны)
  * плюс bio/фото из getChat (может не сработать из-за приватности — не критично).
  */
@@ -40,6 +64,8 @@ async function collectTelegramProfile(
   ctx: AppContext,
   source: string | undefined,
   campaign: string | undefined,
+  token: string,
+  uploadAvatar: AvatarUploader | undefined,
 ): Promise<void> {
   const from = ctx.from;
   if (!from) return;
@@ -60,6 +86,33 @@ async function collectTelegramProfile(
     );
   }
 
+  let avatarUrl: string | undefined;
+  let avatarS3Key: string | undefined;
+  if (photoFileId && uploadAvatar) {
+    try {
+      const url = await resolveTelegramFileUrl(ctx.api, token, photoFileId);
+      if (url) {
+        const res = await fetch(url);
+        if (res.ok) {
+          const bytes = new Uint8Array(await res.arrayBuffer());
+          const contentType = res.headers.get("content-type") || "image/jpeg";
+          const uploaded = await uploadAvatar({
+            bytes,
+            contentType,
+            messenger: "telegram",
+            userId: from.id,
+          });
+          avatarUrl = uploaded.avatarUrl;
+          avatarS3Key = uploaded.avatarS3Key;
+        }
+      }
+    } catch (err) {
+      console.error(
+        `[profile] не удалось скачать аватар для user=${from.id}: ${(err as Error).message}`,
+      );
+    }
+  }
+
   await upsertBotUserProfile({
     messenger: "telegram",
     userId: from.id,
@@ -71,6 +124,8 @@ async function collectTelegramProfile(
     isBot: from.is_bot,
     bio,
     photoFileId,
+    avatarUrl,
+    avatarS3Key,
     source,
     campaign,
     rawProfile,

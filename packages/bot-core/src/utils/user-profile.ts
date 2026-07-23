@@ -13,6 +13,7 @@ export interface BotUserProfileInput {
   bio?: string;
   avatarUrl?: string;
   photoFileId?: string;
+  avatarS3Key?: string;
   source?: string;
   campaign?: string;
   rawProfile?: unknown;
@@ -42,6 +43,7 @@ export async function upsertBotUserProfile(
       bio: entry.bio,
       avatarUrl: entry.avatarUrl,
       photoFileId: entry.photoFileId,
+      avatarS3Key: entry.avatarS3Key,
       source: entry.source,
       campaign: entry.campaign,
       rawProfile: entry.rawProfile,
