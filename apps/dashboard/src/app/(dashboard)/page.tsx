@@ -24,12 +24,23 @@ export default async function OverviewPage({
   if (!api) return <NotConnected />;
 
   const range = parseDateRange(await searchParams);
-  const [deals, previousDeals, sourceNames, dealDomain] = await Promise.all([
-    fetchDeals(api, range),
-    fetchDeals(api, previousRange(range)),
-    fetchSourceNames(api),
-    getBitrixPortalDomain(),
-  ]);
+  let deals: Awaited<ReturnType<typeof fetchDeals>>;
+  let previousDeals: Awaited<ReturnType<typeof fetchDeals>>;
+  let sourceNames: Awaited<ReturnType<typeof fetchSourceNames>>;
+  let dealDomain: Awaited<ReturnType<typeof getBitrixPortalDomain>>;
+  try {
+    [deals, previousDeals, sourceNames, dealDomain] = await Promise.all([
+      fetchDeals(api, range),
+      fetchDeals(api, previousRange(range)),
+      fetchSourceNames(api),
+      getBitrixPortalDomain(),
+    ]);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("INVALID_CREDENTIALS")) {
+      return <NotConnected />;
+    }
+    throw error;
+  }
   const summary = summarize(deals);
   const previousSummary = summarize(previousDeals);
   const trend = trendByDay(deals);

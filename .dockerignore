@@ -4,7 +4,8 @@
 **/.turbo
 **/.vercel
 **/*.tsbuildinfo
-.git
+# .git нужен в контексте сборки: build-скрипты пакетов (packages/*) вызывают
+# `git clean -xdf .cache dist` перед сборкой (см. packages/api/package.json и др.)
 .github
 .vscode
 .claude
