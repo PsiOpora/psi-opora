@@ -1,8 +1,6 @@
 import {
   resolveMaxBotToken,
   resolveTelegramBotToken,
-  resolveMaxBotToken,
-  resolveTelegramBotToken,
 } from "@psi-opora/bot-core";
 import { logger } from "@psi-opora/config";
 import { RUSSIAN_TRUSTED_ROOT_CA } from "./certs/russian-trusted-ca";
