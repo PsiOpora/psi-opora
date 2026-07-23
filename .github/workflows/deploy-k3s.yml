@@ -87,7 +87,15 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service
         run: |
           mkdir -p "$HOME/.kube"
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$HOME/.kube/config"
+          # Секрет KUBECONFIG может быть как base64, так и обычным YAML —
+          # раньше жёсткий base64 -d падал с "invalid input", если секрет
+          # положили без кодирования.
+          if echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$HOME/.kube/config" 2>/dev/null; then
+            echo "kubeconfig: декодирован из base64"
+          else
+            echo "${{ secrets.KUBECONFIG }}" > "$HOME/.kube/config"
+            echo "kubeconfig: записан как обычный текст"
+          fi
           chmod 600 "$HOME/.kube/config"
 
       - name: Roll out new image
