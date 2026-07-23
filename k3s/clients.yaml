@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clients
+  namespace: psi-opora
+  labels:
+    app: clients
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clients
+  template:
+    metadata:
+      labels:
+        app: clients
+    spec:
+      containers:
+        - name: clients
+          # REGISTRY_HOST — см. комментарий в k3s/tg-bot.yaml и k3s/README.md.
+          image: REGISTRY_HOST:30500/psi-opora-clients:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: psi-opora-env
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clients
+  namespace: psi-opora
+spec:
+  type: NodePort
+  selector:
+    app: clients
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30005

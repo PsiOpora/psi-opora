@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bitrix-webhook
+  namespace: psi-opora
+  labels:
+    app: bitrix-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bitrix-webhook
+  template:
+    metadata:
+      labels:
+        app: bitrix-webhook
+    spec:
+      containers:
+        - name: bitrix-webhook
+          # REGISTRY_HOST — см. комментарий в k3s/tg-bot.yaml и k3s/README.md.
+          image: REGISTRY_HOST:30500/psi-opora-bitrix-webhook:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: psi-opora-env
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bitrix-webhook
+  namespace: psi-opora
+spec:
+  type: NodePort
+  selector:
+    app: bitrix-webhook
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30020

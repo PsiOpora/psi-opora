@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tg-bot
+  namespace: psi-opora
+  labels:
+    app: tg-bot
+spec:
+  replicas: 1
+  # Long polling (Telegram getUpdates) — второй одновременно работающий под с
+  # тем же токеном сразу словит конфликт от Telegram API, поэтому Recreate
+  # вместо RollingUpdate (тот на миг поднимает второй под поверх старого).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tg-bot
+  template:
+    metadata:
+      labels:
+        app: tg-bot
+    spec:
+      containers:
+        - name: tg-bot
+          # REGISTRY_HOST — адрес вашего сервера, см. k3s/README.md (раздел
+          # "Свой реестр"). Тег latest тут только для первого bootstrap-apply —
+          # реальные деплои катит GitHub Actions через kubectl set image.
+          image: REGISTRY_HOST:30500/psi-opora-tg-bot:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: psi-opora-env

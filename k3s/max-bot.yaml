@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: max-bot
+  namespace: psi-opora
+  labels:
+    app: max-bot
+spec:
+  replicas: 1
+  # Long polling — см. комментарий в k3s/tg-bot.yaml, здесь та же причина.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: max-bot
+  template:
+    metadata:
+      labels:
+        app: max-bot
+    spec:
+      containers:
+        - name: max-bot
+          # REGISTRY_HOST — см. комментарий в k3s/tg-bot.yaml и k3s/README.md.
+          image: REGISTRY_HOST:30500/psi-opora-max-bot:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: psi-opora-env

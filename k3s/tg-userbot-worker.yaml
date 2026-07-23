@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tg-userbot-worker
+  namespace: psi-opora
+  labels:
+    app: tg-userbot-worker
+spec:
+  replicas: 1
+  # Держит одно постоянное MTProto-соединение на аккаунт — два одновременно
+  # работающих пода означают два конкурентных соединения с одной сессией,
+  # поэтому Recreate вместо RollingUpdate.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tg-userbot-worker
+  template:
+    metadata:
+      labels:
+        app: tg-userbot-worker
+    spec:
+      containers:
+        - name: tg-userbot-worker
+          # REGISTRY_HOST — см. комментарий в k3s/tg-bot.yaml и k3s/README.md.
+          image: REGISTRY_HOST:30500/psi-opora-tg-userbot-worker:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: psi-opora-env
