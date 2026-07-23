@@ -1,6 +1,12 @@
-import { getEmailCampaign, listEmailCampaignRecipients } from "@psi-opora/db/queries";
+"use client";
+
+import type {
+  EmailCampaign,
+  EmailCampaignRecipientRow,
+} from "@psi-opora/db/queries";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -19,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime } from "../history";
 import { AutoRefresh } from "./auto-refresh";
+import { emailCampaignDetailKey } from "./query-keys";
 
 const STATUS_BADGE: Record<
   string,
@@ -33,17 +40,30 @@ const STATUS_BADGE: Record<
   error: { label: "Ошибка", variant: "destructive" },
 };
 
-export default async function EmailCampaignDetailsPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const [campaign, recipients] = await Promise.all([
-    getEmailCampaign(id),
-    listEmailCampaignRecipients(id),
-  ]);
-  if (!campaign) notFound();
+export default function EmailCampaignDetailsPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: emailCampaignDetailKey(id),
+    queryFn: async () => {
+      const res = await fetch(`/api/dashboard/email-campaigns/${id}`);
+      if (!res.ok) throw new Error("Рассылка не найдена");
+      return (await res.json()) as {
+        campaign: EmailCampaign;
+        recipients: EmailCampaignRecipientRow[];
+      };
+    },
+  });
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+  }
+  if (isError || !data?.campaign) {
+    return <p className="text-sm text-destructive">Рассылка не найдена.</p>;
+  }
+
+  const { campaign, recipients } = data;
 
   const counts = {
     imported: recipients.filter((r) => r.status === "imported").length,
@@ -51,11 +71,12 @@ export default async function EmailCampaignDetailsPage({
     skipped: recipients.filter((r) => r.status === "skipped").length,
     failed: recipients.filter((r) => r.status === "error").length,
   };
-  const isRunning = campaign.status === "queued" || campaign.status === "running";
+  const isRunning =
+    campaign.status === "queued" || campaign.status === "running";
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <AutoRefresh enabled={isRunning} />
+      <AutoRefresh enabled={isRunning} id={id} />
       <div>
         <Link
           href="/email-broadcast"

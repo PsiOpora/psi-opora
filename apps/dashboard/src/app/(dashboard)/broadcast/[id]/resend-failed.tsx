@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { orpcClient } from "@/lib/orpc/client";
+import { broadcastDetailKey } from "./query-keys";
 
 export function ResendFailed({
   broadcastId,
@@ -24,7 +25,7 @@ export function ResendFailed({
   broadcastId: string;
   failedCount: number;
 }) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
 
   const onConfirm = () => {
@@ -38,7 +39,9 @@ export function ResendFailed({
           id: toastId,
         });
       }
-      router.refresh();
+      queryClient.invalidateQueries({
+        queryKey: broadcastDetailKey(broadcastId),
+      });
     });
   };
 

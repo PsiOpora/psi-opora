@@ -1,6 +1,9 @@
-import { getBroadcast, listBroadcastRecipients } from "@psi-opora/db/queries";
+"use client";
+
+import type { Broadcast, BroadcastRecipientRow } from "@psi-opora/db/queries";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -20,6 +23,7 @@ import {
 import { formatDateTime } from "../history";
 import { TelegramPreview } from "../telegram-preview";
 import { AutoRefresh } from "./auto-refresh";
+import { broadcastDetailKey } from "./query-keys";
 import { ResendFailed } from "./resend-failed";
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -41,17 +45,30 @@ const STATUS_BADGE: Record<
   error: { label: "Ошибка", variant: "destructive" },
 };
 
-export default async function BroadcastDetailsPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const [broadcast, recipients] = await Promise.all([
-    getBroadcast(id),
-    listBroadcastRecipients(id),
-  ]);
-  if (!broadcast) notFound();
+export default function BroadcastDetailsPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: broadcastDetailKey(id),
+    queryFn: async () => {
+      const res = await fetch(`/api/dashboard/broadcasts/${id}`);
+      if (!res.ok) throw new Error("Рассылка не найдена");
+      return (await res.json()) as {
+        broadcast: Broadcast;
+        recipients: BroadcastRecipientRow[];
+      };
+    },
+  });
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+  }
+  if (isError || !data?.broadcast) {
+    return <p className="text-sm text-destructive">Рассылка не найдена.</p>;
+  }
+
+  const { broadcast, recipients } = data;
 
   // Пока задача выполняется, счётчики в строке broadcasts ещё не обновлены —
   // считаем по фактическим статусам получателей.
@@ -65,7 +82,7 @@ export default async function BroadcastDetailsPage({
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <AutoRefresh enabled={isRunning} />
+      <AutoRefresh enabled={isRunning} id={id} />
       <div>
         <Link
           href="/broadcast"

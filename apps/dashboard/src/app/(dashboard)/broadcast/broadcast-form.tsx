@@ -2,7 +2,7 @@
 
 import { BoldIcon, CodeIcon, ItalicIcon, LinkIcon } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
@@ -55,6 +55,7 @@ import {
   MESSAGE_MAX_LENGTH,
 } from "@psi-opora/api/schemas";
 import { orpcClient } from "@/lib/orpc/client";
+import { broadcastsListKey } from "./history";
 import { TelegramPreview } from "./telegram-preview";
 
 export interface StageOption {
@@ -470,7 +471,7 @@ function RecipientsReport({
 }
 
 export function BroadcastForm({ stages }: { stages: StageOption[] }) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [stageId, setStageId] = useState("");
   const [channel, setChannel] = useState<BroadcastChannel>("auto");
   const [message, setMessage] = useState("");
@@ -643,7 +644,7 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
         });
         setReport(null);
         setPreviewSig(null);
-        router.refresh();
+        queryClient.invalidateQueries({ queryKey: broadcastsListKey });
       }
     });
   };

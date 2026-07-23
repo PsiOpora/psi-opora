@@ -1,3 +1,6 @@
+"use client";
+
+import { useSearchParams } from "next/navigation";
 import { TgPersonalConnectorClient } from "./tg-personal-connector-client";
 
 /**
@@ -9,13 +12,9 @@ import { TgPersonalConnectorClient } from "./tg-personal-connector-client";
  * здесь намеренно плотный (см. tg-personal-connector-client.tsx), поэтому
  * внешние отступы минимальны.
  */
-export default async function TgPersonalConnectorPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const params = await searchParams;
-  const lineId = typeof params.line === "string" ? params.line : "";
+export default function TgPersonalConnectorPage() {
+  const searchParams = useSearchParams();
+  const lineId = searchParams.get("line") ?? "";
 
   return (
     <div className="p-2">

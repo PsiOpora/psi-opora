@@ -1,4 +1,7 @@
-import { listEmailCampaigns } from "@psi-opora/db/queries";
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import type { EmailCampaign } from "@psi-opora/db/queries";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,16 +20,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-export function formatDateTime(date: Date | null): string {
+export const emailCampaignsListKey = ["dashboard-email-campaigns"];
+
+export function formatDateTime(date: Date | string | null): string {
   if (!date) return "—";
   return new Intl.DateTimeFormat("ru-RU", {
     dateStyle: "short",
     timeStyle: "short",
-  }).format(date);
+  }).format(new Date(date));
 }
 
-export async function EmailCampaignHistory() {
-  const campaigns = await listEmailCampaigns();
+export function EmailCampaignHistory() {
+  const { data: campaigns = [], isLoading } = useQuery({
+    queryKey: emailCampaignsListKey,
+    queryFn: async () => {
+      const res = await fetch("/api/dashboard/email-campaigns");
+      if (!res.ok) throw new Error("Не удалось загрузить историю рассылок");
+      const json = (await res.json()) as { campaigns: EmailCampaign[] };
+      return json.campaigns;
+    },
+  });
 
   return (
     <Card>
@@ -38,7 +51,9 @@ export async function EmailCampaignHistory() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {campaigns.length === 0 ? (
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Загрузка…</p>
+        ) : campaigns.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Рассылок ещё не было. История появится после первой отправки
             (требуется подключённая база данных).

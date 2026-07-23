@@ -1,3 +1,6 @@
+"use client";
+
+import { useSearchParams } from "next/navigation";
 import { BotConnectorWidgetClient } from "./bot-connector-widget-client";
 
 /**
@@ -6,14 +9,11 @@ import { BotConnectorWidgetClient } from "./bot-connector-widget-client";
  * через /api/bitrix/bot-connector-widget/[messenger]). В отличие от личного
  * номера — вводить нечего, окно само активирует линию и настраивает вебхук.
  */
-export default async function BotConnectorWidgetPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const params = await searchParams;
-  const messenger = params.messenger === "max" ? "max" : "telegram";
-  const lineId = typeof params.line === "string" ? params.line : "";
+export default function BotConnectorWidgetPage() {
+  const searchParams = useSearchParams();
+  const messenger =
+    searchParams.get("messenger") === "max" ? "max" : "telegram";
+  const lineId = searchParams.get("line") ?? "";
 
   return (
     <div className="p-2">

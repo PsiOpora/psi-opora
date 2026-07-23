@@ -1,3 +1,6 @@
+"use client";
+
+import { useSearchParams } from "next/navigation";
 import { WaPersonalConnectorClient } from "./wa-personal-connector-client";
 
 /**
@@ -9,13 +12,9 @@ import { WaPersonalConnectorClient } from "./wa-personal-connector-client";
  * здесь намеренно плотный (см. wa-personal-connector-client.tsx), поэтому
  * внешние отступы минимальны.
  */
-export default async function WaPersonalConnectorPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const params = await searchParams;
-  const lineId = typeof params.line === "string" ? params.line : "";
+export default function WaPersonalConnectorPage() {
+  const searchParams = useSearchParams();
+  const lineId = searchParams.get("line") ?? "";
 
   return (
     <div className="p-2">

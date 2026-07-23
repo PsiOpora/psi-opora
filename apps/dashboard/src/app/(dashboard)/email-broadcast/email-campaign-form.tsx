@@ -1,8 +1,8 @@
 "use client";
 
 import type { UnisenderTemplate } from "@psi-opora/unisender-client";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
@@ -51,6 +51,7 @@ import type {
 } from "@psi-opora/api";
 import { LARGE_AUDIENCE_THRESHOLD } from "@psi-opora/api/schemas";
 import { orpcClient } from "@/lib/orpc/client";
+import { emailCampaignsListKey } from "./history";
 
 export interface StageOption {
   stageId: string;
@@ -420,7 +421,7 @@ export function EmailCampaignForm({
   templates: UnisenderTemplate[];
   senderConfigured: boolean;
 }) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [stageId, setStageId] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [subject, setSubject] = useState("");
@@ -585,7 +586,7 @@ export function EmailCampaignForm({
         });
         setReport(null);
         setPreviewSig(null);
-        router.refresh();
+        queryClient.invalidateQueries({ queryKey: emailCampaignsListKey });
       }
     });
   };

@@ -1,12 +1,10 @@
-import { getUnisenderSettings } from "@psi-opora/db/queries";
-import {
-  createUnisenderClient,
-  type UnisenderTemplate,
-} from "@psi-opora/unisender-client";
+"use client";
+
+import type { UnisenderTemplate } from "@psi-opora/unisender-client";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { NotConnected } from "@/components/dashboard/not-connected";
-import { fetchCategoryNames, fetchStageNames } from "@/lib/analytics/deals";
-import { getBitrixApi } from "@/lib/bitrix/session";
+import { useBitrixData } from "@/hooks/use-bitrix-data";
 import { EmailCampaignForm, type StageOption } from "./email-campaign-form";
 import { EmailCampaignHistory } from "./history";
 
@@ -15,15 +13,42 @@ function categoryOfStage(stageId: string): string {
   return stageId.match(/^C(\d+):/)?.[1] ?? "0";
 }
 
-export default async function EmailBroadcastPage() {
-  const api = await getBitrixApi();
-  if (!api) return <NotConnected />;
+interface TemplatesResponse {
+  configured: boolean;
+  senderConfigured: boolean;
+  templates: UnisenderTemplate[];
+  error: string | null;
+}
 
-  const [stages, categories, settings] = await Promise.all([
-    fetchStageNames(api),
-    fetchCategoryNames(api).catch(() => new Map<string, string>()),
-    getUnisenderSettings().catch(() => null),
+export default function EmailBroadcastPage() {
+  const { data, isLoading, isError } = useBitrixData([
+    "stageNames",
+    "categoryNames",
   ]);
+  const { data: templatesData, isLoading: templatesLoading } =
+    useQuery<TemplatesResponse>({
+      queryKey: ["dashboard-email-broadcast-templates"],
+      queryFn: async () => {
+        const res = await fetch("/api/dashboard/email-broadcast/templates");
+        if (!res.ok) throw new Error("Не удалось загрузить шаблоны Unisender");
+        return res.json();
+      },
+    });
+
+  if (isLoading || templatesLoading) {
+    return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+  }
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive">
+        Не удалось загрузить данные. Попробуйте обновить страницу.
+      </p>
+    );
+  }
+  if (!data?.connected) return <NotConnected />;
+
+  const stages = data.stageNames ?? new Map();
+  const categories = data.categoryNames ?? new Map();
 
   const options: StageOption[] = [...stages.entries()]
     .map(([stageId, info]) => {
@@ -45,15 +70,10 @@ export default async function EmailBroadcastPage() {
         }) || a.sort - b.sort,
     );
 
-  let templates: UnisenderTemplate[] = [];
-  let templatesError: string | null = null;
-  if (settings?.apiKey) {
-    try {
-      templates = await createUnisenderClient(settings.apiKey).getTemplates();
-    } catch (err) {
-      templatesError = (err as Error).message;
-    }
-  }
+  const templates = templatesData?.templates ?? [];
+  const templatesError = templatesData?.error ?? null;
+  const configured = templatesData?.configured ?? false;
+  const senderConfigured = templatesData?.senderConfigured ?? false;
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -65,7 +85,7 @@ export default async function EmailBroadcastPage() {
         </p>
       </div>
 
-      {!settings?.apiKey ? (
+      {!configured ? (
         <p className="text-sm text-muted-foreground">
           Unisender не настроен. Укажите API-ключ на странице{" "}
           <Link
@@ -89,7 +109,7 @@ export default async function EmailBroadcastPage() {
         <EmailCampaignForm
           stages={options}
           templates={templates}
-          senderConfigured={!!settings.senderEmail}
+          senderConfigured={senderConfigured}
         />
       )}
 

@@ -92,10 +92,7 @@ export {
   logBotMessage,
 } from "./utils/message-log";
 export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes";
-export {
-  resolveMaxBotToken,
-  resolveTelegramBotToken,
-} from "./utils/token";
+export { resolveMaxBotToken, resolveTelegramBotToken } from "./utils/token";
 export {
   type BotUserProfileInput,
   upsertBotUserProfile,
