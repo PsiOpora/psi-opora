@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
 import { handleGuideUpload } from "@psi-opora/api";
+import { revalidatePath } from "next/cache";
+import { NextResponse } from "next/server";
 import { getBitrixApi } from "@/lib/bitrix/session";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
   const host =
     request.headers.get("x-forwarded-host") ??
     request.headers.get("host") ??
-    "localhost:3000";
+    "https://psi-opora-dashboard.orixon.ru";
   const proto = request.headers.get("x-forwarded-proto") ?? "https";
 
   try {

@@ -75,7 +75,7 @@ export async function getOpenLineDialog(
  * entity_data_2 диалога Открытой линии — привязки CRM парами `TYPE|ID`:
  * `LEAD|0|COMPANY|0|CONTACT|123|DEAL|456` (0 = привязки нет). Тот же формат
  * разбирает бот при создании сделки — см.
- * packages/bot-core/src/utils/bitrix.ts (parseDialogCrmBindings).
+ * packages/bot-core/src/utils/bitrix/openline.ts (parseDialogCrmBindings).
  */
 export function parseCrmBindings(raw: string | undefined): {
   contactId: string | null;

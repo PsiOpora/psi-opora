@@ -16,7 +16,7 @@ export const env = createEnv({
     DB_DRIVER: z.enum(["node", "neon-http"]).optional(),
 
     // App
-    APP_URL: z.string().default("http://localhost:3000"),
+    APP_URL: z.string().default("https://psi-opora-dashboard.orixon.ru"),
 
     // Public client vars
     BASE_URL: z.string().optional(),

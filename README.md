@@ -48,7 +48,7 @@ line/connector ID и никакого ручного запуска скрипт
   3. **автоматически настраивает вебхук бота** (`setMessengerWebhook`,
      `packages/jobs/src/messenger.ts`) на `{TG_WEBHOOK_URL|MAX_WEBHOOK_URL}/api/webhook` —
      заменяет ручной запуск `set-webhook.ts`.
-- На горячем пути (`sendMessageToOpenLine`, `packages/bot-core/src/utils/bitrix.ts`)
+- На горячем пути (`sendMessageToOpenLine`, `packages/bot-core/src/utils/bitrix/openline.ts`)
   бот читает `connectorId`/`openLineId` из той же таблицы `bot_connectors`
   (через `@psi-opora/db/queries.edge` — работает и в Node (`apps/tg-bot`), и в
   Edge (`apps/max-bot`)), а OAuth-клиент для самого вызова `imconnector.send.messages`

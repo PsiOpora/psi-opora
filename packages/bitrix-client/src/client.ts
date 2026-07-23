@@ -177,6 +177,17 @@ export function createWebhookApi(webhookUrl: string): BitrixApi {
   };
 }
 
+// Вебхук — костыль для локальной разработки без OAuth-инсталляции портала.
+// В проде (next start всегда выставляет NODE_ENV=production) фолбэк
+// намеренно отключён: иначе дашборд, открытый напрямую (не из фрейма
+// Битрикс24, без OAuth-сессии), отдавал бы реальные данные CRM всем подряд —
+// DASHBOARD_BITRIX_WEBHOOK_URL приходит в под из общего секрета namespace.
+function devWebhookUrl(): string | undefined {
+  return env.NODE_ENV !== "production"
+    ? env.DASHBOARD_BITRIX_WEBHOOK_URL
+    : undefined;
+}
+
 /**
  * Клиент Bitrix24 без привязки к HTTP-запросу (для фоновых заданий):
  * по memberId — OAuth-токены портала, иначе — dev-вебхук из env.
@@ -186,8 +197,8 @@ export function resolveBitrixApi(
   app: BitrixAppName = "dashboard",
 ): BitrixApi | null {
   if (memberId) return createOAuthApi(memberId, app);
-  if (env.DASHBOARD_BITRIX_WEBHOOK_URL)
-    return createWebhookApi(env.DASHBOARD_BITRIX_WEBHOOK_URL);
+  const webhookUrl = devWebhookUrl();
+  if (webhookUrl) return createWebhookApi(webhookUrl);
   return null;
 }
 
@@ -195,7 +206,8 @@ export function resolveBitrixApi(
  * Клиент Bitrix24 для текущего запроса: сначала пробуем OAuth-сессию портала
  * (проверяя, что токены реально сохранены — иначе `memberId` из устаревшей
  * cookie привёл бы к ошибке вместо честного фолбэка), иначе — вебхук для
- * локальной разработки (DASHBOARD_BITRIX_WEBHOOK_URL в .env).
+ * локальной разработки (DASHBOARD_BITRIX_WEBHOOK_URL в .env, только вне
+ * прода).
  */
 export async function resolveBitrixApiForRequest(
   memberId: string | null,
@@ -205,7 +217,7 @@ export async function resolveBitrixApiForRequest(
     const tokens = await getPortalTokens(memberId, app);
     if (tokens) return createOAuthApi(memberId, app);
   }
-  if (env.DASHBOARD_BITRIX_WEBHOOK_URL)
-    return createWebhookApi(env.DASHBOARD_BITRIX_WEBHOOK_URL);
+  const webhookUrl = devWebhookUrl();
+  if (webhookUrl) return createWebhookApi(webhookUrl);
   return null;
 }
