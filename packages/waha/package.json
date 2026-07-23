@@ -7,7 +7,6 @@
   "types": "./dist/index.d.mts",
   "exports": {
     ".": {
-      "trigger.dev": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     }
@@ -29,7 +28,7 @@
     "@psi-opora/tsconfig": "workspace:*",
     "@types/bun": "1.3.14",
     "@types/node": "26.1.1",
-    "tsdown": "^0.22.13",
+    "tsdown": "^0.22.14",
     "typescript": "6.0.3"
   }
 }
