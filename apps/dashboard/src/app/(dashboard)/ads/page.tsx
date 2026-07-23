@@ -24,7 +24,7 @@ import { formatMoney, formatNumber } from "@/lib/format";
 import { orpc } from "@/lib/orpc/server";
 import { getRedisOrNull } from "@/lib/redis";
 import { AdRefreshButton } from "./refresh-button";
-import { AdTrendChart } from "./trend-chart";
+import { AdTrendChart } from "./trend-chart-client";
 
 function formatCtr(clicks: number, impressions: number): string {
   if (impressions === 0) return "—";

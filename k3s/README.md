@@ -81,14 +81,15 @@ kubectl create secret generic psi-opora-env --from-env-file=.env --namespace psi
 kubectl apply -f k3s/
 ```
 
-## Важно: боты — только 1 реплика
+## Важно: tg-userbot-worker — только 1 реплика
 
-`tg-bot`, `max-bot` и `tg-userbot-worker` держат long polling / постоянное
-MTProto-соединение с одним и тем же токеном/сессией. Два одновременно
-работающих пода приведут к конфликту (Telegram API отдаёт ошибку конфликта
-polling, WAHA/mtcute — рвущиеся сессии). Поэтому у них `replicas: 1` и
-`strategy: Recreate` — не увеличивайте реплики и не меняйте стратегию на
-RollingUpdate.
+`tg-userbot-worker` держит постоянное MTProto-соединение с одной и той же
+сессией. Два одновременно работающих пода приведут к рвущимся сессиям.
+Поэтому у него `replicas: 1` и `strategy: Recreate` — не увеличивайте реплики
+и не меняйте стратегию на RollingUpdate.
+
+`tg-bot` и `max-bot` работают через webhook (не long polling), поэтому этого
+ограничения на них уже нет.
 
 ## Порты (NodePort)
 
@@ -100,6 +101,8 @@ RollingUpdate.
 | waha            | 30050    | 3000              |
 | minio (API)     | 30900    | 9000              |
 | minio (консоль) | 30901    | 9001              |
+
+Grafana торчит через `IngressRoute` (см. "Домены" ниже), без NodePort.
 
 `tg-userbot-worker` без Service — ему не нужен входящий трафик (MTProto
 исходящий).
@@ -124,16 +127,31 @@ IngressRoute: на `web` (порт 80) с редиректом на https чер
 | bitrix-webhook  | psi-opora-bitrix-webhook.orixon.ru   |
 | tg-bot          | psi-opora-tg.orixon.ru               |
 | max-bot         | psi-opora-max.orixon.ru              |
+| grafana         | psi-opora-grafana.orixon.ru          |
 
 Для каждого — направить DNS A-запись на IP сервера с k3s.
 
-`tg-bot` и `max-bot` в манифестах уже получили `containerPort: 3000` +
-Service + IngressRoute, но сам образ пока запускает `src/dev.ts` (long
-polling, см. раздел выше) — маршрут начнёт из чего-то отвечать только
-после того, как CMD в `apps/tg-bot/Dockerfile` / `apps/max-bot/Dockerfile`
-переключится на webhook-сервер (обработчик уже есть в `api/webhook.ts`,
-сейчас используется только для деплоя на Vercel) и после
-`set-webhook`/`delete-webhook` скриптов для регистрации URL в Telegram/MAX.
+## Логи (Grafana + Loki + Promtail)
+
+`k3s/logging.yaml` — стек сбора логов со всех подов namespace `psi-opora`:
+
+- **Promtail** — DaemonSet, читает логи подов с диска каждой ноды
+  (`/var/log/pods`, `/var/log/containers`) и шлёт в Loki. Собирает только
+  namespace `psi-opora` (см. `regex: psi-opora` в `promtail-config`
+  ConfigMap) — чтобы расширить на весь кластер, уберите этот `relabel_config`.
+- **Loki** — хранилище логов, локальный PVC (`loki-data`, 10Gi), retention
+  30 дней (`limits_config.retention_period` в `loki-config` ConfigMap).
+- **Grafana** — просмотр: датасорс Loki подключается автоматически через
+  `grafana-datasources` ConfigMap. Логи ищите в Explore по лейблам `app`,
+  `pod`, `container`, `namespace`, например: `{app="dashboard"} |= "error"`.
+
+Перед первым `kubectl apply` нужно завести пароль администратора Grafana
+(в git не попадает, аналогично `registry-htpasswd`):
+
+```bash
+kubectl create secret generic grafana-admin \
+  --from-literal=password='<пароль>' --namespace psi-opora
+```
 
 ## Проверка
 
