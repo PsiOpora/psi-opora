@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run --env-file=../../.env src/dev.ts",
+    "webhook": "bun run --env-file=../../.env src/server.ts",
     "set-webhook": "bun run --env-file=../../.env scripts/set-webhook.ts",
     "delete-webhook": "bun run --env-file=../../.env scripts/delete-webhook.ts",
     "backfill-avatars": "bun run --env-file=../../.env scripts/backfill-avatars.ts",
@@ -12,12 +13,14 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1093.0",
+    "@hono/node-server": "^1.19.14",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@upstash/redis": "^1.38.0",
-    "grammy": "1.45.1"
+    "grammy": "1.45.1",
+    "hono": "^4.12.31"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",

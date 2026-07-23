@@ -131,12 +131,14 @@
       "name": "@psi-opora/max-bot",
       "version": "0.0.2",
       "dependencies": {
+        "@hono/node-server": "^1.19.14",
         "@maxhub/max-bot-api": "0.2.5",
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
         "@upstash/redis": "^1.38.0",
+        "hono": "^4.12.31",
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
@@ -149,12 +151,14 @@
       "version": "0.0.1",
       "dependencies": {
         "@aws-sdk/client-s3": "^3.1093.0",
+        "@hono/node-server": "^1.19.14",
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
         "@upstash/redis": "^1.38.0",
         "grammy": "1.45.1",
+        "hono": "^4.12.31",
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",

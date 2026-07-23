@@ -5,17 +5,20 @@
   "private": true,
   "scripts": {
     "dev": "bun run --env-file=../../.env src/dev.ts",
+    "webhook": "bun run --env-file=../../.env src/server.ts",
     "set-webhook": "bun run --env-file=../../.env scripts/set-webhook.ts",
     "delete-webhook": "bun run --env-file=../../.env scripts/delete-webhook.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.14",
     "@maxhub/max-bot-api": "0.2.5",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
-    "@upstash/redis": "^1.38.0"
+    "@upstash/redis": "^1.38.0",
+    "hono": "^4.12.31"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
