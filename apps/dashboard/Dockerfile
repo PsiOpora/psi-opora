@@ -16,6 +16,11 @@ RUN bun install --frozen-lockfile
 COPY --from=prepare /app/out/full/ .
 ARG POSTGRES_URL
 ENV POSTGRES_URL=$POSTGRES_URL
+# NEXT_PUBLIC_* попадают в клиентский бандл только на этапе `next build` —
+# в отличие от остальных env, задать их через ConfigMap/переменные рантайма
+# в k3s (после сборки) уже бесполезно, значение должно быть здесь.
+ARG NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL
+ENV NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL=$NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL
 RUN bunx turbo run build --filter=@psi-opora/dashboard...
 
 # --- Runner ---

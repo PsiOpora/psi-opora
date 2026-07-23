@@ -78,8 +78,11 @@ jobs:
           # POSTGRES_URL нужен на этапе `next build` (dashboard, clients,
           # bitrix-webhook обращаются к БД при сборке страниц); для остальных
           # сервисов ARG в Dockerfile просто не объявлен и значение игнорируется.
+          # NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL по той же причине — только
+          # dashboard объявляет этот ARG (see apps/dashboard/Dockerfile).
           build-args: |
             POSTGRES_URL=${{ secrets.POSTGRES_URL }}
+            NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL=${{ vars.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL }}
           tags: |
             ${{ vars.REGISTRY }}/psi-opora-${{ matrix.service }}:${{ github.sha }}
             ${{ vars.REGISTRY }}/psi-opora-${{ matrix.service }}:latest
