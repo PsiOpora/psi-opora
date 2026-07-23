@@ -1,9 +1,8 @@
 "use client";
 
-import { BoldIcon, CodeIcon, ItalicIcon, LinkIcon } from "lucide-react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
   Card,
   CardContent,
@@ -27,14 +26,12 @@ import type {
   BroadcastReport,
   RecentBroadcastInfo,
 } from "@psi-opora/api";
-import {
-  LARGE_AUDIENCE_THRESHOLD,
-  MESSAGE_MAX_LENGTH,
-} from "@psi-opora/api/schemas";
-import { WarningBox } from "@/components/messaging/warning-box";
+import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
 import { orpcClient } from "@/lib/orpc/client";
 import { broadcastsListKey } from "./history";
+import { MessageEditor } from "./message-editor";
 import { RecipientsReport } from "./recipients-report";
+import { SendConfirmation } from "./send-confirmation";
 import { TelegramPreview } from "./telegram-preview";
 
 export interface StageOption {
@@ -50,14 +47,6 @@ const CHANNEL_LABEL: Record<BroadcastChannel, string> = {
   telegram: "Только Telegram",
   max: "Только MAX",
 };
-
-function formatDateTime(date: Date | null): string {
-  if (!date) return "—";
-  return new Intl.DateTimeFormat("ru-RU", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(date));
-}
 
 export function BroadcastForm({ stages }: { stages: StageOption[] }) {
   const queryClient = useQueryClient();
@@ -80,7 +69,6 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const messageRef = useRef<HTMLTextAreaElement>(null);
 
   const categories = new Map<string, StageOption[]>();
   for (const stage of stages) {
@@ -142,42 +130,6 @@ export function BroadcastForm({ stages }: { stages: StageOption[] }) {
           : sendableCount === 0
             ? "Среди получателей нет ни одного с привязанным Telegram или MAX."
             : null;
-
-  // Оборачивает выделенный текст в разметку Telegram (легаси-Markdown,
-  // тот же режим используют боты проекта: *…*, _…_, `…`, [текст](url))
-  const applyFormat = (kind: "bold" | "italic" | "code" | "link") => {
-    const el = messageRef.current;
-    if (!el) return;
-    const start = el.selectionStart ?? message.length;
-    const end = el.selectionEnd ?? message.length;
-    const selected = message.slice(start, end);
-
-    let inserted: string;
-    let selectFrom: number;
-    let selectTo: number;
-    if (kind === "link") {
-      const label = selected || "текст ссылки";
-      const url = "https://";
-      inserted = `[${label}](${url})`;
-      // выделяем URL-заглушку, чтобы сразу вписать адрес
-      selectFrom = start + label.length + 3;
-      selectTo = selectFrom + url.length;
-    } else {
-      const marker = kind === "bold" ? "*" : kind === "italic" ? "_" : "`";
-      const label =
-        selected ||
-        (kind === "bold" ? "жирный" : kind === "italic" ? "курсив" : "код");
-      inserted = `${marker}${label}${marker}`;
-      selectFrom = start + 1;
-      selectTo = selectFrom + label.length;
-    }
-
-    setMessage(message.slice(0, start) + inserted + message.slice(end));
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(selectFrom, selectTo);
-    });
-  };
 
   const runPreview = () => {
     setConfirming(false);

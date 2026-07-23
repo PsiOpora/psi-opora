@@ -21,6 +21,7 @@ ENV POSTGRES_URL=$POSTGRES_URL
 # в k3s (после сборки) уже бесполезно, значение должно быть здесь.
 ARG NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL
 ENV NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL=$NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL
+ENV NEXT_PUBLIC_APP_URL=https://psi-opora-dashboard.orixon.ru
 RUN bunx turbo run build --filter=@psi-opora/dashboard...
 
 # --- Runner ---
