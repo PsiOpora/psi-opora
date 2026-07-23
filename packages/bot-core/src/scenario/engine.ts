@@ -1,6 +1,26 @@
 import type { FunnelStep } from "../utils/funnel";
 import { hasPhoneNumber, isValidEmail } from "../utils/validation";
+import {
+  categoryQuestion,
+  consentQuestion,
+  emailQuestion,
+  entryQuestion,
+  issueQuestion,
+  phoneQuestion,
+  stepQuestion,
+  subscribeQuestion,
+  withName,
+} from "./questions";
 import type { ScenarioTexts } from "./texts";
+import type {
+  ScenarioAction,
+  ScenarioAudience,
+  ScenarioIssue,
+  ScenarioLead,
+  ScenarioMessage,
+  ScenarioOutput,
+  ScenarioState,
+} from "./types";
 
 /**
  * Движок сценария бота — чистая машина состояний без привязки к мессенджеру.
@@ -16,213 +36,28 @@ import type { ScenarioTexts } from "./texts";
  *
  * Адаптеры (grammy для TG, @maxhub для MAX) рендерят ScenarioMessage
  * и исполняют эффекты: track (воронка) и lead (сделка в Bitrix).
+ *
+ * Типы состояния/сообщений — в ./types, построители текстов вопросов — в
+ * ./questions; здесь только переходы между шагами.
  */
 
-export const SCENARIO_ACTIONS = [
-  "sc_consult",
-  "sc_guide",
-  // consent_* совпадают с callback data старого бота — кнопки в старых
-  // сообщениях продолжают работать
-  "consent_agree",
-  "consent_decline",
-  "sc_child",
-  "sc_self",
-  "sc_eating",
-  "sc_ocd",
-  "sc_other",
-  "sc_skip_email",
-  "sc_skip_phone",
-  "sc_sub_yes",
-  "sc_sub_no",
-] as const;
-export type ScenarioAction = (typeof SCENARIO_ACTIONS)[number];
-
-export function isScenarioAction(value: string): value is ScenarioAction {
-  return (SCENARIO_ACTIONS as readonly string[]).includes(value);
-}
-
-export type ScenarioStep =
-  | "entry"
-  | "consent"
-  | "name"
-  | "category"
-  | "issue"
-  | "email"
-  | "phone"
-  | "subscribe"
-  | "done";
-
-export type ScenarioFlow = "consult" | "guide";
-export type ScenarioAudience = "child" | "self";
-export type ScenarioIssue = "eating" | "ocd" | "other";
-
-export interface ScenarioState {
-  step: ScenarioStep;
-  /** Выбор на старте: запись на консультацию или воронка гайда. */
-  flow?: ScenarioFlow;
-  audience?: ScenarioAudience;
-  issue?: ScenarioIssue;
-  /** Имя, введённое в флоу консультации. */
-  name?: string;
-  phone?: string;
-  email?: string;
-  emailAttempts?: number;
-  phoneAttempts?: number;
-  /** Напоминание уже отправлено — при следующей проверке сценарий завершается. */
-  reminded?: boolean;
-  /**
-   * Вопрос уже повторяли в ответ на текст на кнопочном шаге.
-   * Дальше молчим, чтобы не встревать в переписку с оператором.
-   */
-  nudged?: boolean;
-  /** ID созданной сделки Bitrix — для комментария об ответе на рассылку. */
-  dealId?: number;
-}
-
-export interface ScenarioButton {
-  label: string;
-  action: ScenarioAction;
-}
-
-export interface ScenarioMessage {
-  text: string;
-  /** Ряды inline-кнопок. */
-  buttons?: ScenarioButton[][];
-  /** Вслед за текстом отправить PDF-гайд (если загружен в дашборде). */
-  guide?: boolean;
-}
-
-export interface ScenarioLead {
-  flow: ScenarioFlow;
-  phone: string;
-  email?: string;
-  /** Имя из анкеты (флоу consult); иначе адаптер берёт имя из профиля. */
-  name?: string;
-  audience?: ScenarioAudience;
-  issue?: ScenarioIssue;
-}
-
-export interface ScenarioOutput {
-  state: ScenarioState;
-  messages: ScenarioMessage[];
-  /** Шаги воронки для трекинга. */
-  track: FunnelStep[];
-  /** Заявка для передачи менеджеру (сделка в Bitrix). */
-  lead?: ScenarioLead;
-  /** Ответ на вопрос о рассылке — уходит комментарием в сделку. */
-  subscribeChoice?: "yes" | "no";
-  /** true — ждём ответа пользователя (при молчании сработает напоминание). */
-  awaitingInput: boolean;
-}
+export {
+  isScenarioAction,
+  SCENARIO_ACTIONS,
+  type ScenarioAction,
+  type ScenarioAudience,
+  type ScenarioButton,
+  type ScenarioFlow,
+  type ScenarioIssue,
+  type ScenarioLead,
+  type ScenarioMessage,
+  type ScenarioOutput,
+  type ScenarioState,
+  type ScenarioStep,
+} from "./types";
+export { stepQuestion } from "./questions";
 
 const MAX_ATTEMPTS = 3;
-
-/** Подстановка имени клиента в текст с плейсхолдером {name}. */
-function withName(text: string, name: string | undefined): string {
-  return text.replaceAll("{name}", name?.trim() || "друг");
-}
-
-// ── Вопросы шагов ──────────────────────────────────────────────────────────────
-
-function entryQuestion(t: ScenarioTexts): ScenarioMessage {
-  return {
-    text: t.welcome,
-    buttons: [
-      [{ label: t.btn_consult, action: "sc_consult" }],
-      [{ label: t.btn_guide, action: "sc_guide" }],
-    ],
-  };
-}
-
-function consentQuestion(t: ScenarioTexts): ScenarioMessage {
-  return {
-    text: t.consent_text,
-    buttons: [
-      [{ label: t.btn_consent_agree, action: "consent_agree" }],
-      [{ label: t.btn_consent_decline, action: "consent_decline" }],
-    ],
-  };
-}
-
-function categoryQuestion(t: ScenarioTexts): ScenarioMessage {
-  return {
-    text: t.category_question,
-    buttons: [
-      [{ label: t.btn_child, action: "sc_child" }],
-      [{ label: t.btn_self, action: "sc_self" }],
-    ],
-  };
-}
-
-function issueQuestion(t: ScenarioTexts): ScenarioMessage {
-  return {
-    text: t.issue_question,
-    buttons: [
-      [{ label: t.btn_issue_eating, action: "sc_eating" }],
-      [{ label: t.btn_issue_ocd, action: "sc_ocd" }],
-      [{ label: t.btn_issue_other, action: "sc_other" }],
-    ],
-  };
-}
-
-function emailQuestion(t: ScenarioTexts): ScenarioMessage {
-  return {
-    text: t.email_question,
-    buttons: [[{ label: t.btn_skip_email, action: "sc_skip_email" }]],
-  };
-}
-
-function phoneQuestion(t: ScenarioTexts): ScenarioMessage {
-  return {
-    text: t.phone_question,
-    buttons: [[{ label: t.btn_skip_phone, action: "sc_skip_phone" }]],
-  };
-}
-
-function subscribeQuestion(t: ScenarioTexts): ScenarioMessage {
-  return {
-    text: t.subscribe_question,
-    buttons: [
-      [
-        { label: t.btn_subscribe_yes, action: "sc_sub_yes" },
-        { label: t.btn_subscribe_no, action: "sc_sub_no" },
-      ],
-    ],
-  };
-}
-
-/** Вопрос текущего шага — для повтора и напоминаний. */
-export function stepQuestion(
-  state: ScenarioState,
-  t: ScenarioTexts,
-): ScenarioMessage | null {
-  switch (state.step) {
-    case "entry":
-      return entryQuestion(t);
-    case "consent":
-      return consentQuestion(t);
-    case "name":
-      return { text: t.name_question };
-    case "category":
-      return categoryQuestion(t);
-    case "issue":
-      return issueQuestion(t);
-    case "email":
-      return state.flow === "consult"
-        ? { text: t.consult_email_question }
-        : emailQuestion(t);
-    case "phone":
-      return state.flow === "consult"
-        ? { text: withName(t.consult_phone_question, state.name) }
-        : phoneQuestion(t);
-    case "subscribe":
-      return subscribeQuestion(t);
-    default:
-      return null;
-  }
-}
-
-// ── Переходы ──────────────────────────────────────────────────────────────────
 
 function output(
   state: ScenarioState,

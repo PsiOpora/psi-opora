@@ -98,7 +98,7 @@ export function TgPersonalConnectorCard() {
         if (env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL) {
           const failures = await subscribeConnectorEvents(
             b24,
-            `${env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL}/api/bitrix-webhook`,
+            `${env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL}`,
           );
           if (failures.length > 0) {
             toast.error(
