@@ -144,6 +144,18 @@ export function bitrixWebhookHandler(options?: {
     const reply = getOperatorReplyMessage(payload);
     if (reply && options?.onOperatorReply) {
       await options.onOperatorReply(reply);
+    } else if (
+      !reply &&
+      payload.event?.toUpperCase() === "ONIMCONNECTORMESSAGEADD"
+    ) {
+      // Событие распознано, но chatId/text не удалось извлечь (например,
+      // оператор отправил вложение без текста) — раньше это падало молча,
+      // без единой строки в логах, и разобрать причину пропажи ответа
+      // оператора было невозможно.
+      console.warn(
+        `[bitrix-webhook] ONIMCONNECTORMESSAGEADD без chatId/text, payload:`,
+        JSON.stringify(payload),
+      );
     }
 
     const disabled = getConnectorDisabledInfo(payload);
