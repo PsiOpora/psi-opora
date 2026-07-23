@@ -17,8 +17,7 @@ spec:
     spec:
       containers:
         - name: bitrix-webhook
-          # REGISTRY_HOST — см. комментарий в k3s/tg-bot.yaml и k3s/README.md.
-          image: REGISTRY_HOST:30500/psi-opora-bitrix-webhook:latest
+          image: registry.orixon.ru/psi-opora-bitrix-webhook:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000

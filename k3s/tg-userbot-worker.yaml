@@ -22,8 +22,7 @@ spec:
     spec:
       containers:
         - name: tg-userbot-worker
-          # REGISTRY_HOST — см. комментарий в k3s/tg-bot.yaml и k3s/README.md.
-          image: REGISTRY_HOST:30500/psi-opora-tg-userbot-worker:latest
+          image: registry.orixon.ru/psi-opora-tg-userbot-worker:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:

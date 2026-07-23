@@ -20,8 +20,7 @@ spec:
     spec:
       containers:
         - name: max-bot
-          # REGISTRY_HOST — см. комментарий в k3s/tg-bot.yaml и k3s/README.md.
-          image: REGISTRY_HOST:30500/psi-opora-max-bot:latest
+          image: registry.orixon.ru/psi-opora-max-bot:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:

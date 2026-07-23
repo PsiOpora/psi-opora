@@ -22,10 +22,9 @@ spec:
     spec:
       containers:
         - name: tg-bot
-          # REGISTRY_HOST — адрес вашего сервера, см. k3s/README.md (раздел
-          # "Свой реестр"). Тег latest тут только для первого bootstrap-apply —
-          # реальные деплои катит GitHub Actions через kubectl set image.
-          image: REGISTRY_HOST:30500/psi-opora-tg-bot:latest
+          # Тег latest тут только для первого bootstrap-apply — реальные
+          # деплои катит GitHub Actions через kubectl set image.
+          image: registry.orixon.ru/psi-opora-tg-bot:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:

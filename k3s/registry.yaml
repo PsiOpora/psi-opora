@@ -107,10 +107,36 @@ metadata:
   name: registry
   namespace: psi-opora
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: registry
   ports:
     - port: 5000
       targetPort: 5000
-      nodePort: 30500
+---
+# TLS через Traefik (встроен в k3s) + cert-manager, см. k3s/README.md
+# и k3s/cert-issuer.yaml. Заменяет прежний NodePort:30500 + insecure http.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry
+  namespace: psi-opora
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - registry.orixon.ru
+      secretName: registry-tls
+  rules:
+    - host: registry.orixon.ru
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: registry
+                port:
+                  number: 5000
