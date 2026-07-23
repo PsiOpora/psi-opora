@@ -9,6 +9,7 @@ import {
   getTelegramPersonalAccountByLine,
   getWhatsappPersonalAccountByLine,
   insertBotMessage,
+  type MessageDeliveryStatus,
   removeBotConnector,
 } from "@psi-opora/db/queries";
 import { type Messenger, sendMessengerMessage } from "@psi-opora/jobs";
@@ -37,6 +38,7 @@ async function logOperatorReply(
   messenger: string,
   reply: OperatorReplyMessage,
   externalId?: string,
+  status?: MessageDeliveryStatus,
 ): Promise<void> {
   const userId = String(reply.chatId);
   try {
@@ -51,6 +53,7 @@ async function logOperatorReply(
           ? String(reply.operatorUserId)
           : undefined,
       externalId,
+      status,
     });
   } catch (err) {
     console.error(
@@ -128,6 +131,7 @@ async function relayToWhatsAppPersonal(
   }
 
   let externalId: string | undefined;
+  let status: MessageDeliveryStatus = "sent";
   try {
     const result = await wahaSendText(
       account.sessionName,
@@ -139,14 +143,18 @@ async function relayToWhatsAppPersonal(
       `[bitrix-webhook] ответ оператора отправлен с личного номера ${account.phone} chat=${reply.chatId}`,
     );
   } catch (err) {
+    status = "failed";
     console.error(
       `[bitrix-webhook] не удалось отправить ответ оператора в WhatsApp: ${(err as Error).message}`,
     );
   }
-  await logOperatorReply("whatsapp-personal", reply, externalId);
+  await logOperatorReply("whatsapp-personal", reply, externalId, status);
   return true;
 }
 
+/** Ответ оператора считается отправленным без ошибки только если сам
+ * вызов sendMessengerMessage не бросил исключение — иначе тред в едином
+ * инбоксе показывал бы галочку «отправлено» даже на упавшей отправке. */
 async function relayOperatorReply(reply: OperatorReplyMessage): Promise<void> {
   if (await relayToTelegramPersonal(reply)) return;
   if (await relayToWhatsAppPersonal(reply)) return;
@@ -159,18 +167,20 @@ async function relayOperatorReply(reply: OperatorReplyMessage): Promise<void> {
     return;
   }
 
+  let status: MessageDeliveryStatus = "sent";
   try {
     await sendMessengerMessage(messenger, String(reply.chatId), reply.text);
     console.log(
       `[bitrix-webhook] ответ оператора переслан в ${messenger} chat=${reply.chatId}`,
     );
   } catch (err) {
+    status = "failed";
     console.error(
       `[bitrix-webhook] не удалось переслать ответ оператора в ${messenger}: ${(err as Error).message}`,
     );
   }
 
-  await logOperatorReply(messenger, reply);
+  await logOperatorReply(messenger, reply, undefined, status);
 }
 
 /**
