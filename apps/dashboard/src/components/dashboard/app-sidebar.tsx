@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   BarChart3Icon,
   BotIcon,
@@ -12,15 +10,16 @@ import {
   ListIcon,
   MailIcon,
   MegaphoneIcon,
-  MessageSquareIcon,
   MessageSquareTextIcon,
   PlugIcon,
   SendIcon,
+  SettingsIcon,
   SlidersHorizontalIcon,
   TagsIcon,
   WalletIcon,
-  SettingsIcon,
 } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -51,10 +50,7 @@ const NAV_GROUPS = [
   },
   {
     label: "CRM",
-    items: [
-      { href: "/deals", label: "Сделки", icon: ListIcon },
-      { href: "/clients", label: "Клиенты", icon: MessageSquareIcon },
-    ],
+    items: [{ href: "/deals", label: "Сделки", icon: ListIcon }],
   },
   {
     label: "Коммуникации",
@@ -67,11 +63,23 @@ const NAV_GROUPS = [
     label: "Настройки",
     items: [
       { href: "/builder", label: "Конструктор", icon: SlidersHorizontalIcon },
-      { href: "/settings/bot", label: "Тексты бота", icon: MessageSquareTextIcon },
+      {
+        href: "/settings/bot",
+        label: "Тексты бота",
+        icon: MessageSquareTextIcon,
+      },
       { href: "/settings/connectors", label: "Каналы ботов", icon: PlugIcon },
       { href: "/settings/ads", label: "Настройки", icon: SettingsIcon },
-      { href: "/settings/backup", label: "Бэкап CRM", icon: DatabaseBackupIcon },
-      { href: "/settings/email", label: "Настройки Unisender", icon: KeyRoundIcon },
+      {
+        href: "/settings/backup",
+        label: "Бэкап CRM",
+        icon: DatabaseBackupIcon,
+      },
+      {
+        href: "/settings/email",
+        label: "Настройки Unisender",
+        icon: KeyRoundIcon,
+      },
     ],
   },
 ];
