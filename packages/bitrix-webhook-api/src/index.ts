@@ -8,23 +8,16 @@ export interface BitrixWebhookPayload {
   data?: {
     CONNECTOR?: string;
     LINE?: number;
-    DATA?: Array<{
-      connector?: {
-        connector_id?: string;
-        line_id?: number;
-        /** Число для ботов/личного Telegram, строка-jid для WhatsApp. */
-        chat_id?: number | string;
-        user_id?: number;
-      };
-      session?: {
-        id?: number;
+    /** См. https://apidocs.bitrix24.ru/api-reference/imopenlines/imconnector/events/on-im-connector-message-add.html —
+     * поле называется MESSAGES, не DATA (было расхождение с реальным payload). */
+    MESSAGES?: Array<{
+      im?: {
+        chat_id?: number;
+        message_id?: number;
       };
       chat?: {
         /** Число для ботов/личного Telegram, строка-jid для WhatsApp. */
         id?: number | string;
-      };
-      user?: {
-        id?: number;
       };
       message?: {
         text?: string;
@@ -47,7 +40,7 @@ export interface OperatorReplyMessage {
    * imconnector.send.messages: число (Telegram/MAX) или строка-jid (WhatsApp). */
   chatId: number | string;
   text: string;
-  /** Bitrix-ID оператора, отправившего ответ (data.DATA[].message.user_id) —
+  /** Bitrix-ID оператора, отправившего ответ (data.MESSAGES[].message.user_id) —
    * для журналирования в bot_messages/назначения ответственного, см.
    * apps/bitrix-webhook. Может отсутствовать в старых версиях события. */
   operatorUserId?: number;
@@ -63,14 +56,14 @@ export function getOperatorReplyMessage(
 ): OperatorReplyMessage | null {
   if (payload.event?.toUpperCase() !== "ONIMCONNECTORMESSAGEADD") return null;
 
-  const item = payload.data?.DATA?.[0];
-  const chatId = item?.chat?.id ?? item?.connector?.chat_id;
+  const item = payload.data?.MESSAGES?.[0];
+  const chatId = item?.chat?.id;
   const text = item?.message?.text?.trim();
   if (!chatId || !text) return null;
 
   return {
     connector: payload.data?.CONNECTOR,
-    lineId: payload.data?.LINE ?? item?.connector?.line_id,
+    lineId: payload.data?.LINE,
     chatId,
     text,
     operatorUserId: item?.message?.user_id,
@@ -110,6 +103,65 @@ export function getConnectorDisabledInfo(
 function redactAuthToken(payload: BitrixWebhookPayload): unknown {
   if (!payload.auth?.application_token) return payload;
   return { ...payload, auth: { ...payload.auth, application_token: "***" } };
+}
+
+/** "123" → 123, всё остальное — как есть (нужно для полей вроде data[LINE],
+ * которые в form-urlencoded теле приходят строками, а по факту числа). */
+function coerceNumeric(value: string): string | number {
+  return /^-?\d+$/.test(value) && Number.isSafeInteger(Number(value))
+    ? Number(value)
+    : value;
+}
+
+function setNestedValue(
+  target: Record<string, unknown>,
+  path: string[],
+  value: string,
+): void {
+  let cursor: Record<string, unknown> = target;
+  for (let i = 0; i < path.length - 1; i++) {
+    const key = path[i]!;
+    const nextIsIndex = /^\d+$/.test(path[i + 1]!);
+    if (typeof cursor[key] !== "object" || cursor[key] === null) {
+      cursor[key] = nextIsIndex ? [] : {};
+    }
+    cursor = cursor[key] as Record<string, unknown>;
+  }
+  cursor[path[path.length - 1]!] = coerceNumeric(value);
+}
+
+/**
+ * Bitrix шлёт события коннектора (ONIMCONNECTORMESSAGEADD и т.д.) как
+ * application/x-www-form-urlencoded с PHP-style bracket-нотацией для
+ * вложенных полей (data[MESSAGES][0][im][chat_id]=...), а не как JSON —
+ * пример тела запроса из документации приведён в JSON только для
+ * читаемости. Раньше здесь стоял голый JSON.parse(rawBody), который падал
+ * на каждом реальном событии от Bitrix (см. лог "невалидный JSON в теле
+ * запроса").
+ */
+function parseBitrixFormBody(rawBody: string): BitrixWebhookPayload {
+  const result: Record<string, unknown> = {};
+  for (const [rawKey, value] of new URLSearchParams(rawBody)) {
+    const segments = rawKey.match(/^[^[\]]+|\[[^[\]]*\]/g);
+    if (!segments) continue;
+    const path = segments.map((segment) => segment.replace(/^\[|\]$/g, ""));
+    setNestedValue(result, path, value);
+  }
+  return result as unknown as BitrixWebhookPayload;
+}
+
+function parseBitrixWebhookBody(
+  req: Request,
+  rawBody: string,
+): BitrixWebhookPayload {
+  const contentType = req.headers.get("content-type") ?? "";
+  if (
+    !contentType.includes("application/x-www-form-urlencoded") &&
+    (contentType.includes("application/json") || rawBody.trimStart().startsWith("{"))
+  ) {
+    return JSON.parse(rawBody) as BitrixWebhookPayload;
+  }
+  return parseBitrixFormBody(rawBody);
 }
 
 export function bitrixWebhookHandler(options?: {
@@ -154,12 +206,12 @@ export function bitrixWebhookHandler(options?: {
 
     let payload: BitrixWebhookPayload;
     try {
-      payload = JSON.parse(rawBody) as BitrixWebhookPayload;
+      payload = parseBitrixWebhookBody(req, rawBody);
     } catch {
       console.warn(
-        `[bitrix-webhook] невалидный JSON в теле запроса: ${rawBody.slice(0, 500)}`,
+        `[bitrix-webhook] не удалось разобрать тело запроса: ${rawBody.slice(0, 500)}`,
       );
-      return new Response("Invalid JSON", { status: 400 });
+      return new Response("Invalid body", { status: 400 });
     }
 
     console.log(

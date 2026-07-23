@@ -53,6 +53,11 @@ export async function POST(request: Request) {
 
 ### Интерфейсы
 
+Bitrix шлёт события коннектора (`ONIMCONNECTORMESSAGEADD` и т.д.) как
+`application/x-www-form-urlencoded` с PHP-style bracket-нотацией
+(`data[MESSAGES][0][im][chat_id]=...`), а не как JSON — `bitrixWebhookHandler`
+разбирает оба варианта.
+
 ```ts
 interface BitrixWebhookPayload {
   event: string;
@@ -60,11 +65,10 @@ interface BitrixWebhookPayload {
   data?: {
     CONNECTOR?: string;
     LINE?: number;
-    DATA?: Array<{
-      connector?: { chat_id?: number; user_id?: number; line_id?: number };
-      chat?: { id?: number };
-      user?: { id?: number };
-      message?: { text?: string };
+    MESSAGES?: Array<{
+      im?: { chat_id?: number; message_id?: number };
+      chat?: { id?: number | string };
+      message?: { text?: string; user_id?: number };
     }>;
   };
 }
