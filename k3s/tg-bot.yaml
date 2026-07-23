@@ -20,12 +20,15 @@ spec:
       labels:
         app: tg-bot
     spec:
+      imagePullSecrets:
+        - name: regcred
       containers:
         - name: tg-bot
           # Тег latest тут только для первого bootstrap-apply — реальные
           # деплои катит GitHub Actions через kubectl set image.
           image: registry.orixon.ru/psi-opora-tg-bot:latest
           imagePullPolicy: IfNotPresent
+
           # Порт для webhook-сервера (api/webhook.ts) — сейчас образ ещё
           # запускает src/dev.ts (long polling), Service/Ingress ниже
           # заработают только после переключения CMD на webhook-режим.

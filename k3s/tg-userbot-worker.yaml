@@ -20,6 +20,8 @@ spec:
       labels:
         app: tg-userbot-worker
     spec:
+      imagePullSecrets:
+        - name: regcred
       containers:
         - name: tg-userbot-worker
           image: registry.orixon.ru/psi-opora-tg-userbot-worker:latest

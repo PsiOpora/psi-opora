@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: regcred
+  namespace: psi-opora
+type: kubernetes.io/dockerconfigjson
+stringData:
+  .dockerconfigjson: |
+    {
+      "auths": {
+        "registry.orixon.ru": {
+          "username": "deploy",
+          "password": "deploy",
+          "auth": "ZGVwbG95OmRlcGxveQ=="
+        }
+      }
+    }

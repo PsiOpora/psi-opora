@@ -30,6 +30,8 @@ spec:
       labels:
         app: waha
     spec:
+      imagePullSecrets:
+        - name: regcred
       containers:
         - name: waha
           # Версию пиним сознательно: протокол WhatsApp неофициальный,

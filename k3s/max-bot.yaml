@@ -18,6 +18,8 @@ spec:
       labels:
         app: max-bot
     spec:
+      imagePullSecrets:
+        - name: regcred
       containers:
         - name: max-bot
           image: registry.orixon.ru/psi-opora-max-bot:latest
