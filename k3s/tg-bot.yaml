@@ -7,11 +7,6 @@ metadata:
     app: tg-bot
 spec:
   replicas: 1
-  # Long polling (Telegram getUpdates) — второй одновременно работающий под с
-  # тем же токеном сразу словит конфликт от Telegram API, поэтому Recreate
-  # вместо RollingUpdate (тот на миг поднимает второй под поверх старого).
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       app: tg-bot
@@ -28,10 +23,6 @@ spec:
           # деплои катит GitHub Actions через kubectl set image.
           image: registry.orixon.ru/psi-opora-tg-bot:latest
           imagePullPolicy: IfNotPresent
-
-          # Порт для webhook-сервера (api/webhook.ts) — сейчас образ ещё
-          # запускает src/dev.ts (long polling), Service/Ingress ниже
-          # заработают только после переключения CMD на webhook-режим.
           ports:
             - containerPort: 3000
           envFrom:

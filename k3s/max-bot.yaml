@@ -7,9 +7,6 @@ metadata:
     app: max-bot
 spec:
   replicas: 1
-  # Long polling — см. комментарий в k3s/tg-bot.yaml, здесь та же причина.
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       app: max-bot
@@ -24,9 +21,6 @@ spec:
         - name: max-bot
           image: registry.orixon.ru/psi-opora-max-bot:latest
           imagePullPolicy: IfNotPresent
-          # Порт для webhook-сервера (api/webhook.ts) — сейчас образ ещё
-          # запускает src/dev.ts (long polling), Service/Ingress ниже
-          # заработают только после переключения CMD на webhook-режим.
           ports:
             - containerPort: 3000
           envFrom:
