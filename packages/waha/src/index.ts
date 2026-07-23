@@ -91,7 +91,7 @@ export async function wahaCreateSession(
               webhooks: [
                 {
                   url: webhook.url,
-                  events: ["message"],
+                  events: ["message", "message.ack"],
                   ...(webhook.hmacKey
                     ? { hmac: { key: webhook.hmacKey } }
                     : {}),
@@ -145,16 +145,46 @@ export async function wahaDeleteSession(session: string): Promise<void> {
  * (например "79991234567@c.us") — тот же идентификатор, что мы передаём
  * в imconnector.send.messages как chat.id, поэтому ответ оператора из
  * Bitrix возвращается сюда без преобразований.
+ *
+ * Возвращаем `id` отправленного сообщения из ответа WAHA — по нему потом
+ * сопоставляется вебхук `message.ack` (см. wahaAckToStatus) со строкой в
+ * bot_messages. Если конкретная версия WAHA не вернёт id в этой форме —
+ * статус просто не продвинется дальше "sent", без ошибки.
  */
 export async function wahaSendText(
   session: string,
   chatId: string,
   text: string,
-): Promise<void> {
-  await wahaFetch<unknown>("/api/sendText", {
+): Promise<{ id?: string }> {
+  const res = await wahaFetch<{ id?: string } | undefined>("/api/sendText", {
     method: "POST",
     body: { session, chatId, text },
   });
+  return { id: res?.id };
+}
+
+/** sent | delivered | read | failed — см. packages/db BotMessageEntry.status. */
+export type MessageDeliveryStatus = "sent" | "delivered" | "read" | "failed";
+
+/**
+ * Маппинг ack-события WAHA (`message.ack`) на наш статус доставки.
+ * WAHA присылает и числовой `ack`, и строковый `ackName` — ориентируемся
+ * в первую очередь на имя (устойчивее к версии WAHA), с числом как fallback.
+ * Значения ack в NOWEB-движке WAHA: -1 ERROR, 0 PENDING, 1 SERVER (принято
+ * сервером WhatsApp), 2 DEVICE (доставлено устройству), 3 READ, 4 PLAYED.
+ * Неизвестные/промежуточные значения — `null`, статус не меняем.
+ */
+export function wahaAckToStatus(payload: {
+  ack?: number;
+  ackName?: string;
+}): MessageDeliveryStatus | null {
+  const name = payload.ackName?.toUpperCase();
+  if (name === "ERROR" || payload.ack === -1) return "failed";
+  if (name === "DEVICE" || payload.ack === 2) return "delivered";
+  if (name === "READ" || name === "PLAYED" || (payload.ack ?? 0) >= 3) {
+    return "read";
+  }
+  return null;
 }
 
 /** "79991234567@c.us" → "+79991234567"; для не-личных jid (группы) — null. */

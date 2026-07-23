@@ -63,6 +63,7 @@ export type {
   CrmLeadLink,
   CrmLinksResult,
   InboxMessenger,
+  MessageDeliveryStatus,
   QuickReplyItem,
 } from "./routers/messages";
 export type { TelegramPersonalAccountView } from "./routers/telegram-personal";

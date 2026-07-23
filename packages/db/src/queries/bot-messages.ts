@@ -7,6 +7,10 @@ import { botUsers } from "../schema/bot-users";
 export type BotMessage = typeof botMessages.$inferSelect;
 export type NewBotMessage = typeof botMessages.$inferInsert;
 
+/** Доставку/прочтение отдаёт сейчас только WAHA (WhatsApp) — для остальных
+ * каналов статус не поднимается выше "sent". */
+export type MessageDeliveryStatus = "sent" | "delivered" | "read" | "failed";
+
 export interface BotMessageEntry {
   messenger: string;
   userId: string;
@@ -15,6 +19,10 @@ export interface BotMessageEntry {
   text: string;
   /** Bitrix-ID оператора — только для source="operator". */
   operatorId?: string;
+  /** По умолчанию "sent". */
+  status?: MessageDeliveryStatus;
+  /** id сообщения во внешней системе (WAHA) — для сопоставления с ack-вебхуком. */
+  externalId?: string;
 }
 
 export async function insertBotMessage(
@@ -22,6 +30,7 @@ export async function insertBotMessage(
   entry: BotMessageEntry,
 ): Promise<void> {
   if (!db) return;
+  const now = new Date();
   await db.insert(botMessages).values({
     id: crypto.randomUUID(),
     messenger: entry.messenger,
@@ -30,8 +39,25 @@ export async function insertBotMessage(
     source: entry.source,
     text: entry.text,
     operatorId: entry.operatorId,
-    createdAt: new Date(),
+    status: entry.status ?? "sent",
+    externalId: entry.externalId,
+    createdAt: now,
+    updatedAt: now,
   });
+}
+
+/** Обновляет статус доставки по внешнему id сообщения (сейчас — только
+ * WAHA-вебхук `message.ack`). */
+export async function updateBotMessageStatus(
+  db: Database,
+  externalId: string,
+  status: MessageDeliveryStatus,
+): Promise<void> {
+  if (!db) return;
+  await db
+    .update(botMessages)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(botMessages.externalId, externalId));
 }
 
 /** Последние сообщения диалога с клиентом (новые первыми). */
@@ -52,7 +78,10 @@ export async function listBotMessages(
     .limit(limit);
 }
 
-/** Сообщения диалога, появившиеся после `since` (старые выше) — для поллинга виджета. */
+/** Сообщения диалога, появившиеся или изменившиеся (сменился status) после
+ * `since` — для поллинга инбокса. Курсор по updatedAt, а не createdAt: иначе
+ * статусный апдейт уже показанного сообщения (sent → delivered → read)
+ * никогда не попадёт в открытый тред. */
 export async function listBotMessagesSince(
   db: Database,
   messenger: string,
@@ -68,10 +97,10 @@ export async function listBotMessagesSince(
       and(
         eq(botMessages.messenger, messenger),
         eq(botMessages.userId, userId),
-        gt(botMessages.createdAt, since),
+        gt(botMessages.updatedAt, since),
       ),
     )
-    .orderBy(asc(botMessages.createdAt))
+    .orderBy(asc(botMessages.updatedAt))
     .limit(limit);
 }
 

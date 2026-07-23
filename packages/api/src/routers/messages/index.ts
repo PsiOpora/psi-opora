@@ -43,5 +43,6 @@ export type {
   CrmLeadLink,
   CrmLinksResult,
   InboxMessenger,
+  MessageDeliveryStatus,
   QuickReplyItem,
 } from "./types";

@@ -1,19 +1,47 @@
 "use client";
 
-import { BotIcon, HeadsetIcon } from "lucide-react";
+import type { MessageDeliveryStatus } from "@psi-opora/api";
+import {
+  BotIcon,
+  CheckCheckIcon,
+  CheckIcon,
+  CircleAlertIcon,
+  ClockIcon,
+  HeadsetIcon,
+} from "lucide-react";
 import { useEffect, useRef } from "react";
 import { formatDayLabel, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-/** Сообщение треда; pending — оптимистично добавленное до подтверждения поллингом. */
+/** Сообщение треда; pending — оптимистично добавленное до подтверждения
+ * поллингом, ещё без серверного status. */
 export interface ThreadMessage {
   id: string;
   direction: "in" | "out";
   source: string;
   text: string;
   createdAt: string;
+  updatedAt?: string;
+  status?: MessageDeliveryStatus;
   pending?: boolean;
 }
+
+/** Доставку/прочтение сейчас отдаёт только WAHA (WhatsApp) — для остальных
+ * каналов статус никогда не станет "delivered"/"read", это ограничение
+ * внешних API, не баг. */
+const STATUS_META: Record<
+  MessageDeliveryStatus,
+  { icon: typeof CheckIcon; className?: string; label?: string }
+> = {
+  sent: { icon: CheckIcon },
+  delivered: { icon: CheckCheckIcon },
+  read: { icon: CheckCheckIcon, className: "text-sky-500" },
+  failed: {
+    icon: CircleAlertIcon,
+    className: "text-destructive",
+    label: "не доставлено",
+  },
+};
 
 /** Кто фактически отправил исходящее сообщение — определяет цвет пузыря и иконку:
  * бот/автоматика получает один стиль, живой оператор — другой. */
@@ -41,16 +69,26 @@ const BUBBLE_STYLES = {
  * иначе менеджера, читающего историю выше, не «дёрнет» вниз поллингом. */
 const STICK_TO_BOTTOM_THRESHOLD_PX = 60;
 
-/** Вливает новые сообщения с поллинга в локальную историю: заменяет
- * совпадающее оптимистичное сообщение подтверждённой записью (чтобы не
- * задваивать только что отправленное), остальное — добавляет. */
+/** Вливает сообщения с поллинга в локальную историю: уже известный id —
+ * обновляет запись на месте (так долетают статусные апдейты sent → delivered
+ * → read у уже показанных сообщений, см. listBotMessagesSince/updatedAt),
+ * совпадающее оптимистичное сообщение — заменяет подтверждённой записью
+ * (чтобы не задваивать только что отправленное), остальное — добавляет. */
 export function mergeThread(
   prev: ThreadMessage[],
   incoming: ThreadMessage[],
 ): ThreadMessage[] {
   let next = prev;
   for (const msg of incoming) {
-    if (next.some((item) => item.id === msg.id)) continue;
+    const existingIdx = next.findIndex((item) => item.id === msg.id);
+    if (existingIdx !== -1) {
+      next = [
+        ...next.slice(0, existingIdx),
+        { ...next[existingIdx], ...msg },
+        ...next.slice(existingIdx + 1),
+      ];
+      continue;
+    }
     const pendingIdx = next.findIndex(
       (item) =>
         item.id.startsWith("pending-") &&
@@ -109,6 +147,11 @@ export function MessageList({ messages }: { messages: ThreadMessage[] }) {
           prev.direction === item.direction &&
           prev.source === item.source;
         const Icon = meta?.category === "bot" ? BotIcon : HeadsetIcon;
+        const statusMeta =
+          item.direction === "out" && !item.pending && item.status
+            ? STATUS_META[item.status]
+            : null;
+        const StatusIcon = statusMeta?.icon;
 
         return (
           <div
@@ -150,6 +193,17 @@ export function MessageList({ messages }: { messages: ThreadMessage[] }) {
                 )}
                 <span>{formatTime(item.createdAt)}</span>
                 {item.pending && <span>· отправляется…</span>}
+                {StatusIcon && (
+                  <span
+                    className={cn(
+                      "flex items-center gap-0.5",
+                      statusMeta?.className,
+                    )}
+                  >
+                    <StatusIcon className="size-3" />
+                    {statusMeta?.label}
+                  </span>
+                )}
               </div>
             </div>
           </div>

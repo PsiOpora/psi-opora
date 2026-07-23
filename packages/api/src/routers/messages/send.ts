@@ -63,7 +63,7 @@ async function sendWhatsappPersonal(
   userId: string,
   lineId: string | undefined,
   text: string,
-): Promise<{ ok?: true; error?: string }> {
+): Promise<{ ok?: true; error?: string; externalId?: string }> {
   if (!memberId) {
     return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
   }
@@ -82,8 +82,8 @@ async function sendWhatsappPersonal(
   }
 
   try {
-    await wahaSendText(account.sessionName, userId, text);
-    return { ok: true };
+    const { id } = await wahaSendText(account.sessionName, userId, text);
+    return { ok: true, externalId: id };
   } catch (err) {
     return { error: `Не отправлено: ${(err as Error).message}` };
   }
@@ -103,6 +103,8 @@ export const send = publicProcedure
       const text = input.text.trim();
       if (!text) return { error: "Введите текст сообщения" };
 
+      let externalId: string | undefined;
+
       if (input.messenger === "telegram-personal") {
         const result = await sendTelegramPersonal(
           context.memberId,
@@ -119,6 +121,7 @@ export const send = publicProcedure
           text,
         );
         if (result.error) return result;
+        externalId = result.externalId;
       } else {
         try {
           await sendMessengerMessage(input.messenger, input.userId, text);
@@ -139,6 +142,7 @@ export const send = publicProcedure
           direction: "out",
           source: "widget",
           text,
+          externalId,
         });
       } catch (err) {
         console.error(

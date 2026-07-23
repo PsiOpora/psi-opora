@@ -77,7 +77,7 @@ export async function sendViaWhatsappPersonal(params: {
   openLineId: string;
   jid: string;
   text: string;
-}): Promise<{ ok?: true; error?: string }> {
+}): Promise<{ ok?: true; error?: string; externalId?: string }> {
   const account = await getWhatsappPersonalAccount(
     params.memberId,
     params.openLineId,
@@ -85,8 +85,12 @@ export async function sendViaWhatsappPersonal(params: {
   if (!account) return { error: "Личный номер WhatsApp не подключён" };
 
   try {
-    await wahaSendText(account.sessionName, params.jid, params.text);
-    return { ok: true };
+    const { id } = await wahaSendText(
+      account.sessionName,
+      params.jid,
+      params.text,
+    );
+    return { ok: true, externalId: id };
   } catch (err) {
     return { error: `Не отправлено: ${(err as Error).message}` };
   }

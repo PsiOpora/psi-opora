@@ -36,6 +36,7 @@ function messengerByConnector(connector: string | undefined): Messenger | null {
 async function logOperatorReply(
   messenger: string,
   reply: OperatorReplyMessage,
+  externalId?: string,
 ): Promise<void> {
   const userId = String(reply.chatId);
   try {
@@ -49,6 +50,7 @@ async function logOperatorReply(
         reply.operatorUserId !== undefined
           ? String(reply.operatorUserId)
           : undefined,
+      externalId,
     });
   } catch (err) {
     console.error(
@@ -125,8 +127,14 @@ async function relayToWhatsAppPersonal(
     return true;
   }
 
+  let externalId: string | undefined;
   try {
-    await wahaSendText(account.sessionName, String(reply.chatId), reply.text);
+    const result = await wahaSendText(
+      account.sessionName,
+      String(reply.chatId),
+      reply.text,
+    );
+    externalId = result.id;
     console.log(
       `[bitrix-webhook] ответ оператора отправлен с личного номера ${account.phone} chat=${reply.chatId}`,
     );
@@ -135,7 +143,7 @@ async function relayToWhatsAppPersonal(
       `[bitrix-webhook] не удалось отправить ответ оператора в WhatsApp: ${(err as Error).message}`,
     );
   }
-  await logOperatorReply("whatsapp-personal", reply);
+  await logOperatorReply("whatsapp-personal", reply, externalId);
   return true;
 }
 

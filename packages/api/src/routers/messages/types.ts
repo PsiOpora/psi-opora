@@ -1,4 +1,7 @@
+import type { MessageDeliveryStatus } from "@psi-opora/db/queries";
 import type { Messenger } from "@psi-opora/jobs";
+
+export type { MessageDeliveryStatus };
 
 /** "telegram-personal"/"whatsapp-personal" — личные номера
  * (packages/tg-userbot, packages/waha), а не боты. */
@@ -97,5 +100,7 @@ export interface ClientMessageItem {
   source: string;
   text: string;
   operatorId: string | null;
+  status: MessageDeliveryStatus;
   createdAt: string;
+  updatedAt: string;
 }

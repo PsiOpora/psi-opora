@@ -11,6 +11,8 @@ import {
 import {
   type BotMessageEntry,
   insertBotMessage as _insertBotMessage,
+  type MessageDeliveryStatus,
+  updateBotMessageStatus as _updateBotMessageStatus,
 } from "./bot-messages";
 import { getBotTextsRecord as _getBotTextsRecord } from "./bot-texts";
 import {
@@ -20,7 +22,7 @@ import {
 } from "./bot-users";
 
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
-export type { BotMessageEntry } from "./bot-messages";
+export type { BotMessageEntry, MessageDeliveryStatus } from "./bot-messages";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
 export type { BotConnector } from "./bot-connectors";
 
@@ -30,6 +32,13 @@ export async function getBotConnector(messenger: string) {
 
 export async function insertBotMessage(entry: BotMessageEntry): Promise<void> {
   return _insertBotMessage(db, entry);
+}
+
+export async function updateBotMessageStatus(
+  externalId: string,
+  status: MessageDeliveryStatus,
+): Promise<void> {
+  return _updateBotMessageStatus(db, externalId, status);
 }
 
 export async function getBotTextsRecord(): Promise<Record<string, string>> {

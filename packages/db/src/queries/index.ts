@@ -27,9 +27,11 @@ import {
   listBotMessages as _listBotMessages,
   listBotMessagesSince as _listBotMessagesSince,
   listClientsWithLastMessage as _listClientsWithLastMessage,
+  updateBotMessageStatus as _updateBotMessageStatus,
   type BotMessageEntry,
   type ClientListItem,
   type ClientMessageStats,
+  type MessageDeliveryStatus,
 } from "./bot-messages";
 import {
   getBotTextsRecord as _getBotTextsRecord,
@@ -66,6 +68,7 @@ export type {
   BotMessageEntry,
   ClientListItem,
   ClientMessageStats,
+  MessageDeliveryStatus,
   NewBotMessage,
 } from "./bot-messages";
 export type { BotText } from "./bot-texts";
@@ -100,6 +103,13 @@ export async function removeBotConnector(messenger: string): Promise<void> {
 
 export async function insertBotMessage(entry: BotMessageEntry): Promise<void> {
   return _insertBotMessage(db, entry);
+}
+
+export async function updateBotMessageStatus(
+  externalId: string,
+  status: MessageDeliveryStatus,
+): Promise<void> {
+  return _updateBotMessageStatus(db, externalId, status);
 }
 
 export async function listBotMessages(

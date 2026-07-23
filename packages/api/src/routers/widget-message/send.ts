@@ -76,6 +76,8 @@ export const send = publicProcedure
         return { error: "У контакта нет такого канала — обновите страницу" };
       }
 
+      let externalId: string | undefined;
+
       if (channel.messenger === "telegram-personal") {
         if (!context.memberId || !channel.lineId) {
           return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
@@ -101,6 +103,7 @@ export const send = publicProcedure
           text,
         });
         if (result.error) return result;
+        externalId = result.externalId;
       } else {
         try {
           await sendMessengerMessage(channel.messenger, channel.userId, text);
@@ -123,6 +126,7 @@ export const send = publicProcedure
           direction: "out",
           source: "widget",
           text,
+          externalId,
         });
       } catch (err) {
         const error = err as Error;

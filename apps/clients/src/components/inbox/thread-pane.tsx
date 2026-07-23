@@ -24,6 +24,18 @@ import { orpcClient } from "@/lib/orpc/client";
 
 const THREAD_POLL_INTERVAL_MS = 5000;
 
+/** Курсор поллинга — максимальный updatedAt среди сообщений, а не createdAt:
+ * listBotMessagesSince ловит и статусные апдейты уже показанных сообщений
+ * (sent → delivered → read), не только новые строки, поэтому нельзя
+ * полагаться на порядок массива и брать «последний» элемент. */
+function latestUpdatedAt(messages: { updatedAt: string }[]): string {
+  if (messages.length === 0) return new Date().toISOString();
+  return messages.reduce(
+    (max, m) => (m.updatedAt > max ? m.updatedAt : max),
+    messages[0].updatedAt,
+  );
+}
+
 export interface SelectedClient {
   messenger: InboxMessenger;
   userId: string;
@@ -83,12 +95,12 @@ export function ThreadPane({
             direction: m.direction,
             source: m.source,
             text: m.text,
+            status: m.status,
             createdAt: m.createdAt,
+            updatedAt: m.updatedAt,
           })),
         );
-        sinceRef.current =
-          res.messages[res.messages.length - 1]?.createdAt ??
-          new Date().toISOString();
+        sinceRef.current = latestUpdatedAt(res.messages);
       })
       .finally(() => {
         if (!cancelled) setThreadLoading(false);
@@ -112,9 +124,7 @@ export function ThreadPane({
         sinceIso: sinceRef.current,
       });
       if (!result.messages || result.messages.length === 0) return;
-      sinceRef.current =
-        result.messages[result.messages.length - 1]?.createdAt ??
-        sinceRef.current;
+      sinceRef.current = latestUpdatedAt(result.messages);
       setMessages((prev) =>
         mergeThread(
           prev,
@@ -123,7 +133,9 @@ export function ThreadPane({
             direction: m.direction,
             source: m.source,
             text: m.text,
+            status: m.status,
             createdAt: m.createdAt,
+            updatedAt: m.updatedAt,
           })) ?? [],
         ),
       );

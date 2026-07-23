@@ -4,9 +4,10 @@ import { env } from "@psi-opora/config";
 import {
   getWhatsappPersonalAccountBySession,
   insertBotMessage,
+  updateBotMessageStatus,
   upsertBotUser,
 } from "@psi-opora/db/queries";
-import { phoneFromJid } from "@psi-opora/waha";
+import { phoneFromJid, wahaAckToStatus } from "@psi-opora/waha";
 
 /**
  * Приём входящих сообщений личных номеров WhatsApp от WAHA (событие
@@ -28,6 +29,9 @@ interface WahaMessageEvent {
     /** В групповых чатах — jid автора сообщения. */
     participant?: string;
     _data?: { notifyName?: string; pushName?: string };
+    /** Только для event === "message.ack". */
+    ack?: number;
+    ackName?: string;
   };
 }
 
@@ -55,6 +59,19 @@ export async function POST(request: Request): Promise<Response> {
     event = JSON.parse(rawBody) as WahaMessageEvent;
   } catch {
     return new Response("Invalid JSON", { status: 400 });
+  }
+
+  if (event.event === "message.ack") {
+    const id = event.payload?.id;
+    const status = id ? wahaAckToStatus(event.payload ?? {}) : null;
+    if (id && status) {
+      await updateBotMessageStatus(id, status).catch((err) =>
+        console.error(
+          `[waha-webhook] не удалось обновить статус сообщения ${id}: ${(err as Error).message}`,
+        ),
+      );
+    }
+    return Response.json({ ok: true });
   }
 
   if (event.event !== "message") return Response.json({ ok: true });
