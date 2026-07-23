@@ -83,15 +83,11 @@ export function ClientAvatar({
         <span
           title={meta.label}
           className={cn(
-            "absolute -right-0.5 -bottom-0.5 flex items-center justify-center rounded-full text-white ring-2 ring-background",
-            meta.dotClassName,
+            "absolute -right-0.5 -bottom-0.5 rounded-full ring-2 ring-background",
             size === "lg" ? "size-5" : "size-4",
           )}
         >
-          <MessengerIcon
-            messenger={messenger}
-            className={size === "lg" ? "size-3" : "size-2.5"}
-          />
+          <MessengerIcon messenger={messenger} className="size-full" />
         </span>
       )}
     </div>
