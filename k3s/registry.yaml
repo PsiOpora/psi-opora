@@ -114,21 +114,16 @@ spec:
     - port: 5000
       targetPort: 5000
 ---
-# TLS через Traefik (встроен в k3s) + cert-manager, см. k3s/README.md
-# и k3s/cert-issuer.yaml. Заменяет прежний NodePort:30500 + insecure http.
+# Без TLS — трафик по http, домен только для имени, а не для сертификата.
+# Докер-демону раннера и containerd на ноде k3s всё ещё нужно разрешить
+# ходить сюда как insecure-registry, см. k3s/README.md.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: registry
   namespace: psi-opora
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: traefik
-  tls:
-    - hosts:
-        - registry.orixon.ru
-      secretName: registry-tls
   rules:
     - host: registry.orixon.ru
       http:

@@ -14,41 +14,38 @@ PersistentVolumeClaim (сессии WhatsApp / файлы MinIO) — без не
 
 Реестр — [zot](https://zotregistry.dev) внутри кластера: в отличие от
 классического `registry:2` конфигурируется JSON-файлом (`registry-config`
-ConfigMap), а не переменными окружения. Авторизация — htpasswd. Наружу
-торчит доменом `registry.orixon.ru` через встроенный в k3s Traefik Ingress
-с TLS-сертификатом от Let's Encrypt (через cert-manager) — никакого
-insecure-registry на клиентах не нужно, докер и containerd доверяют
-сертификату по умолчанию.
+ConfigMap), а не переменными окружения. Авторизация — htpasswd, без TLS
+(наружу торчит доменом `registry.orixon.ru` через встроенный в k3s Traefik
+Ingress, но по http — сертификат не заводим). Из-за отсутствия TLS его
+нужно явно разрешить как insecure и докер-демону раннера GitHub Actions, и
+containerd на самой ноде k3s.
 
 В `registry-config` в `accessControl` захардкожен пользователь `deploy` с
 правами на чтение/запись (остальным — только чтение). Если нужен другой
 логин, поменяйте имя в `k3s/registry.yaml` (`accessControl.repositories."**".policies[0].users`)
 на своё.
 
-1. Направить DNS A-запись `registry.orixon.ru` на IP сервера с k3s.
-   Убедиться, что порты 80 и 443 снаружи открыты (80 — для HTTP-01
-   challenge от Let's Encrypt, 443 — сам трафик; их слушает Traefik,
-   встроенный в k3s по умолчанию).
+1. Направить DNS A-запись `registry.orixon.ru` на IP сервера с k3s (порт 80
+   снаружи должен быть открыт — его слушает встроенный в k3s Traefik).
 
-2. Поставить cert-manager (создаёт свой namespace `cert-manager` и CRD,
-   версию проверить на [странице релизов](https://github.com/cert-manager/cert-manager/releases)):
+2. Разрешить containerd на ноде k3s ходить в этот реестр по http — создать
+   `/etc/rancher/k3s/registries.yaml`:
 
-   ```bash
-   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
-   kubectl wait --for=condition=Available --timeout=120s \
-     -n cert-manager deployment --all
+   ```yaml
+   mirrors:
+     "registry.orixon.ru":
+       endpoint:
+         - "http://registry.orixon.ru"
+   configs:
+     "registry.orixon.ru":
+       auth:
+         username: deploy
+         password: <пароль>
    ```
 
-3. Заменить плейсхолдер `ACME_EMAIL` в `k3s/cert-issuer.yaml` на реальный
-   email (туда Let's Encrypt шлёт уведомления об истечении сертификата) и
-   применить `ClusterIssuer`:
+   и перечитать конфиг: `sudo systemctl restart k3s`.
 
-   ```bash
-   sed -i 's/ACME_EMAIL/<ваш email>/' k3s/cert-issuer.yaml
-   kubectl apply -f k3s/cert-issuer.yaml
-   ```
-
-4. Создать htpasswd-секрет с пользователем `deploy` (файл с паролем в git не
+3. Создать htpasswd-секрет с пользователем `deploy` (файл с паролем в git не
    попадает — секрет создаётся вручную, один раз):
 
    ```bash
@@ -58,11 +55,6 @@ insecure-registry на клиентах не нужно, докер и container
      --namespace psi-opora
    rm /tmp/htpasswd
    ```
-
-После `kubectl apply -f k3s/registry.yaml` cert-manager сам выпустит
-сертификат в секрет `registry-tls` (следить: `kubectl get certificate -n psi-opora`).
-Пока сертификат не выпущен, push/pull в реестр будет падать по TLS —
-это нормально, подождите пару минут.
 
 Тег `:latest` в манифестах — только для самого первого `kubectl apply`.
 Дальнейшие деплои катит GitHub Actions через `kubectl set image` (см. ниже),
@@ -157,8 +149,7 @@ Workflow [.github/workflows/deploy-k3s.yml](../.github/workflows/deploy-k3s.yml)
 В репозитории (Settings → Secrets and variables → Actions) нужно завести:
 
 **Variables:**
-- `REGISTRY` — `registry.orixon.ru` (без порта — TLS-реестр слушает 443
-  через Ingress), тот же адрес, что и в манифестах.
+- `REGISTRY` — `registry.orixon.ru`, тот же адрес, что и в манифестах.
 
 **Secrets:**
 - `REGISTRY_USER`, `REGISTRY_PASSWORD` — логин/пароль из шага 0 выше (htpasswd).
