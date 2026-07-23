@@ -14,15 +14,13 @@ interface MaxSubscriptionsResponse {
 }
 
 /**
- * MAX не даёт одновременно получать апдейты через long-polling (getUpdates)
- * и через webhook — старт polling (bot.start() из apps/max-bot/src/dev.ts,
- * запущенный локально или по ошибке где-то ещё) снимает активную
- * webhook-подписку на прод-URL. Раз в 10 минут проверяем, что подписка жива,
+ * MAX может сам сбросить активную webhook-подписку (например, при сетевых
+ * проблемах на прод-URL). Раз в 10 минут проверяем, что подписка жива,
  * и восстанавливаем её, если платформа её сбросила.
  */
 export const maxWebhookHealthcheck = schedules.task({
   id: "max-webhook-healthcheck",
-  cron: "*/10 * * * *",
+  cron: "*/30 * * * *",
   run: async () => {
     const token = await resolveMaxBotToken();
     const webhookUrl = process.env.MAX_WEBHOOK_URL;
