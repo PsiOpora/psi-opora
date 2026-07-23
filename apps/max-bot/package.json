@@ -4,8 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run --env-file=../../.env src/dev.ts",
-    "webhook": "bun run --env-file=../../.env src/server.ts",
+    "dev": "bun run --watch --env-file=../../.env src/server.ts",
     "set-webhook": "bun run --env-file=../../.env scripts/set-webhook.ts",
     "delete-webhook": "bun run --env-file=../../.env scripts/delete-webhook.ts",
     "typecheck": "tsc --noEmit"
