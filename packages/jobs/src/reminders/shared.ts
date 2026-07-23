@@ -53,6 +53,41 @@ export function renderReminderMessage(
     .replaceAll("{time}", vars.time);
 }
 
+/** Дата и время по Москве для комментария в таймлайне сделки, напр. "23.07.2026, 14:05". */
+export function formatMoscowDateTime(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Europe/Moscow",
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+/**
+ * Отмечает в таймлайне сделки, что напоминание реально ушло клиенту —
+ * иначе по одной сделке не видно, сработал ли крон, до какого чата
+ * достучался и когда. Ошибки не пробрасываются: отсутствие комментария
+ * не должно считаться сбоем отправки самого напоминания.
+ */
+export async function appendReminderSentComment(
+  api: BitrixApi,
+  dealId: number,
+  comment: string,
+): Promise<void> {
+  try {
+    await api.call("crm.timeline.comment.add", {
+      fields: {
+        ENTITY_ID: dealId,
+        ENTITY_TYPE: "deal",
+        COMMENT: comment,
+      },
+    });
+  } catch (err) {
+    console.error(
+      `[reminder] не удалось добавить комментарий к сделке ${dealId}: ${(err as Error).message}`,
+    );
+  }
+}
+
 export function extractClientContactId(deal: Record<string, unknown>): number {
   const contactId = Number(deal.CONTACT_ID ?? 0);
   if (contactId > 0) return contactId;

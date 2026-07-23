@@ -6,8 +6,10 @@ import {
   DEAL_STAGE_IDS,
   MESSENGER_CONNECTOR_MAP,
   MESSENGER_FIELD,
+  appendReminderSentComment,
   extractClientContactId,
   formatConsultationTime,
+  formatMoscowDateTime,
   normalizeConsultationDt,
   pickChatIdForConnector,
   renderReminderMessage,
@@ -116,6 +118,12 @@ async function trySendReminder(
     MESSAGE: message,
   });
   if (!sent) return { action: "error", reason: "send_failed" };
+
+  await appendReminderSentComment(
+    api,
+    dealId,
+    `🔔 Напоминание о диагностике (${formatConsultationTime(diagnosticAt)} МСК) отправлено клиенту в чат — ${formatMoscowDateTime()}`,
+  );
 
   return { action: "sent" };
 }
