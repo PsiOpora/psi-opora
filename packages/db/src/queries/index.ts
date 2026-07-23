@@ -39,6 +39,7 @@ import {
 } from "./bot-texts";
 import {
   getBotUserProfile as _getBotUserProfile,
+  listBotUsersMissingAvatarUpload as _listBotUsersMissingAvatarUpload,
   upsertBotUser as _upsertBotUser,
   type BotUserProfileEntry,
 } from "./bot-users";
@@ -158,6 +159,10 @@ export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {
 
 export async function getBotUserProfile(messenger: string, userId: string) {
   return _getBotUserProfile(db, messenger, userId);
+}
+
+export async function listBotUsersMissingAvatarUpload(messenger: string) {
+  return _listBotUsersMissingAvatarUpload(db, messenger);
 }
 
 export async function getClientMessageStats(

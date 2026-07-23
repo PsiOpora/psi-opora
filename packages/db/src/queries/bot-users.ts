@@ -87,6 +87,28 @@ export async function upsertBotUser(
     });
 }
 
+/**
+ * Профили мессенджера, у которых уже есть исходное фото (photoFileId), но
+ * ещё не перезалито в наше S3 (avatarS3Key) — список для разового backfill
+ * (см. apps/tg-bot/scripts/backfill-avatars.ts).
+ */
+export async function listBotUsersMissingAvatarUpload(
+  db: Database,
+  messenger: string,
+): Promise<Pick<BotUser, "userId" | "photoFileId">[]> {
+  if (!db) return [];
+  return db
+    .select({ userId: botUsers.userId, photoFileId: botUsers.photoFileId })
+    .from(botUsers)
+    .where(
+      and(
+        eq(botUsers.messenger, messenger),
+        sql`${botUsers.photoFileId} is not null`,
+        sql`${botUsers.avatarS3Key} is null`,
+      ),
+    );
+}
+
 /** Профиль клиента по мессенджеру и его user_id — для обогащения карточки CRM. */
 export async function getBotUserProfile(
   db: Database,
