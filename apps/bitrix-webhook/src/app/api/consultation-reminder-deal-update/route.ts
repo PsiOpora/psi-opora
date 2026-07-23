@@ -46,7 +46,8 @@ export async function POST(request: Request) {
     );
     return Response.json({ success: true, result });
   } catch (err) {
-    const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    const message =
+      err instanceof Error ? (err.stack ?? err.message) : String(err);
     console.error("[consultation-reminder] deal-update error:", err);
     return Response.json(
       {

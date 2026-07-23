@@ -68,6 +68,19 @@ export const env = createEnv({
     TG_USERBOT_ENCRYPTION_KEY: z.string().optional(),
     TG_USERBOT_CONNECTOR_ID: z.string().default("psiopora_tg_personal"),
 
+    // WhatsApp userbot (личный номер как коннектор Открытых линий, WAHA).
+    // Постоянное соединение держит контейнер WAHA (docker-compose, сервис
+    // `waha`) — WAHA_URL должен быть доступен и с Vercel (oRPC-роутеры,
+    // apps/bitrix-webhook), поэтому это публичный адрес сервера, а не
+    // docker-имя. WAHA_WEBHOOK_SECRET — HMAC-ключ вебхука входящих
+    // (WAHA → apps/bitrix-webhook/api/waha-webhook) и он же задаётся при
+    // создании сессии; WAHA_WEBHOOK_URL — публичный адрес этого роута.
+    WAHA_URL: z.string().optional(),
+    WAHA_API_KEY: z.string().optional(),
+    WAHA_WEBHOOK_URL: z.string().optional(),
+    WAHA_WEBHOOK_SECRET: z.string().optional(),
+    WA_PERSONAL_CONNECTOR_ID: z.string().default("psiopora_wa_personal"),
+
     // Admin
     ADMIN_EMAILS: z.string().optional(),
 
@@ -117,6 +130,11 @@ export const env = createEnv({
     BITRIX_MEMBER_ID: process.env.BITRIX_MEMBER_ID,
     TG_USERBOT_ENCRYPTION_KEY: process.env.TG_USERBOT_ENCRYPTION_KEY,
     TG_USERBOT_CONNECTOR_ID: process.env.TG_USERBOT_CONNECTOR_ID,
+    WAHA_URL: process.env.WAHA_URL,
+    WAHA_API_KEY: process.env.WAHA_API_KEY,
+    WAHA_WEBHOOK_URL: process.env.WAHA_WEBHOOK_URL,
+    WAHA_WEBHOOK_SECRET: process.env.WAHA_WEBHOOK_SECRET,
+    WA_PERSONAL_CONNECTOR_ID: process.env.WA_PERSONAL_CONNECTOR_ID,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     CRON_SECRET: process.env.CRON_SECRET,
     TRIGGER_SECRET_KEY: process.env.TRIGGER_SECRET_KEY,

@@ -1,0 +1,60 @@
+import { wahaGetSession, waSessionName } from "@psi-opora/waha";
+import { publicProcedure } from "../../orpc";
+import { pollWhatsappStatusSchema } from "../../schemas/whatsapp-personal";
+import { finalizeConnectedLogin } from "./helpers";
+
+/**
+ * Виджет опрашивает статус WAHA-сессии, пока администратор вводит pairing
+ * code на телефоне. Как только сессия дошла до WORKING — сохраняем аккаунт
+ * и активируем коннектор на линии (см. finalizeConnectedLogin). Повторные
+ * вызовы после подключения безвредны: upsert идемпотентен.
+ */
+export const pollStatus = publicProcedure
+  .input(pollWhatsappStatusSchema)
+  .handler(
+    async ({
+      input,
+      context,
+    }): Promise<{
+      status: "pending" | "connected" | "failed";
+      error?: string;
+      activationError?: string;
+    }> => {
+      const memberId = context.memberId;
+      if (!memberId) {
+        return {
+          status: "failed",
+          error: "Нет активной сессии Битрикс24 — обновите страницу",
+        };
+      }
+
+      const session = waSessionName(memberId, input.lineId);
+      try {
+        const state = await wahaGetSession(session);
+        if (!state) {
+          return {
+            status: "failed",
+            error: "Сессия не найдена — начните заново",
+          };
+        }
+        if (state.status === "FAILED" || state.status === "STOPPED") {
+          return {
+            status: "failed",
+            error: `Сессия в статусе ${state.status} — начните заново`,
+          };
+        }
+        if (state.status !== "WORKING") return { status: "pending" };
+
+        const { activationError } = await finalizeConnectedLogin({
+          memberId,
+          lineId: input.lineId,
+          phone: input.phone,
+          sessionName: session,
+          getBitrixApi: context.getBitrixApi,
+        });
+        return { status: "connected", activationError };
+      } catch (err) {
+        return { status: "failed", error: (err as Error).message };
+      }
+    },
+  );

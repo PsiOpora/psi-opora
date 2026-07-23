@@ -1,5 +1,6 @@
 import { router } from "../../orpc";
 import { assign } from "./assign";
+import { crmLinks } from "./crm-links";
 import { list } from "./list";
 import { markRead } from "./mark-read";
 import { addNote, deleteNote, notes } from "./notes";
@@ -22,6 +23,7 @@ export const messagesRouter = router({
   markRead,
   assign,
   profile,
+  crmLinks,
   setTags,
   notes,
   addNote,
@@ -36,6 +38,10 @@ export type {
   ClientMessageItem,
   ClientNoteItem,
   ClientProfile,
+  CrmContactLink,
+  CrmDealLink,
+  CrmLeadLink,
+  CrmLinksResult,
   InboxMessenger,
   QuickReplyItem,
 } from "./types";

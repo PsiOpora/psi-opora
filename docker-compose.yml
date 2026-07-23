@@ -19,6 +19,24 @@ services:
     env_file:
       - .env
 
+  # Личные номера WhatsApp (packages/waha, роутеры whatsapp-personal) —
+  # WAHA держит постоянные соединения с WhatsApp (движок NOWEB/Baileys),
+  # наружу отдаёт REST API + вебхуки. Аналог tg-userbot-worker, только
+  # готовый контейнер вместо нашего кода. Версию пиним сознательно:
+  # протокол WhatsApp неофициальный, обновлять стоит вручную и осознанно.
+  waha:
+    image: devlikeapro/waha:2026.7
+    restart: unless-stopped
+    ports:
+      - "${WAHA_PORT:-3050}:3000"
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: NOWEB
+      WAHA_API_KEY: ${WAHA_API_KEY}
+      # После рестарта контейнера поднимать все ранее запущенные сессии.
+      WHATSAPP_RESTART_ALL_SESSIONS: "True"
+    volumes:
+      - waha-sessions:/app/.sessions
+
   minio:
     image: minio/minio:latest
     restart: unless-stopped
@@ -52,3 +70,4 @@ services:
 
 volumes:
   minio-data:
+  waha-sessions:

@@ -58,10 +58,15 @@ export type {
   ClientMessageItem,
   ClientNoteItem,
   ClientProfile,
+  CrmContactLink,
+  CrmDealLink,
+  CrmLeadLink,
+  CrmLinksResult,
   InboxMessenger,
   QuickReplyItem,
 } from "./routers/messages";
 export type { TelegramPersonalAccountView } from "./routers/telegram-personal";
+export type { WhatsappPersonalAccountView } from "./routers/whatsapp-personal";
 export type {
   WidgetChannel,
   WidgetEntity,

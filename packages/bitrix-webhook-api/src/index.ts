@@ -12,14 +12,16 @@ export interface BitrixWebhookPayload {
       connector?: {
         connector_id?: string;
         line_id?: number;
-        chat_id?: number;
+        /** Число для ботов/личного Telegram, строка-jid для WhatsApp. */
+        chat_id?: number | string;
         user_id?: number;
       };
       session?: {
         id?: number;
       };
       chat?: {
-        id?: number;
+        /** Число для ботов/личного Telegram, строка-jid для WhatsApp. */
+        id?: number | string;
       };
       user?: {
         id?: number;
@@ -41,8 +43,9 @@ export interface OperatorReplyMessage {
   /** ID линии (data.LINE) — нужен, чтобы найти нужный telegram_personal_accounts
    * (у бота линия одна, фиксирована в env, а у личных номеров — своя на каждый). */
   lineId?: number;
-  /** ID чата во внешней системе — тот же chat.id, что бот передавал в imconnector.send.messages. */
-  chatId: number;
+  /** ID чата во внешней системе — тот же chat.id, что мы передавали в
+   * imconnector.send.messages: число (Telegram/MAX) или строка-jid (WhatsApp). */
+  chatId: number | string;
   text: string;
   /** Bitrix-ID оператора, отправившего ответ (data.DATA[].message.user_id) —
    * для журналирования в bot_messages/назначения ответственного, см.

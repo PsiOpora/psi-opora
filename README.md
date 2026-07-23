@@ -12,13 +12,14 @@ CRM/маркетинга и интеграция всей переписки с 
 | `apps/dashboard`              | Bitrix24-приложение: аналитика, рассылки, настройки интеграций          |
 | `apps/bitrix-webhook`         | Приём вебхуков от Bitrix24 (ответы оператора, обновления сделок)         |
 | `apps/tg-userbot-worker`      | Always-on процесс для личных номеров Telegram (см. ниже)                |
+| `packages/waha`               | REST-клиент WAHA для личных номеров WhatsApp (см. ниже)                 |
 | `packages/bot-core`           | Общая логика сценария ботов, CRM-хелперы (webhook-транспорт)             |
 | `packages/bitrix-client`      | OAuth-клиент Bitrix24 (`resolveBitrixApi`) для методов, требующих app context |
 | `packages/tg-userbot`         | MTProto-клиент (mtcute) для личных номеров Telegram                      |
 | `packages/db`                 | Drizzle-схемы и запросы (Postgres/Neon)                                  |
 | `packages/api`                | oRPC-роутеры дашборда                                                    |
 
-## Три способа завести переписку в Открытую линию Bitrix24
+## Четыре способа завести переписку в Открытую линию Bitrix24
 
 ### 1. Официальные боты (Telegram / MAX) — Bot API
 
@@ -134,7 +135,50 @@ line/connector ID и никакого ручного запуска скрипт
    `KV_REST_API_URL`/`KV_REST_API_TOKEN`, `DASHBOARD_BITRIX_CLIENT_ID`/`SECRET`,
    `TG_USERBOT_ENCRYPTION_KEY` (все — из общего `.env`).
 
-### 3. Отправка сообщения из карточки CRM
+### 3. Личный номер WhatsApp (WAHA, `packages/waha`)
+
+Аналог личного Telegram-номера, но постоянное соединение с WhatsApp держит
+не наш процесс, а готовый self-hosted контейнер **WAHA**
+(https://waha.devlike.pro, движок NOWEB = Baileys). Наш код ходит в него
+обычным REST — поэтому и oRPC-роутеры дашборда, и serverless
+`apps/bitrix-webhook` работают с номером синхронно, без Redis-очереди.
+
+**Как это работает:**
+- Регистрация коннектора (`imconnector.register`, один раз на портал) —
+  кнопка «Зарегистрировать канал» в карточке «WhatsApp — личный номер».
+- Подключение номера — нативно в Bitrix24: Контакт-центр → добавить канал
+  на линии → «WhatsApp (личный номер)» → наш виджет
+  (`/widget/wa-personal-connector`): телефон → pairing code, который
+  вводится на самом телефоне (WhatsApp → Связанные устройства →
+  Привязка по номеру телефона). Кодов из SMS и 2FA-паролей нет.
+- Имя WAHA-сессии детерминировано (`waSessionName`), промежуточное
+  состояние логина живёт в самой WAHA — Redis не используется. Виджет
+  опрашивает `whatsappPersonal.pollStatus`, и при статусе `WORKING`
+  аккаунт сохраняется в `whatsapp_personal_accounts` + `imconnector.activate`.
+- Входящие: WAHA сама доставляет событие `message` вебхуком (per-session
+  конфигурация, HMAC-подпись) на `apps/bitrix-webhook/api/waha-webhook`,
+  который пересылает его в линию через `imconnector.send.messages`
+  (`user.phone` из jid — чтобы CRM-трекер привязал существующий контакт).
+- Ответ оператора: `apps/bitrix-webhook` определяет по `CONNECTOR`, что это
+  WhatsApp-линия, и синхронно вызывает `POST /api/sendText` WAHA.
+
+**Настройка:**
+1. Поднимите контейнер (тот же сервер, что и `tg-userbot-worker`):
+   ```bash
+   docker compose up -d waha
+   ```
+2. Заполните в `.env`: `WAHA_URL` (публичный адрес контейнера),
+   `WAHA_API_KEY`, `WAHA_WEBHOOK_URL` (адрес `apps/bitrix-webhook` +
+   `/api/waha-webhook`), `WAHA_WEBHOOK_SECRET`.
+3. В дашборде → «Каналы ботов» → «WhatsApp — личный номер» → «Зарегистрировать канал».
+4. В Bitrix24: Контакт-центр → линия → каналы → «WhatsApp (личный номер)» →
+   ввести телефон → ввести pairing code на телефоне.
+
+⚠️ Как и у всех неофициальных интеграций WhatsApp (Baileys/whatsmeow,
+Wazzup и т.п.), есть риск блокировки номера со стороны WhatsApp — не
+использовать для массовых рассылок, только для диалогов с клиентами.
+
+### 4. Отправка сообщения из карточки CRM
 
 Вкладка «Мессенджер» в карточке сделки/контакта (`placement.bind`,
 `CrmWidgetsCard`) — менеджер видит историю переписки и может написать
@@ -164,16 +208,20 @@ OAuth-контекста приложения.
 | `cd packages/bot-core && bun run setup:bitrix-source -- telegram\|max` | Создаёт источник CRM для бота                     |
 | `cd packages/bot-core && bun run list:bitrix-sources -- telegram\|max` | Показывает существующие источники CRM             |
 | `docker compose up -d --build tg-userbot-worker`               | Запускает воркер личных номеров Telegram                |
+| `docker compose up -d waha`                                    | Запускает WAHA (личные номера WhatsApp)                  |
 | `bun run build`                                                | Полная сборка всех пакетов/приложений (Turborepo)        |
 | `bun run typecheck`                                            | Проверка типов по всему монорепозиторию                  |
 
 ## Известные ограничения
 
-- **Писать первым может только личный номер Telegram**, не официальные боты
-  (Bot API принципиально не позволяет инициировать диалог) и не MAX — у MAX
-  нет официального API для личных аккаунтов, только неофициальный
-  реверс-инжиниринг (как у сторонних интеграторов) — сознательно не
-  реализовывали.
+- **Писать первым могут только личные номера (Telegram, WhatsApp)**, не
+  официальные боты (Bot API принципиально не позволяет инициировать диалог)
+  и не MAX — у MAX нет официального API для личных аккаунтов, только
+  неофициальный реверс-инжиниринг — сознательно не реализовывали.
+  Для WhatsApp отправка «первого» сообщения из карточки CRM пока не
+  подключена к вкладке «Мессенджер» (только диалоги, начатые клиентом,
+  и ответы оператора в линии) — при необходимости добавляется по аналогии
+  с tg-personal в `packages/api/src/routers/widget-message`.
 - У каждого официального бота (Telegram/MAX) — ровно один экземпляр
   (один токен), но линию для него можно переназначить в любой момент прямо
   в Контакт-центре — просто добавить канал на другой линии, без правки `.env`.

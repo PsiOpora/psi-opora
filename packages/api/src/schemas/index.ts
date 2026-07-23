@@ -53,6 +53,14 @@ export {
   unisenderSettingsSchema,
 } from "./unisender";
 export {
+  type DisconnectWhatsappPersonalInput,
+  disconnectWhatsappPersonalSchema,
+  type PollWhatsappStatusInput,
+  pollWhatsappStatusSchema,
+  type StartWhatsappLoginInput,
+  startWhatsappLoginSchema,
+} from "./whatsapp-personal";
+export {
   type AssignConversationInput,
   assignConversationSchema,
   type ClientPollInput,

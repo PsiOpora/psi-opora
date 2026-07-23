@@ -26,6 +26,7 @@ import { emailRouter } from "./email";
 import { emailBroadcastRouter } from "./email-broadcast";
 import { messagesRouter } from "./messages";
 import { telegramPersonalRouter } from "./telegram-personal";
+import { whatsappPersonalRouter } from "./whatsapp-personal";
 import { widgetMessageRouter } from "./widget-message";
 
 export {
@@ -39,6 +40,7 @@ export {
   emailBroadcastRouter,
   messagesRouter,
   telegramPersonalRouter,
+  whatsappPersonalRouter,
   widgetMessageRouter,
 };
 export const appRouter = {
@@ -52,6 +54,7 @@ export const appRouter = {
   emailBroadcast: emailBroadcastRouter,
   messages: messagesRouter,
   telegramPersonal: telegramPersonalRouter,
+  whatsappPersonal: whatsappPersonalRouter,
   widgetMessage: widgetMessageRouter,
 };
 

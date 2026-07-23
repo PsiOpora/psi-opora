@@ -17,6 +17,7 @@
     "@psi-opora/db": "workspace:*",
     "@psi-opora/jobs": "workspace:*",
     "@psi-opora/tg-userbot": "workspace:*",
+    "@psi-opora/waha": "workspace:*",
     "@upstash/redis": "^1.38.0",
     "next": "16.2.11",
     "react": "^19.2.8",

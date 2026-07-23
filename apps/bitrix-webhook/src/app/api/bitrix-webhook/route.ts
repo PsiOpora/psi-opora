@@ -7,11 +7,13 @@ import { env } from "@psi-opora/config";
 import {
   assignConversationIfUnassigned,
   getTelegramPersonalAccountByLine,
+  getWhatsappPersonalAccountByLine,
   insertBotMessage,
   removeBotConnector,
 } from "@psi-opora/db/queries";
-import { sendMessengerMessage, type Messenger } from "@psi-opora/jobs";
+import { type Messenger, sendMessengerMessage } from "@psi-opora/jobs";
 import { pushOutboundMessage } from "@psi-opora/tg-userbot";
+import { wahaSendText } from "@psi-opora/waha";
 
 // Совпадает с CONNECTOR_IDS в packages/api/src/routers/bot-connector/helpers.ts —
 // по CONNECTOR из события определяем, какому боту переслать ответ оператора.
@@ -93,7 +95,7 @@ async function relayToTelegramPersonal(
     memberId: account.memberId,
     openLineId: account.openLineId,
     jobId: crypto.randomUUID(),
-    telegramUserId: reply.chatId,
+    telegramUserId: Number(reply.chatId),
     text: reply.text,
   });
   console.log(
@@ -103,8 +105,43 @@ async function relayToTelegramPersonal(
   return true;
 }
 
+/**
+ * Ответ оператора для личного WhatsApp-номера шлём синхронно через REST
+ * WAHA — в отличие от Telegram (relayToTelegramPersonal) очередь не нужна:
+ * живое соединение с WhatsApp держит контейнер WAHA, а не наш процесс.
+ */
+async function relayToWhatsAppPersonal(
+  reply: OperatorReplyMessage,
+): Promise<boolean> {
+  if (reply.connector !== env.WA_PERSONAL_CONNECTOR_ID || !reply.lineId) {
+    return false;
+  }
+
+  const account = await getWhatsappPersonalAccountByLine(String(reply.lineId));
+  if (!account) {
+    console.warn(
+      `[bitrix-webhook] не найден личный номер WhatsApp для линии ${reply.lineId}`,
+    );
+    return true;
+  }
+
+  try {
+    await wahaSendText(account.sessionName, String(reply.chatId), reply.text);
+    console.log(
+      `[bitrix-webhook] ответ оператора отправлен с личного номера ${account.phone} chat=${reply.chatId}`,
+    );
+  } catch (err) {
+    console.error(
+      `[bitrix-webhook] не удалось отправить ответ оператора в WhatsApp: ${(err as Error).message}`,
+    );
+  }
+  await logOperatorReply("whatsapp-personal", reply);
+  return true;
+}
+
 async function relayOperatorReply(reply: OperatorReplyMessage): Promise<void> {
   if (await relayToTelegramPersonal(reply)) return;
+  if (await relayToWhatsAppPersonal(reply)) return;
 
   const messenger = messengerByConnector(reply.connector);
   if (!messenger) {

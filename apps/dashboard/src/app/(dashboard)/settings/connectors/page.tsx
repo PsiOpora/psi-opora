@@ -1,6 +1,7 @@
 import { BotConnectorCard } from "./bot-connector-card";
 import { CrmWidgetsCard } from "./crm-widgets-card";
 import { TgPersonalConnectorCard } from "./tg-personal-connector-card";
+import { WaPersonalConnectorCard } from "./wa-personal-connector-card";
 
 export default function BotConnectorsPage() {
   return (
@@ -9,8 +10,8 @@ export default function BotConnectorsPage() {
         <h1 className="text-2xl font-semibold">Каналы ботов</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Регистрация коннекторов Открытых линий и вкладки «Мессенджер» в CRM.
-          Привязка конкретной линии происходит нативно в Контакт-центре
-          Bitrix24 — здесь только регистрация канала и статус подключения.
+          Привязка конкретной линии происходит нативно в Контакт-центре Bitrix24
+          — здесь только регистрация канала и статус подключения.
         </p>
       </div>
 
@@ -20,6 +21,8 @@ export default function BotConnectorsPage() {
       <BotConnectorCard messenger="max" label="MAX" />
 
       <TgPersonalConnectorCard />
+
+      <WaPersonalConnectorCard />
     </div>
   );
 }

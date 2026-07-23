@@ -11,6 +11,7 @@ import {
   type UserIcon,
 } from "lucide-react";
 import { ClientAvatar } from "@/components/inbox/client-avatar";
+import { CrmSection } from "@/components/inbox/crm-section";
 import { messengerLabel } from "@/components/inbox/messenger-meta";
 import { NotesSection } from "@/components/inbox/notes-section";
 import { TagsEditor } from "@/components/inbox/tags-editor";
@@ -128,6 +129,10 @@ export function ProfilePane({
           {profile.bio}
         </p>
       )}
+
+      <Separator />
+
+      <CrmSection selected={selected} />
 
       <Separator />
 

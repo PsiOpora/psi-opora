@@ -1,6 +1,6 @@
 "use client";
 
-import type { TelegramPersonalAccountView } from "@psi-opora/api";
+import type { WhatsappPersonalAccountView } from "@psi-opora/api";
 import { Loader2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -16,16 +16,16 @@ import {
 } from "@/components/ui/card";
 import { orpcClient } from "@/lib/orpc/client";
 
-const CONNECTOR_ID = "psiopora_tg_personal";
-const CONNECTOR_NAME = "Telegram (личный номер)";
+const CONNECTOR_ID = "psiopora_wa_personal";
+const CONNECTOR_NAME = "WhatsApp (личный номер)";
 
-// Простая монохромная иконка «бумажный самолётик» — Bitrix24 отклоняет
+// Простая монохромная иконка «пузырь диалога» — Bitrix24 отклоняет
 // регистрацию коннектора без иконки (ICON_REQUIRED).
 const ICON_SVG =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M2 21l21-9L2 3v7l15 2-15 2z'/%3E%3C/svg%3E";
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 3C7 3 3 6.9 3 11.7c0 2.1.8 4 2.1 5.5L4 21l4-1.1c1.2.6 2.6.9 4 .9 5 0 9-3.9 9-8.7S17 3 12 3z'/%3E%3C/svg%3E";
 
 function handlerUrl(): string {
-  return `${window.location.origin}/api/bitrix/tg-personal-widget`;
+  return `${window.location.origin}/api/bitrix/wa-personal-widget`;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -34,21 +34,21 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 /**
- * Регистрация коннектора Открытых линий «Telegram (личный номер)» — сам
+ * Регистрация коннектора Открытых линий «WhatsApp (личный номер)» — сам
  * логин конкретного номера на конкретной линии происходит нативно в
  * Контакт-центре Bitrix24 (администратор добавляет канал на линии и
- * выбирает этот коннектор — откроется /widget/tg-personal-connector).
+ * выбирает этот коннектор — откроется /widget/wa-personal-connector).
  */
-export function TgPersonalConnectorCard() {
+export function WaPersonalConnectorCard() {
   const { b24, status } = useB24Frame();
   const [registered, setRegistered] = useState<boolean | null>(null);
-  const [accounts, setAccounts] = useState<TelegramPersonalAccountView[]>([]);
+  const [accounts, setAccounts] = useState<WhatsappPersonalAccountView[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
 
   const refreshAccounts = useCallback(async () => {
     try {
-      const { accounts: rows } = await orpcClient.telegramPersonal.list();
+      const { accounts: rows } = await orpcClient.whatsappPersonal.list();
       setAccounts(rows);
     } catch (err) {
       setError((err as Error).message);
@@ -83,7 +83,7 @@ export function TgPersonalConnectorCard() {
         const res = await b24.callMethod("imconnector.register", {
           ID: CONNECTOR_ID,
           NAME: CONNECTOR_NAME,
-          ICON: { DATA_IMAGE: ICON_SVG, COLOR: "#2AABEE" },
+          ICON: { DATA_IMAGE: ICON_SVG, COLOR: "#25D366" },
           PLACEMENT_HANDLER: handlerUrl(),
           CHAT_GROUP: "N",
         });
@@ -104,7 +104,7 @@ export function TgPersonalConnectorCard() {
     startTransition(async () => {
       const toastId = toast.loading("Отключаем номер…");
       try {
-        const res = await orpcClient.telegramPersonal.disconnect({ lineId });
+        const res = await orpcClient.whatsappPersonal.disconnect({ lineId });
         if (res.error) throw new Error(res.error);
         await refreshAccounts();
         toast.success("Номер отключён", { id: toastId });
@@ -117,13 +117,13 @@ export function TgPersonalConnectorCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Telegram — личный номер</CardTitle>
+        <CardTitle>WhatsApp — личный номер</CardTitle>
         <CardDescription>
-          Отдельный канал Открытых линий: реальный номер телефона (не бот) —
-          можно писать клиенту первым и работать в групповых чатах. После
-          регистрации коннектор появится в списке каналов Контакт-центра —
-          подключение конкретного номера к линии происходит там же (Bitrix24
-          откроет форму входа: телефон → код → пароль, если включена 2FA).
+          Отдельный канал Открытых линий через WAHA: реальный номер телефона —
+          можно писать клиенту первым. После регистрации коннектор появится в
+          списке каналов Контакт-центра — подключение конкретного номера к линии
+          происходит там же (Bitrix24 откроет форму: телефон → код привязки,
+          который вводится в WhatsApp на самом телефоне).
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

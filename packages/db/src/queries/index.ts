@@ -76,6 +76,7 @@ export * from "./broadcast";
 export * from "./email-campaign";
 export * from "./telegram-personal";
 export * from "./unisender";
+export * from "./whatsapp-personal";
 
 export async function getBotConnector(messenger: string) {
   return _getBotConnector(db, messenger);

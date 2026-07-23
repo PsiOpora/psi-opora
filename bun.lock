@@ -25,6 +25,7 @@
         "@psi-opora/db": "workspace:*",
         "@psi-opora/jobs": "workspace:*",
         "@psi-opora/tg-userbot": "workspace:*",
+        "@psi-opora/waha": "workspace:*",
         "@upstash/redis": "^1.38.0",
         "next": "16.2.11",
         "react": "^19.2.8",
@@ -187,6 +188,7 @@
         "@psi-opora/tg-userbot": "workspace:*",
         "@psi-opora/unisender-client": "workspace:*",
         "@psi-opora/validators": "workspace:*",
+        "@psi-opora/waha": "workspace:*",
         "@trigger.dev/sdk": "4.5.6",
         "better-auth": "1.6.23",
         "superjson": "2.2.6",
@@ -364,6 +366,20 @@
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
         "@types/bun": "1.3.14",
+        "typescript": "6.0.3",
+      },
+    },
+    "packages/waha": {
+      "name": "@psi-opora/waha",
+      "version": "0.0.1",
+      "dependencies": {
+        "@psi-opora/config": "workspace:*",
+      },
+      "devDependencies": {
+        "@psi-opora/tsconfig": "workspace:*",
+        "@types/bun": "1.3.14",
+        "@types/node": "26.1.1",
+        "tsdown": "^0.22.13",
         "typescript": "6.0.3",
       },
     },
@@ -839,6 +855,8 @@
     "@psi-opora/unisender-client": ["@psi-opora/unisender-client@workspace:packages/unisender-client"],
 
     "@psi-opora/validators": ["@psi-opora/validators@workspace:packages/validators"],
+
+    "@psi-opora/waha": ["@psi-opora/waha@workspace:packages/waha"],
 
     "@quansync/fs": ["@quansync/fs@1.0.0", "", { "dependencies": { "quansync": "^1.0.0" } }, "sha512-4TJ3DFtlf1L5LDMaM6CanJ/0lckGNtJcMjQ1NAV6zDmA0tEHKZtxNKin8EgPaVX1YzljbxckyT2tJrpQKAtngQ=="],
 

@@ -13,3 +13,4 @@ export * from "./quick-replies";
 export * from "./email-campaign";
 export * from "./telegram-personal";
 export * from "./unisender";
+export * from "./whatsapp-personal";

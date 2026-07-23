@@ -18,6 +18,36 @@ export interface ClientListItem {
   tags: string[];
 }
 
+export interface CrmContactLink {
+  id: string;
+  name: string;
+  /** null — домен портала неизвестен (нет ни OAuth-сессии, ни вебхука). */
+  url: string | null;
+}
+
+export interface CrmLeadLink {
+  id: string;
+  title: string;
+  url: string | null;
+}
+
+export interface CrmDealLink {
+  id: string;
+  title: string;
+  stageName: string | null;
+  opportunity: string | null;
+  currencyId: string | null;
+  closed: boolean;
+  url: string | null;
+}
+
+export interface CrmLinksResult {
+  contact: CrmContactLink | null;
+  lead: CrmLeadLink | null;
+  deals: CrmDealLink[];
+  error?: string;
+}
+
 export interface ClientNoteItem {
   id: string;
   text: string;

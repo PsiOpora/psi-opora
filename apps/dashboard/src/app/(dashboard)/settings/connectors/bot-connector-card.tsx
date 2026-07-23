@@ -70,8 +70,7 @@ export function BotConnectorCard({
     try {
       const res = await b24.callMethod("imconnector.list", {});
       if (!res.isSuccess) return;
-      const list = (res.getData() as { result?: string[] } | undefined)
-        ?.result;
+      const list = (res.getData() as { result?: string[] } | undefined)?.result;
       setRegistered(!!list?.includes(connectorId));
     } catch {
       // не критично — просто не покажем статус регистрации
@@ -129,9 +128,9 @@ export function BotConnectorCard({
       <CardHeader>
         <CardTitle>{label} — официальный бот</CardTitle>
         <CardDescription>
-          После регистрации коннектор появится в списке каналов Контакт-центра
-          — добавьте его на нужную линию, Bitrix24 откроет наше окно, которое
-          само активирует линию и настроит вебхук бота (без ручных шагов).
+          После регистрации коннектор появится в списке каналов Контакт-центра —
+          добавьте его на нужную линию, Bitrix24 откроет наше окно, которое само
+          активирует линию и настроит вебхук бота (без ручных шагов).
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -145,13 +144,17 @@ export function BotConnectorCard({
           <>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={registered ? "default" : "secondary"}>
-                {registered ? "коннектор зарегистрирован" : "не зарегистрирован"}
+                {registered
+                  ? "коннектор зарегистрирован"
+                  : "не зарегистрирован"}
               </Badge>
               {config && (
                 <>
                   <Badge variant="outline">линия {config.openLineId}</Badge>
                   <Badge
-                    variant={config.webhookConfigured ? "default" : "destructive"}
+                    variant={
+                      config.webhookConfigured ? "default" : "destructive"
+                    }
                   >
                     {config.webhookConfigured
                       ? "вебхук настроен"
