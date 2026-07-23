@@ -1,0 +1,13 @@
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/.vercel
+**/*.tsbuildinfo
+.git
+.github
+.vscode
+.claude
+external
+bot.log
+*.log

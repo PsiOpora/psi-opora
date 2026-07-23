@@ -1,9 +1,54 @@
 services:
-  bot:
-    build: .
+  # Официальный Telegram-бот (apps/tg-bot) — на своём сервере работает через
+  # long polling (webhookCallback из apps/tg-bot/api/webhook.ts используется
+  # только при деплое на Vercel, для polling публичный URL не нужен).
+  tg-bot:
+    build:
+      context: .
+      dockerfile: apps/tg-bot/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  # Официальный бот MAX (apps/max-bot) — аналогично tg-bot, long polling.
+  max-bot:
+    build:
+      context: .
+      dockerfile: apps/max-bot/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  # Bitrix24-интеграция: приём исходящих вебхуков CRM и вебхука WAHA (apps/bitrix-webhook).
+  bitrix-webhook:
+    build:
+      context: .
+      dockerfile: apps/bitrix-webhook/Dockerfile
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:${PORT:-3000}"
+      - "${BITRIX_WEBHOOK_PORT:-3020}:3000"
+    env_file:
+      - .env
+
+  # Bitrix24 Local App — CRM/маркетинговая аналитика (apps/dashboard).
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-3010}:3000"
+    env_file:
+      - .env
+
+  # Инбокс для операторов Открытых линий (apps/clients).
+  clients:
+    build:
+      context: .
+      dockerfile: apps/clients/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${CLIENTS_PORT:-3005}:3000"
     env_file:
       - .env
 
