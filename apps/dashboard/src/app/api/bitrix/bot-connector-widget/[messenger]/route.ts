@@ -1,3 +1,4 @@
+import { env } from "@psi-opora/config";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ async function handle(
 ): Promise<Response> {
   const { messenger } = await params;
   const url = new URL(request.url);
-  const target = new URL("/widget/bot-connector", url.origin);
+  const target = new URL("/widget/bot-connector", env.APP_URL);
   target.searchParams.set("messenger", messenger);
   url.searchParams.forEach((value, key) => {
     target.searchParams.set(key, value);
