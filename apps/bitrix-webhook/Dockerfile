@@ -14,6 +14,8 @@ FROM base AS builder
 COPY --from=prepare /app/out/json/ .
 RUN bun install --frozen-lockfile
 COPY --from=prepare /app/out/full/ .
+ARG POSTGRES_URL
+ENV POSTGRES_URL=$POSTGRES_URL
 RUN bunx turbo run build --filter=@psi-opora/bitrix-webhook...
 
 # --- Runner ---

@@ -75,6 +75,11 @@ jobs:
           context: .
           file: apps/${{ matrix.service }}/Dockerfile
           push: true
+          # POSTGRES_URL нужен на этапе `next build` (dashboard, clients,
+          # bitrix-webhook обращаются к БД при сборке страниц); для остальных
+          # сервисов ARG в Dockerfile просто не объявлен и значение игнорируется.
+          build-args: |
+            POSTGRES_URL=${{ secrets.POSTGRES_URL }}
           tags: |
             ${{ vars.REGISTRY }}/psi-opora-${{ matrix.service }}:${{ github.sha }}
             ${{ vars.REGISTRY }}/psi-opora-${{ matrix.service }}:latest

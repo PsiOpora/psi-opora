@@ -20,7 +20,7 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 bot
 USER bot
 COPY --from=builder --chown=bot:nodejs /app .
 
-# Продакшен на своём сервере — long polling (нет публичного URL для вебхука,
-# см. apps/tg-bot/api/webhook.ts, который используется только при деплое на Vercel).
 WORKDIR /app/apps/tg-bot
-CMD ["bun", "run", "src/dev.ts"]
+ENV PORT=3000
+EXPOSE 3000
+CMD ["bun", "run", "src/server.ts"]
