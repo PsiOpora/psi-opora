@@ -14,7 +14,7 @@
   },
   "license": "MIT",
   "scripts": {
-    "build": "git clean -xdf .cache dist && tsc",
+    "build": "rm -rf .cache dist && tsc",
     "clean": "git clean -xdf .cache .turbo dist node_modules",
     "dev": "tsc",
     "format": "biome format .",
