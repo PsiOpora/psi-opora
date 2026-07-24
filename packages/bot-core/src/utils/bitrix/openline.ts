@@ -80,47 +80,6 @@ export async function resolveOpenLineDialog(
   }
 }
 
-// Трекер Открытой линии создаёт контакт+сделку по первому сообщению чата
-// асинхронно на стороне Bitrix — к моменту завершения сценария они почти
-// всегда уже есть, но при лаге ждём немного, прежде чем создавать свою
-// сделку (сделка трекера предпочтительнее: к ней Bitrix сам привязывает
-// чат, канал и источник линии). Бюджет ожидания намеренно маленький:
-// бот работает в serverless-обработчике вебхука Telegram, и grammY
-// webhookCallback обязан ответить за 10 секунд — иначе Telegram пришлёт
-// апдейт повторно.
-const OPENLINE_DEAL_WAIT_ATTEMPTS = 4;
-const OPENLINE_DEAL_WAIT_DELAY_MS = 1200;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Резолвит диалог Открытой линии, дожидаясь появления сделки (или лида —
- * в классическом режиме CRM трекер создаёт лид, ждать сделку бессмысленно),
- * созданной трекером линии. Если за отведённые попытки CRM-сущность так и
- * не появилась, возвращает последний известный диалог (возможно, без
- * сделки) — дальше сработает фолбэк с созданием собственной сделки.
- */
-export async function waitForOpenLineDialog(
-  messenger: string,
-  userId: number,
-  chatId: number,
-): Promise<OpenLineDialog | null> {
-  let dialog: OpenLineDialog | null = null;
-  for (let attempt = 1; attempt <= OPENLINE_DEAL_WAIT_ATTEMPTS; attempt++) {
-    dialog = await resolveOpenLineDialog(messenger, userId, chatId);
-    if (dialog?.dealId || dialog?.leadId) return dialog;
-    if (attempt < OPENLINE_DEAL_WAIT_ATTEMPTS) {
-      console.log(
-        `[bitrix] сделка трекера Открытой линии ещё не создана (попытка ${attempt}/${OPENLINE_DEAL_WAIT_ATTEMPTS}) — ждём ${OPENLINE_DEAL_WAIT_DELAY_MS}мс`,
-      );
-      await sleep(OPENLINE_DEAL_WAIT_DELAY_MS);
-    }
-  }
-  return dialog;
-}
-
 // Bitrix отклоняет весь вызов imconnector.send.messages, если user.name не
 // проходит валидацию (только буквы, пробелы, дефисы, апострофы, ≤25 символов) —
 // имена из Telegram/MAX могут содержать эмодзи и цифры, поэтому подставляем

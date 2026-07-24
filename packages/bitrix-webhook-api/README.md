@@ -88,4 +88,4 @@ interface OperatorReplyMessage {
 ## Связанные пакеты
 
 - `apps/bitrix-webhook` — Next.js приложение, деплоится отдельно и предоставляет HTTP endpoint для Битрикс24
-- `packages/bot-core` — `sendMessageToOpenLine()`/`createBitrixDeal()` (пересылка сообщений в Открытую линию и переиспользование сделки/контакта, созданных трекером линии, через `imopenlines.dialog.get`)
+- `packages/bot-core` — `sendMessageToOpenLine()`/`createBitrixDeal()` (пересылка сообщений в Открытую линию; сделку/контакт бот всегда создаёт сам, а через `imopenlines.dialog.get` только резолвит внутренний ID чата для поля IM и привязки чата к контакту)
