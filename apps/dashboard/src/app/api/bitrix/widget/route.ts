@@ -1,3 +1,4 @@
+import { env } from "@psi-opora/config";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ const PLACEMENT_ENTITY: Record<string, "deal" | "contact"> = {
 
 async function handle(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const target = new URL("/widget/message", url.origin);
+  const target = new URL("/widget/message", env.APP_URL);
   url.searchParams.forEach((value, key) => {
     target.searchParams.set(key, value);
   });
