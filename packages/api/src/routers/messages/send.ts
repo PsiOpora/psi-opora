@@ -1,4 +1,7 @@
+import { resolveBitrixApi } from "@psi-opora/bitrix-client";
+import { mirrorOperatorMessageToOpenLine } from "@psi-opora/bot-core";
 import {
+  getBotConnector,
   insertBotMessage,
   listTelegramPersonalAccounts,
   listWhatsappPersonalAccounts,
@@ -8,6 +11,11 @@ import { wahaSendText } from "@psi-opora/waha";
 import { publicProcedure } from "../../orpc";
 import { sendClientMessageSchema } from "../../schemas/messages";
 import { sendViaPersonalNumber } from "../widget-message/helpers";
+
+interface OpenLineConnectorRef {
+  connectorId: string;
+  openLineId: string;
+}
 
 /**
  * Отправляет через личный номер Telegram — userId диалога здесь тот же
@@ -22,35 +30,35 @@ async function sendTelegramPersonal(
   userId: string,
   lineId: string | undefined,
   text: string,
-): Promise<{ ok?: true; error?: string }> {
+): Promise<{ ok?: true; error?: string; connector?: OpenLineConnectorRef }> {
   if (!memberId) {
     return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
   }
-  let openLineId = lineId;
-  if (!openLineId) {
-    const accounts = (await listTelegramPersonalAccounts(memberId)).filter(
-      (a) => a.status === "connected",
-    );
-    if (accounts.length === 0) {
-      return { error: "Личный номер Telegram не подключён" };
-    }
-    if (accounts.length > 1) {
-      return {
-        error:
-          "На портале несколько личных номеров Telegram — отправка из единого инбокса пока поддерживает один",
-      };
-    }
-    const account = accounts[0];
-    if (!account) return { error: "Личный номер Telegram не подключён" };
-    openLineId = account.openLineId;
+  const accounts = (await listTelegramPersonalAccounts(memberId)).filter(
+    (a) => a.status === "connected",
+  );
+  const account = lineId
+    ? accounts.find((a) => a.openLineId === lineId)
+    : accounts[0];
+  if (!account) return { error: "Личный номер Telegram не подключён" };
+  if (!lineId && accounts.length > 1) {
+    return {
+      error:
+        "На портале несколько личных номеров Telegram — отправка из единого инбокса пока поддерживает один",
+    };
   }
 
-  return sendViaPersonalNumber({
+  const result = await sendViaPersonalNumber({
     memberId,
-    openLineId,
+    openLineId: account.openLineId,
     target: { kind: "id", value: userId },
     text,
   });
+  if (result.error) return result;
+  return {
+    ok: true,
+    connector: { connectorId: account.connectorId, openLineId: account.openLineId },
+  };
 }
 
 /**
@@ -63,7 +71,12 @@ async function sendWhatsappPersonal(
   userId: string,
   lineId: string | undefined,
   text: string,
-): Promise<{ ok?: true; error?: string; externalId?: string }> {
+): Promise<{
+  ok?: true;
+  error?: string;
+  externalId?: string;
+  connector?: OpenLineConnectorRef;
+}> {
   if (!memberId) {
     return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
   }
@@ -83,7 +96,11 @@ async function sendWhatsappPersonal(
 
   try {
     const { id } = await wahaSendText(account.sessionName, userId, text);
-    return { ok: true, externalId: id };
+    return {
+      ok: true,
+      externalId: id,
+      connector: { connectorId: account.connectorId, openLineId: account.openLineId },
+    };
   } catch (err) {
     return { error: `Не отправлено: ${(err as Error).message}` };
   }
@@ -93,8 +110,10 @@ async function sendWhatsappPersonal(
  * Отправляет сообщение клиенту из единого инбокса («Клиенты»). В отличие от
  * вкладки CRM (widget-message/send.ts) канал уже надёжно известен — это тот
  * же messenger/userId, что и у выбранной строки списка (bot_users), поход в
- * CRM за резолвингом контакта не нужен. Комментарий в таймлайн CRM тоже не
- * пишем — здесь нет известного contactId, а история и так видна в инбоксе.
+ * CRM за резолвингом контакта не нужен. Комментарий в таймлайн CRM не пишем —
+ * здесь нет известного contactId, а история и так видна в инбоксе. Но в саму
+ * Открытую линию ответ дублируем (см. mirrorOperatorMessageToOpenLine ниже),
+ * чтобы оператор, работающий из Открытой линии, видел и эти реплики тоже.
  */
 export const send = publicProcedure
   .input(sendClientMessageSchema)
@@ -104,6 +123,7 @@ export const send = publicProcedure
       if (!text) return { error: "Введите текст сообщения" };
 
       let externalId: string | undefined;
+      let connector: OpenLineConnectorRef | undefined;
 
       if (input.messenger === "telegram-personal") {
         const result = await sendTelegramPersonal(
@@ -113,6 +133,7 @@ export const send = publicProcedure
           text,
         );
         if (result.error) return result;
+        connector = result.connector;
       } else if (input.messenger === "whatsapp-personal") {
         const result = await sendWhatsappPersonal(
           context.memberId,
@@ -122,6 +143,7 @@ export const send = publicProcedure
         );
         if (result.error) return result;
         externalId = result.externalId;
+        connector = result.connector;
       } else {
         try {
           await sendMessengerMessage(input.messenger, input.userId, text);
@@ -132,6 +154,15 @@ export const send = publicProcedure
             error.cause ?? "",
           );
           return { error: `Не отправлено: ${error.message}` };
+        }
+        const botConnector = await getBotConnector(input.messenger).catch(
+          () => null,
+        );
+        if (botConnector) {
+          connector = {
+            connectorId: botConnector.connectorId,
+            openLineId: botConnector.openLineId,
+          };
         }
       }
 
@@ -150,6 +181,19 @@ export const send = publicProcedure
         console.error(
           `[messages] не удалось записать сообщение в журнал: ${(err as Error).message}`,
         );
+      }
+
+      // Без operatorId (BX24 user.current ещё не подгрузился) атрибутировать
+      // сообщение в Открытой линии нечем — молча пропускаем, как и без
+      // диалога/коннектора: это дублирование best-effort, а не критический путь.
+      if (connector && input.operatorId) {
+        const api = resolveBitrixApi(context.memberId ?? undefined);
+        await mirrorOperatorMessageToOpenLine(api ?? undefined, connector, {
+          messenger: input.messenger,
+          userId: input.userId,
+          text,
+          operatorId: input.operatorId,
+        });
       }
 
       return { ok: true };

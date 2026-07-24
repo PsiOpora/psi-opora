@@ -176,6 +176,16 @@ IngressRoute: на `web` (порт 80) с редиректом на https чер
 - **Grafana** — просмотр: датасорс Loki подключается автоматически через
   `grafana-datasources` ConfigMap. Логи ищите в Explore по лейблам `app`,
   `pod`, `container`, `namespace`, например: `{app="dashboard"} |= "error"`.
+- **Дашборд "psi-opora — Ошибки и логи"** — заводится автоматически через
+  провижининг (`grafana-dashboards-provider` + `grafana-dashboard-errors`
+  ConfigMap'ы, папка `psi-opora` в Grafana), импортировать вручную не нужно.
+  Содержит: график ошибок/мин по сервисам, по одному счётчику ошибок за
+  выбранный период на каждый из 6 сервисов и общую панель логов с ошибками
+  (фильтр по regex `(?i)error|exception|fatal|panic`, можно сузить через
+  переменную `service` вверху дашборда). Чтобы поменять паттерн ошибок или
+  добавить панели — правьте JSON прямо в `grafana-dashboard-errors` в
+  `k3s/logging.yaml` и переприменяйте (провижининг подхватывает изменения
+  раз в 30 секунд без рестарта пода).
 
 Перед первым `kubectl apply` нужно завести пароль администратора Grafana
 (в git не попадает, аналогично `registry-htpasswd`):

@@ -222,3 +222,72 @@ export async function updateMessageInOpenLine(
   }
 }
 
+export interface OpenLineConnector {
+  connectorId: string;
+  openLineId: string;
+}
+
+export interface OperatorReplyData {
+  messenger: string;
+  /** Тот же ID, под которым уже существует диалог в Открытой линии
+   * (chat.id всегда равен user.id для наших коннекторов — см. USER_CODE в
+   * resolveDialogCrmBindings/resolvePersonalDialog, packages/api). */
+  userId: string | number;
+  text: string;
+  /** Bitrix ID сотрудника, отправившего сообщение из единого инбокса
+   * («Клиенты») — передаётся в message.user_id, чтобы Bitrix атрибутировал
+   * сообщение менеджеру, а не клиенту. */
+  operatorId: string;
+}
+
+/**
+ * Отражает ответ оператора, отправленный из единого инбокса («Клиенты», в
+ * обход самой Открытой линии), в уже существующий диалог Bitrix24 — чтобы
+ * оператор, который работает из Открытой линии, тоже видел полную переписку,
+ * а не только реплики клиента.
+ *
+ * В отличие от sendMessageToOpenLine коннектор (CONNECTOR/LINE) сюда
+ * передаётся напрямую вызывающей стороной, а не резолвится через
+ * getBotConnector(messenger): у ботов (telegram/max) он один на весь
+ * мессенджер, а у личных номеров (telegram-personal/whatsapp-personal) —
+ * свой на каждую запись в БД (см. packages/api/src/routers/messages/send.ts).
+ *
+ * message.user_id — единственное документированное поле imconnector.send.messages
+ * для передачи ID менеджера Bitrix24; используем его вместо повторной отправки
+ * от лица клиента (user.id), чтобы не выглядело, будто клиент написал себе сам.
+ */
+export async function mirrorOperatorMessageToOpenLine(
+  api: BitrixApiLike | undefined,
+  connector: OpenLineConnector,
+  data: OperatorReplyData,
+): Promise<void> {
+  if (!api) return;
+
+  try {
+    await api.call("imconnector.send.messages", {
+      CONNECTOR: connector.connectorId,
+      LINE: Number(connector.openLineId),
+      MESSAGES: [
+        {
+          user: { id: String(data.userId), skip_phone_validate: "Y" },
+          message: {
+            id: `operator-${data.operatorId}-${Date.now()}`,
+            date: Math.floor(Date.now() / 1000),
+            text: data.text,
+            user_id: Number(data.operatorId),
+          },
+          chat: {
+            id: String(data.userId),
+            name: `${data.messenger} #${data.userId}`,
+          },
+        },
+      ],
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[bitrix] не удалось отразить ответ оператора в Открытой линии: ${message}`,
+    );
+  }
+}
+

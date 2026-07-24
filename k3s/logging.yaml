@@ -250,12 +250,214 @@ metadata:
 data:
   loki.yaml: |
     apiVersion: 1
+    # Раньше datasource создавался без явного uid — Grafana сама сгенерировала
+    # случайный и сохранила его в sqlite на PVC grafana-data. Простая замена
+    # uid в файле провижининга не обновляет существующую запись (известный
+    # баг Grafana — весь модуль provisioning падает с "data source not
+    # found"), поэтому сначала явно удаляем старую запись по имени.
+    deleteDatasources:
+      - name: Loki
+        orgId: 1
     datasources:
       - name: Loki
+        uid: loki
         type: loki
         access: proxy
         url: http://loki:3100
         isDefault: true
+---
+# --- Дашборды Grafana: провижининг из ConfigMap, подхватываются при старте ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  namespace: psi-opora
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: psi-opora
+        orgId: 1
+        folder: psi-opora
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-errors
+  namespace: psi-opora
+data:
+  psi-opora-errors.json: |
+    {
+      "title": "psi-opora — Ошибки и логи",
+      "uid": "psi-opora-errors",
+      "tags": ["psi-opora"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "time": { "from": "now-6h", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "service",
+            "type": "query",
+            "datasource": { "type": "loki", "uid": "loki" },
+            "query": "label_values({namespace=\"psi-opora\"}, app)",
+            "refresh": 2,
+            "multi": true,
+            "includeAll": true,
+            "allValue": ".*",
+            "current": { "text": "All", "value": "$__all" }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "timeseries",
+          "title": "Ошибки в минуту по сервисам",
+          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum by (app) (count_over_time({namespace=\"psi-opora\", app=~\"$service\"} |~ `(?i)error|exception|fatal|panic` [1m]))",
+              "legendFormat": "{{app}}",
+              "queryType": "range"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "tg-bot: ошибок за период",
+          "gridPos": { "x": 0, "y": 8, "w": 4, "h": 4 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(count_over_time({namespace=\"psi-opora\", app=\"tg-bot\"} |~ `(?i)error|exception|fatal|panic` [$__range]))",
+              "instant": true,
+              "queryType": "instant"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "max-bot: ошибок за период",
+          "gridPos": { "x": 4, "y": 8, "w": 4, "h": 4 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(count_over_time({namespace=\"psi-opora\", app=\"max-bot\"} |~ `(?i)error|exception|fatal|panic` [$__range]))",
+              "instant": true,
+              "queryType": "instant"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "tg-userbot-worker: ошибок за период",
+          "gridPos": { "x": 8, "y": 8, "w": 4, "h": 4 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(count_over_time({namespace=\"psi-opora\", app=\"tg-userbot-worker\"} |~ `(?i)error|exception|fatal|panic` [$__range]))",
+              "instant": true,
+              "queryType": "instant"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "stat",
+          "title": "bitrix-webhook: ошибок за период",
+          "gridPos": { "x": 12, "y": 8, "w": 4, "h": 4 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(count_over_time({namespace=\"psi-opora\", app=\"bitrix-webhook\"} |~ `(?i)error|exception|fatal|panic` [$__range]))",
+              "instant": true,
+              "queryType": "instant"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "stat",
+          "title": "dashboard: ошибок за период",
+          "gridPos": { "x": 16, "y": 8, "w": 4, "h": 4 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(count_over_time({namespace=\"psi-opora\", app=\"dashboard\"} |~ `(?i)error|exception|fatal|panic` [$__range]))",
+              "instant": true,
+              "queryType": "instant"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "stat",
+          "title": "clients: ошибок за период",
+          "gridPos": { "x": 20, "y": 8, "w": 4, "h": 4 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "sum(count_over_time({namespace=\"psi-opora\", app=\"clients\"} |~ `(?i)error|exception|fatal|panic` [$__range]))",
+              "instant": true,
+              "queryType": "instant"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "type": "logs",
+          "title": "Логи с ошибками",
+          "gridPos": { "x": 0, "y": 12, "w": 24, "h": 12 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "options": {
+            "showTime": true,
+            "wrapLogMessage": true,
+            "sortOrder": "Descending",
+            "enableLogDetails": true
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{namespace=\"psi-opora\", app=~\"$service\"} |~ `(?i)error|exception|fatal|panic`",
+              "queryType": "range"
+            }
+          ]
+        }
+      ]
+    }
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -316,12 +518,22 @@ spec:
           volumeMounts:
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards-json
+              mountPath: /var/lib/grafana/dashboards
             - name: data
               mountPath: /var/lib/grafana
       volumes:
         - name: datasources
           configMap:
             name: grafana-datasources
+        - name: dashboards-provider
+          configMap:
+            name: grafana-dashboards-provider
+        - name: dashboards-json
+          configMap:
+            name: grafana-dashboard-errors
         - name: data
           persistentVolumeClaim:
             claimName: grafana-data

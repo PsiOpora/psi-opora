@@ -1,6 +1,9 @@
 export { createBitrixDeal } from "./create-deal";
 export {
+  mirrorOperatorMessageToOpenLine,
+  type OpenLineConnector,
   type OpenLineMessageData,
+  type OperatorReplyData,
   sendMessageToOpenLine,
   updateMessageInOpenLine,
 } from "./openline";

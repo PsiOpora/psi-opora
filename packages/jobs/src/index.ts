@@ -20,7 +20,11 @@ export {
   deliverEmailCampaign,
   pollEmailCampaigns,
 } from "./trigger/email-campaign";
-export { type CrmBackupPayload, crmBackup } from "./trigger/crm-backup";
+export {
+  type CrmBackupPayload,
+  crmBackup,
+  crmBackupSchedule,
+} from "./trigger/crm-backup";
 export { scenarioReminders } from "./trigger/scenario-reminders";
 export { consultationReminders } from "./trigger/consultation-reminders";
 export { diagnosticReminders } from "./trigger/diagnostic-reminders";
