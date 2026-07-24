@@ -1,6 +1,7 @@
 "use client";
 
 import type { WhatsappPersonalAccountView } from "@psi-opora/api";
+import { Text } from "@bitrix24/b24jssdk";
 import { env } from "@psi-opora/config";
 import { Loader2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
@@ -60,7 +61,11 @@ export function WaPersonalConnectorCard() {
   const checkRegistered = useCallback(async () => {
     if (!b24) return;
     try {
-      const res = await b24.callMethod("imconnector.list", {});
+      const res = await b24.actions.v2.call.make({
+        method: "imconnector.list",
+        params: {},
+        requestId: Text.getUuidRfc4122(),
+      });
       if (!res.isSuccess) return;
       // result — объект `{connector_id: connector_name}`, а не массив
       // (см. документацию imconnector.list) — Object.hasOwn, не .includes.
@@ -85,12 +90,16 @@ export function WaPersonalConnectorCard() {
       setError(null);
       const toastId = toast.loading("Регистрируем коннектор…");
       try {
-        const res = await b24.callMethod("imconnector.register", {
-          ID: CONNECTOR_ID,
-          NAME: CONNECTOR_NAME,
-          ICON: { DATA_IMAGE: ICON_SVG, COLOR: "#25D366" },
-          PLACEMENT_HANDLER: handlerUrl(),
-          CHAT_GROUP: "N",
+        const res = await b24.actions.v2.call.make({
+          method: "imconnector.register",
+          params: {
+            ID: CONNECTOR_ID,
+            NAME: CONNECTOR_NAME,
+            ICON: { DATA_IMAGE: ICON_SVG, COLOR: "#25D366" },
+            PLACEMENT_HANDLER: handlerUrl(),
+            CHAT_GROUP: "N",
+          },
+          requestId: Text.getUuidRfc4122(),
         });
         if (!res.isSuccess) {
           throw new Error(res.getErrorMessages().join("; "));

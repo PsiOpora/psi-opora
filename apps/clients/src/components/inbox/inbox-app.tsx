@@ -1,6 +1,7 @@
 "use client";
 
 import type { ClientListItem } from "@psi-opora/api";
+import { Text } from "@bitrix24/b24jssdk";
 import {
   keepPreviousData,
   useQuery,
@@ -56,8 +57,8 @@ export function InboxApp() {
   // Текущий оператор — из Bitrix (user.current), для «Назначить на себя» и фильтра «Мои».
   useEffect(() => {
     if (!b24) return;
-    b24
-      .callMethod("user.current", {})
+    b24.actions.v2.call
+      .make({ method: "user.current", params: {}, requestId: Text.getUuidRfc4122() })
       .then((res) => {
         if (!res.isSuccess) return;
         const data = (
@@ -212,11 +213,15 @@ export function InboxApp() {
 
     if (b24 && operator) {
       for (const c of newItems) {
-        b24
-          .callMethod("im.notify.personal.add", {
-            USER_ID: operator.id,
-            MESSAGE: `${c.name}: ${c.lastMessageText.slice(0, 120)}`,
-            TAG: `inbox_${clientKey(c.messenger, c.userId)}`,
+        b24.actions.v2.call
+          .make({
+            method: "im.notify.personal.add",
+            params: {
+              USER_ID: operator.id,
+              MESSAGE: `${c.name}: ${c.lastMessageText.slice(0, 120)}`,
+              TAG: `inbox_${clientKey(c.messenger, c.userId)}`,
+            },
+            requestId: Text.getUuidRfc4122(),
           })
           .catch(() => {
             // не критично — просто пропустим это уведомление

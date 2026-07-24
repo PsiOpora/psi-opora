@@ -98,10 +98,10 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_URL: z
       .string()
       .default("https://psi-opora-dashboard.orixon.ru"),
-    // Публичный адрес apps/bitrix-webhook — дашборд использует его в браузере
-    // (b24.callMethod("event.bind", ...)), чтобы при регистрации коннектора
-    // сразу подписаться на OnImConnectorMessageAdd и т.п., см.
-    // apps/dashboard/src/lib/bitrix/connector-events.ts.
+    // Полный адрес обработчика apps/bitrix-webhook (с путём /api/bitrix-webhook) —
+    // дашборд использует его в браузере (b24.actions.v2.call.make("event.bind", ...)),
+    // чтобы при регистрации коннектора сразу подписаться на OnImConnectorMessageAdd
+    // и т.п., см. apps/dashboard/src/lib/bitrix/connector-events.ts.
     NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL: z.string().optional(),
   },
   clientPrefix: "NEXT_PUBLIC_",

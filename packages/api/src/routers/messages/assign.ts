@@ -4,7 +4,7 @@ import { assignConversationSchema } from "../../schemas/messages";
 
 /**
  * Назначает ответственного менеджера на диалог. operatorId/operatorName
- * приходят с клиента (см. apps/dashboard — b24.callMethod("user.current")) —
+ * приходят с клиента (см. apps/dashboard — b24.actions.v2.call.make("user.current")) —
  * сервер их не проверяет: в этой архитектуре нет способа подтвердить личность
  * конкретного пользователя портала иначе, чем уже доверяет весь iframe.
  */

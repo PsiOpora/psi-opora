@@ -1,3 +1,4 @@
+import { Text } from "@bitrix24/b24jssdk";
 import type { B24Frame } from "@bitrix24/b24jssdk";
 
 // Официальный туториал Bitrix24 по разработке коннектора Открытых линий
@@ -35,7 +36,11 @@ export async function subscribeConnectorEvents(
   const failures: string[] = [];
   for (const event of CONNECTOR_EVENTS) {
     try {
-      const res = await b24.callMethod("event.bind", { event, handler: handlerUrl });
+      const res = await b24.actions.v2.call.make({
+        method: "event.bind",
+        params: { event, handler: handlerUrl },
+        requestId: Text.getUuidRfc4122(),
+      });
       if (!res.isSuccess) {
         const messages = res.getErrorMessages();
         // Bitrix хранит привязки идемпотентно по паре (event, handler) и

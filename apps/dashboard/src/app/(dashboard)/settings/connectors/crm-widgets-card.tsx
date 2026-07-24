@@ -1,5 +1,6 @@
 "use client";
 
+import { Text } from "@bitrix24/b24jssdk";
 import { Loader2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -50,7 +51,11 @@ export function CrmWidgetsCard() {
   const refresh = useCallback(async () => {
     if (!b24) return;
     try {
-      const res = await b24.callMethod("placement.get", {});
+      const res = await b24.actions.v2.call.make({
+        method: "placement.get",
+        params: {},
+        requestId: Text.getUuidRfc4122(),
+      });
       if (!res.isSuccess) {
         setError("Не удалось получить список вкладок Битрикс24");
         return;
@@ -82,14 +87,18 @@ export function CrmWidgetsCard() {
       const toastId = toast.loading("Подключаем вкладки…");
       try {
         for (const { code } of PLACEMENTS) {
-          await b24.callMethod("placement.bind", {
-            PLACEMENT: code,
-            HANDLER: handlerUrl(),
-            TITLE: TAB_TITLE,
-            LANG_ALL: {
-              ru: { TITLE: TAB_TITLE },
-              en: { TITLE: "Messenger" },
+          await b24.actions.v2.call.make({
+            method: "placement.bind",
+            params: {
+              PLACEMENT: code,
+              HANDLER: handlerUrl(),
+              TITLE: TAB_TITLE,
+              LANG_ALL: {
+                ru: { TITLE: TAB_TITLE },
+                en: { TITLE: "Messenger" },
+              },
             },
+            requestId: Text.getUuidRfc4122(),
           });
         }
         await refresh();
@@ -112,9 +121,13 @@ export function CrmWidgetsCard() {
     startTransition(async () => {
       setError(null);
       try {
-        await b24.callMethod("placement.unbind", {
-          PLACEMENT: row.placement,
-          HANDLER: row.handler,
+        await b24.actions.v2.call.make({
+          method: "placement.unbind",
+          params: {
+            PLACEMENT: row.placement,
+            HANDLER: row.handler,
+          },
+          requestId: Text.getUuidRfc4122(),
         });
         await refresh();
         toast.success("Вкладка отключена");
@@ -135,9 +148,13 @@ export function CrmWidgetsCard() {
       const toastId = toast.loading("Отключаем вкладки…");
       try {
         for (const { code } of PLACEMENTS) {
-          await b24.callMethod("placement.unbind", {
-            PLACEMENT: code,
-            HANDLER: handlerUrl(),
+          await b24.actions.v2.call.make({
+            method: "placement.unbind",
+            params: {
+              PLACEMENT: code,
+              HANDLER: handlerUrl(),
+            },
+            requestId: Text.getUuidRfc4122(),
           });
         }
         await refresh();
