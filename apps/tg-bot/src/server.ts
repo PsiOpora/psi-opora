@@ -31,7 +31,18 @@ const bot = createBot({
 
 const app = new Hono();
 app.get("/api/webhook", (c) => c.text("ok"));
-app.post("/api/webhook", webhookCallback(bot, "hono"));
+// onTimeout: "return" — если обработка апдейта (голосовые/файлы: getFile +
+// пересылка в Открытую линию Bitrix) не укладывается в timeoutMilliseconds,
+// Telegram получает пустой 200 сразу, а не падает с необработанным reject
+// (дефолт grammy — "throw"), который валит процесс и вызывает ретраи от
+// Telegram. Обработка апдейта при этом продолжается в фоне — see webhook.js.
+app.post(
+  "/api/webhook",
+  webhookCallback(bot, "hono", {
+    onTimeout: "return",
+    timeoutMilliseconds: 15_000,
+  }),
+);
 
 const port = Number(process.env.PORT ?? 3000);
 const server = serve({ fetch: app.fetch, port }, (info) => {
