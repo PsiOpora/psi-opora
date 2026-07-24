@@ -72,8 +72,11 @@ export function BotConnectorCard({
     try {
       const res = await b24.callMethod("imconnector.list", {});
       if (!res.isSuccess) return;
-      const list = (res.getData() as { result?: string[] } | undefined)?.result;
-      setRegistered(!!list?.includes(connectorId));
+      // result — объект `{connector_id: connector_name}`, а не массив
+      // (см. документацию imconnector.list) — Object.hasOwn, не .includes.
+      const list = (res.getData() as { result?: Record<string, string> } | undefined)
+        ?.result;
+      setRegistered(Object.hasOwn(list ?? {}, connectorId));
     } catch {
       // не критично — просто не покажем статус регистрации
     }
