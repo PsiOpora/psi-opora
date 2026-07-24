@@ -1,3 +1,4 @@
+import { upsertBitrixCrmLink } from "@psi-opora/db/queries.edge";
 import { bitrixPost, getBotId, getEnv } from "./client";
 import {
   buildContactFields,
@@ -95,6 +96,25 @@ export async function createBitrixDeal(
   console.log(
     `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
   );
+
+  // Запоминаем контакт/сделку в своей БД — панель CRM в «Клиенты»
+  // (packages/api/src/routers/messages/crm-links.ts) резолвит их отсюда,
+  // а не через imopenlines.dialog.get: entity_data_2 заполняет только
+  // трекер Открытой линии при автосоздании сущностей, а мы теперь всегда
+  // создаём контакт/сделку сами (см. комментарий выше).
+  if (data.telegramUserId) {
+    try {
+      await upsertBitrixCrmLink({
+        messenger,
+        userId: String(data.telegramUserId),
+        contactId: String(contactId),
+        dealId: String(dealId),
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[bitrix] не удалось сохранить связку CRM в БД: ${message}`);
+    }
+  }
 
   await linkBitrixTrace(messenger, contactId, dealId, data);
 

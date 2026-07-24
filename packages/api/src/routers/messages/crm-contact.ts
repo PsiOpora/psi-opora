@@ -1,5 +1,6 @@
 import { type BitrixApi, createWebhookApi } from "@psi-opora/bitrix-client";
 import {
+  getBitrixCrmLink,
   getBotConnector,
   listTelegramPersonalAccounts,
   listWhatsappPersonalAccounts,
@@ -125,6 +126,58 @@ export async function resolvePersonalDialog(
   return null;
 }
 
+export interface CrmBindings {
+  contactId: string | null;
+  dealId: string | null;
+  leadId: string | null;
+}
+
+const EMPTY_CRM_BINDINGS: CrmBindings = {
+  contactId: null,
+  dealId: null,
+  leadId: null,
+};
+
+/**
+ * CRM-привязки диалога (контакт/сделка/лид) для messenger+userId:
+ * - telegram-personal/whatsapp-personal: только через диалог Открытой линии
+ *   (см. resolvePersonalDialog) — createBitrixDeal для личных номеров не
+ *   вызывается, своей записи в bitrix_crm_links для них нет.
+ * - telegram/max (боты): сперва своя БД bitrix_crm_links — её заполняет
+ *   createBitrixDeal при создании сделки (packages/bot-core/src/utils/bitrix/create-deal.ts),
+ *   который теперь всегда создаёт контакт/сделку сам, а не ждёт трекера
+ *   Открытой линии. Диалог (entity_data_2) — фолбэк для сделок, созданных
+ *   до этой миграции: entity_data_2 заполняет только сам трекер при
+ *   автосоздании сущностей, которое в текущих настройках линии отключено,
+ *   так что для новых диалогов там нет ни контакта, ни сделки.
+ */
+export async function resolveDialogCrmBindings(
+  api: BitrixApi,
+  memberId: string | null,
+  messenger: InboxMessenger,
+  userId: string,
+): Promise<CrmBindings> {
+  if (messenger === "telegram-personal" || messenger === "whatsapp-personal") {
+    const dialog = await resolvePersonalDialog(api, messenger, memberId, userId);
+    return dialog?.id
+      ? parseCrmBindings(dialog.entity_data_2)
+      : EMPTY_CRM_BINDINGS;
+  }
+
+  const link = await getBitrixCrmLink(messenger, userId).catch(() => null);
+  if (link) {
+    return { contactId: link.contactId, dealId: link.dealId ?? null, leadId: null };
+  }
+
+  const connector = await getBotConnector(messenger);
+  if (!connector) return EMPTY_CRM_BINDINGS;
+  const userCode = `${connector.connectorId}|${connector.openLineId}|${userId}|${userId}`;
+  const dialog = await getOpenLineDialog(api, messenger, userCode);
+  return dialog?.id
+    ? parseCrmBindings(dialog.entity_data_2)
+    : EMPTY_CRM_BINDINGS;
+}
+
 interface RawDeal {
   CONTACT_ID?: string | number | null;
 }
@@ -136,10 +189,11 @@ interface RawContact {
 
 /**
  * Имя CRM-контакта, привязанного к диалогу клиента (тот же путь резолвинга,
- * что использует правая панель профиля — см. crm-links.ts): диалог Открытой
- * линии → CONTACT из entity_data_2 (либо через CONTACT_ID сделки) →
- * crm.contact.get. `null`, если диалога/контакта нет или обращение к Bitrix
- * не удалось — вызывающая сторона в этом случае оставляет текущий фолбэк.
+ * что использует правая панель профиля — см. crm-links.ts): CRM-привязки
+ * диалога (resolveDialogCrmBindings) → CONTACT (либо через CONTACT_ID
+ * сделки) → crm.contact.get. `null`, если диалога/контакта нет или
+ * обращение к Bitrix не удалось — вызывающая сторона в этом случае
+ * оставляет текущий фолбэк.
  */
 export async function resolveCrmContactName(
   api: BitrixApi,
@@ -148,29 +202,12 @@ export async function resolveCrmContactName(
   userId: string,
 ): Promise<string | null> {
   try {
-    let contactId: string | null = null;
-    let dealId: string | null = null;
-
-    if (messenger === "telegram-personal" || messenger === "whatsapp-personal") {
-      const dialog = await resolvePersonalDialog(
-        api,
-        messenger,
-        memberId,
-        userId,
-      );
-      if (dialog?.id) {
-        ({ contactId, dealId } = parseCrmBindings(dialog.entity_data_2));
-      }
-    } else {
-      const connector = await getBotConnector(messenger);
-      if (connector) {
-        const userCode = `${connector.connectorId}|${connector.openLineId}|${userId}|${userId}`;
-        const dialog = await getOpenLineDialog(api, messenger, userCode);
-        if (dialog?.id) {
-          ({ contactId, dealId } = parseCrmBindings(dialog.entity_data_2));
-        }
-      }
-    }
+    let { contactId, dealId } = await resolveDialogCrmBindings(
+      api,
+      memberId,
+      messenger,
+      userId,
+    );
 
     if (!contactId && dealId) {
       const deal = await api

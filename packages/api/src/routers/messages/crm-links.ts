@@ -1,13 +1,8 @@
 import { type BitrixApi, getPortalTokens } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
-import { getBotConnector } from "@psi-opora/db/queries";
 import { publicProcedure } from "../../orpc";
 import { clientThreadSchema } from "../../schemas/messages";
-import {
-  getOpenLineDialog,
-  parseCrmBindings,
-  resolvePersonalDialog,
-} from "./crm-contact";
+import { resolveDialogCrmBindings } from "./crm-contact";
 import type { CrmDealLink, CrmLinksResult } from "./types";
 
 /**
@@ -78,15 +73,9 @@ const DEALS_LIMIT = 10;
  * CRM-привязки диалога: контакт, лид и сделки клиента в Битрикс24 с прямыми
  * ссылками на карточки — для панели профиля в инбоксе «Клиенты».
  *
- * Резолвинг мессенджер → CRM:
- * - telegram/max: `imopenlines.dialog.get` по USER_CODE
- *   `{connector}|{line}|{chat_id}|{user_id}` возвращает сущности, которые
- *   CRM-трекер Открытой линии создал по этому чату. Для Telegram в личном
- *   диалоге chat_id совпадает с user_id; для MAX может отличаться — тогда
- *   диалог не найдётся и вернём пустой результат (не ошибка).
- * - telegram-personal/whatsapp-personal: то же самое, но connector/line
- *   берутся из записи конкретного подключённого номера (см.
- *   resolvePersonalDialog) — единого коннектора на мессенджер здесь нет.
+ * Резолвинг мессенджер → CRM см. resolveDialogCrmBindings (./crm-contact):
+ * для ботов (telegram/max) — своя БД bitrix_crm_links, куда бот сам пишет
+ * контакт/сделку при создании; для личных номеров — диалог Открытой линии.
  */
 export const crmLinks = publicProcedure
   .input(clientThreadSchema)
@@ -101,41 +90,12 @@ export const crmLinks = publicProcedure
     try {
       const domain = await resolvePortalDomain(context.memberId);
 
-      let contactId: string | null = null;
-      let dealId: string | null = null;
-      let leadId: string | null = null;
-
-      if (
-        input.messenger === "telegram-personal" ||
-        input.messenger === "whatsapp-personal"
-      ) {
-        const dialog = await resolvePersonalDialog(
-          api,
-          input.messenger,
-          context.memberId,
-          input.userId,
-        );
-        if (dialog?.id) {
-          ({ contactId, dealId, leadId } = parseCrmBindings(
-            dialog.entity_data_2,
-          ));
-        }
-      } else {
-        const connector = await getBotConnector(input.messenger);
-        if (connector) {
-          const userCode = `${connector.connectorId}|${connector.openLineId}|${input.userId}|${input.userId}`;
-          const dialog = await getOpenLineDialog(
-            api,
-            input.messenger,
-            userCode,
-          );
-          if (dialog?.id) {
-            ({ contactId, dealId, leadId } = parseCrmBindings(
-              dialog.entity_data_2,
-            ));
-          }
-        }
-      }
+      let { contactId, dealId, leadId } = await resolveDialogCrmBindings(
+        api,
+        context.memberId,
+        input.messenger,
+        input.userId,
+      );
 
       // Диалог знает сделку, но не контакт (или наоборот) — достраиваем связь.
       if (!contactId && dealId) {

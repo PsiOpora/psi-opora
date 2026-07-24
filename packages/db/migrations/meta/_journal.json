@@ -112,6 +112,13 @@
       "when": 1784818624707,
       "tag": "0015_tearful_venom",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1784886349931,
+      "tag": "0016_bitrix_crm_links",
+      "breakpoints": true
     }
   ]
 }

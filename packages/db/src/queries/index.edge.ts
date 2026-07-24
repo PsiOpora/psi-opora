@@ -3,6 +3,7 @@
  * Использует neon-http драйвер — не содержит node:module зависимостей.
  */
 import { db } from "../client.edge";
+import { upsertBitrixCrmLink as _upsertBitrixCrmLink } from "./bitrix-crm-links";
 import { getBotConnector as _getBotConnector } from "./bot-connectors";
 import {
   getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
@@ -28,6 +29,12 @@ export type { BotConnector } from "./bot-connectors";
 
 export async function getBotConnector(messenger: string) {
   return _getBotConnector(db, messenger);
+}
+
+export async function upsertBitrixCrmLink(
+  entry: Parameters<typeof _upsertBitrixCrmLink>[1],
+): Promise<void> {
+  return _upsertBitrixCrmLink(db, entry);
 }
 
 export async function insertBotMessage(entry: BotMessageEntry): Promise<void> {
