@@ -46,8 +46,10 @@ line/connector ID и никакого ручного запуска скрипт
   2. сохраняет `connectorId`/`openLineId` в Postgres (`bot_connectors`,
      `packages/db`) — раньше это было в `.env`;
   3. **автоматически настраивает вебхук бота** (`setMessengerWebhook`,
-     `packages/jobs/src/messenger.ts`) на `{TG_WEBHOOK_URL|MAX_WEBHOOK_URL}/api/webhook` —
-     заменяет ручной запуск `set-webhook.ts`.
+     `packages/jobs/src/messenger.ts`) на `TG_WEBHOOK_URL`/`MAX_WEBHOOK_URL` —
+     значение используется как есть, путь `/api/webhook` должен уже быть
+     частью самой переменной (см. `.env.example`); заменяет ручной запуск
+     `set-webhook.ts`.
 - На горячем пути (`sendMessageToOpenLine`, `packages/bot-core/src/utils/bitrix/openline.ts`)
   бот читает `connectorId`/`openLineId` из той же таблицы `bot_connectors`
   (через `@psi-opora/db/queries.edge` — работает и в Node (`apps/tg-bot`), и в
@@ -65,12 +67,18 @@ line/connector ID и никакого ручного запуска скрипт
 2. Откройте дашборд внутри портала — рядом с карточкой «Вкладка Мессенджер»
    (`/settings/bot`) появится `memberId` портала. Впишите его в
    `BITRIX_MEMBER_ID` в `.env`.
-3. Задайте `TG_WEBHOOK_URL`/`MAX_WEBHOOK_URL` — этого достаточно для
-   автонастройки вебхука; сами токены ботов в `.env` не задаются.
-4. Задайте `NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL` — публичный адрес
-   `apps/bitrix-webhook`. Нужен, чтобы дашборд сам подписался на события
-   коннектора при регистрации (см. шаг 5) — без него придётся настраивать
-   шаг 6 руками.
+3. Задайте `TG_WEBHOOK_URL`/`MAX_WEBHOOK_URL` **с путём `/api/webhook`**
+   (например `https://your-tg-app.vercel.app/api/webhook`) — код использует
+   значение как есть и путь сам не достраивает; сами токены ботов в `.env`
+   не задаются.
+4. Задайте `NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL` **с путём `/api/bitrix-webhook`**
+   (например `https://your-bitrix-webhook.vercel.app/api/bitrix-webhook`) —
+   адрес обработчика `apps/bitrix-webhook`, а не просто домен. Нужен, чтобы
+   дашборд сам подписался на события коннектора при регистрации (см. шаг 5)
+   — без него придётся настраивать шаг 6 руками. Если указать голый домен
+   без пути, `event.bind` всё равно отработает успешно (Bitrix не проверяет
+   URL при подписке), но реальные события будут улетать на 404 и до
+   `apps/bitrix-webhook` не долетят.
 5. В дашборде (`/settings/bot`) нажмите «Зарегистрировать канал» в карточке
    нужного бота — помимо `imconnector.register` дашборд сразу вызовет
    `event.bind` на `OnImConnectorMessageAdd`, `OnImConnectorStatusDelete` и
@@ -90,7 +98,7 @@ line/connector ID и никакого ручного запуска скрипт
    настройках исходящего вебхука Bitrix24 (Разработчикам → Другое →
    Исходящий вебхук) отметьте события `OnImConnectorMessageAdd`,
    `OnImConnectorStatusDelete` и `OnImConnectorLineDelete` вручную и укажите
-   URL `apps/bitrix-webhook`.
+   URL `apps/bitrix-webhook` с путём `/api/bitrix-webhook`.
 
 ### 2. Личный номер Telegram (MTProto, `packages/tg-userbot`)
 

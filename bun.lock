@@ -18,6 +18,7 @@
       "name": "@psi-opora/bitrix-webhook",
       "version": "0.0.1",
       "dependencies": {
+        "@aws-sdk/client-s3": "^3.1092.0",
         "@hono/node-server": "^1.19.14",
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bitrix-webhook-api": "workspace:*",
