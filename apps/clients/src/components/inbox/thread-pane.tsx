@@ -95,6 +95,7 @@ export function ThreadPane({
             direction: m.direction,
             source: m.source,
             text: m.text,
+            operatorName: m.operatorName,
             status: m.status,
             createdAt: m.createdAt,
             updatedAt: m.updatedAt,
@@ -133,6 +134,7 @@ export function ThreadPane({
             direction: m.direction,
             source: m.source,
             text: m.text,
+            operatorName: m.operatorName,
             status: m.status,
             createdAt: m.createdAt,
             updatedAt: m.updatedAt,
@@ -164,6 +166,8 @@ export function ThreadPane({
         messenger: selected.messenger,
         userId: selected.userId,
         text: trimmed,
+        operatorId: operator?.id,
+        operatorName: operator?.name,
       });
       if (result.error) {
         setSendError(result.error);
@@ -177,6 +181,7 @@ export function ThreadPane({
           direction: "out",
           source: "widget",
           text: trimmed,
+          operatorName: operator?.name,
           createdAt: new Date().toISOString(),
           pending: true,
         },

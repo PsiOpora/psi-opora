@@ -1,0 +1,1 @@
+ALTER TABLE "bot_messages" ADD COLUMN "operator_name" text;

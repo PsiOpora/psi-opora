@@ -20,6 +20,9 @@ export interface ThreadMessage {
   direction: "in" | "out";
   source: string;
   text: string;
+  /** Имя оператора Bitrix, реально написавшего сообщение — показываем вместо
+   * общей подписи «оператор», если известно (см. bot_messages.operator_name). */
+  operatorName?: string | null;
   createdAt: string;
   updatedAt?: string;
   status?: MessageDeliveryStatus;
@@ -141,6 +144,12 @@ export function MessageList({ messages }: { messages: ThreadMessage[] }) {
           item.direction === "out"
             ? (SOURCE_META[item.source] ?? DEFAULT_SOURCE_META)
             : null;
+        // Для живого оператора конкретное имя (кто из Bitrix написал)
+        // важнее общей подписи "оператор".
+        const metaLabel =
+          meta?.category === "operator" && item.operatorName
+            ? item.operatorName
+            : meta?.label;
         const groupedWithPrev =
           !showDay &&
           !!prev &&
@@ -184,10 +193,10 @@ export function MessageList({ messages }: { messages: ThreadMessage[] }) {
                   item.direction === "out" ? "justify-end" : "",
                 )}
               >
-                {meta?.label && (
+                {metaLabel && (
                   <>
                     <Icon className="size-3" />
-                    <span>{meta.label}</span>
+                    <span>{metaLabel}</span>
                     <span>·</span>
                   </>
                 )}

@@ -17,8 +17,10 @@ export interface BotMessageEntry {
   direction: "in" | "out";
   source: "scenario" | "reminder" | "widget" | "broadcast" | "operator";
   text: string;
-  /** Bitrix-ID оператора — только для source="operator". */
+  /** Bitrix-ID/имя оператора, реально написавшего сообщение — для
+   * source="operator" и source="widget" (см. bot-messages/index.ts). */
   operatorId?: string;
+  operatorName?: string;
   /** По умолчанию "sent". */
   status?: MessageDeliveryStatus;
   /** id сообщения во внешней системе (WAHA) — для сопоставления с ack-вебхуком. */
@@ -39,6 +41,7 @@ export async function insertBotMessage(
     source: entry.source,
     text: entry.text,
     operatorId: entry.operatorId,
+    operatorName: entry.operatorName,
     status: entry.status ?? "sent",
     externalId: entry.externalId,
     createdAt: now,

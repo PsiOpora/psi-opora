@@ -142,6 +142,8 @@ export const send = publicProcedure
           direction: "out",
           source: "widget",
           text,
+          operatorId: input.operatorId,
+          operatorName: input.operatorName,
           externalId,
         });
       } catch (err) {

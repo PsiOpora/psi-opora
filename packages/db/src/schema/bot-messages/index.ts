@@ -16,9 +16,15 @@ export const botMessages = pgTable(
     /** scenario | reminder | widget | broadcast | operator. */
     source: text("source").notNull().default("scenario"),
     text: text("text").notNull(),
-    /** Bitrix-ID оператора — только для source="operator" (ответ прямо из
-     * Открытой линии, см. apps/bitrix-webhook). */
+    /** Bitrix-ID оператора, реально написавшего сообщение — заполняется и
+     * для source="operator" (ответ прямо из Открытой линии, см.
+     * apps/bitrix-webhook), и для source="widget" (ответ из инбокса
+     * «Клиенты», apps/clients — там оператор известен через b24 user.current). */
     operatorId: text("operator_id"),
+    /** Имя оператора на момент отправки — денормализовано, как
+     * assignedOperatorName в bot_conversations, чтобы не резолвить его заново
+     * через Bitrix REST при каждом показе истории. */
+    operatorName: text("operator_name"),
     /** sent | delivered | read | failed. Доставку/прочтение сейчас отдаёт
      * только WAHA (ack-вебхук) — для остальных каналов статус не поднимается
      * выше "sent". */

@@ -102,6 +102,7 @@ export interface ClientMessageItem {
   source: string;
   text: string;
   operatorId: string | null;
+  operatorName: string | null;
   status: MessageDeliveryStatus;
   createdAt: string;
   updatedAt: string;

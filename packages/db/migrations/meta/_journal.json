@@ -119,6 +119,13 @@
       "when": 1784886349931,
       "tag": "0016_bitrix_crm_links",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1784896600604,
+      "tag": "0017_add_operator_name_to_bot_messages",
+      "breakpoints": true
     }
   ]
 }

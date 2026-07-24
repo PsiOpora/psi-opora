@@ -26,6 +26,7 @@ export const poll = publicProcedure
           source: row.source,
           text: row.text,
           operatorId: row.operatorId,
+          operatorName: row.operatorName,
           status: row.status as ClientMessageItem["status"],
           createdAt: row.createdAt.toISOString(),
           updatedAt: row.updatedAt.toISOString(),
