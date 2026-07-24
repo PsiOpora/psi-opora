@@ -34,6 +34,12 @@ app.get("/api/webhook", (c) => c.text("ok"));
 app.post("/api/webhook", webhookCallback(bot, "hono"));
 
 const port = Number(process.env.PORT ?? 3000);
-serve({ fetch: app.fetch, port }, (info) => {
+const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[BOT] tg-bot webhook слушает на :${info.port}`);
+});
+
+// При rollout k8s шлёт SIGTERM до SIGKILL — дожидаемся завершения активных
+// запросов вместо мгновенного обрыва соединений.
+process.on("SIGTERM", () => {
+  server.close(() => process.exit(0));
 });

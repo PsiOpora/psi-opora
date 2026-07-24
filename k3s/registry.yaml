@@ -84,6 +84,16 @@ spec:
           args: ["serve", "/etc/zot/config.json"]
           ports:
             - containerPort: 5000
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 15
           volumeMounts:
             - name: data
               mountPath: /var/lib/registry

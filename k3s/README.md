@@ -91,6 +91,38 @@ kubectl apply -f k3s/
 `tg-bot` и `max-bot` работают через webhook (не long polling), поэтому этого
 ограничения на них уже нет.
 
+## Бесшовный rollout HTTP-сервисов
+
+`bitrix-webhook`, `clients`, `dashboard`, `tg-bot`, `max-bot` — за `Service`,
+принимают входящий HTTP-трафик, поэтому при `kubectl set image` (деплой через
+GitHub Actions) новый под должен полностью подняться и начать отвечать
+раньше, чем старый уйдёт, иначе часть запросов/вебхуков теряется на время
+простоя. Это обеспечивают три вещи вместе, у каждого своя роль:
+
+- `strategy.rollingUpdate: {maxSurge: 1, maxUnavailable: 0}` — новый под
+  стартует рядом со старым, старый не убивается, пока новый не станет Ready.
+- `readinessProbe` — под считается Ready (и попадает в `Service` endpoints)
+  только когда реально отвечает на HTTP, а не сразу после старта процесса.
+- `preStop` (`sleep 5`) + `terminationGracePeriodSeconds: 20` — при
+  остановке старого пода даём Traefik/kube-proxy время убрать его из
+  endpoints, прежде чем ему придёт `SIGTERM`; сами Hono-сервисы (tg-bot,
+  max-bot, bitrix-webhook) по `SIGTERM` дожидаются завершения активных
+  запросов (`server.close()` в `src/server.ts`), Next.js (`clients`,
+  `dashboard`) делает это самостоятельно.
+
+`registry` и `grafana` (в `logging.yaml`) — с `strategy: Recreate` (общий
+диск `ReadWriteOnce`, два пода не могут монтировать его одновременно),
+поэтому им добавлены только `readinessProbe`/`livenessProbe` — они не убирают
+секундный простой при пересоздании пода, а лишь не пускают трафик в под,
+который ещё не успел подняться.
+
+`minio`, `waha`, `tg-userbot-worker` — тоже `Recreate`, уже осознанно:
+`minio` — тот же RWO-диск; `waha` и `tg-userbot-worker` держат по одному
+живому MTProto/WhatsApp-соединению на аккаунт, поднять второй под рядом со
+старым нельзя технически (см. раздел выше). Сообщения, пришедшие в короткое
+окно простоя при их рестарте, не теряются — Telegram/WhatsApp хранят их на
+своей стороне и доставляют после переподключения.
+
 ## Порты (NodePort)
 
 | Сервис          | NodePort | Порт в контейнере |
