@@ -30,6 +30,10 @@ function handlerUrl(): string {
   return `${window.location.origin}/api/bitrix/widget`;
 }
 
+const PLACEMENT_LABELS: Record<string, string> = Object.fromEntries(
+  PLACEMENTS.map(({ code, label }) => [code, label]),
+);
+
 /**
  * Регистрация вкладки «Мессенджер» в карточках CRM Битрикс24 (placement.bind).
  * Работает только внутри фрейма портала: bind/unbind выполняются от имени
@@ -38,8 +42,10 @@ function handlerUrl(): string {
 export function CrmWidgetsCard() {
   const { b24, status } = useB24Frame();
   const [bound, setBound] = useState<string[] | null>(null);
+  const [allRows, setAllRows] = useState<PlacementRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
+  const [unbindingKey, setUnbindingKey] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!b24) return;
@@ -52,8 +58,12 @@ export function CrmWidgetsCard() {
       const rows = ((res.getData() as { result?: PlacementRow[] } | undefined)
         ?.result ?? []) as PlacementRow[];
       const url = handlerUrl();
+      const relevant = rows.filter((row) => row.placement in PLACEMENT_LABELS);
+      setAllRows(relevant);
       setBound(
-        rows.filter((row) => row.handler === url).map((row) => row.placement),
+        relevant
+          .filter((row) => row.handler === url)
+          .map((row) => row.placement),
       );
       setError(null);
     } catch (err) {
@@ -91,6 +101,29 @@ export function CrmWidgetsCard() {
           : message;
         setError(fullMessage);
         toast.error(fullMessage, { id: toastId });
+      }
+    });
+  };
+
+  const unbindOne = (row: PlacementRow) => {
+    if (!b24) return;
+    const key = `${row.placement}:${row.handler}`;
+    setUnbindingKey(key);
+    startTransition(async () => {
+      setError(null);
+      try {
+        await b24.callMethod("placement.unbind", {
+          PLACEMENT: row.placement,
+          HANDLER: row.handler,
+        });
+        await refresh();
+        toast.success("Вкладка отключена");
+      } catch (err) {
+        const message = (err as Error).message;
+        setError(message);
+        toast.error(message);
+      } finally {
+        setUnbindingKey(null);
       }
     });
   };
@@ -181,6 +214,54 @@ export function CrmWidgetsCard() {
                 </Button>
               )}
             </div>
+
+            {allRows !== null && allRows.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Все привязки вкладки «Мессенджер» на портале — если для
+                  одного места встраивания есть больше одной строки, лишние
+                  (с адресом, отличным от текущего) создают дубли вкладок в
+                  карточке CRM. Отвяжите их здесь.
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {allRows.map((row) => {
+                    const isCurrent = row.handler === handlerUrl();
+                    const key = `${row.placement}:${row.handler}`;
+                    return (
+                      <div
+                        key={key}
+                        className="flex items-center justify-between gap-2 rounded-md border p-2 text-xs"
+                      >
+                        <div className="flex flex-col gap-0.5 overflow-hidden">
+                          <span className="font-medium">
+                            {PLACEMENT_LABELS[row.placement] ?? row.placement}
+                          </span>
+                          <span className="truncate font-mono text-muted-foreground">
+                            {row.handler}
+                          </span>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {isCurrent && (
+                            <Badge variant="default">текущая</Badge>
+                          )}
+                          <Button
+                            onClick={() => unbindOne(row)}
+                            disabled={busy}
+                            size="sm"
+                            variant="outline"
+                          >
+                            {unbindingKey === key && busy && (
+                              <Loader2Icon className="size-4 animate-spin" />
+                            )}
+                            Отвязать
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </>
         )}
       </CardContent>

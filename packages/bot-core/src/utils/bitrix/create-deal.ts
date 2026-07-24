@@ -1,3 +1,4 @@
+import { upsertBitrixCrmLink } from "@psi-opora/db/queries.edge";
 import { bitrixPost, getBotId, getEnv } from "./client";
 import {
   buildContactFields,
@@ -5,7 +6,7 @@ import {
   findExistingContactId,
 } from "./contact";
 import { buildDealFields, linkBitrixTrace } from "./deal";
-import { waitForOpenLineDialog } from "./openline";
+import { resolveOpenLineDialog } from "./openline";
 import type { DealData } from "./types";
 
 export async function createBitrixDeal(
@@ -20,24 +21,18 @@ export async function createBitrixDeal(
     return { contactId: 0, dealId: 0 };
   }
 
-  // Бот дублирует переписку в Открытую линию (sendMessageToOpenLine), и её
-  // CRM-трекер сам заводит контакт+сделку по первому сообщению чата. Чтобы не
-  // плодить вторую сделку, дожидаемся (с коротким ретраем), что линия создала
-  // по этому диалогу, — и обновляем её сущности вместо создания новых.
+  // Автосоздание сделки трекером Открытой линии отключено в настройках
+  // линии — сделку всегда создаём сами, ждать её от трекера больше не нужно.
+  // Диалог всё равно резолвим: он даёт внутренний ID чата Bitrix для поля IM
+  // (imol, см. buildMessengerLinkFields) и для привязки чата к контакту
+  // (imopenlines.crm.chat.user.add) — без этого переписка в Открытой линии
+  // не будет связана с карточкой CRM. sendMessageToOpenLine к этому моменту
+  // уже отработал (вызывается и ожидается до сценария в apps/tg-bot и
+  // apps/max-bot), так что диалог на стороне Bitrix уже существует.
   const dialog =
     data.chatId && data.telegramUserId
-      ? await waitForOpenLineDialog(messenger, data.telegramUserId, data.chatId)
+      ? await resolveOpenLineDialog(messenger, data.telegramUserId, data.chatId)
       : null;
-  if (dialog && !dialog.dealId && !dialog.leadId) {
-    console.warn(
-      `[bitrix] трекер Открытой линии так и не создал сделку по чату ${dialog.chatId} — создаём собственную`,
-    );
-  }
-  if (dialog?.leadId) {
-    console.warn(
-      `[bitrix] по чату уже создан лид id=${dialog.leadId} (Открытая линия работает в классическом режиме CRM) — возможен дубль с создаваемой сделкой`,
-    );
-  }
 
   let contactId = dialog?.contactId ?? null;
   if (contactId) {
@@ -91,39 +86,34 @@ export async function createBitrixDeal(
     }
   }
 
-  let dealId = 0;
-  if (dialog?.dealId) {
-    // Сделку уже создал трекер Открытой линии — наполняем её данными бота
-    // вместо создания дубля. При сбое обновления (сделку могли удалить)
-    // откатываемся на прежнее поведение — создаём новую.
+  const dealId = await bitrixPost<number>(
+    "crm.deal.add",
+    {
+      fields: buildDealFields(data, contactId),
+    },
+    messenger,
+  );
+  console.log(
+    `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
+  );
+
+  // Запоминаем контакт/сделку в своей БД — панель CRM в «Клиенты»
+  // (packages/api/src/routers/messages/crm-links.ts) резолвит их отсюда,
+  // а не через imopenlines.dialog.get: entity_data_2 заполняет только
+  // трекер Открытой линии при автосоздании сущностей, а мы теперь всегда
+  // создаём контакт/сделку сами (см. комментарий выше).
+  if (data.telegramUserId) {
     try {
-      await bitrixPost(
-        "crm.deal.update",
-        { id: dialog.dealId, fields: buildDealFields(data, contactId) },
+      await upsertBitrixCrmLink({
         messenger,
-      );
-      dealId = dialog.dealId;
-      console.log(
-        `[bitrix] обновлена сделка Открытой линии id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
-      );
+        userId: String(data.telegramUserId),
+        contactId: String(contactId),
+        dealId: String(dealId),
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(
-        `[bitrix] не удалось обновить сделку Открытой линии ${dialog.dealId}, создаём новую: ${message}`,
-      );
+      console.error(`[bitrix] не удалось сохранить связку CRM в БД: ${message}`);
     }
-  }
-  if (!dealId) {
-    dealId = await bitrixPost<number>(
-      "crm.deal.add",
-      {
-        fields: buildDealFields(data, contactId),
-      },
-      messenger,
-    );
-    console.log(
-      `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
-    );
   }
 
   await linkBitrixTrace(messenger, contactId, dealId, data);

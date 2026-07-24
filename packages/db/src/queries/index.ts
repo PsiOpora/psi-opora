@@ -4,6 +4,10 @@
  */
 import { db } from "../client";
 import {
+  getBitrixCrmLink as _getBitrixCrmLink,
+  upsertBitrixCrmLink as _upsertBitrixCrmLink,
+} from "./bitrix-crm-links";
+import {
   getBotConnector as _getBotConnector,
   markBotConnectorWebhookConfigured as _markBotConnectorWebhookConfigured,
   removeBotConnector as _removeBotConnector,
@@ -57,6 +61,7 @@ import {
 
 export * from "./ads";
 export * from "./backup";
+export type { BitrixCrmLink } from "./bitrix-crm-links";
 export type { BotConnector } from "./bot-connectors";
 export type {
   BotConversation,
@@ -84,6 +89,16 @@ export * from "./whatsapp-personal";
 
 export async function getBotConnector(messenger: string) {
   return _getBotConnector(db, messenger);
+}
+
+export async function upsertBitrixCrmLink(
+  entry: Parameters<typeof _upsertBitrixCrmLink>[1],
+): Promise<void> {
+  return _upsertBitrixCrmLink(db, entry);
+}
+
+export async function getBitrixCrmLink(messenger: string, userId: string) {
+  return _getBitrixCrmLink(db, messenger, userId);
 }
 
 export async function upsertBotConnector(
