@@ -25,6 +25,12 @@ export interface BotMessageEntry {
   status?: MessageDeliveryStatus;
   /** id сообщения во внешней системе (WAHA) — для сопоставления с ack-вебхуком. */
   externalId?: string;
+  /** По умолчанию "text". "voice" — заливаем mediaS3Key в раздающий роут
+   * (apps/dashboard/src/app/api/message-media). */
+  kind?: "text" | "voice";
+  mediaS3Key?: string;
+  mediaMimeType?: string;
+  mediaDurationSec?: number;
 }
 
 export async function insertBotMessage(
@@ -44,9 +50,37 @@ export async function insertBotMessage(
     operatorName: entry.operatorName,
     status: entry.status ?? "sent",
     externalId: entry.externalId,
+    kind: entry.kind ?? "text",
+    mediaS3Key: entry.mediaS3Key,
+    mediaMimeType: entry.mediaMimeType,
+    mediaDurationSec: entry.mediaDurationSec,
     createdAt: now,
     updatedAt: now,
   });
+}
+
+export interface BotMessageMedia {
+  mediaS3Key: string;
+  mediaMimeType: string | null;
+}
+
+/** Ключ и mime-type голосового вложения по id сообщения — для раздающего
+ * роута apps/dashboard/src/app/api/message-media/[id]. */
+export async function getBotMessageMedia(
+  db: Database,
+  id: string,
+): Promise<BotMessageMedia | null> {
+  if (!db) return null;
+  const [row] = await db
+    .select({
+      mediaS3Key: botMessages.mediaS3Key,
+      mediaMimeType: botMessages.mediaMimeType,
+    })
+    .from(botMessages)
+    .where(eq(botMessages.id, id))
+    .limit(1);
+  if (!row?.mediaS3Key) return null;
+  return { mediaS3Key: row.mediaS3Key, mediaMimeType: row.mediaMimeType };
 }
 
 /** Обновляет статус доставки по внешнему id сообщения (сейчас — только

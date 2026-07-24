@@ -26,6 +26,7 @@ import {
   upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
 import {
+  getBotMessageMedia as _getBotMessageMedia,
   getClientMessageStats as _getClientMessageStats,
   insertBotMessage as _insertBotMessage,
   listBotMessages as _listBotMessages,
@@ -33,6 +34,7 @@ import {
   listClientsWithLastMessage as _listClientsWithLastMessage,
   updateBotMessageStatus as _updateBotMessageStatus,
   type BotMessageEntry,
+  type BotMessageMedia,
   type ClientListItem,
   type ClientMessageStats,
   type MessageDeliveryStatus,
@@ -72,6 +74,7 @@ export * from "./bot-guides";
 export type {
   BotMessage,
   BotMessageEntry,
+  BotMessageMedia,
   ClientListItem,
   ClientMessageStats,
   MessageDeliveryStatus,
@@ -119,6 +122,12 @@ export async function removeBotConnector(messenger: string): Promise<void> {
 
 export async function insertBotMessage(entry: BotMessageEntry): Promise<void> {
   return _insertBotMessage(db, entry);
+}
+
+export async function getBotMessageMedia(
+  id: string,
+): Promise<BotMessageMedia | null> {
+  return _getBotMessageMedia(db, id);
 }
 
 export async function updateBotMessageStatus(

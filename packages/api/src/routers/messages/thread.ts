@@ -2,7 +2,7 @@ import { listBotMessages } from "@psi-opora/db/queries";
 import { publicProcedure } from "../../orpc";
 import { clientThreadSchema } from "../../schemas/messages";
 import { HISTORY_LIMIT } from "../widget-message/helpers";
-import type { ClientMessageItem } from "./types";
+import { type ClientMessageItem, toClientMessageItem } from "./types";
 
 export const thread = publicProcedure
   .input(clientThreadSchema)
@@ -14,18 +14,6 @@ export const thread = publicProcedure
     );
 
     return {
-      messages: rows
-        .map((row) => ({
-          id: row.id,
-          direction: row.direction as "in" | "out",
-          source: row.source,
-          text: row.text,
-          operatorId: row.operatorId,
-          operatorName: row.operatorName,
-          status: row.status as ClientMessageItem["status"],
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
-        }))
-        .reverse(),
+      messages: rows.map(toClientMessageItem).reverse(),
     };
   });

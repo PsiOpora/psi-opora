@@ -57,6 +57,20 @@ export type AvatarUploader = (params: {
 }) => Promise<AvatarUploadResult>;
 
 /**
+ * Перезаливка голосового/аудио-вложения в собственное S3 — та же причина
+ * инжекции извне (apps/tg-bot), что и у AvatarUploader: bot-core не может
+ * напрямую тянуть S3-клиент, т.к. должен оставаться совместимым с Edge
+ * Runtime (max-bot). Возвращает только ключ S3 — публичный mediaUrl
+ * строится на лету по id сообщения (см. packages/api/routers/messages).
+ */
+export type MediaUploader = (params: {
+  bytes: Uint8Array;
+  contentType: string;
+  messenger: "telegram";
+  fileId: string;
+}) => Promise<{ mediaS3Key: string }>;
+
+/**
  * Сохраняет профиль клиента в bot_users: поля из апдейта (всегда доступны)
  * плюс bio/фото из getChat (может не сработать из-за приватности — не критично).
  */
@@ -147,6 +161,10 @@ export interface BotOptions {
   /** Перезаливка аватара клиента в наше S3 (см. AvatarUploader). Без неё
    * аватар Telegram не сохраняется — только временный photoFileId. */
   uploadAvatar?: AvatarUploader;
+  /** Перезаливка голосового/аудио-вложения в наше S3 (см. MediaUploader).
+   * Без неё голосовые пересылаются в Открытую линию Bitrix как раньше, но
+   * в bot_messages/инбоксе «Клиенты» остаются текстом-заглушкой. */
+  uploadMedia?: MediaUploader;
 }
 
 function toInlineKeyboard(
@@ -226,6 +244,7 @@ export function createBot({
   bitrixApi,
   token,
   uploadAvatar,
+  uploadMedia,
 }: BotOptions = {}) {
   const resolvedToken = token || "";
   const bot = new Bot<AppContext>(resolvedToken, client ? { client } : undefined);
@@ -406,6 +425,8 @@ export function createBot({
 
       let fileId: string | undefined;
       let fileName = "file";
+      let mimeType: string | undefined;
+      let durationSec: number | undefined;
       if (ctx.message.photo) {
         fileId = ctx.message.photo[ctx.message.photo.length - 1]?.file_id;
         fileName = "photo.jpg";
@@ -415,24 +436,63 @@ export function createBot({
       } else if (ctx.message.voice) {
         fileId = ctx.message.voice.file_id;
         fileName = "voice.ogg";
+        mimeType = ctx.message.voice.mime_type;
+        durationSec = ctx.message.voice.duration;
       } else if (ctx.message.video) {
         fileId = ctx.message.video.file_id;
         fileName = "video.mp4";
       } else if (ctx.message.audio) {
         fileId = ctx.message.audio.file_id;
         fileName = ctx.message.audio.file_name ?? "audio.mp3";
+        mimeType = ctx.message.audio.mime_type;
+        durationSec = ctx.message.audio.duration;
       }
       if (!fileId) return;
+
+      const url = await resolveTelegramFileUrl(ctx.api, resolvedToken, fileId);
+
+      // Голосовые/аудио сохраняем как отдельный вид сообщения (kind="voice")
+      // с перезаливкой в наше S3 — чтобы инбокс «Клиенты» показывал плеер,
+      // а не заглушку `[voice.ogg]`. Остальные типы вложений (фото/документ/
+      // видео) — как раньше, без сохранения самого файла у нас.
+      const isVoice = Boolean(ctx.message.voice || ctx.message.audio);
+      let mediaS3Key: string | undefined;
+      if (isVoice && uploadMedia && url) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            const bytes = new Uint8Array(await res.arrayBuffer());
+            const uploaded = await uploadMedia({
+              bytes,
+              contentType: mimeType || "audio/ogg",
+              messenger: "telegram",
+              fileId,
+            });
+            mediaS3Key = uploaded.mediaS3Key;
+          }
+        } catch (err) {
+          console.error(
+            `[media] не удалось перезалить голосовое user=${ctx.from.id}: ${(err as Error).message}`,
+          );
+        }
+      }
 
       await logBotMessage({
         messenger: "telegram",
         userId: ctx.from.id,
         direction: "in",
         source: "scenario",
-        text: caption || `[${fileName}]`,
+        text: caption || (isVoice ? "Голосовое сообщение" : `[${fileName}]`),
+        ...(mediaS3Key
+          ? {
+              kind: "voice",
+              mediaS3Key,
+              mediaMimeType: mimeType,
+              mediaDurationSec: durationSec,
+            }
+          : {}),
       });
 
-      const url = await resolveTelegramFileUrl(ctx.api, resolvedToken, fileId);
       if (!url) return;
 
       await sendMessageToOpenLine(bitrixApi, {

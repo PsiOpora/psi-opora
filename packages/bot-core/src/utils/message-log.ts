@@ -10,6 +10,11 @@ export interface BotMessageLogEntry {
   direction: BotMessageDirection;
   source: BotMessageSource;
   text: string;
+  /** По умолчанию "text". "voice" — заливаем mediaS3Key голосового вложения. */
+  kind?: "text" | "voice";
+  mediaS3Key?: string;
+  mediaMimeType?: string;
+  mediaDurationSec?: number;
 }
 
 /**
@@ -28,6 +33,10 @@ export async function logBotMessage(entry: BotMessageLogEntry): Promise<void> {
       direction: entry.direction,
       source: entry.source,
       text,
+      kind: entry.kind,
+      mediaS3Key: entry.mediaS3Key,
+      mediaMimeType: entry.mediaMimeType,
+      mediaDurationSec: entry.mediaDurationSec,
     });
   } catch (err) {
     const error = err as Error;

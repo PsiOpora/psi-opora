@@ -31,7 +31,14 @@ export async function subscribeConnectorEvents(
     try {
       const res = await b24.callMethod("event.bind", { event, handler: handlerUrl });
       if (!res.isSuccess) {
-        failures.push(`${event}: ${res.getErrorMessages().join("; ")}`);
+        const messages = res.getErrorMessages();
+        // Bitrix хранит привязки идемпотентно по паре (event, handler) и
+        // возвращает эту ошибку, если обработчик уже подписан — по факту
+        // цель уже достигнута, поэтому это не сбой.
+        const alreadyBound = messages.some((m) => /already binded/i.test(m));
+        if (!alreadyBound) {
+          failures.push(`${event}: ${messages.join("; ")}`);
+        }
       }
     } catch (err) {
       failures.push(`${event}: ${(err as Error).message}`);

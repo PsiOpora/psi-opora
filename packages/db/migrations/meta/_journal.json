@@ -126,6 +126,13 @@
       "when": 1784896600604,
       "tag": "0017_add_operator_name_to_bot_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784913758911,
+      "tag": "0018_sharp_agent_brand",
+      "breakpoints": true
     }
   ]
 }

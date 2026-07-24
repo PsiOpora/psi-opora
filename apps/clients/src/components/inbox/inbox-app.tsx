@@ -187,7 +187,11 @@ export function InboxApp() {
       unreadTotal > 0 ? `(${unreadTotal}) Клиенты` : "Пси-Опора — Клиенты";
   }, [unreadTotal]);
 
-  // Браузерные уведомления о новых входящих (opt-in по кнопке-колокольчику).
+  // Уведомления о новых входящих (opt-in по кнопке-колокольчику).
+  // Во фрейме Битрикс24 шлём нативное уведомление через im.notify.personal.add —
+  // оно приходит в колокольчик портала и в мобильное приложение Б24, независимо
+  // от Notification API браузера (которое во фрейме часто недоступно/без звука).
+  // В standalone-режиме (локальная разработка вне фрейма) — обычный Notification API.
   const knownUnreadRef = useRef<Set<string> | null>(null);
   useEffect(() => {
     const unreadKeys = new Set(
@@ -199,22 +203,46 @@ export function InboxApp() {
     knownUnreadRef.current = unreadKeys;
     // Первая загрузка — только запоминаем, не уведомляем о старом.
     if (!known || !notificationsOn) return;
+
+    const newItems = allItems.filter((c) => {
+      const key = clientKey(c.messenger, c.userId);
+      return c.unread && !known.has(key);
+    });
+    if (newItems.length === 0) return;
+
+    if (b24 && operator) {
+      for (const c of newItems) {
+        b24
+          .callMethod("im.notify.personal.add", {
+            USER_ID: operator.id,
+            MESSAGE: `${c.name}: ${c.lastMessageText.slice(0, 120)}`,
+            TAG: `inbox_${clientKey(c.messenger, c.userId)}`,
+          })
+          .catch(() => {
+            // не критично — просто пропустим это уведомление
+          });
+      }
+      return;
+    }
+
     if (typeof Notification === "undefined") return;
     if (Notification.permission !== "granted") return;
-
-    for (const c of allItems) {
-      const key = clientKey(c.messenger, c.userId);
-      if (!c.unread || known.has(key)) continue;
+    for (const c of newItems) {
       new Notification(c.name, {
         body: c.lastMessageText.slice(0, 120),
-        tag: key,
+        tag: clientKey(c.messenger, c.userId),
       });
     }
-  }, [allItems, notificationsOn]);
+  }, [allItems, notificationsOn, b24, operator]);
 
   const toggleNotifications = useCallback(async () => {
     if (notificationsOn) {
       setNotificationsOn(false);
+      return;
+    }
+    // Во фрейме Битрикс24 уведомления идут через im.notify — разрешение браузера не нужно.
+    if (b24) {
+      setNotificationsOn(true);
       return;
     }
     if (typeof Notification === "undefined") return;
@@ -223,7 +251,7 @@ export function InboxApp() {
         ? "granted"
         : await Notification.requestPermission();
     if (permission === "granted") setNotificationsOn(true);
-  }, [notificationsOn]);
+  }, [notificationsOn, b24]);
 
   return (
     <div className="flex h-svh flex-col">

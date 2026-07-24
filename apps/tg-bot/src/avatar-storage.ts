@@ -75,3 +75,42 @@ export async function uploadTelegramAvatar(params: {
   const avatarUrl = `${env.APP_URL}/api/avatar-file/${params.messenger}/${params.userId}`;
   return { avatarUrl, avatarS3Key: key };
 }
+
+const MEDIA_PREFIX = "bot/media/";
+
+/** Голосовые Telegram обычно в пределах пары МБ — с запасом. */
+export const MAX_MEDIA_SIZE = 20 * 1024 * 1024;
+
+function mediaExtensionFor(contentType: string): string {
+  if (contentType.includes("mpeg") || contentType.includes("mp3")) return "mp3";
+  if (contentType.includes("mp4") || contentType.includes("m4a")) return "m4a";
+  return "ogg";
+}
+
+/** Скачивает и заливает голосовое/аудио-вложение Telegram в S3, возвращает
+ * внутренний ключ (публичный URL строится по id сообщения, см.
+ * packages/api/routers/messages). */
+export async function uploadTelegramMedia(params: {
+  bytes: Uint8Array;
+  contentType: string;
+  messenger: "telegram";
+  fileId: string;
+}): Promise<{ mediaS3Key: string }> {
+  if (params.bytes.byteLength === 0 || params.bytes.byteLength > MAX_MEDIA_SIZE) {
+    throw new Error(`некорректный размер вложения: ${params.bytes.byteLength} байт`);
+  }
+
+  const { client, bucket } = await createS3();
+  const key = `${MEDIA_PREFIX}${params.messenger}/${params.fileId}.${mediaExtensionFor(params.contentType)}`;
+
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: params.bytes,
+      ContentType: params.contentType,
+    }),
+  );
+
+  return { mediaS3Key: key };
+}

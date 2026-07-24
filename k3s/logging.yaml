@@ -214,6 +214,15 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - "-config.file=/etc/promtail/promtail-config.yaml"
+          env:
+            # Promtail 3.x по умолчанию сужает discovery до подов своей ноды
+            # через field-селектор spec.nodeName=$HOSTNAME. Без этой
+            # переменной HOSTNAME = имя пода (так делает k8s по умолчанию),
+            # а не имя ноды — в итоге ни один под не находится (0/0 targets).
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           volumeMounts:
             - name: config
               mountPath: /etc/promtail
@@ -317,10 +326,31 @@ data:
       },
       "panels": [
         {
+          "id": 9,
+          "type": "logs",
+          "title": "Все логи",
+          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 10 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "options": {
+            "showTime": true,
+            "wrapLogMessage": true,
+            "sortOrder": "Descending",
+            "enableLogDetails": true
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "expr": "{namespace=\"psi-opora\", app=~\"$service\"}",
+              "queryType": "range"
+            }
+          ]
+        },
+        {
           "id": 1,
           "type": "timeseries",
           "title": "Ошибки в минуту по сервисам",
-          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+          "gridPos": { "x": 0, "y": 10, "w": 24, "h": 8 },
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
           "targets": [
@@ -337,7 +367,7 @@ data:
           "id": 2,
           "type": "stat",
           "title": "tg-bot: ошибок за период",
-          "gridPos": { "x": 0, "y": 8, "w": 4, "h": 4 },
+          "gridPos": { "x": 0, "y": 18, "w": 4, "h": 4 },
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
           "targets": [
@@ -354,7 +384,7 @@ data:
           "id": 3,
           "type": "stat",
           "title": "max-bot: ошибок за период",
-          "gridPos": { "x": 4, "y": 8, "w": 4, "h": 4 },
+          "gridPos": { "x": 4, "y": 18, "w": 4, "h": 4 },
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
           "targets": [
@@ -371,7 +401,7 @@ data:
           "id": 4,
           "type": "stat",
           "title": "tg-userbot-worker: ошибок за период",
-          "gridPos": { "x": 8, "y": 8, "w": 4, "h": 4 },
+          "gridPos": { "x": 8, "y": 18, "w": 4, "h": 4 },
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
           "targets": [
@@ -388,7 +418,7 @@ data:
           "id": 5,
           "type": "stat",
           "title": "bitrix-webhook: ошибок за период",
-          "gridPos": { "x": 12, "y": 8, "w": 4, "h": 4 },
+          "gridPos": { "x": 12, "y": 18, "w": 4, "h": 4 },
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
           "targets": [
@@ -405,7 +435,7 @@ data:
           "id": 6,
           "type": "stat",
           "title": "dashboard: ошибок за период",
-          "gridPos": { "x": 16, "y": 8, "w": 4, "h": 4 },
+          "gridPos": { "x": 16, "y": 18, "w": 4, "h": 4 },
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
           "targets": [
@@ -422,7 +452,7 @@ data:
           "id": 7,
           "type": "stat",
           "title": "clients: ошибок за период",
-          "gridPos": { "x": 20, "y": 8, "w": 4, "h": 4 },
+          "gridPos": { "x": 20, "y": 18, "w": 4, "h": 4 },
           "datasource": { "type": "loki", "uid": "loki" },
           "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
           "targets": [
@@ -439,7 +469,7 @@ data:
           "id": 8,
           "type": "logs",
           "title": "Логи с ошибками",
-          "gridPos": { "x": 0, "y": 12, "w": 24, "h": 12 },
+          "gridPos": { "x": 0, "y": 22, "w": 24, "h": 12 },
           "datasource": { "type": "loki", "uid": "loki" },
           "options": {
             "showTime": true,

@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 /**
  * Журнал всех сообщений между ботами и клиентами:
@@ -16,6 +16,16 @@ export const botMessages = pgTable(
     /** scenario | reminder | widget | broadcast | operator. */
     source: text("source").notNull().default("scenario"),
     text: text("text").notNull(),
+    /** text | voice — голосовые/аудио-вложения (Telegram voice/audio, MAX
+     * audio-attachment, WAHA аудио с hasMedia). Фото/видео/документы в это
+     * поле не попадают — они как были текстом-заглушкой, так и остались. */
+    kind: text("kind").notNull().default("text"),
+    /** Внутренний ключ файла в S3 (bot/media/...) — наружу, в API/фронт,
+     * не отдаётся, только через раздающий роут по id сообщения. */
+    mediaS3Key: text("media_s3_key"),
+    mediaMimeType: text("media_mime_type"),
+    /** Длительность голосового в секундах — не все мессенджеры её отдают. */
+    mediaDurationSec: integer("media_duration_sec"),
     /** Bitrix-ID оператора, реально написавшего сообщение — заполняется и
      * для source="operator" (ответ прямо из Открытой линии, см.
      * apps/bitrix-webhook), и для source="widget" (ответ из инбокса

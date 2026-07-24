@@ -9,7 +9,7 @@ import {
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { webhookCallback } from "grammy";
-import { uploadTelegramAvatar } from "../src/avatar-storage.js";
+import { uploadTelegramAvatar, uploadTelegramMedia } from "../src/avatar-storage.js";
 
 const redis = createUpstashRedis();
 const storage = createRedisStorage<ConsultationSession>(redis);
@@ -26,6 +26,7 @@ const bot = createBot({
   bitrixApi: bitrixApi ?? undefined,
   token,
   uploadAvatar: uploadTelegramAvatar,
+  uploadMedia: uploadTelegramMedia,
 });
 const handleUpdate = webhookCallback(bot, "http");
 

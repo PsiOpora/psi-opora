@@ -99,6 +99,8 @@ export function ThreadPane({
             status: m.status,
             createdAt: m.createdAt,
             updatedAt: m.updatedAt,
+            kind: m.kind,
+            mediaUrl: m.mediaUrl,
           })),
         );
         sinceRef.current = latestUpdatedAt(res.messages);
@@ -138,6 +140,8 @@ export function ThreadPane({
             status: m.status,
             createdAt: m.createdAt,
             updatedAt: m.updatedAt,
+            kind: m.kind,
+            mediaUrl: m.mediaUrl,
           })) ?? [],
         ),
       );

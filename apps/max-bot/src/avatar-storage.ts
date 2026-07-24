@@ -74,3 +74,34 @@ export async function uploadMaxAvatar(params: {
   const avatarUrl = `${env.APP_URL}/api/avatar-file/max/${params.userId}`;
   return { avatarUrl, avatarS3Key: key };
 }
+
+const MEDIA_PREFIX = "bot/media/";
+
+/** Голосовые/аудио MAX обычно в пределах пары МБ — с запасом. */
+export const MAX_MEDIA_SIZE = 20 * 1024 * 1024;
+
+/** Скачивает и заливает аудио-вложение MAX в S3, возвращает внутренний ключ
+ * (публичный URL строится по id сообщения, см. packages/api/routers/messages). */
+export async function uploadMaxMedia(params: {
+  bytes: Uint8Array;
+  contentType: string;
+  attachmentId: string;
+}): Promise<{ mediaS3Key: string }> {
+  if (params.bytes.byteLength === 0 || params.bytes.byteLength > MAX_MEDIA_SIZE) {
+    throw new Error(`некорректный размер вложения: ${params.bytes.byteLength} байт`);
+  }
+
+  const { client, bucket } = await createS3();
+  const key = `${MEDIA_PREFIX}max/${params.attachmentId}.m4a`;
+
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: params.bytes,
+      ContentType: params.contentType,
+    }),
+  );
+
+  return { mediaS3Key: key };
+}

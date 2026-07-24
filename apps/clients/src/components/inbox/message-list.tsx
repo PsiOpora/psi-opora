@@ -27,6 +27,9 @@ export interface ThreadMessage {
   updatedAt?: string;
   status?: MessageDeliveryStatus;
   pending?: boolean;
+  /** "voice" — рендерим плеер вместо текста (см. bot_messages.kind). */
+  kind?: "text" | "voice";
+  mediaUrl?: string | null;
 }
 
 /** Доставку/прочтение сейчас отдаёт только WAHA (WhatsApp) — для остальных
@@ -60,6 +63,12 @@ const SOURCE_META: Record<
 };
 
 const DEFAULT_SOURCE_META = { label: null, category: "operator" as const };
+
+/** Заглушка текста голосового без подписи — та же строка, что кладут боты в
+ * bot_messages.text (packages/bot-core/src/bot.ts, apps/max-bot/src/bot.ts,
+ * apps/bitrix-webhook/src/server.ts). Нужна, чтобы не дублировать её под
+ * плеером — сам факт "voice" уже понятен по иконке плеера. */
+const VOICE_PLACEHOLDER_TEXT = "Голосовое сообщение";
 
 const BUBBLE_STYLES = {
   in: "self-start rounded-bl-md border bg-message-client text-message-client-foreground border-message-client-border",
@@ -186,7 +195,17 @@ export function MessageList({ messages }: { messages: ThreadMessage[] }) {
                 item.pending && "opacity-60",
               )}
             >
-              {item.text}
+              {item.kind === "voice" && item.mediaUrl ? (
+                <>
+                  {/* biome-ignore lint/a11y/useMediaCaption: голосовое сообщение клиента, субтитров нет */}
+                  <audio controls preload="none" src={item.mediaUrl} className="max-w-full" />
+                  {item.text && item.text !== VOICE_PLACEHOLDER_TEXT && (
+                    <p className="mt-1.5">{item.text}</p>
+                  )}
+                </>
+              ) : (
+                item.text
+              )}
               <div
                 className={cn(
                   "mt-1 flex items-center gap-1 text-[10px] opacity-70",

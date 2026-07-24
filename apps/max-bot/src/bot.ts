@@ -25,7 +25,7 @@ import {
 } from "@psi-opora/bot-core";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
 import type { Redis } from "@upstash/redis";
-import { uploadMaxAvatar } from "./avatar-storage.js";
+import { uploadMaxAvatar, uploadMaxMedia } from "./avatar-storage.js";
 
 // MAX-бот деплоится на Vercel Edge Runtime — используем neon-http через @psi-opora/db/queries.edge
 // (node-postgres недоступен в Edge, т.к. требует Node.js API: net, tls, dns)
@@ -420,16 +420,47 @@ export function createMaxBot({
   bot.on("message_created", async (ctx) => {
     const appCtx = ctx as unknown as AppContext;
     const text = appCtx.message?.body.text?.trim() ?? "";
-    if (!text || text.startsWith("/")) return;
+    const audioAttachment = appCtx.message?.body.attachments?.find(
+      (a) => a.type === "audio",
+    ) as { type: "audio"; payload: { url: string; token: string } } | undefined;
+    if (!text && !audioAttachment) return;
+    if (!audioAttachment && text.startsWith("/")) return;
 
     // В журнал попадают все входящие — даже вне сценария
     const userId = appCtx.user?.user_id ?? appCtx.message?.sender?.user_id;
+
+    // Голосовое/аудио-вложение — перезаливаем в наше S3, чтобы инбокс
+    // «Клиенты» показывал плеер, а не молчал (без вложения пустой text
+    // раньше отбрасывался ранним return выше).
+    let mediaS3Key: string | undefined;
+    let mediaMimeType: string | undefined;
+    if (audioAttachment) {
+      try {
+        const res = await fetch(audioAttachment.payload.url);
+        if (res.ok) {
+          const bytes = new Uint8Array(await res.arrayBuffer());
+          mediaMimeType = res.headers.get("content-type") || "audio/mp4";
+          const uploaded = await uploadMaxMedia({
+            bytes,
+            contentType: mediaMimeType,
+            attachmentId: String(appCtx.message?.body.mid ?? Date.now()),
+          });
+          mediaS3Key = uploaded.mediaS3Key;
+        }
+      } catch (err) {
+        console.error(
+          `[media] не удалось перезалить аудио user=${userId}: ${(err as Error).message}`,
+        );
+      }
+    }
+
     await logBotMessage({
       messenger: "max",
       userId,
       direction: "in",
       source: "scenario",
-      text,
+      text: text || (audioAttachment ? "Голосовое сообщение" : ""),
+      ...(mediaS3Key ? { kind: "voice", mediaS3Key, mediaMimeType } : {}),
     });
 
     // Дублируем в Открытую линию Bitrix24 — вся переписка видна оператору,
@@ -444,8 +475,13 @@ export function createMaxBot({
         chatId: userId,
         text,
         name: appCtx.user?.name,
+        ...(audioAttachment
+          ? { files: [{ url: audioAttachment.payload.url, name: "audio" }] }
+          : {}),
       });
     }
+
+    if (!text) return;
 
     const state = appCtx.session.scenario;
     if (!state) return;

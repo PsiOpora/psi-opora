@@ -1,4 +1,5 @@
-import type { MessageDeliveryStatus } from "@psi-opora/db/queries";
+import { env } from "@psi-opora/config";
+import type { BotMessage, MessageDeliveryStatus } from "@psi-opora/db/queries";
 import type { Messenger } from "@psi-opora/jobs";
 
 export type { MessageDeliveryStatus };
@@ -106,4 +107,31 @@ export interface ClientMessageItem {
   status: MessageDeliveryStatus;
   createdAt: string;
   updatedAt: string;
+  /** "voice" — mediaUrl ведёт на раздающий роут apps/dashboard/api/message-media. */
+  kind: "text" | "voice";
+  mediaUrl?: string;
+  mediaMimeType?: string | null;
+  mediaDurationSec?: number | null;
+}
+
+/** Общий маппинг строки bot_messages → ClientMessageItem для thread.ts/poll.ts.
+ * mediaUrl строится на лету по id сообщения — сырой S3-ключ наружу не отдаётся. */
+export function toClientMessageItem(row: BotMessage): ClientMessageItem {
+  return {
+    id: row.id,
+    direction: row.direction as "in" | "out",
+    source: row.source,
+    text: row.text,
+    operatorId: row.operatorId,
+    operatorName: row.operatorName,
+    status: row.status as MessageDeliveryStatus,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    kind: row.kind as "text" | "voice",
+    mediaUrl: row.mediaS3Key
+      ? `${env.APP_URL}/api/message-media/${row.id}`
+      : undefined,
+    mediaMimeType: row.mediaMimeType,
+    mediaDurationSec: row.mediaDurationSec,
+  };
 }

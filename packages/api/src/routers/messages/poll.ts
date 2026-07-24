@@ -1,7 +1,7 @@
 import { listBotMessagesSince } from "@psi-opora/db/queries";
 import { publicProcedure } from "../../orpc";
 import { clientPollSchema } from "../../schemas/messages";
-import type { ClientMessageItem } from "./types";
+import { type ClientMessageItem, toClientMessageItem } from "./types";
 
 /** Новые сообщения диалога после `sinceIso` — поллинг открытого диалога в инбоксе. */
 export const poll = publicProcedure
@@ -20,17 +20,7 @@ export const poll = publicProcedure
       );
 
       return {
-        messages: rows.map((row) => ({
-          id: row.id,
-          direction: row.direction as "in" | "out",
-          source: row.source,
-          text: row.text,
-          operatorId: row.operatorId,
-          operatorName: row.operatorName,
-          status: row.status as ClientMessageItem["status"],
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
-        })),
+        messages: rows.map(toClientMessageItem),
       };
     },
   );

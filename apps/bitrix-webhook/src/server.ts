@@ -23,6 +23,7 @@ import { type Messenger, handleConsultationDealUpdate, sendMessengerMessage } fr
 import { pushOutboundMessage } from "@psi-opora/tg-userbot";
 import { phoneFromJid, wahaAckToStatus, wahaSendText } from "@psi-opora/waha";
 import { Hono } from "hono";
+import { uploadWahaMedia } from "./media-storage.js";
 
 // Совпадает с CONNECTOR_IDS в packages/api/src/routers/bot-connector/helpers.ts —
 // по CONNECTOR из события определяем, какому боту переслать ответ оператора.
@@ -244,6 +245,16 @@ interface WahaMessageEvent {
     /** Только для event === "message.ack". */
     ack?: number;
     ackName?: string;
+    /** Голосовые/аудио и другие вложения — WAHA скачивает медиа сама и
+     * отдаёт ссылку в вебхуке (опция downloadMedia в конфиге сессии).
+     * Форма пейлоада не задокументирована жёстко — код ниже читает поля
+     * защитно и просто не считает сообщение голосовым, если их нет. */
+    hasMedia?: boolean;
+    media?: {
+      url?: string;
+      mimetype?: string;
+      filename?: string;
+    };
   };
 }
 
@@ -291,14 +302,20 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
   const { session, payload } = event;
   const chatId = payload?.from;
   const text = payload?.body?.trim();
+  const isAudio =
+    Boolean(payload?.hasMedia) &&
+    Boolean(payload?.media?.url) &&
+    (payload?.media?.mimetype?.startsWith("audio/") ?? false);
   // fromMe: и собственные сообщения оператора (мы сами их отправили через
   // sendText — Bitrix уже показал их в чате), и сообщения владельца номера
   // с телефона — их дублировать в линию нечем идентифицировать, пропускаем.
-  if (!session || !chatId || !text || payload?.fromMe) {
+  if (!session || !chatId || (!text && !isAudio) || payload?.fromMe) {
     return Response.json({ ok: true });
   }
   // Группы и статусы в Открытую линию не тащим: чат линии — диалог 1:1.
   if (!chatId.endsWith("@c.us")) return Response.json({ ok: true });
+
+  const effectiveText = text || (isAudio ? "Голосовое сообщение" : "");
 
   const account = await getWhatsappPersonalAccountBySession(session);
   if (!account) {
@@ -323,6 +340,37 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
     payload?._data?.pushName ??
     `WhatsApp ${senderPhone ?? chatId}`;
 
+  // Голосовое/аудио — перезаливаем в наше S3, чтобы инбокс «Клиенты»
+  // показывал плеер, а не просто заглушку.
+  let mediaS3Key: string | undefined;
+  if (isAudio && payload?.media?.url) {
+    try {
+      const res = await fetch(
+        payload.media.url,
+        env.WAHA_API_KEY
+          ? { headers: { "X-Api-Key": env.WAHA_API_KEY } }
+          : undefined,
+      );
+      if (res.ok) {
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        const contentType =
+          payload.media.mimetype ||
+          res.headers.get("content-type") ||
+          "audio/ogg";
+        const uploaded = await uploadWahaMedia({
+          bytes,
+          contentType,
+          messageId: payload?.id ?? `wa-personal-${Date.now()}`,
+        });
+        mediaS3Key = uploaded.mediaS3Key;
+      }
+    } catch (err) {
+      console.error(
+        `[waha-webhook] не удалось перезалить аудио-вложение: ${(err as Error).message}`,
+      );
+    }
+  }
+
   // Журналируем в bot_messages/bot_users — без этого единый инбокс дашборда
   // (apps/clients) видел бы только реплики, отправленные из него самого, без
   // единого сообщения от клиента. Не блокирует пересылку в Открытую линию.
@@ -337,7 +385,14 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
       userId: chatId,
       direction: "in",
       source: "scenario",
-      text,
+      text: effectiveText,
+      ...(mediaS3Key
+        ? {
+            kind: "voice",
+            mediaS3Key,
+            mediaMimeType: payload?.media?.mimetype,
+          }
+        : {}),
     });
   } catch (err) {
     console.error(
@@ -360,7 +415,14 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
           message: {
             id: payload?.id ?? `wa-personal-${Date.now()}`,
             date: payload?.timestamp ?? Math.floor(Date.now() / 1000),
-            text,
+            text: effectiveText,
+            ...(isAudio && payload?.media?.url
+              ? {
+                  files: [
+                    { url: payload.media.url, name: payload.media.filename ?? "audio" },
+                  ],
+                }
+              : {}),
           },
           chat: { id: chatId, name: senderName },
         },
