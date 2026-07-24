@@ -25,6 +25,7 @@ import {
 } from "@psi-opora/bot-core";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
 import type { Redis } from "@upstash/redis";
+import { uploadMaxAvatar } from "./avatar-storage.js";
 
 // MAX-бот деплоится на Vercel Edge Runtime — используем neon-http через @psi-opora/db/queries.edge
 // (node-postgres недоступен в Edge, т.к. требует Node.js API: net, tls, dns)
@@ -116,6 +117,29 @@ function sessionKeyOf(ctx: AppContext): string {
 }
 
 /**
+ * Скачивает аватар клиента с CDN MAX и перезаливает в наше S3 (см.
+ * ./avatar-storage.ts) — max-bot работает как обычный Node.js-сервер в k3s,
+ * никаких Edge-ограничений тут нет. При любой ошибке возвращает undefined —
+ * вызывающий код тогда сохранит исходный hotlink на CDN MAX вместо
+ * перезалитого файла.
+ */
+async function syncMaxAvatar(
+  userId: number,
+  sourceUrl: string,
+): Promise<{ avatarUrl: string; avatarS3Key: string } | undefined> {
+  try {
+    const res = await fetch(sourceUrl);
+    if (!res.ok) throw new Error(`источник недоступен: HTTP ${res.status}`);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const contentType = res.headers.get("content-type") || "image/jpeg";
+    return await uploadMaxAvatar({ bytes, contentType, userId });
+  } catch (err) {
+    log(`[profile] не удалось перезалить аватар для user=${userId}: ${describeError(err)}`);
+    return undefined;
+  }
+}
+
+/**
  * Сохраняет профиль клиента в bot_users: поля из апдейта (всегда доступны)
  * плюс description/avatar из getChatMembers (может не сработать для диалога
  * 1:1 в зависимости от прав бота — не критично).
@@ -132,6 +156,7 @@ async function collectMaxProfile(
 
   let bio: string | undefined;
   let avatarUrl: string | undefined;
+  let avatarS3Key: string | undefined;
   let rawProfile: unknown = user;
   try {
     const { members } = await ctx.getChatMembers({ user_ids: [user.user_id] });
@@ -147,6 +172,14 @@ async function collectMaxProfile(
     );
   }
 
+  if (avatarUrl) {
+    const uploaded = await syncMaxAvatar(user.user_id, avatarUrl);
+    if (uploaded) {
+      avatarUrl = uploaded.avatarUrl;
+      avatarS3Key = uploaded.avatarS3Key;
+    }
+  }
+
   await upsertBotUserProfile({
     messenger: "max",
     userId: user.user_id,
@@ -156,6 +189,7 @@ async function collectMaxProfile(
     languageCode: typeof userLocale === "string" ? userLocale : undefined,
     bio,
     avatarUrl,
+    avatarS3Key,
     source,
     campaign,
     rawProfile,
