@@ -7,6 +7,8 @@ import {
   unisenderSettingsSchema,
 } from "@psi-opora/api/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,7 @@ function toFormValues(settings: UnisenderSettings): UnisenderSettingsInput {
 
 export function UnisenderSettingsForm() {
   const queryClient = useQueryClient();
+  const [showApiKey, setShowApiKey] = useState(false);
 
   const { data: settings, isLoading } = useQuery(
     orpc.email.getSettings.queryOptions(),
@@ -79,12 +82,26 @@ export function UnisenderSettingsForm() {
                   API-ключ
                 </FormLabel>
                 <FormControl>
-                  <Input
-                    type="password"
-                    placeholder="••••••••"
-                    className="font-mono text-sm"
-                    {...field}
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showApiKey ? "text" : "password"}
+                      placeholder="••••••••"
+                      className="font-mono text-sm pr-10"
+                      {...field}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey((prev) => !prev)}
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                      tabIndex={-1}
+                    >
+                      {showApiKey ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
+                    </button>
+                  </div>
                 </FormControl>
                 <FormMessage />
               </FormItem>
