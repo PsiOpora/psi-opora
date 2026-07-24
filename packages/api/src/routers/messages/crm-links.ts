@@ -31,7 +31,7 @@ function crmUrl(
   entity: "contact" | "deal" | "lead",
   id: string,
 ): string | null {
-  return domain ? `https://${domain}/crm/${entity}/details/${id}/` : null;
+  return domain ? `${domain}/crm/${entity}/details/${id}/` : null;
 }
 
 /** STATUS_ID → NAME для всех воронок сделок (DEAL_STAGE, DEAL_STAGE_2, …). */
@@ -39,10 +39,11 @@ async function loadDealStageNames(
   api: BitrixApi,
 ): Promise<Record<string, string>> {
   const statuses = await api
-    .list<{ ENTITY_ID?: string; STATUS_ID?: string; NAME?: string }>(
-      "crm.status.list",
-      {},
-    )
+    .list<{
+      ENTITY_ID?: string;
+      STATUS_ID?: string;
+      NAME?: string;
+    }>("crm.status.list", {})
     .catch(() => []);
   const names: Record<string, string> = {};
   for (const status of statuses) {
