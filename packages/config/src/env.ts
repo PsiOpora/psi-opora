@@ -22,12 +22,12 @@ export const env = createEnv({
     BASE_URL: z.string().optional(),
 
     // Email
-    RESEND_API_KEY: z.string().optional(),
+    UNISENDER_API_KEY: z.string().optional(),
     EMAIL_SANDBOX_ENABLED: z.coerce.boolean().optional().default(false),
     EMAIL_SANDBOX_HOST: z.string().default("localhost"),
     EMAIL_FROM: z
       .string()
-      .default('Психологический центр "Опора" <onboarding@resend.dev>'),
+      .default('Психологический центр "Опора" <info@psi-opora.ru>'),
 
     // Auth
     AUTH_SECRET: z.string().optional(),
@@ -114,7 +114,7 @@ export const env = createEnv({
     DB_DRIVER: process.env.DB_DRIVER,
     APP_URL: process.env.APP_URL,
     BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
-    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    UNISENDER_API_KEY: process.env.UNISENDER_API_KEY,
     EMAIL_SANDBOX_ENABLED: process.env.EMAIL_SANDBOX_ENABLED === "true",
     EMAIL_SANDBOX_HOST: process.env.EMAIL_SANDBOX_HOST,
     EMAIL_FROM: process.env.EMAIL_FROM,

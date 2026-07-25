@@ -3,7 +3,7 @@ import type { GuideFile } from "../scenario/texts";
 
 /**
  * Отправляет PDF-гайд на email вложением через общий пакет @psi-opora/emails.
- * Без RESEND_API_KEY (и без sandbox-режима) пакет сам молча пропускает
+ * Без UNISENDER_API_KEY (и без sandbox-режима) пакет сам молча пропускает
  * отправку — гайд уже ушёл в чат.
  */
 export async function sendGuideEmail(
