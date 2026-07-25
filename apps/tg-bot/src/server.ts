@@ -10,7 +10,7 @@ import {
 import { env } from "@psi-opora/config";
 import { webhookCallback } from "grammy";
 import { Hono } from "hono";
-import { uploadTelegramAvatar } from "./avatar-storage.js";
+import { uploadTelegramAvatar, uploadTelegramMedia } from "./avatar-storage.js";
 
 const redis = createUpstashRedis();
 const storage = createRedisStorage<ConsultationSession>(redis);
@@ -27,6 +27,7 @@ const bot = createBot({
   bitrixApi: bitrixApi ?? undefined,
   token,
   uploadAvatar: uploadTelegramAvatar,
+  uploadMedia: uploadTelegramMedia,
 });
 
 const app = new Hono();
