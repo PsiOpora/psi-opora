@@ -21,6 +21,21 @@ const DEAL_SELECT = [
 
 const NOT_SPECIFIED = "(не указано)";
 
+/**
+ * Рекламные площадки иногда передают UTM-метки уже percent-encoded
+ * (например, кириллицу вида %D0%A0%D0%9A-...), и Bitrix24 сохраняет
+ * их в сделке как есть. Декодируем для читаемого отображения в отчётах.
+ */
+function decodeUtmValue(value: string | undefined): string {
+  if (!value) return NOT_SPECIFIED;
+  if (!/%[0-9A-Fa-f]{2}/.test(value)) return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 interface RawDeal {
   ID: string;
   TITLE: string;
@@ -64,11 +79,11 @@ function normalizeDeal(raw: RawDeal): DealRecord {
     dateCreate: new Date(raw.DATE_CREATE),
     closeDate: raw.CLOSEDATE ? new Date(raw.CLOSEDATE) : null,
     sourceId: raw.SOURCE_ID || NOT_SPECIFIED,
-    utmSource: raw.UTM_SOURCE || NOT_SPECIFIED,
-    utmMedium: raw.UTM_MEDIUM || NOT_SPECIFIED,
-    utmCampaign: raw.UTM_CAMPAIGN || NOT_SPECIFIED,
-    utmContent: raw.UTM_CONTENT || NOT_SPECIFIED,
-    utmTerm: raw.UTM_TERM || NOT_SPECIFIED,
+    utmSource: decodeUtmValue(raw.UTM_SOURCE),
+    utmMedium: decodeUtmValue(raw.UTM_MEDIUM),
+    utmCampaign: decodeUtmValue(raw.UTM_CAMPAIGN),
+    utmContent: decodeUtmValue(raw.UTM_CONTENT),
+    utmTerm: decodeUtmValue(raw.UTM_TERM),
   };
 }
 
