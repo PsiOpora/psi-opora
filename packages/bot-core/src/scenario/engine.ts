@@ -1,4 +1,5 @@
 import type { FunnelStep } from "../utils/funnel";
+import { extractContactInfo } from "../utils/llm-extract";
 import { hasPhoneNumber, isValidEmail } from "../utils/validation";
 import {
   categoryQuestion,
@@ -9,6 +10,7 @@ import {
   phoneQuestion,
   stepQuestion,
   subscribeQuestion,
+  withFields,
   withName,
 } from "./questions";
 import type { ScenarioTexts } from "./texts";
@@ -279,16 +281,67 @@ export function applyScenarioAction(
  * Текстовое сообщение пользователя. Возвращает null, если сценарий
  * завершён — текст не относится к боту (например, диалог с оператором).
  */
-export function applyScenarioText(
+export async function applyScenarioText(
   state: ScenarioState,
   text: string,
   t: ScenarioTexts,
-): ScenarioOutput | null {
+): Promise<ScenarioOutput | null> {
   switch (state.step) {
     case "name": {
+      // Клиент иногда присылает на этот вопрос сразу весь блок контактов
+      // (имя, телефон, email) одним сообщением — LLM пытается разложить
+      // его на поля; если это не удалось (нет ключа, ошибка, распознать
+      // не получилось), ведём себя как раньше — весь текст = имя.
+      const extracted = await extractContactInfo(text);
+      if (!extracted) {
+        return output(
+          { ...fresh(state), step: "phone", name: text },
+          [{ text: withName(t.consult_phone_question, text) }],
+          { track: ["name"] },
+        );
+      }
+
+      const { name } = extracted;
+      const phone =
+        extracted.phone && hasPhoneNumber(extracted.phone)
+          ? extracted.phone.trim()
+          : undefined;
+      const email =
+        extracted.email && isValidEmail(extracted.email)
+          ? extracted.email
+          : undefined;
+
+      if (phone && email) {
+        return submitConsultLead({ ...fresh(state), name, phone }, email, t, [
+          {
+            text: withFields(t.consult_extracted_name_phone_email, {
+              name,
+              phone,
+              email,
+            }),
+          },
+        ]);
+      }
+
+      if (phone) {
+        return output(
+          { ...fresh(state), step: "email", name, phone },
+          [
+            {
+              text: withFields(t.consult_extracted_name_phone, {
+                name,
+                phone,
+              }),
+            },
+            { text: t.consult_email_question },
+          ],
+          { track: ["name", "phone"] },
+        );
+      }
+
       return output(
-        { ...fresh(state), step: "phone", name: text },
-        [{ text: withName(t.consult_phone_question, text) }],
+        { ...fresh(state), step: "phone", name },
+        [{ text: withName(t.consult_phone_question, name) }],
         { track: ["name"] },
       );
     }

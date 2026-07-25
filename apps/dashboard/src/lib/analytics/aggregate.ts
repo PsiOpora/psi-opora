@@ -1,5 +1,6 @@
 import type {
   DealRecord,
+  DealStatus,
   FunnelStage,
   GroupStats,
   Summary,
@@ -122,6 +123,20 @@ export function groupBySource(
   );
 }
 
+/** Преобладающий статус сделок стадии (стадия обычно однородна по статусу). */
+function dominantStatus(group: DealRecord[]): DealStatus {
+  const counts: Record<DealStatus, number> = {
+    won: 0,
+    lost: 0,
+    in_progress: 0,
+  };
+  for (const deal of group) counts[deal.status] += 1;
+  const sorted = (Object.entries(counts) as [DealStatus, number][]).sort(
+    (a, b) => b[1] - a[1],
+  );
+  return sorted[0]?.[0] ?? "in_progress";
+}
+
 /** Разбивка сделок одной воронки по стадиям в порядке SORT справочника стадий. */
 export function funnelByStage(
   deals: DealRecord[],
@@ -136,6 +151,7 @@ export function funnelByStage(
       deals: group.length,
       opportunitySum: group.reduce((sum, d) => sum + d.opportunity, 0),
       share: total > 0 ? group.length / total : 0,
+      status: dominantStatus(group),
     }))
     .sort(
       (a, b) =>

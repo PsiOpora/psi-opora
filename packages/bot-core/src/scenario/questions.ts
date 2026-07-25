@@ -6,6 +6,18 @@ export function withName(text: string, name: string | undefined): string {
   return text.replaceAll("{name}", name?.trim() || "друг");
 }
 
+/** Подстановка нескольких полей ({name}, {phone}, {email} и т.п.) в текст. */
+export function withFields(
+  text: string,
+  fields: Record<string, string | undefined>,
+): string {
+  let result = text;
+  for (const [key, value] of Object.entries(fields)) {
+    result = result.replaceAll(`{${key}}`, value?.trim() || "");
+  }
+  return result;
+}
+
 export function entryQuestion(t: ScenarioTexts): ScenarioMessage {
   return {
     text: t.welcome,

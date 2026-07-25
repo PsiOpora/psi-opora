@@ -62,6 +62,8 @@ export interface FunnelStage {
   opportunitySum: number;
   /** Доля от всех сделок воронки за период. */
   share: number;
+  /** Итоговый статус сделок стадии (по преобладающему статусу). */
+  status: DealStatus;
 }
 
 export interface TrendPoint {

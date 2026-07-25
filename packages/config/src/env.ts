@@ -91,6 +91,14 @@ export const env = createEnv({
 
     // Trigger.dev (фоновые задания — рассылки)
     TRIGGER_SECRET_KEY: z.string().optional(),
+
+    // OpenRouter (LLM-подстраховка на шаге «имя» в сценарии бота — см.
+    // packages/bot-core/src/utils/llm-extract.ts). Без ключа шаг работает
+    // как раньше, без LLM.
+    OPENROUTER_API_KEY: z.string().optional(),
+    OPENROUTER_MODEL: z
+      .string()
+      .default("nvidia/nemotron-3-ultra-550b-a55b:free"),
   },
   client: {
     NEXT_PUBLIC_APP_NAME: z.string().default('Психологический центр "Опора"'),
@@ -149,6 +157,8 @@ export const env = createEnv({
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     CRON_SECRET: process.env.CRON_SECRET,
     TRIGGER_SECRET_KEY: process.env.TRIGGER_SECRET_KEY,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    OPENROUTER_MODEL: process.env.OPENROUTER_MODEL,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_APP_SHORT_NAME: process.env.NEXT_PUBLIC_APP_SHORT_NAME,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,

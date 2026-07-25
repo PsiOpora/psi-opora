@@ -387,7 +387,7 @@ export function createBot({
     if (!state) return;
 
     const texts = await getScenarioTexts();
-    const out = applyScenarioText(state, text, texts);
+    const out = await applyScenarioText(state, text, texts);
     if (!out) return;
 
     await dispatch(ctx, out, texts);
