@@ -2,6 +2,10 @@ import { z } from "zod";
 
 export const startTelegramLoginSchema = z.object({
   lineId: z.string(),
+  /** Коннектор этого конкретного слота (см. tg-personal-connector-card.tsx) —
+   * передаётся Bitrix24 через PLACEMENT_OPTIONS.CONNECTOR при открытии
+   * настроек канала на линии. */
+  connectorId: z.string(),
   phone: z.string().min(5),
   /** api_id/api_hash приложения Telegram (my.telegram.org/apps) — вводит
    * администратор, своё приложение на каждый подключаемый номер. */
@@ -26,6 +30,7 @@ export type SubmitTelegramPasswordInput = z.infer<
 
 export const disconnectTelegramPersonalSchema = z.object({
   lineId: z.string(),
+  connectorId: z.string(),
 });
 export type DisconnectTelegramPersonalInput = z.infer<
   typeof disconnectTelegramPersonalSchema

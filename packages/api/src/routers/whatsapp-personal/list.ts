@@ -16,6 +16,7 @@ export const list = publicProcedure.handler(
     return {
       accounts: rows.map((row) => ({
         lineId: row.openLineId,
+        connectorId: row.connectorId,
         phone: maskPhone(row.phone),
         status: row.status,
         updatedAt: row.updatedAt.toISOString(),

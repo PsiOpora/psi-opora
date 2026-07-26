@@ -24,10 +24,11 @@ export default function WaPersonalConnectorPage() {
 function WaPersonalConnectorPageContent() {
   const searchParams = useSearchParams();
   const lineId = searchParams.get("line") ?? "";
+  const connectorId = searchParams.get("connector") ?? "";
 
   return (
     <div className="p-2">
-      <WaPersonalConnectorClient lineId={lineId} />
+      <WaPersonalConnectorClient lineId={lineId} connectorId={connectorId} />
     </div>
   );
 }

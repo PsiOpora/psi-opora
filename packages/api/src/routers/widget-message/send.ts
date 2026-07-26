@@ -70,7 +70,10 @@ export const send = publicProcedure
       const channel = contact.channels.find(
         (c) =>
           c.messenger === input.messenger &&
-          (!needsLineMatch(input.messenger) || c.lineId === input.lineId),
+          (!needsLineMatch(input.messenger) ||
+            (input.connectorId
+              ? c.connectorId === input.connectorId
+              : c.lineId === input.lineId)),
       );
       if (!channel) {
         return { error: "У контакта нет такого канала — обновите страницу" };
@@ -79,12 +82,13 @@ export const send = publicProcedure
       let externalId: string | undefined;
 
       if (channel.messenger === "telegram-personal") {
-        if (!context.memberId || !channel.lineId) {
+        if (!context.memberId || !channel.lineId || !channel.connectorId) {
           return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
         }
         const result = await sendViaPersonalNumber({
           memberId: context.memberId,
           openLineId: channel.lineId,
+          connectorId: channel.connectorId,
           target: {
             kind: channel.personalTargetKind ?? "phone",
             value: channel.userId,
@@ -93,12 +97,13 @@ export const send = publicProcedure
         });
         if (result.error) return result;
       } else if (channel.messenger === "whatsapp-personal") {
-        if (!context.memberId || !channel.lineId) {
+        if (!context.memberId || !channel.lineId || !channel.connectorId) {
           return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
         }
         const result = await sendViaWhatsappPersonal({
           memberId: context.memberId,
           openLineId: channel.lineId,
+          connectorId: channel.connectorId,
           jid: channel.userId,
           text,
         });

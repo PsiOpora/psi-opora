@@ -68,6 +68,10 @@ export const env = createEnv({
     // настройках коннектора (свои на каждый подключаемый номер), см.
     // packages/api/src/routers/telegram-personal.
     TG_USERBOT_ENCRYPTION_KEY: z.string().optional(),
+    // Префикс для ID коннекторов Открытых линий — на каждый подключаемый
+    // номер генерируется свой уникальный ID вида `${prefix}_${slug}`
+    // (imconnector.register per-account), чтобы несколько номеров можно
+    // было активировать на одной линии одновременно.
     TG_USERBOT_CONNECTOR_ID: z.string().default("psiopora_tg_personal"),
 
     // WhatsApp userbot (личный номер как коннектор Открытых линий, WAHA).
@@ -81,6 +85,7 @@ export const env = createEnv({
     WAHA_API_KEY: z.string().optional(),
     WAHA_WEBHOOK_URL: z.string().optional(),
     WAHA_WEBHOOK_SECRET: z.string().optional(),
+    // Префикс ID коннектора — см. комментарий у TG_USERBOT_CONNECTOR_ID.
     WA_PERSONAL_CONNECTOR_ID: z.string().default("psiopora_wa_personal"),
 
     // Admin

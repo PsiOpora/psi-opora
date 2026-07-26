@@ -10,8 +10,8 @@ import { createUpstashRedis } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import {
   assignConversationIfUnassigned,
-  getTelegramPersonalAccountByLine,
-  getWhatsappPersonalAccountByLine,
+  getTelegramPersonalAccountByConnector,
+  getWhatsappPersonalAccountByConnector,
   getWhatsappPersonalAccountBySession,
   insertBotMessage,
   type MessageDeliveryStatus,
@@ -94,20 +94,28 @@ async function logOperatorReply(
 async function relayToTelegramPersonal(
   reply: OperatorReplyMessage,
 ): Promise<boolean> {
-  const connectorId = env.TG_USERBOT_CONNECTOR_ID;
-  if (reply.connector !== connectorId || !reply.lineId) return false;
+  if (!reply.connector || !reply.lineId) return false;
 
-  const account = await getTelegramPersonalAccountByLine(String(reply.lineId));
+  const account = await getTelegramPersonalAccountByConnector(
+    reply.connector,
+    String(reply.lineId),
+  );
   if (!account) {
-    console.warn(
-      `[bitrix-webhook] не найден личный номер Telegram для линии ${reply.lineId}`,
-    );
-    return true;
+    // Совпадает с нашим префиксом, но записи в БД нет — реальная нестыковка
+    // (например, коннектор отключили прямо в Bitrix, минуя наш disconnect),
+    // а не просто «это не наш мессенджер» (для чужих коннекторов молчим).
+    if (reply.connector.startsWith(env.TG_USERBOT_CONNECTOR_ID)) {
+      console.warn(
+        `[bitrix-webhook] не найден личный номер Telegram для коннектора ${reply.connector} линии ${reply.lineId}`,
+      );
+    }
+    return false;
   }
 
   await pushOutboundMessage({
     memberId: account.memberId,
     openLineId: account.openLineId,
+    connectorId: account.connectorId,
     jobId: crypto.randomUUID(),
     telegramUserId: Number(reply.chatId),
     text: reply.text,
@@ -127,16 +135,19 @@ async function relayToTelegramPersonal(
 async function relayToWhatsAppPersonal(
   reply: OperatorReplyMessage,
 ): Promise<boolean> {
-  if (reply.connector !== env.WA_PERSONAL_CONNECTOR_ID || !reply.lineId) {
-    return false;
-  }
+  if (!reply.connector || !reply.lineId) return false;
 
-  const account = await getWhatsappPersonalAccountByLine(String(reply.lineId));
+  const account = await getWhatsappPersonalAccountByConnector(
+    reply.connector,
+    String(reply.lineId),
+  );
   if (!account) {
-    console.warn(
-      `[bitrix-webhook] не найден личный номер WhatsApp для линии ${reply.lineId}`,
-    );
-    return true;
+    if (reply.connector.startsWith(env.WA_PERSONAL_CONNECTOR_ID)) {
+      console.warn(
+        `[bitrix-webhook] не найден личный номер WhatsApp для коннектора ${reply.connector} линии ${reply.lineId}`,
+      );
+    }
+    return false;
   }
 
   let externalId: string | undefined;

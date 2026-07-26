@@ -29,7 +29,7 @@ export const startLogin = publicProcedure
         return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
       }
 
-      const session = waSessionName(memberId, input.lineId);
+      const session = waSessionName(memberId, input.connectorId);
       try {
         await wahaCreateSession(session, sessionWebhook());
 

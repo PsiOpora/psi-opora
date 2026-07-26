@@ -29,6 +29,7 @@ async function sendTelegramPersonal(
   memberId: string | null,
   userId: string,
   lineId: string | undefined,
+  connectorId: string | undefined,
   text: string,
 ): Promise<{ ok?: true; error?: string; connector?: OpenLineConnectorRef }> {
   if (!memberId) {
@@ -37,20 +38,29 @@ async function sendTelegramPersonal(
   const accounts = (await listTelegramPersonalAccounts(memberId)).filter(
     (a) => a.status === "connected",
   );
-  const account = lineId
-    ? accounts.find((a) => a.openLineId === lineId)
-    : accounts[0];
-  if (!account) return { error: "Личный номер Telegram не подключён" };
-  if (!lineId && accounts.length > 1) {
-    return {
-      error:
-        "На портале несколько личных номеров Telegram — отправка из единого инбокса пока поддерживает один",
-    };
+
+  let account: (typeof accounts)[number] | undefined;
+  if (connectorId) {
+    account = accounts.find((a) => a.connectorId === connectorId);
+  } else {
+    const matches = lineId
+      ? accounts.filter((a) => a.openLineId === lineId)
+      : accounts;
+    if (matches.length > 1) {
+      return {
+        error: lineId
+          ? "На этой линии несколько личных номеров Telegram — уточните, с какого отправить"
+          : "На портале несколько личных номеров Telegram — отправка из единого инбокса пока поддерживает один",
+      };
+    }
+    account = matches[0];
   }
+  if (!account) return { error: "Личный номер Telegram не подключён" };
 
   const result = await sendViaPersonalNumber({
     memberId,
     openLineId: account.openLineId,
+    connectorId: account.connectorId,
     target: { kind: "id", value: userId },
     text,
   });
@@ -70,6 +80,7 @@ async function sendWhatsappPersonal(
   memberId: string | null,
   userId: string,
   lineId: string | undefined,
+  connectorId: string | undefined,
   text: string,
 ): Promise<{
   ok?: true;
@@ -83,16 +94,24 @@ async function sendWhatsappPersonal(
   const accounts = (await listWhatsappPersonalAccounts(memberId)).filter(
     (a) => a.status === "connected",
   );
-  const account = lineId
-    ? accounts.find((a) => a.openLineId === lineId)
-    : accounts[0];
-  if (!account) return { error: "Личный номер WhatsApp не подключён" };
-  if (!lineId && accounts.length > 1) {
-    return {
-      error:
-        "На портале несколько личных номеров WhatsApp — отправка из единого инбокса пока поддерживает один",
-    };
+
+  let account: (typeof accounts)[number] | undefined;
+  if (connectorId) {
+    account = accounts.find((a) => a.connectorId === connectorId);
+  } else {
+    const matches = lineId
+      ? accounts.filter((a) => a.openLineId === lineId)
+      : accounts;
+    if (matches.length > 1) {
+      return {
+        error: lineId
+          ? "На этой линии несколько личных номеров WhatsApp — уточните, с какого отправить"
+          : "На портале несколько личных номеров WhatsApp — отправка из единого инбокса пока поддерживает один",
+      };
+    }
+    account = matches[0];
   }
+  if (!account) return { error: "Личный номер WhatsApp не подключён" };
 
   try {
     const { id } = await wahaSendText(account.sessionName, userId, text);
@@ -130,6 +149,7 @@ export const send = publicProcedure
           context.memberId,
           input.userId,
           input.lineId,
+          input.connectorId,
           text,
         );
         if (result.error) return result;
@@ -139,6 +159,7 @@ export const send = publicProcedure
           context.memberId,
           input.userId,
           input.lineId,
+          input.connectorId,
           text,
         );
         if (result.error) return result;

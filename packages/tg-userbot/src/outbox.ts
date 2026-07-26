@@ -3,6 +3,9 @@ import { createUpstashRedis } from "@psi-opora/bot-core";
 export interface OutboundMessage {
   memberId: string;
   openLineId: string;
+  /** Коннектор конкретного номера — на одной openLineId может быть
+   * несколько номеров, каждый со своей очередью (см. outboxKey). */
+  connectorId: string;
   /** Уникальный ID задачи — по нему дашборд опрашивает результат (см.
    * setSendResult/getSendResult) при отправке «первого» сообщения по
    * телефону. Для ответов оператора (apps/bitrix-webhook) результат никто
@@ -28,8 +31,12 @@ export interface SendResult {
   error?: string;
 }
 
-function outboxKey(memberId: string, openLineId: string): string {
-  return `tg-userbot:outbox:${memberId}:${openLineId}`;
+function outboxKey(
+  memberId: string,
+  openLineId: string,
+  connectorId: string,
+): string {
+  return `tg-userbot:outbox:${memberId}:${openLineId}:${connectorId}`;
 }
 
 function sendResultKey(jobId: string): string {
@@ -50,7 +57,7 @@ export async function pushOutboundMessage(
 ): Promise<void> {
   const redis = createUpstashRedis();
   await redis.rpush(
-    outboxKey(message.memberId, message.openLineId),
+    outboxKey(message.memberId, message.openLineId, message.connectorId),
     JSON.stringify(message),
   );
 }
@@ -59,9 +66,10 @@ export async function pushOutboundMessage(
 export async function drainOutboundMessages(
   memberId: string,
   openLineId: string,
+  connectorId: string,
 ): Promise<OutboundMessage[]> {
   const redis = createUpstashRedis();
-  const key = outboxKey(memberId, openLineId);
+  const key = outboxKey(memberId, openLineId, connectorId);
   const messages: OutboundMessage[] = [];
   for (;;) {
     const raw = await redis.lpop<string>(key);

@@ -17,7 +17,13 @@ const POLL_INTERVAL_MS = 3000;
  * WAHA-сессия дошла до WORKING (см. whatsappPersonal.pollStatus).
  * Кодов из SMS и паролей здесь нет — в отличие от Telegram-виджета.
  */
-export function WaPersonalConnectorClient({ lineId }: { lineId: string }) {
+export function WaPersonalConnectorClient({
+  lineId,
+  connectorId,
+}: {
+  lineId: string;
+  connectorId: string;
+}) {
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [pairingCode, setPairingCode] = useState<string | null>(null);
@@ -36,6 +42,7 @@ export function WaPersonalConnectorClient({ lineId }: { lineId: string }) {
       try {
         const res = await orpcClient.whatsappPersonal.pollStatus({
           lineId,
+          connectorId,
           phone: phone.trim(),
         });
         if (res.status === "connected") {
@@ -52,13 +59,13 @@ export function WaPersonalConnectorClient({ lineId }: { lineId: string }) {
       }
     }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [step, lineId, phone]);
+  }, [step, lineId, connectorId, phone]);
 
-  if (!lineId) {
+  if (!lineId || !connectorId) {
     return (
       <p className="text-xs text-destructive">
         Откройте это окно из настроек канала на линии в Контакт-центре — не
-        удалось определить линию.
+        удалось определить линию или коннектор.
       </p>
     );
   }
@@ -71,6 +78,7 @@ export function WaPersonalConnectorClient({ lineId }: { lineId: string }) {
     startTransition(async () => {
       const res = await orpcClient.whatsappPersonal.startLogin({
         lineId,
+        connectorId,
         phone: phone.trim(),
       });
       if (res.error || !res.code) {

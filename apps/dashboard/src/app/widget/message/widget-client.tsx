@@ -48,9 +48,9 @@ function writeDraft(key: string, value: string): void {
 }
 
 function channelKey(
-  channel: Pick<WidgetChannel, "messenger" | "lineId">,
+  channel: Pick<WidgetChannel, "messenger" | "lineId" | "connectorId">,
 ): string {
-  return `${channel.messenger}:${channel.lineId ?? ""}`;
+  return `${channel.messenger}:${channel.lineId ?? ""}:${channel.connectorId ?? ""}`;
 }
 
 /**
@@ -169,6 +169,7 @@ export function MessageWidget({
         entityId,
         messenger: channel.messenger,
         lineId: channel.lineId,
+        connectorId: channel.connectorId,
         text: trimmedText,
       });
       if (result.error) {

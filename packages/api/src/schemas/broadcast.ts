@@ -87,6 +87,9 @@ export const sendWidgetMessageSchema = z.object({
   /** Только для messenger="telegram-personal"/"whatsapp-personal" — на
    * портале может быть несколько подключённых номеров, каждый на своей линии. */
   lineId: z.string().optional(),
+  /** Уточняет конкретный номер, если на выбранной линии их несколько
+   * (см. connectorId в WidgetChannel). */
+  connectorId: z.string().optional(),
   text: z.string(),
 });
 export type SendWidgetMessageInput = z.infer<typeof sendWidgetMessageSchema>;

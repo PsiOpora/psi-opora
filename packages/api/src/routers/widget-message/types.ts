@@ -26,6 +26,10 @@ export interface WidgetChannel {
    * личного номера (packages/db telegram_personal_accounts.openLineId /
    * whatsapp_personal_accounts.openLineId). */
   lineId?: string;
+  /** Только для telegram-personal/whatsapp-personal — коннектор конкретного
+   * номера; на одной lineId может быть несколько номеров, connectorId
+   * однозначно выбирает нужный. */
+  connectorId?: string;
   /** Подпись кнопки канала — для личных номеров включает номер
    * (может быть несколько личных номеров на портал). */
   label: string;

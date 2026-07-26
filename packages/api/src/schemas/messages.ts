@@ -34,6 +34,8 @@ export const sendClientMessageSchema = z.object({
   /** Только для messenger="telegram-personal"/"whatsapp-personal" — на
    * портале может быть несколько подключённых номеров, каждый на своей линии. */
   lineId: z.string().optional(),
+  /** Уточняет конкретный номер, если на выбранной линии их несколько. */
+  connectorId: z.string().optional(),
   text: z.string().max(MESSAGE_MAX_LENGTH),
   /** Bitrix-ID/имя оператора из b24 user.current — чтобы в истории было видно,
    * кто из пользователей Bitrix написал ответ клиенту из инбокса «Клиенты». */

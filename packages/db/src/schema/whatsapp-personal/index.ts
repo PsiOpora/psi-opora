@@ -7,9 +7,12 @@ import { index, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
  * хранится только имя WAHA-сессии (waSessionName), сами данные авторизации
  * живут в сторадже WAHA (docker-том).
  *
- * Одна запись — один номер, привязанный к конкретной открытой линии
- * конкретного портала (см. imconnector.activate — один тип коннектора
- * активируется отдельно на каждой линии).
+ * Одна запись — один номер. Портал может подключить несколько номеров
+ * на одну и ту же открытую линию — каждый регистрируется как отдельный
+ * коннектор Открытых линий (imconnector.register/activate допускают любое
+ * число разных CONNECTOR, активированных на одной LINE одновременно) —
+ * поэтому уникальность строки — по тройке (портал, линия, коннектор), а
+ * не только (портал, линия).
  */
 export const whatsappPersonalAccounts = pgTable(
   "whatsapp_personal_accounts",
@@ -35,6 +38,7 @@ export const whatsappPersonalAccounts = pgTable(
     unique("whatsapp_personal_accounts_member_line_idx").on(
       table.memberId,
       table.openLineId,
+      table.connectorId,
     ),
     unique("whatsapp_personal_accounts_session_idx").on(table.sessionName),
     index("whatsapp_personal_accounts_member_idx").on(table.memberId),

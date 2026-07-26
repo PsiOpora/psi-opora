@@ -24,10 +24,11 @@ export default function TgPersonalConnectorPage() {
 function TgPersonalConnectorPageContent() {
   const searchParams = useSearchParams();
   const lineId = searchParams.get("line") ?? "";
+  const connectorId = searchParams.get("connector") ?? "";
 
   return (
     <div className="p-2">
-      <TgPersonalConnectorClient lineId={lineId} />
+      <TgPersonalConnectorClient lineId={lineId} connectorId={connectorId} />
     </div>
   );
 }

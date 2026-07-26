@@ -43,18 +43,27 @@ export async function getWhatsappPersonalAccount(
 }
 
 /**
- * Ищет аккаунт по одной только линии, без memberId — используется
+ * Ищет аккаунт по коннектору и линии, без memberId — используется
  * apps/bitrix-webhook (у него нет OAuth-сессии портала), чтобы понять,
- * какому номеру адресован ответ оператора (ONIMCONNECTORMESSAGEADD → data.LINE).
+ * какому номеру адресован ответ оператора (ONIMCONNECTORMESSAGEADD →
+ * data.CONNECTOR/LINE). Линия нужна и на "старых" записях, где несколько
+ * номеров портала ещё делят один статический connectorId (см. миграцию на
+ * тройной unique) — без неё поиск по одному connectorId был бы неоднозначным.
  */
-export async function getWhatsappPersonalAccountByLine(
+export async function getWhatsappPersonalAccountByConnector(
+  connectorId: string,
   openLineId: string,
 ): Promise<WhatsappPersonalAccount | null> {
   if (!db) return null;
   const [row] = await db
     .select()
     .from(whatsappPersonalAccounts)
-    .where(eq(whatsappPersonalAccounts.openLineId, openLineId))
+    .where(
+      and(
+        eq(whatsappPersonalAccounts.connectorId, connectorId),
+        eq(whatsappPersonalAccounts.openLineId, openLineId),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }
@@ -97,6 +106,7 @@ export async function upsertWhatsappPersonalAccountConnected(data: {
       target: [
         whatsappPersonalAccounts.memberId,
         whatsappPersonalAccounts.openLineId,
+        whatsappPersonalAccounts.connectorId,
       ],
       set: {
         connectorId: data.connectorId,
@@ -112,6 +122,7 @@ export async function upsertWhatsappPersonalAccountConnected(data: {
 export async function markWhatsappPersonalAccountError(
   memberId: string,
   openLineId: string,
+  connectorId: string,
   error: string,
 ): Promise<void> {
   if (!db) return;
@@ -126,6 +137,7 @@ export async function markWhatsappPersonalAccountError(
       and(
         eq(whatsappPersonalAccounts.memberId, memberId),
         eq(whatsappPersonalAccounts.openLineId, openLineId),
+        eq(whatsappPersonalAccounts.connectorId, connectorId),
       ),
     );
 }
@@ -133,6 +145,7 @@ export async function markWhatsappPersonalAccountError(
 export async function removeWhatsappPersonalAccount(
   memberId: string,
   openLineId: string,
+  connectorId: string,
 ): Promise<void> {
   if (!db) return;
   await db
@@ -141,6 +154,7 @@ export async function removeWhatsappPersonalAccount(
       and(
         eq(whatsappPersonalAccounts.memberId, memberId),
         eq(whatsappPersonalAccounts.openLineId, openLineId),
+        eq(whatsappPersonalAccounts.connectorId, connectorId),
       ),
     );
 }

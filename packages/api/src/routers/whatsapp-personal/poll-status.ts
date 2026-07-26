@@ -28,7 +28,7 @@ export const pollStatus = publicProcedure
         };
       }
 
-      const session = waSessionName(memberId, input.lineId);
+      const session = waSessionName(memberId, input.connectorId);
       try {
         const state = await wahaGetSession(session);
         if (!state) {
@@ -48,6 +48,7 @@ export const pollStatus = publicProcedure
         const { activationError } = await finalizeConnectedLogin({
           memberId,
           lineId: input.lineId,
+          connectorId: input.connectorId,
           phone: input.phone,
           sessionName: session,
           getBitrixApi: context.getBitrixApi,

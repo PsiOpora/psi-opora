@@ -49,8 +49,11 @@ async function wahaFetch<T>(
  * одному и тому же имени. Символы за пределами [a-zA-Z0-9_] заменяются,
  * чтобы имя было безопасно и в URL, и в файловом сторадже WAHA.
  */
-export function waSessionName(memberId: string, lineId: string): string {
-  return `wa_${memberId}_${lineId}`.replace(/[^a-zA-Z0-9_]/g, "_");
+/** connectorId уже уникален на номер (в отличие от lineId, где на одной
+ * линии теперь может быть несколько номеров) — включаем его в имя сессии,
+ * иначе два номера на одной линии получили бы одну и ту же WAHA-сессию. */
+export function waSessionName(memberId: string, connectorId: string): string {
+  return `wa_${memberId}_${connectorId}`.replace(/[^a-zA-Z0-9_]/g, "_");
 }
 
 export type WahaSessionStatus =

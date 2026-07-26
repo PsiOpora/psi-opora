@@ -27,6 +27,7 @@ export const startLogin = publicProcedure
         await savePendingTelegramLogin(loginId, {
           memberId,
           lineId: input.lineId,
+          connectorId: input.connectorId,
           phone: input.phone,
           phoneCodeHash,
           pendingSession,

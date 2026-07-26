@@ -47,6 +47,7 @@ export const submitCode = publicProcedure
         const { activationError } = await finalizeConnectedLogin({
           memberId: pending.memberId,
           lineId: pending.lineId,
+          connectorId: pending.connectorId,
           phone: pending.phone,
           apiId: pending.apiId,
           apiHash: pending.apiHash,

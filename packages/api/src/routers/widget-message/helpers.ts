@@ -1,6 +1,6 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import {
-  getWhatsappPersonalAccount,
+  getWhatsappPersonalAccountByConnector,
   listBotMessages,
   listTelegramPersonalAccounts,
   listWhatsappPersonalAccounts,
@@ -31,6 +31,7 @@ const SEND_RESULT_TIMEOUT_MS = 6000;
 export async function sendViaPersonalNumber(params: {
   memberId: string;
   openLineId: string;
+  connectorId: string;
   target: { kind: "phone" | "username" | "id"; value: string };
   text: string;
 }): Promise<{ ok?: true; error?: string }> {
@@ -38,6 +39,7 @@ export async function sendViaPersonalNumber(params: {
   await pushOutboundMessage({
     memberId: params.memberId,
     openLineId: params.openLineId,
+    connectorId: params.connectorId,
     jobId,
     ...(params.target.kind === "phone" ? { phone: params.target.value } : {}),
     ...(params.target.kind === "username"
@@ -76,11 +78,12 @@ export async function sendViaPersonalNumber(params: {
 export async function sendViaWhatsappPersonal(params: {
   memberId: string;
   openLineId: string;
+  connectorId: string;
   jid: string;
   text: string;
 }): Promise<{ ok?: true; error?: string; externalId?: string }> {
-  const account = await getWhatsappPersonalAccount(
-    params.memberId,
+  const account = await getWhatsappPersonalAccountByConnector(
+    params.connectorId,
     params.openLineId,
   );
   if (!account) return { error: "Личный номер WhatsApp не подключён" };
@@ -255,6 +258,7 @@ export async function resolveContact(
             userId: personalTarget.value,
             personalTargetKind: personalTarget.kind,
             lineId: account.openLineId,
+            connectorId: account.connectorId,
             label: `Telegram (личный, ${maskPhone(account.phone)})`,
           });
         }
@@ -273,6 +277,7 @@ export async function resolveContact(
           messenger: "whatsapp-personal",
           userId: jid,
           lineId: account.openLineId,
+          connectorId: account.connectorId,
           label: `WhatsApp (личный, ${maskPhone(account.phone)})`,
         });
       }

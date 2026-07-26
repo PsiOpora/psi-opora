@@ -134,6 +134,7 @@ function startOutboxPolling(
     const messages = await drainOutboundMessages(
       account.memberId,
       account.openLineId,
+      account.connectorId,
     );
     for (const msg of messages) {
       try {
@@ -222,6 +223,7 @@ async function startAccountWorker(
     await markTelegramPersonalAccountError(
       account.memberId,
       account.openLineId,
+      account.connectorId,
       message,
     );
   }
@@ -239,7 +241,7 @@ async function main(): Promise<void> {
   const scan = async () => {
     const accounts = await listConnectedTelegramPersonalAccounts();
     for (const account of accounts) {
-      const key = `${account.memberId}:${account.openLineId}`;
+      const key = `${account.memberId}:${account.openLineId}:${account.connectorId}`;
       if (started.has(key)) continue;
       started.add(key);
       void startAccountWorker(account);

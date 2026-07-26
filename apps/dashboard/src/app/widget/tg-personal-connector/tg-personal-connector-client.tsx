@@ -67,7 +67,13 @@ function ApiCredentialsHelp() {
  * Пошаговый вход в личный аккаунт Telegram (api_id/api_hash + телефон → код
  * → пароль 2FA при необходимости) для конкретной линии Открытых линий Bitrix24.
  */
-export function TgPersonalConnectorClient({ lineId }: { lineId: string }) {
+export function TgPersonalConnectorClient({
+  lineId,
+  connectorId,
+}: {
+  lineId: string;
+  connectorId: string;
+}) {
   const [step, setStep] = useState<Step>("credentials");
   const [apiId, setApiId] = useState("");
   const [apiHash, setApiHash] = useState("");
@@ -80,11 +86,11 @@ export function TgPersonalConnectorClient({ lineId }: { lineId: string }) {
   const [activationError, setActivationError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
 
-  if (!lineId) {
+  if (!lineId || !connectorId) {
     return (
       <p className="text-xs text-destructive">
         Откройте это окно из настроек канала на линии в Контакт-центре —
-        не удалось определить линию.
+        не удалось определить линию или коннектор.
       </p>
     );
   }
@@ -98,6 +104,7 @@ export function TgPersonalConnectorClient({ lineId }: { lineId: string }) {
     startTransition(async () => {
       const res = await orpcClient.telegramPersonal.startLogin({
         lineId,
+        connectorId,
         phone: phone.trim(),
         apiId: apiId.trim(),
         apiHash: apiHash.trim(),

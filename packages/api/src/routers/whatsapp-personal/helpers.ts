@@ -2,8 +2,22 @@ import type { BitrixApi } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
 import { upsertWhatsappPersonalAccountConnected } from "@psi-opora/db/queries";
 
-export function connectorId(): string {
+/** Префикс для генерации ID новых слотов (см. generateConnectorId) — сам по
+ * себе значением коннектора больше не является. */
+export function connectorIdPrefix(): string {
   return env.WA_PERSONAL_CONNECTOR_ID;
+}
+
+/**
+ * Генерирует уникальный ID нового коннектора-слота — Bitrix требует ID из
+ * строчных букв/цифр/`_` (без точки, см. imconnector.register), поэтому берём
+ * hex-часть UUID. Каждый личный номер регистрируется как отдельный
+ * коннектор — так несколько номеров можно активировать на одной линии
+ * одновременно (imconnector.activate допускает много разных CONNECTOR на
+ * одной LINE, но только один активный слот на пару CONNECTOR+LINE).
+ */
+export function generateConnectorId(): string {
+  return `${connectorIdPrefix()}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
 }
 
 /**
@@ -32,6 +46,7 @@ export function sessionWebhook():
 export async function finalizeConnectedLogin(params: {
   memberId: string;
   lineId: string;
+  connectorId: string;
   phone: string;
   sessionName: string;
   getBitrixApi: () => Promise<BitrixApi | null>;
@@ -39,7 +54,7 @@ export async function finalizeConnectedLogin(params: {
   await upsertWhatsappPersonalAccountConnected({
     memberId: params.memberId,
     openLineId: params.lineId,
-    connectorId: connectorId(),
+    connectorId: params.connectorId,
     phone: params.phone,
     sessionName: params.sessionName,
   });
@@ -48,7 +63,7 @@ export async function finalizeConnectedLogin(params: {
     const api = await params.getBitrixApi();
     if (!api) return { activationError: "Нет подключения к Битрикс24" };
     await api.call("imconnector.activate", {
-      CONNECTOR: connectorId(),
+      CONNECTOR: params.connectorId,
       LINE: Number(params.lineId),
       ACTIVE: "Y",
     });

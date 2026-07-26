@@ -60,19 +60,28 @@ export async function getTelegramPersonalAccount(
 }
 
 /**
- * Ищет аккаунт по одной только линии, без memberId — используется
+ * Ищет аккаунт по коннектору и линии, без memberId — используется
  * apps/bitrix-webhook, у которого нет OAuth-сессии портала (только общий
  * BITRIX_WEBHOOK_TOKEN), чтобы понять, какому личному номеру и порталу
- * адресован ответ оператора (ONIMCONNECTORMESSAGEADD → data.LINE).
+ * адресован ответ оператора (ONIMCONNECTORMESSAGEADD → data.CONNECTOR/LINE).
+ * Линия нужна и на "старых" записях, где несколько номеров портала ещё
+ * делят один статический connectorId (см. миграцию на тройной unique) —
+ * без неё поиск по одному connectorId был бы неоднозначным.
  */
-export async function getTelegramPersonalAccountByLine(
+export async function getTelegramPersonalAccountByConnector(
+  connectorId: string,
   openLineId: string,
 ): Promise<TelegramPersonalAccount | null> {
   if (!db) return null;
   const [row] = await db
     .select()
     .from(telegramPersonalAccounts)
-    .where(eq(telegramPersonalAccounts.openLineId, openLineId))
+    .where(
+      and(
+        eq(telegramPersonalAccounts.connectorId, connectorId),
+        eq(telegramPersonalAccounts.openLineId, openLineId),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }
@@ -105,6 +114,7 @@ export async function upsertTelegramPersonalAccountConnected(data: {
       target: [
         telegramPersonalAccounts.memberId,
         telegramPersonalAccounts.openLineId,
+        telegramPersonalAccounts.connectorId,
       ],
       set: {
         connectorId: data.connectorId,
@@ -122,6 +132,7 @@ export async function upsertTelegramPersonalAccountConnected(data: {
 export async function markTelegramPersonalAccountError(
   memberId: string,
   openLineId: string,
+  connectorId: string,
   error: string,
 ): Promise<void> {
   if (!db) return;
@@ -136,6 +147,7 @@ export async function markTelegramPersonalAccountError(
       and(
         eq(telegramPersonalAccounts.memberId, memberId),
         eq(telegramPersonalAccounts.openLineId, openLineId),
+        eq(telegramPersonalAccounts.connectorId, connectorId),
       ),
     );
 }
@@ -143,6 +155,7 @@ export async function markTelegramPersonalAccountError(
 export async function removeTelegramPersonalAccount(
   memberId: string,
   openLineId: string,
+  connectorId: string,
 ): Promise<void> {
   if (!db) return;
   await db
@@ -151,6 +164,7 @@ export async function removeTelegramPersonalAccount(
       and(
         eq(telegramPersonalAccounts.memberId, memberId),
         eq(telegramPersonalAccounts.openLineId, openLineId),
+        eq(telegramPersonalAccounts.connectorId, connectorId),
       ),
     );
 }

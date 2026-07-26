@@ -1,7 +1,9 @@
-import { removeTelegramPersonalAccount } from "@psi-opora/db/queries";
+import {
+  getTelegramPersonalAccountByConnector,
+  removeTelegramPersonalAccount,
+} from "@psi-opora/db/queries";
 import { publicProcedure } from "../../orpc";
 import { disconnectTelegramPersonalSchema } from "../../schemas/telegram-personal";
-import { connectorId } from "./helpers";
 
 export const disconnect = publicProcedure
   .input(disconnectTelegramPersonalSchema)
@@ -10,11 +12,23 @@ export const disconnect = publicProcedure
       return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
     }
 
+    // Проверяем, что коннектор/линия действительно принадлежат этому
+    // порталу, прежде чем дёргать Bitrix API его значениями — lineId и
+    // connectorId приходят от клиента, а imconnector.activate не проверяет
+    // сам, что переданный CONNECTOR относится к вызывающему порталу.
+    const account = await getTelegramPersonalAccountByConnector(
+      input.connectorId,
+      input.lineId,
+    );
+    if (!account || account.memberId !== context.memberId) {
+      return { error: "Номер не найден" };
+    }
+
     try {
       const api = await context.getBitrixApi();
       if (api) {
         await api.call("imconnector.activate", {
-          CONNECTOR: connectorId(),
+          CONNECTOR: input.connectorId,
           LINE: Number(input.lineId),
           ACTIVE: "N",
         });
@@ -27,6 +41,10 @@ export const disconnect = publicProcedure
       );
     }
 
-    await removeTelegramPersonalAccount(context.memberId, input.lineId);
+    await removeTelegramPersonalAccount(
+      context.memberId,
+      input.lineId,
+      input.connectorId,
+    );
     return { ok: true };
   });

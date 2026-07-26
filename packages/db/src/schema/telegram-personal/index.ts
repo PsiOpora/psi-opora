@@ -6,10 +6,12 @@ import { index, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
  * apps/tg-bot (официальный Bot API), это реальный номер телефона, из-под
  * которого можно писать клиенту первым.
  *
- * Одна запись — один номер, привязанный к конкретной открытой линии
- * конкретного портала: один портал может подключить несколько номеров,
- * каждый на свою линию (см. imconnector.activate — один тип коннектора
- * активируется отдельно на каждой линии).
+ * Одна запись — один номер. Портал может подключить несколько номеров
+ * на одну и ту же открытую линию — каждый регистрируется как отдельный
+ * коннектор Открытых линий (imconnector.register/activate допускают любое
+ * число разных CONNECTOR, активированных на одной LINE одновременно) —
+ * поэтому уникальность строки — по тройке (портал, линия, коннектор), а
+ * не только (портал, линия).
  */
 export const telegramPersonalAccounts = pgTable(
   "telegram_personal_accounts",
@@ -40,6 +42,7 @@ export const telegramPersonalAccounts = pgTable(
     unique("telegram_personal_accounts_member_line_idx").on(
       table.memberId,
       table.openLineId,
+      table.connectorId,
     ),
     index("telegram_personal_accounts_member_idx").on(table.memberId),
   ],
