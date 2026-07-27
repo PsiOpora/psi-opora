@@ -97,6 +97,35 @@ describe("флоу «запись на консультацию»", () => {
     expect(out.messages[0]?.text).toBe(t.consent_declined);
   });
 
+  test("вопрос email в флоу консультации содержит кнопку «без email»", async () => {
+    const out = await run([
+      { action: "sc_consult" },
+      { action: "consent_agree" },
+      { text: "Анна" },
+      { text: "89991234567" },
+    ]);
+    expect(out.state.step).toBe("email");
+    expect(out.messages.at(-1)?.buttons?.flat().map((b) => b.action)).toEqual(
+      ["sc_skip_email"],
+    );
+  });
+
+  test("кнопка «без email» в флоу консультации сразу заводит заявку", async () => {
+    const out = await run([
+      { action: "sc_consult" },
+      { action: "consent_agree" },
+      { text: "Анна" },
+      { text: "89991234567" },
+      { action: "sc_skip_email" },
+    ]);
+    expect(out.state.step).toBe("done");
+    expect(out.lead?.email).toBeUndefined();
+    expect(out.lead?.phone).toBe("89991234567");
+    expect(out.lead?.name).toBe("Анна");
+    expect(out.messages).toHaveLength(1);
+    expect(out.messages[0]?.text).toContain("Анна");
+  });
+
   test("после 3 нераспознанных email — сделка без email", async () => {
     const out = await run([
       { action: "sc_consult" },

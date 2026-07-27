@@ -107,3 +107,8 @@ export {
   type UtmParams,
 } from "./utils/utm";
 export { hasPhoneNumber, isValidEmail } from "./utils/validation";
+export { withUserLock } from "./utils/lock";
+export {
+  triageOffScriptMessage,
+  type TriageMessage,
+} from "./utils/triage";

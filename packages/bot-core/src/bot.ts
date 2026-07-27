@@ -20,7 +20,9 @@ import {
   sendMessageToOpenLine,
   updateMessageInOpenLine,
 } from "./utils/bitrix";
+import { withUserLock } from "./utils/lock";
 import { logBotMessage } from "./utils/message-log";
+import { triageOffScriptMessage } from "./utils/triage";
 import { upsertBotUserProfile } from "./utils/user-profile";
 import { formatUtmLog, parseUtmParams } from "./utils/utm";
 
@@ -249,6 +251,17 @@ export function createBot({
   const resolvedToken = token || "";
   const bot = new Bot<AppContext>(resolvedToken, client ? { client } : undefined);
 
+  // Сериализуем обработку апдейтов одного чата (см. utils/lock.ts) — без
+  // этого чтение и запись сессии двумя раздельными Redis-вызовами гонятся
+  // при двух почти одновременных апдейтах (двойной тап по кнопке, ретрай
+  // вебхука) и дают зацикливание шагов сценария/задвоенные заявки. Лок
+  // стоит перед session(), чтобы под ним оказалось и чтение, и запись сессии.
+  bot.use(async (ctx, next) => {
+    const chatId = ctx.chat?.id;
+    if (chatId === undefined) return next();
+    await withUserLock(redis, `telegram:${chatId}`, next);
+  });
+
   bot.use(
     session({
       initial: createInitialSession,
@@ -384,11 +397,33 @@ export function createBot({
     }
 
     const state = ctx.session.scenario;
-    if (!state) return;
+    if (!state) {
+      if (ctx.from) {
+        await triageOffScriptMessage({
+          messenger: "telegram",
+          userId: String(ctx.from.id),
+          text,
+        });
+      }
+      return;
+    }
 
     const texts = await getScenarioTexts();
     const out = await applyScenarioText(state, text, texts);
-    if (!out) return;
+    if (!out) {
+      // Сообщение не подошло ни под один ожидаемый на этом шаге ввод (клиент
+      // пишет что-то своё, а не то, что просит сценарий) — бот здесь не
+      // пытается сам помочь/ответить, только тихо решает, стоит ли передать
+      // его оператору с пометкой (см. triageOffScriptMessage).
+      if (ctx.from) {
+        await triageOffScriptMessage({
+          messenger: "telegram",
+          userId: String(ctx.from.id),
+          text,
+        });
+      }
+      return;
+    }
 
     await dispatch(ctx, out, texts);
   });

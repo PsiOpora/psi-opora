@@ -14,6 +14,7 @@ import {
   upsertBotConnector as _upsertBotConnector,
 } from "./bot-connectors";
 import {
+  addConversationTag as _addConversationTag,
   assignConversation as _assignConversation,
   assignConversationIfUnassigned as _assignConversationIfUnassigned,
   getConversationMeta as _getConversationMeta,
@@ -231,6 +232,14 @@ export async function setConversationTags(
   tags: string[],
 ): Promise<void> {
   return _setConversationTags(db, messenger, userId, tags);
+}
+
+export async function addConversationTag(
+  messenger: string,
+  userId: string,
+  tag: string,
+): Promise<void> {
+  return _addConversationTag(db, messenger, userId, tag);
 }
 
 export async function listClientNotes(messenger: string, userId: string) {

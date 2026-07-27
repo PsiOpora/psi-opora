@@ -4,6 +4,7 @@ import { hasPhoneNumber, isValidEmail } from "../utils/validation";
 import {
   categoryQuestion,
   consentQuestion,
+  consultEmailQuestion,
   emailQuestion,
   entryQuestion,
   issueQuestion,
@@ -247,7 +248,8 @@ export function applyScenarioAction(
     }
 
     case "email": {
-      if (action !== "sc_skip_email" || state.flow === "consult") return null;
+      if (action !== "sc_skip_email") return null;
+      if (state.flow === "consult") return submitConsultLead(state, undefined, t);
       return askForPhone(state, t);
     }
 
@@ -333,7 +335,7 @@ export async function applyScenarioText(
                 phone,
               }),
             },
-            { text: t.consult_email_question },
+            consultEmailQuestion(t),
           ],
           { track: ["name", "phone"] },
         );
@@ -390,7 +392,7 @@ export async function applyScenarioText(
         if (state.flow === "consult") {
           return output(
             { ...fresh(state), step: "email", phone },
-            [{ text: t.consult_email_question }],
+            [consultEmailQuestion(t)],
             { track: ["phone"] },
           );
         }

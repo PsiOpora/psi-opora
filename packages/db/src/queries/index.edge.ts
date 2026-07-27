@@ -6,6 +6,11 @@ import { db } from "../client.edge";
 import { upsertBitrixCrmLink as _upsertBitrixCrmLink } from "./bitrix-crm-links";
 import { getBotConnector as _getBotConnector } from "./bot-connectors";
 import {
+  addConversationTag as _addConversationTag,
+  getConversationMeta as _getConversationMeta,
+  setConversationTags as _setConversationTags,
+} from "./bot-conversations";
+import {
   getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
   upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
@@ -21,11 +26,17 @@ import {
   getBotUserProfile as _getBotUserProfile,
   upsertBotUser as _upsertBotUser,
 } from "./bot-users";
+import {
+  addClientNote as _addClientNote,
+  type NewClientNoteEntry,
+} from "./client-notes";
 
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
 export type { BotMessageEntry, MessageDeliveryStatus } from "./bot-messages";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
 export type { BotConnector } from "./bot-connectors";
+export type { BotConversation } from "./bot-conversations";
+export type { ClientNote, NewClientNoteEntry } from "./client-notes";
 
 export async function getBotConnector(messenger: string) {
   return _getBotConnector(db, messenger);
@@ -71,4 +82,28 @@ export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {
 
 export async function getBotUserProfile(messenger: string, userId: string) {
   return _getBotUserProfile(db, messenger, userId);
+}
+
+export async function getConversationMeta(messenger: string, userId: string) {
+  return _getConversationMeta(db, messenger, userId);
+}
+
+export async function setConversationTags(
+  messenger: string,
+  userId: string,
+  tags: string[],
+): Promise<void> {
+  return _setConversationTags(db, messenger, userId, tags);
+}
+
+export async function addConversationTag(
+  messenger: string,
+  userId: string,
+  tag: string,
+): Promise<void> {
+  return _addConversationTag(db, messenger, userId, tag);
+}
+
+export async function addClientNote(entry: NewClientNoteEntry) {
+  return _addClientNote(db, entry);
 }

@@ -66,6 +66,19 @@ export function emailQuestion(t: ScenarioTexts): ScenarioMessage {
   };
 }
 
+/**
+ * Email-вопрос флоу консультации — с кнопкой «продолжить без email»
+ * (клиент и так уже оставил телефон, специалист свяжется по нему).
+ * Раньше кнопки не было — клиенты, у которых нет/не хочется давать email,
+ * упирались в повторяющееся «Не удалось распознать email» по кругу.
+ */
+export function consultEmailQuestion(t: ScenarioTexts): ScenarioMessage {
+  return {
+    text: t.consult_email_question,
+    buttons: [[{ label: t.btn_skip_email, action: "sc_skip_email" }]],
+  };
+}
+
 export function phoneQuestion(t: ScenarioTexts): ScenarioMessage {
   return {
     text: t.phone_question,
@@ -103,7 +116,7 @@ export function stepQuestion(
       return issueQuestion(t);
     case "email":
       return state.flow === "consult"
-        ? { text: t.consult_email_question }
+        ? consultEmailQuestion(t)
         : emailQuestion(t);
     case "phone":
       return state.flow === "consult"

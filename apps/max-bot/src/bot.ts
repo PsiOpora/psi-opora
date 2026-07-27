@@ -21,7 +21,9 @@ import {
   startConsultation,
   startScenario,
   type StorageAdapter,
+  triageOffScriptMessage,
   upsertBotUserProfile,
+  withUserLock,
 } from "@psi-opora/bot-core";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
 import type { Redis } from "@upstash/redis";
@@ -134,7 +136,9 @@ async function syncMaxAvatar(
     const contentType = res.headers.get("content-type") || "image/jpeg";
     return await uploadMaxAvatar({ bytes, contentType, userId });
   } catch (err) {
-    log(`[profile] не удалось перезалить аватар для user=${userId}: ${describeError(err)}`);
+    log(
+      `[profile] не удалось перезалить аватар для user=${userId}: ${describeError(err)}`,
+    );
     return undefined;
   }
 }
@@ -290,6 +294,15 @@ export function createMaxBot({
 }: MaxBotOptions = {}): MaxBot {
   const resolvedToken = token || "";
   const bot = new Bot<AppContext>(resolvedToken, { contextType: AppContext });
+
+  // Сериализуем обработку апдейтов одного пользователя (см.
+  // @psi-opora/bot-core/utils/lock.ts) — без этого чтение и запись сессии
+  // двумя раздельными Redis-вызовами (sessionMiddleware ниже) гонятся при
+  // двух почти одновременных апдейтах (двойной тап по кнопке, повторная
+  // доставка вебхука) и дают зацикливание шагов сценария/задвоенные заявки.
+  bot.use(async (ctx, next) => {
+    await withUserLock(redis, `max:${sessionKeyOf(ctx)}`, next);
+  });
 
   bot.use(sessionMiddleware(storage));
 
@@ -497,11 +510,33 @@ export function createMaxBot({
     if (!text) return;
 
     const state = appCtx.session.scenario;
-    if (!state) return;
+    if (!state) {
+      if (userId) {
+        await triageOffScriptMessage({
+          messenger: "max",
+          userId: String(userId),
+          text,
+        });
+      }
+      return;
+    }
 
     const texts = await getScenarioTexts();
     const out = await applyScenarioText(state, text, texts);
-    if (!out) return;
+    if (!out) {
+      // Сообщение не подошло ни под один ожидаемый на этом шаге ввод (клиент
+      // пишет что-то своё, а не то, что просит сценарий) — бот здесь не
+      // пытается сам помочь/ответить, только тихо решает, стоит ли передать
+      // его оператору с пометкой (см. triageOffScriptMessage).
+      if (userId) {
+        await triageOffScriptMessage({
+          messenger: "max",
+          userId: String(userId),
+          text,
+        });
+      }
+      return;
+    }
 
     await dispatch(appCtx, out, texts);
   });
@@ -529,5 +564,7 @@ export async function processUpdate(
 ): Promise<void> {
   await (
     bot as unknown as { handleUpdate(update: unknown): Promise<void> }
+  ).handleUpdate(update);
+}   bot as unknown as { handleUpdate(update: unknown): Promise<void> }
   ).handleUpdate(update);
 }
