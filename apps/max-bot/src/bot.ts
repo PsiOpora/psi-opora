@@ -1,5 +1,4 @@
 import { Bot, Context, Keyboard, type MiddlewareFn } from "@maxhub/max-bot-api";
-import { logger } from "@psi-opora/config";
 import {
   actionLabel,
   applyScenarioAction,
@@ -13,18 +12,19 @@ import {
   logBotMessage,
   parseUtmParams,
   SCENARIO_ACTIONS,
-  sendMessageToOpenLine,
   type ScenarioMessage,
   type ScenarioOutput,
   type ScenarioTexts,
+  type StorageAdapter,
+  sendMessageToOpenLine,
   setFunnelUpsert,
   startConsultation,
   startScenario,
-  type StorageAdapter,
   triageOffScriptMessage,
   upsertBotUserProfile,
   withUserLock,
 } from "@psi-opora/bot-core";
+import { logger } from "@psi-opora/config";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
 import type { Redis } from "@upstash/redis";
 import { uploadMaxAvatar, uploadMaxMedia } from "./avatar-storage.js";
@@ -564,7 +564,5 @@ export async function processUpdate(
 ): Promise<void> {
   await (
     bot as unknown as { handleUpdate(update: unknown): Promise<void> }
-  ).handleUpdate(update);
-}   bot as unknown as { handleUpdate(update: unknown): Promise<void> }
   ).handleUpdate(update);
 }
