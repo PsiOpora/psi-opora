@@ -10,7 +10,8 @@ function TelegramBadge({
   circleColor: string;
 }) {
   return (
-    <svg viewBox="0 0 24 24" className={cn(className)}>
+    <svg viewBox="0 0 24 24" className={cn(className)} aria-hidden="true">
+      <title>Telegram</title>
       <circle cx="12" cy="12" r="10" fill={circleColor} />
       <path
         fill="white"
@@ -28,7 +29,8 @@ function WhatsAppBadge({
   circleColor: string;
 }) {
   return (
-    <svg viewBox="0 0 24 24" className={cn(className)}>
+    <svg viewBox="0 0 24 24" className={cn(className)} aria-hidden="true">
+      <title>WhatsApp</title>
       <circle cx="12" cy="12" r="10" fill={circleColor} />
       <path
         fill="white"
@@ -49,7 +51,9 @@ function MaxBadge({ className }: { className?: string }) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={cn(className)}
+      aria-hidden="true"
     >
+      <title>MAX</title>
       <rect
         x="2"
         y="2"

@@ -26,7 +26,7 @@
 
 import { createInterface } from "node:readline/promises";
 
-const WEBHOOK = (process.env.BITRIX_WEBHOOK_URL || "").replace(/\/+$/, "") + "/";
+const WEBHOOK = `${(process.env.BITRIX_WEBHOOK_URL || "").replace(/\/+$/, "")}/`;
 
 const ENTITY_TYPE_IDS: Record<string, number> = {
   lead: 1,
@@ -135,7 +135,7 @@ async function getSourceDirectory(): Promise<Map<string, StatusEntry[]>> {
   const byName = new Map<string, StatusEntry[]>();
   for (const item of data.result as StatusEntry[]) {
     if (!byName.has(item.NAME)) byName.set(item.NAME, []);
-    byName.get(item.NAME)!.push(item);
+    byName.get(item.NAME)?.push(item);
   }
   return byName;
 }
@@ -246,7 +246,7 @@ async function plan() {
       const oldCodes = entries.map((e) => e.STATUS_ID);
       for (const [entityName, entityTypeId] of Object.entries(ENTITY_TYPE_IDS)) {
         const items = await findItemsBySource(entityTypeId, oldCodes);
-        if (items && items.length) {
+        if (items?.length) {
           console.log(`  ${oldName}: ${items.length} записей в ${entityName}`);
         }
       }
@@ -372,7 +372,7 @@ async function cleanup() {
         for (const [entityName, entityTypeId] of Object.entries(ENTITY_TYPE_IDS)) {
           if (!(await entitySupportsSource(entityTypeId))) continue;
           const items = await findItemsBySource(entityTypeId, [e.STATUS_ID]);
-          if (items && items.length) {
+          if (items?.length) {
             stillReferenced = true;
             console.log(`!! ${oldName} (ID=${e.ID}) всё ещё используется в ${entityName} (${items.length}), не удаляю`);
           }
