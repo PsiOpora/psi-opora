@@ -35,17 +35,44 @@ function looksLikePlainName(text: string): boolean {
   );
 }
 
-let cachedModel: ReturnType<
-  ReturnType<typeof createOpenRouter>["chat"]
-> | null = null;
+// Резервные модели на случай, если основная (env.OPENROUTER_MODEL) вернёт
+// ошибку — например, превышен лимит бесплатного воркера у провайдера
+// ("ResourceExhausted: Worker local total request limit reached"). Пробуем
+// по очереди, пока одна из них не отработает.
+const FALLBACK_MODELS = [
+  "inclusionai/ling-3.0-flash:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "cohere/north-mini-code:free",
+  "poolside/laguna-s-2.1:free",
+] as const;
 
-function getModel() {
+type OpenRouterClient = ReturnType<typeof createOpenRouter>;
+type OpenRouterModel = ReturnType<OpenRouterClient["chat"]>;
+
+let cachedClient: OpenRouterClient | null = null;
+const cachedModels = new Map<string, OpenRouterModel>();
+
+function getClient() {
   if (!env.OPENROUTER_API_KEY) return null;
-  if (!cachedModel) {
-    const openrouter = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY });
-    cachedModel = openrouter.chat(env.OPENROUTER_MODEL);
+  if (!cachedClient) {
+    cachedClient = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY });
   }
-  return cachedModel;
+  return cachedClient;
+}
+
+function getModels(): OpenRouterModel[] {
+  const client = getClient();
+  if (!client) return [];
+
+  const modelNames = [env.OPENROUTER_MODEL, ...FALLBACK_MODELS];
+  return modelNames.map((name) => {
+    let model = cachedModels.get(name);
+    if (!model) {
+      model = client.chat(name);
+      cachedModels.set(name, model);
+    }
+    return model;
+  });
 }
 
 /**
@@ -61,36 +88,40 @@ export async function extractContactInfo(
 ): Promise<ExtractedContact | null> {
   if (looksLikePlainName(text)) return null;
 
-  const model = getModel();
-  if (!model) return null;
+  const models = getModels();
+  if (models.length === 0) return null;
 
-  try {
-    const { object } = await generateObject({
-      model,
-      schema: ExtractedContactSchema,
-      abortSignal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS),
-      system:
-        "Ты извлекаешь контактные данные из сообщения клиента психологического " +
-        "центра. Клиент отвечал на вопрос «Как вас зовут?», но мог прислать " +
-        "сразу имя, телефон и email одним сообщением (например, скопировал из " +
-        "анкеты или визитки). Верни null для полей, которых в тексте нет. " +
-        "Телефон и email возвращай как есть, без изменения формата. В поле " +
-        "имени — только ФИО/имя, без лишних слов и подписей.",
-      prompt: text,
-    });
+  for (const model of models) {
+    try {
+      const { object } = await generateObject({
+        model,
+        schema: ExtractedContactSchema,
+        abortSignal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS),
+        system:
+          "Ты извлекаешь контактные данные из сообщения клиента психологического " +
+          "центра. Клиент отвечал на вопрос «Как вас зовут?», но мог прислать " +
+          "сразу имя, телефон и email одним сообщением (например, скопировал из " +
+          "анкеты или визитки). Верни null для полей, которых в тексте нет. " +
+          "Телефон и email возвращай как есть, без изменения формата. В поле " +
+          "имени — только ФИО/имя, без лишних слов и подписей.",
+        prompt: text,
+      });
 
-    const name = object.name?.trim();
-    if (!name) return null;
+      const name = object.name?.trim();
+      if (!name) return null;
 
-    return {
-      name,
-      phone: object.phone?.trim() || undefined,
-      email: object.email?.trim() || undefined,
-    };
-  } catch (err) {
-    logger.error("bot.name_extraction.failed", err as Error, {
-      textLength: text.length,
-    });
-    return null;
+      return {
+        name,
+        phone: object.phone?.trim() || undefined,
+        email: object.email?.trim() || undefined,
+      };
+    } catch (err) {
+      logger.error("bot.name_extraction.failed", err as Error, {
+        textLength: text.length,
+        model: model.modelId,
+      });
+    }
   }
+
+  return null;
 }
