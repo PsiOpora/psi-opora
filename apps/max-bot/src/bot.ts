@@ -141,8 +141,10 @@ async function syncMaxAvatar(
 
 /**
  * Сохраняет профиль клиента в bot_users: поля из апдейта (всегда доступны)
- * плюс description/avatar из getChatMembers (может не сработать для диалога
- * 1:1 в зависимости от прав бота — не критично).
+ * плюс description/avatar из getChatMembers (не работает для диалога 1:1 —
+ * MAX отдаёт 400 "Method is not available for dialogs", этот метод годится
+ * только для групповых чатов). Для 1:1 добираем аватар через getChat: там
+ * поле icon для диалога — это фото собеседника, а не иконка чата.
  */
 async function collectMaxProfile(
   ctx: AppContext,
@@ -170,6 +172,17 @@ async function collectMaxProfile(
     log(
       `[profile] не удалось получить getChatMembers для user=${user.user_id}: ${describeError(err)}`,
     );
+  }
+
+  if (!avatarUrl && ctx.chatId) {
+    try {
+      const chat = await ctx.getChat(ctx.chatId);
+      if (chat.icon?.url) avatarUrl = chat.icon.url;
+    } catch (err) {
+      log(
+        `[profile] не удалось получить getChat для user=${user.user_id}: ${describeError(err)}`,
+      );
+    }
   }
 
   if (avatarUrl) {
