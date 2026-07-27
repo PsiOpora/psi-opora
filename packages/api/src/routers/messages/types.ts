@@ -112,6 +112,10 @@ export interface ClientMessageItem {
   mediaUrl?: string;
   mediaMimeType?: string | null;
   mediaDurationSec?: number | null;
+  /** Только для telegram-personal/whatsapp-personal — каким из нескольких
+   * личных номеров портала отправлено/получено сообщение (см.
+   * bot_messages.connector_id). */
+  connectorId: string | null;
 }
 
 /** Общий маппинг строки bot_messages → ClientMessageItem для thread.ts/poll.ts.
@@ -133,5 +137,6 @@ export function toClientMessageItem(row: BotMessage): ClientMessageItem {
       : undefined,
     mediaMimeType: row.mediaMimeType,
     mediaDurationSec: row.mediaDurationSec,
+    connectorId: row.connectorId,
   };
 }

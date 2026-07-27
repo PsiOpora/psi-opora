@@ -197,6 +197,7 @@ export const send = publicProcedure
           operatorId: input.operatorId,
           operatorName: input.operatorName,
           externalId,
+          connectorId: connector?.connectorId,
         });
       } catch (err) {
         console.error(

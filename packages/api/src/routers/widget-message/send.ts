@@ -132,6 +132,7 @@ export const send = publicProcedure
           source: "widget",
           text,
           externalId,
+          connectorId: channel.connectorId,
         });
       } catch (err) {
         const error = err as Error;

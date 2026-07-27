@@ -63,6 +63,7 @@ async function logOperatorReply(
           : undefined,
       externalId,
       status,
+      connectorId: reply.connector,
     });
   } catch (err) {
     console.error(
@@ -397,6 +398,7 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
       direction: "in",
       source: "scenario",
       text: effectiveText,
+      connectorId: account.connectorId,
       ...(mediaS3Key
         ? {
             kind: "voice",

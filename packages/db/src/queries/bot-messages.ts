@@ -25,6 +25,9 @@ export interface BotMessageEntry {
   status?: MessageDeliveryStatus;
   /** id сообщения во внешней системе (WAHA) — для сопоставления с ack-вебхуком. */
   externalId?: string;
+  /** Только для telegram-personal/whatsapp-personal — какой из нескольких
+   * личных номеров портала отправил/принял сообщение. */
+  connectorId?: string;
   /** По умолчанию "text". "voice" — заливаем mediaS3Key в раздающий роут
    * (apps/dashboard/src/app/api/message-media). */
   kind?: "text" | "voice";
@@ -50,6 +53,7 @@ export async function insertBotMessage(
     operatorName: entry.operatorName,
     status: entry.status ?? "sent",
     externalId: entry.externalId,
+    connectorId: entry.connectorId,
     kind: entry.kind ?? "text",
     mediaS3Key: entry.mediaS3Key,
     mediaMimeType: entry.mediaMimeType,

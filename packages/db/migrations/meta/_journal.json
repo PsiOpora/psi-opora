@@ -140,6 +140,13 @@
       "when": 1785088556554,
       "tag": "0019_slippery_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785094708586,
+      "tag": "0020_third_nightcrawler",
+      "breakpoints": true
     }
   ]
 }

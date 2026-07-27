@@ -30,6 +30,9 @@ export interface ThreadMessage {
   /** "voice" — рендерим плеер вместо текста (см. bot_messages.kind). */
   kind?: "text" | "voice";
   mediaUrl?: string | null;
+  /** Только для telegram-personal/whatsapp-personal — с какого из нескольких
+   * личных номеров портала отправлено/получено сообщение. */
+  connectorId?: string | null;
 }
 
 /** Доставку/прочтение сейчас отдаёт только WAHA (WhatsApp) — для остальных
@@ -120,7 +123,16 @@ function dayKey(iso: string): string {
   return new Date(iso).toDateString();
 }
 
-export function MessageList({ messages }: { messages: ThreadMessage[] }) {
+export function MessageList({
+  messages,
+  connectorLabels,
+}: {
+  messages: ThreadMessage[];
+  /** connectorId → номер телефона (только подключённые сейчас номера —
+   * для отключённого исторический connectorId просто не найдётся, тег не
+   * покажем, чем гадать по неактуальным данным). */
+  connectorLabels?: Record<string, string>;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
 
@@ -170,6 +182,9 @@ export function MessageList({ messages }: { messages: ThreadMessage[] }) {
             ? STATUS_META[item.status]
             : null;
         const StatusIcon = statusMeta?.icon;
+        const phoneLabel = item.connectorId
+          ? connectorLabels?.[item.connectorId]
+          : undefined;
 
         return (
           <div
@@ -220,6 +235,12 @@ export function MessageList({ messages }: { messages: ThreadMessage[] }) {
                   </>
                 )}
                 <span>{formatTime(item.createdAt)}</span>
+                {phoneLabel && (
+                  <>
+                    <span>·</span>
+                    <span>{phoneLabel}</span>
+                  </>
+                )}
                 {item.pending && <span>· отправляется…</span>}
                 {StatusIcon && (
                   <span

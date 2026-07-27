@@ -42,6 +42,11 @@ export const botMessages = pgTable(
     /** id сообщения во внешней системе (сейчас — WAHA) — по нему ack-вебхук
      * находит строку, чтобы обновить статус. */
     externalId: text("external_id"),
+    /** Только для messenger="telegram-personal"/"whatsapp-personal" — каким
+     * из нескольких личных номеров портала отправлено/получено сообщение
+     * (см. telegram_personal_accounts.connector_id / whatsapp_personal_accounts.
+     * connector_id). Для остальных мессенджеров не заполняется. */
+    connectorId: text("connector_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     /** Сдвигается при обновлении status — по этому полю, а не createdAt,
      * поллинг инбокса (listBotMessagesSince) ловит статусные апдейты уже

@@ -21,8 +21,14 @@ import { QuickReplies } from "@/components/inbox/quick-replies";
 import { MessageComposer } from "@/components/messaging/message-composer";
 import { Button } from "@/components/ui/button";
 import { orpcClient } from "@/lib/orpc/client";
+import { cn } from "@/lib/utils";
 
 const THREAD_POLL_INTERVAL_MS = 5000;
+
+interface PersonalAccountOption {
+  connectorId: string;
+  phone: string;
+}
 
 /** Курсор поллинга — максимальный updatedAt среди сообщений, а не createdAt:
  * listBotMessagesSince ловит и статусные апдейты уже показанных сообщений
@@ -75,22 +81,44 @@ export function ThreadPane({
   const [assigning, startAssigning] = useTransition();
   const sinceRef = useRef(new Date().toISOString());
 
-  // Загрузка переписки при смене выбранного клиента.
+  // Личные номера (Telegram/WhatsApp) на портале может быть несколько —
+  // без явного выбора отправка ушла бы с первого попавшегося, а это не
+  // обязательно тот номер, с которым переписывается клиент.
+  const [personalAccounts, setPersonalAccounts] = useState<
+    PersonalAccountOption[]
+  >([]);
+  const [connectorId, setConnectorId] = useState<string | undefined>();
+
+  // Загрузка переписки и (для личных номеров) списка подключённых аккаунтов
+  // при смене выбранного клиента — в одном эффекте, чтобы по истории треда
+  // можно было сразу выставить номер по умолчанию тем же, с которого шла
+  // переписка, а не первым попавшимся из personalAccounts[0].
   useEffect(() => {
     if (!selected) return;
     const { messenger, userId } = selected;
+    const isPersonal =
+      messenger === "telegram-personal" || messenger === "whatsapp-personal";
     let cancelled = false;
 
     setMessages([]);
     setText("");
     setSendError(null);
+    setPersonalAccounts([]);
+    setConnectorId(undefined);
     setThreadLoading(true);
-    orpcClient.messages
-      .thread({ messenger, userId })
-      .then((res) => {
+
+    Promise.all([
+      orpcClient.messages.thread({ messenger, userId }),
+      isPersonal
+        ? messenger === "telegram-personal"
+          ? orpcClient.telegramPersonal.list()
+          : orpcClient.whatsappPersonal.list()
+        : Promise.resolve({ accounts: [] as PersonalAccountOption[] }),
+    ])
+      .then(([threadRes, accountsRes]) => {
         if (cancelled) return;
         setMessages(
-          res.messages.map((m) => ({
+          threadRes.messages.map((m) => ({
             id: m.id,
             direction: m.direction,
             source: m.source,
@@ -101,9 +129,26 @@ export function ThreadPane({
             updatedAt: m.updatedAt,
             kind: m.kind,
             mediaUrl: m.mediaUrl,
+            connectorId: m.connectorId,
           })),
         );
-        sinceRef.current = latestUpdatedAt(res.messages);
+        sinceRef.current = latestUpdatedAt(threadRes.messages);
+
+        if (!isPersonal) return;
+        const accounts = accountsRes.accounts;
+        setPersonalAccounts(accounts);
+        // Номер, с которого реально шла переписка (последнее сообщение с
+        // известным connectorId) — приоритетнее первого подключённого,
+        // чтобы ответ по умолчанию ушёл с того же номера, что видел клиент.
+        const lastKnown = [...threadRes.messages]
+          .reverse()
+          .find((m) => m.connectorId)?.connectorId;
+        const fallback = accounts[0]?.connectorId;
+        setConnectorId(
+          lastKnown && accounts.some((a) => a.connectorId === lastKnown)
+            ? lastKnown
+            : fallback,
+        );
       })
       .finally(() => {
         if (!cancelled) setThreadLoading(false);
@@ -142,6 +187,7 @@ export function ThreadPane({
             updatedAt: m.updatedAt,
             kind: m.kind,
             mediaUrl: m.mediaUrl,
+            connectorId: m.connectorId,
           })) ?? [],
         ),
       );
@@ -169,6 +215,7 @@ export function ThreadPane({
       const result = await orpcClient.messages.send({
         messenger: selected.messenger,
         userId: selected.userId,
+        connectorId,
         text: trimmed,
         operatorId: operator?.id,
         operatorName: operator?.name,
@@ -280,11 +327,36 @@ export function ThreadPane({
             Сообщений пока нет — напишите первым
           </div>
         ) : (
-          <MessageList messages={messages} />
+          <MessageList
+            messages={messages}
+            connectorLabels={Object.fromEntries(
+              personalAccounts.map((a) => [a.connectorId, a.phone]),
+            )}
+          />
         )}
       </div>
 
       <div className="border-t p-3">
+        {personalAccounts.length > 1 && (
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <span>Отправить с номера:</span>
+            {personalAccounts.map((acc) => (
+              <button
+                key={acc.connectorId}
+                type="button"
+                onClick={() => setConnectorId(acc.connectorId)}
+                className={cn(
+                  "rounded-md border px-2 py-0.5 transition-colors",
+                  connectorId === acc.connectorId
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "hover:bg-muted",
+                )}
+              >
+                {acc.phone}
+              </button>
+            ))}
+          </div>
+        )}
         <MessageComposer
           text={text}
           onTextChange={setText}

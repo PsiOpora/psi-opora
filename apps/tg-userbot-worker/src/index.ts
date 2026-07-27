@@ -33,6 +33,7 @@ function accountLabel(account: TelegramPersonalAccount): string {
 async function logInboundMessage(
   senderId: number,
   text: string,
+  connectorId: string,
   profile: {
     firstName?: string;
     lastName?: string;
@@ -56,6 +57,7 @@ async function logInboundMessage(
       direction: "in",
       source: "scenario",
       text,
+      connectorId,
     });
   } catch (err) {
     console.error(
@@ -193,7 +195,7 @@ async function startAccountWorker(
           ? rawPhone
           : `+${rawPhone}`
         : null;
-      void logInboundMessage(message.sender.id, text, {
+      void logInboundMessage(message.sender.id, text, account.connectorId, {
         firstName:
           "firstName" in message.sender ? message.sender.firstName : undefined,
         lastName:
