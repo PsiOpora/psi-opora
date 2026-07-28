@@ -82,12 +82,20 @@ function normalizedBitrixEndpoint(value: string): URL {
   return url;
 }
 
-function configuredPortalHostname(): string {
+function configuredPortalEndpoint(): URL {
   if (!env.DASHBOARD_BITRIX_WEBHOOK_URL) {
     throw new Error("Bitrix24 session: DASHBOARD_BITRIX_WEBHOOK_URL не задан");
   }
   const url = new URL(env.DASHBOARD_BITRIX_WEBHOOK_URL);
   if (url.protocol !== "https:" || !url.hostname) {
+    throw new Error("Bitrix24 session: некорректный домен портала");
+  }
+  return new URL("/rest/", url.origin);
+}
+
+function normalizedPortalHostname(value: string): string {
+  const url = new URL(value.includes("://") ? value : `https://${value}`);
+  if (url.protocol !== "https:" || url.username || url.password || url.port) {
     throw new Error("Bitrix24 session: некорректный домен портала");
   }
   return url.hostname.toLowerCase();
@@ -125,13 +133,12 @@ export async function verifyPortalAccessToken(
     throw new Error("Bitrix24 session: неизвестный портал");
   }
 
-  const endpoint = normalizedBitrixEndpoint(tokens.clientEndpoint);
-  const expectedHostname = configuredPortalHostname();
-  const claimedHostname = tokens.domain.toLowerCase();
-  if (
-    endpoint.hostname.toLowerCase() !== expectedHostname ||
-    claimedHostname !== expectedHostname
-  ) {
+  // REST endpoint строим только из серверной конфигурации. Значение,
+  // пришедшее из браузера, не используем как URL назначения.
+  const endpoint = configuredPortalEndpoint();
+  const expectedHostname = endpoint.hostname.toLowerCase();
+  const claimedHostname = normalizedPortalHostname(tokens.domain);
+  if (claimedHostname !== expectedHostname) {
     throw new Error("Bitrix24 session: домен портала не совпадает");
   }
 
