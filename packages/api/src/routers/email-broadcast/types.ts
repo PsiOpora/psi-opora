@@ -9,7 +9,7 @@ export interface EmailCampaignActionResult {
   report?: EmailRecipientsReport;
   /** Последняя кампания по этой же стадии — предупреждение о возможном дубле. */
   recentCampaign?: RecentEmailCampaignInfo | null;
-  /** ID кампании, поставленной в очередь trigger.dev. */
+  /** ID кампании, поставленной в очередь Hatchet. */
   queuedCampaignId?: string;
   /** Сколько получателей будет отправлено фоновой задачей. */
   queuedCount?: number;

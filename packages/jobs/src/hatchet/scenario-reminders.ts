@@ -1,12 +1,12 @@
+import { CreateTaskWorkflow } from "@hatchet-dev/typescript-sdk";
 import {
   type ConsultationSession,
+  createRedisClient,
   createRedisStorage,
-  createUpstashRedis,
   type ReminderRunResult,
   runScenarioReminders,
   type ScenarioMessage,
 } from "@psi-opora/bot-core";
-import { schedules } from "@trigger.dev/sdk";
 import { type Messenger, sendMessengerMessage } from "../messenger";
 
 function toButtons(message: ScenarioMessage) {
@@ -20,14 +20,16 @@ function toButtons(message: ScenarioMessage) {
  * один раз повторяем вопрос; молчащим и после напоминания тихо
  * завершаем сценарий. Логика — runScenarioReminders в @psi-opora/bot-core.
  *
- * Живёт в trigger.dev, а не в Vercel cron: на Hobby-тарифе Vercel
+ * Живёт в Hatchet, а не в Vercel cron: на Hobby-тарифе Vercel
  * лимит по кронам (2 шт., только раз в день).
  */
-export const scenarioReminders = schedules.task({
-  id: "scenario-reminders",
-  cron: "*/15 * * * *",
-  run: async () => {
-    const redis = createUpstashRedis();
+export const scenarioReminders = CreateTaskWorkflow({
+  name: "scenario-reminders",
+  on: { cron: "*/15 * * * *" },
+  retries: 0,
+  executionTimeout: "10m",
+  fn: async () => {
+    const redis = createRedisClient();
     const storage = createRedisStorage<ConsultationSession>(redis);
 
     const results: Partial<Record<Messenger, ReminderRunResult>> = {};

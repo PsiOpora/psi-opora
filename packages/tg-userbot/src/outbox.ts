@@ -1,4 +1,4 @@
-import { createUpstashRedis } from "@psi-opora/bot-core";
+import { createRedisClient } from "@psi-opora/bot-core";
 
 export interface OutboundMessage {
   memberId: string;
@@ -55,7 +55,7 @@ const SEND_RESULT_TTL_SECONDS = 60;
 export async function pushOutboundMessage(
   message: OutboundMessage,
 ): Promise<void> {
-  const redis = createUpstashRedis();
+  const redis = createRedisClient();
   await redis.rpush(
     outboxKey(message.memberId, message.openLineId, message.connectorId),
     JSON.stringify(message),
@@ -68,7 +68,7 @@ export async function drainOutboundMessages(
   openLineId: string,
   connectorId: string,
 ): Promise<OutboundMessage[]> {
-  const redis = createUpstashRedis();
+  const redis = createRedisClient();
   const key = outboxKey(memberId, openLineId, connectorId);
   const messages: OutboundMessage[] = [];
   for (;;) {
@@ -87,15 +87,13 @@ export async function setSendResult(
   jobId: string,
   result: SendResult,
 ): Promise<void> {
-  const redis = createUpstashRedis();
+  const redis = createRedisClient();
   await redis.set(sendResultKey(jobId), result, {
     ex: SEND_RESULT_TTL_SECONDS,
   });
 }
 
-export async function getSendResult(
-  jobId: string,
-): Promise<SendResult | null> {
-  const redis = createUpstashRedis();
+export async function getSendResult(jobId: string): Promise<SendResult | null> {
+  const redis = createRedisClient();
   return (await redis.get<SendResult>(sendResultKey(jobId))) ?? null;
 }

@@ -2,15 +2,15 @@ import { serve } from "@hono/node-server";
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import {
   type ConsultationSession,
+  createRedisClient,
   createRedisStorage,
-  createUpstashRedis,
   resolveMaxBotToken,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { Hono } from "hono";
 import { createMaxBot, processUpdate } from "./bot.js";
 
-const redis = createUpstashRedis();
+const redis = createRedisClient();
 const storage = createRedisStorage<ConsultationSession>(redis);
 // resolveBitrixApi(undefined) откатывается на DASHBOARD_BITRIX_WEBHOOK_URL,
 // который для imconnector.* не подходит (нужен OAuth) — поэтому передаём

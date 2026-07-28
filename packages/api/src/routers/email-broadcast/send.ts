@@ -4,8 +4,7 @@ import {
   getLastEmailCampaignForStage,
   insertEmailCampaignRecipients,
 } from "@psi-opora/db/queries";
-import type { deliverEmailCampaign } from "@psi-opora/jobs";
-import { tasks } from "@trigger.dev/sdk";
+import { enqueueEmailCampaign } from "@psi-opora/jobs";
 import { publicProcedure } from "../../orpc";
 import {
   buildEmailReport,
@@ -108,17 +107,14 @@ export const send = publicProcedure
       );
 
       try {
-        await tasks.trigger<typeof deliverEmailCampaign>(
-          "email-campaign-deliver",
-          { campaignId },
-        );
+        await enqueueEmailCampaign({ campaignId });
       } catch (err) {
         await finishEmailCampaign(campaignId, {
           status: "error",
           error: `Не удалось запустить фоновую задачу: ${(err as Error).message}`,
         });
         return {
-          error: `Рассылка не запущена: ${(err as Error).message}. Проверьте настройку trigger.dev (TRIGGER_SECRET_KEY).`,
+          error: `Рассылка не запущена: ${(err as Error).message}. Проверьте подключение Hatchet (HATCHET_CLIENT_TOKEN).`,
         };
       }
 

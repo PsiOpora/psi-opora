@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { tasks } from "@trigger.dev/sdk";
 import { env } from "@psi-opora/config";
-import type { crmBackup } from "@psi-opora/jobs";
-import { executeCrmBackup } from "@psi-opora/jobs";
+import { enqueueCrmBackup, executeCrmBackup } from "@psi-opora/jobs";
 import { getBitrixApi } from "@/lib/bitrix/session";
 
 export const dynamic = "force-dynamic";
@@ -17,13 +15,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Основной путь — ставим фоновое задание trigger.dev и сразу отвечаем.
-    if (env.TRIGGER_SECRET_KEY) {
-      const handle = await tasks.trigger<typeof crmBackup>("crm-backup", {});
+    // Основной путь — ставим фоновое задание Hatchet и сразу отвечаем.
+    if (env.HATCHET_CLIENT_TOKEN) {
+      const handle = await enqueueCrmBackup({});
       return NextResponse.json({ ok: true, triggered: true, id: handle.id });
     }
 
-    // Fallback без trigger.dev — выполняем инлайн (в пределах maxDuration).
+    // Fallback без Hatchet — выполняем инлайн (в пределах maxDuration).
     const api = await getBitrixApi();
     if (!api) {
       return NextResponse.json(

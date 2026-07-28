@@ -152,7 +152,7 @@ line/connector ID и никакого ручного запуска скрипт
    docker compose up -d --build tg-userbot-worker
    ```
    Ему нужны те же переменные, что и остальным приложениям: `POSTGRES_URL`,
-   `KV_REST_API_URL`/`KV_REST_API_TOKEN`, `DASHBOARD_BITRIX_CLIENT_ID`/`SECRET`,
+   `REDIS_URL`, `DASHBOARD_BITRIX_CLIENT_ID`/`SECRET`,
    `TG_USERBOT_ENCRYPTION_KEY` (все — из общего `.env`).
 
 ### 3. Личный номер WhatsApp (WAHA, `packages/waha`)

@@ -131,9 +131,8 @@ function CostsPageContent() {
         <CardHeader>
           <CardTitle>Расходы</CardTitle>
           <CardDescription>
-            Хранилище расходов недоступно: переменные KV_REST_API_URL и
-            KV_REST_API_TOKEN не заданы. На проде (Vercel) они настроены —
-            локально страница работает только с подключённым Redis.
+            Хранилище расходов недоступно: REDIS_URL или REDIS_HOST не задан. В
+            k3s адрес задаётся автоматически; локально укажите REDIS_URL.
           </CardDescription>
         </CardHeader>
       </Card>

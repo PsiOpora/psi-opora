@@ -17,23 +17,21 @@
   "scripts": {
     "build": "tsdown",
     "clean": "git clean -xdf .cache .turbo dist node_modules",
-    "dev": "bunx trigger.dev@latest dev --env-file ../../.env",
-    "deploy": "bunx trigger.dev@latest deploy --env-file ../../.env",
+    "dev": "bun --env-file=../../.env --watch src/worker.ts",
+    "start": "bun --env-file=../../.env src/worker.ts",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1095.0",
+    "@aws-sdk/client-s3": "^3.1096.0",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@psi-opora/unisender-client": "workspace:*",
-    "@trigger.dev/sdk": "4.5.8",
-    "@upstash/redis": "^1.38.0"
+    "@hatchet-dev/typescript-sdk": "1.28.0"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
-    "@trigger.dev/build": "4.5.8",
     "@types/node": "26.1.1",
     "dotenv": "^17.4.2",
     "esbuild": "^0.28.1",

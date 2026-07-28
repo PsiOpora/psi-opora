@@ -62,7 +62,9 @@ export default function AdsPage() {
     },
   });
 
-  const { data: dbStats } = useQuery(orpc.ads.stats.queryOptions({ input: {} }));
+  const { data: dbStats } = useQuery(
+    orpc.ads.stats.queryOptions({ input: {} }),
+  );
 
   if (liveLoading) {
     return <p className="text-sm text-muted-foreground">Загрузка…</p>;
@@ -75,7 +77,7 @@ export default function AdsPage() {
       <AdStatsError
         message={
           !liveResult?.redisConfigured
-            ? "Redis не настроен. Настройте KV_REST_API_URL и KV_REST_API_TOKEN."
+            ? "Redis не настроен. Настройте REDIS_URL или REDIS_HOST."
             : "Не удалось загрузить данные. Проверьте API-ключи."
         }
       />

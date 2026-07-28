@@ -3,8 +3,8 @@ import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import {
   type ConsultationSession,
   createBot,
+  createRedisClient,
   createRedisStorage,
-  createUpstashRedis,
   resolveTelegramBotToken,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
@@ -12,7 +12,7 @@ import { webhookCallback } from "grammy";
 import { Hono } from "hono";
 import { uploadTelegramAvatar, uploadTelegramMedia } from "./avatar-storage.js";
 
-const redis = createUpstashRedis();
+const redis = createRedisClient();
 const storage = createRedisStorage<ConsultationSession>(redis);
 // resolveBitrixApi(undefined) откатывается на DASHBOARD_BITRIX_WEBHOOK_URL,
 // который для imconnector.* не подходит (нужен OAuth) — поэтому передаём

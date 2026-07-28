@@ -1,5 +1,4 @@
-import type { Redis } from "@upstash/redis";
-import type { StorageAdapter } from "../storage/upstash";
+import type { RedisClient, StorageAdapter } from "../storage/redis";
 import type { ConsultationSession } from "../types/context";
 import { logBotMessage } from "../utils/message-log";
 import { buildReminder, type ScenarioMessage } from "./engine";
@@ -10,7 +9,7 @@ import { getScenarioTexts } from "./texts";
  * REMINDER_DELAY_MS — шлём напоминание один раз; если молчит и после него —
  * тихо завершаем сценарий.
  *
- * Ожидающие ответа сессии хранятся в Upstash sorted set
+ * Ожидающие ответа сессии хранятся в Redis sorted set
  * (score = момент последнего вопроса), обходятся cron-эндпоинтом бота.
  */
 
@@ -22,7 +21,7 @@ function pendingKey(messenger: string): string {
 
 /** Сценарий ждёт ответа — регистрируем/обновляем для напоминаний. */
 export async function markScenarioAwaiting(
-  redis: Redis,
+  redis: RedisClient,
   messenger: string,
   sessionKey: string,
 ): Promise<void> {
@@ -34,7 +33,7 @@ export async function markScenarioAwaiting(
 
 /** Сценарий завершён — напоминание не нужно. */
 export async function clearScenarioAwaiting(
-  redis: Redis,
+  redis: RedisClient,
   messenger: string,
   sessionKey: string,
 ): Promise<void> {
@@ -42,7 +41,7 @@ export async function clearScenarioAwaiting(
 }
 
 export interface ReminderRunOptions {
-  redis: Redis;
+  redis: RedisClient;
   messenger: string;
   storage: StorageAdapter<ConsultationSession>;
   /** Отправка сообщения пользователю; sessionKey — chat id (TG) / user id (MAX). */

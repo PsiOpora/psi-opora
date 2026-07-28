@@ -1,4 +1,5 @@
 import { Bot, Context, Keyboard, type MiddlewareFn } from "@maxhub/max-bot-api";
+import type { RedisClient } from "@psi-opora/bot-core";
 import {
   actionLabel,
   applyScenarioAction,
@@ -26,7 +27,6 @@ import {
 } from "@psi-opora/bot-core";
 import { logger } from "@psi-opora/config";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
-import type { Redis } from "@upstash/redis";
 import { uploadMaxAvatar, uploadMaxMedia } from "./avatar-storage.js";
 
 // MAX-бот деплоится на Vercel Edge Runtime — используем neon-http через @psi-opora/db/queries.edge
@@ -100,7 +100,7 @@ export class AppContext extends Context {
 export interface MaxBotOptions {
   storage?: StorageAdapter<ConsultationSession>;
   /** Redis для очереди напоминаний; без него напоминания отключены. */
-  redis?: Redis;
+  redis?: RedisClient;
   /** OAuth-клиент Bitrix24 (resolveBitrixApi из @psi-opora/bitrix-client) —
    * для дублирования переписки в Открытую линию. Без него дублирование
    * отключено (см. sendMessageToOpenLine). */

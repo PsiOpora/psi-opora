@@ -1,5 +1,4 @@
 import { logger } from "@psi-opora/config";
-import type { Redis } from "@upstash/redis";
 import type { Api, StorageAdapter } from "grammy";
 import { Bot, InlineKeyboard, session } from "grammy";
 import { dispatchScenarioOutput } from "./scenario/dispatch";
@@ -14,6 +13,7 @@ import {
   startScenario,
 } from "./scenario/engine";
 import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
+import type { RedisClient } from "./storage/redis";
 import type { AppContext, ConsultationSession } from "./types/context";
 import {
   type BitrixApiLike,
@@ -151,7 +151,7 @@ async function collectTelegramProfile(
 export interface BotOptions {
   storage?: StorageAdapter<ConsultationSession>;
   /** Redis для очереди напоминаний; без него напоминания отключены. */
-  redis?: Redis;
+  redis?: RedisClient;
   client?: ConstructorParameters<typeof Bot>[1]["client"];
   /** OAuth-клиент Bitrix24 (resolveBitrixApi из @psi-opora/bitrix-client) —
    * для дублирования переписки в Открытую линию. Без него дублирование
@@ -249,7 +249,10 @@ export function createBot({
   uploadMedia,
 }: BotOptions = {}) {
   const resolvedToken = token || "";
-  const bot = new Bot<AppContext>(resolvedToken, client ? { client } : undefined);
+  const bot = new Bot<AppContext>(
+    resolvedToken,
+    client ? { client } : undefined,
+  );
 
   // Сериализуем обработку апдейтов одного чата (см. utils/lock.ts) — без
   // этого чтение и запись сессии двумя раздельными Redis-вызовами гонятся
@@ -443,9 +446,7 @@ export function createBot({
       chatId: ctx.chatId,
       text,
       messageId: ctx.editedMessage.message_id,
-      name: [ctx.from.first_name, ctx.from.last_name]
-        .filter(Boolean)
-        .join(" "),
+      name: [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" "),
     });
   });
 
@@ -453,7 +454,13 @@ export function createBot({
   // линию (message.files), в сценарий бота эти сообщения не попадают:
   // все шаги сценария текстовые, вложения тут не ожидаются.
   bot.on(
-    ["message:photo", "message:document", "message:voice", "message:video", "message:audio"],
+    [
+      "message:photo",
+      "message:document",
+      "message:voice",
+      "message:video",
+      "message:audio",
+    ],
     async (ctx) => {
       if (!ctx.chatId || !ctx.from) return;
       const caption = ctx.message.caption?.trim() ?? "";

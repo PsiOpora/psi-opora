@@ -6,7 +6,7 @@ import {
   type ConnectorDisabledInfo,
   type OperatorReplyMessage,
 } from "@psi-opora/bitrix-webhook-api";
-import { createUpstashRedis } from "@psi-opora/bot-core";
+import { createRedisClient } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import {
   assignConversationIfUnassigned,
@@ -19,7 +19,11 @@ import {
   updateBotMessageStatus,
   upsertBotUser,
 } from "@psi-opora/db/queries";
-import { type Messenger, handleConsultationDealUpdate, sendMessengerMessage } from "@psi-opora/jobs";
+import {
+  handleConsultationDealUpdate,
+  type Messenger,
+  sendMessengerMessage,
+} from "@psi-opora/jobs";
 import { pushOutboundMessage } from "@psi-opora/tg-userbot";
 import { phoneFromJid, wahaAckToStatus, wahaSendText } from "@psi-opora/waha";
 import { Hono } from "hono";
@@ -432,7 +436,10 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
             ...(isAudio && payload?.media?.url
               ? {
                   files: [
-                    { url: payload.media.url, name: payload.media.filename ?? "audio" },
+                    {
+                      url: payload.media.url,
+                      name: payload.media.filename ?? "audio",
+                    },
                   ],
                 }
               : {}),
@@ -490,7 +497,7 @@ async function handleConsultationReminderDealUpdate(
 
     const result = await handleConsultationDealUpdate(
       api,
-      createUpstashRedis(),
+      createRedisClient(),
       dealId,
     );
     return Response.json({ success: true, result });
@@ -521,7 +528,9 @@ app.post("/api/bitrix-webhook", (c) => bitrixHandler(c.req.raw));
 app.get("/api/waha-webhook", (c) => c.json({ status: "ok" }));
 app.post("/api/waha-webhook", (c) => handleWahaWebhook(c.req.raw));
 
-app.get("/api/consultation-reminder-deal-update", (c) => c.json({ status: "ok" }));
+app.get("/api/consultation-reminder-deal-update", (c) =>
+  c.json({ status: "ok" }),
+);
 app.post("/api/consultation-reminder-deal-update", (c) =>
   handleConsultationReminderDealUpdate(c.req.raw),
 );

@@ -14,21 +14,28 @@ export {
 export {
   type DeliverBroadcastPayload,
   deliverBroadcast,
-} from "./trigger/broadcast";
+} from "./hatchet/broadcast";
 export {
   type DeliverEmailCampaignPayload,
   deliverEmailCampaign,
   pollEmailCampaigns,
-} from "./trigger/email-campaign";
+} from "./hatchet/email-campaign";
 export {
   type CrmBackupPayload,
   crmBackup,
   crmBackupSchedule,
-} from "./trigger/crm-backup";
-export { scenarioReminders } from "./trigger/scenario-reminders";
-export { consultationReminders } from "./trigger/consultation-reminders";
-export { diagnosticReminders } from "./trigger/diagnostic-reminders";
-export { maxWebhookHealthcheck } from "./trigger/max-webhook-healthcheck";
+} from "./hatchet/crm-backup";
+export {
+  type EnqueuedRun,
+  enqueueBroadcast,
+  enqueueCrmBackup,
+  enqueueEmailCampaign,
+} from "./hatchet/enqueue";
+export { scenarioReminders } from "./hatchet/scenario-reminders";
+export { consultationReminders } from "./hatchet/consultation-reminders";
+export { diagnosticReminders } from "./hatchet/diagnostic-reminders";
+export { maxWebhookHealthcheck } from "./hatchet/max-webhook-healthcheck";
+export { hatchetTasks, startHatchetWorker } from "./hatchet/worker";
 export {
   type ConsultationDealUpdateResult,
   type SendConsultationRemindersResult,

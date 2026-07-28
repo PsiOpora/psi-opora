@@ -1,5 +1,4 @@
-import { createUpstashRedis } from "@psi-opora/bot-core";
-import { env } from "@psi-opora/config";
+import { createRedisClient, isRedisConfigured } from "@psi-opora/bot-core";
 
 export interface CostEntry {
   id: string;
@@ -16,8 +15,8 @@ export interface CostEntry {
 const COSTS_KEY = "marketing:costs";
 
 function getRedisOrNull() {
-  if (!env.KV_REST_API_URL || !env.KV_REST_API_TOKEN) return null;
-  return createUpstashRedis();
+  if (!isRedisConfigured()) return null;
+  return createRedisClient();
 }
 
 export async function listCosts(): Promise<CostEntry[]> {

@@ -6,9 +6,7 @@ import {
   listBackupRuns,
   upsertBackupCredentials,
 } from "@psi-opora/db/queries";
-import type { crmBackup } from "@psi-opora/jobs";
-import { executeCrmBackup } from "@psi-opora/jobs";
-import { tasks } from "@trigger.dev/sdk";
+import { enqueueCrmBackup, executeCrmBackup } from "@psi-opora/jobs";
 import { publicProcedure, router } from "../orpc";
 import { backupCredentialsSchema } from "../schemas/backup";
 
@@ -41,9 +39,9 @@ export const backupRouter = router({
 
       let result: RunBackupResult = { ok: true, runId };
 
-      if (env.TRIGGER_SECRET_KEY) {
+      if (env.HATCHET_CLIENT_TOKEN) {
         try {
-          await tasks.trigger<typeof crmBackup>("crm-backup", {
+          await enqueueCrmBackup({
             memberId: context.memberId ?? undefined,
             runId,
           });

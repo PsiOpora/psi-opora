@@ -1,4 +1,7 @@
-import { queue, task } from "@trigger.dev/sdk";
+import {
+  ConcurrencyLimitStrategy,
+  CreateTaskWorkflow,
+} from "@hatchet-dev/typescript-sdk";
 import {
   type Messenger,
   SEND_INTERVAL_MS,
@@ -12,18 +15,19 @@ export interface DeliverBroadcastPayload {
   mode: "initial" | "resend";
 }
 
-// Одна рассылка за раз: даже если запустили рассылку и досылку одновременно,
-// суммарный темп отправки не превысит SEND_INTERVAL_MS — лимиты не нарушаются.
-const broadcastQueue = queue({
+export const deliverBroadcast = CreateTaskWorkflow({
   name: "broadcast-deliver",
-  concurrencyLimit: 1,
-});
-
-export const deliverBroadcast = task({
-  id: "broadcast-deliver",
-  queue: broadcastQueue,
-  maxDuration: 3600,
-  run: async (payload: DeliverBroadcastPayload) => {
+  retries: 0,
+  executionTimeout: "1h",
+  scheduleTimeout: "24h",
+  // Одна рассылка за раз: общий лимит сохраняет темп отправки при нескольких
+  // репликах worker'а и при одновременной рассылке/досылке.
+  concurrency: {
+    expression: "'broadcast-deliver'",
+    maxRuns: 1,
+    limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+  },
+  fn: async (payload: DeliverBroadcastPayload) => {
     // Ленивый импорт: клиент БД подключается на верхнем уровне модуля
     // (top-level await + проверка POSTGRES_URL), поэтому статический импорт
     // ронял бы индексацию задач при деплое, где БД недоступна.

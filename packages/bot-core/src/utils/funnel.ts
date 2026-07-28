@@ -1,6 +1,9 @@
-import { env } from "@psi-opora/config";
 import { upsertBotFunnelEvent as upsertEdge } from "@psi-opora/db/queries.edge";
-import { Redis } from "@upstash/redis";
+import {
+  createRedisClient,
+  isRedisConfigured,
+  type RedisClient,
+} from "../storage/redis";
 
 /**
  * Тип функции upsert для событий воронки.
@@ -61,13 +64,11 @@ const FIELD_SEP = "|";
 const KEY_PREFIX = "botfunnel:";
 const TTL_SECONDS = 400 * 24 * 60 * 60;
 
-let redis: Redis | null | undefined;
+let redis: RedisClient | null | undefined;
 
-function getRedis(): Redis | null {
+function getRedis(): RedisClient | null {
   if (redis === undefined) {
-    const url = env.KV_REST_API_URL;
-    const token = env.KV_REST_API_TOKEN;
-    redis = url && token ? new Redis({ url, token }) : null;
+    redis = isRedisConfigured() ? createRedisClient() : null;
   }
   return redis;
 }

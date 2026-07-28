@@ -29,3 +29,8 @@ spec:
           envFrom:
             - secretRef:
                 name: psi-opora-env
+            - configMapRef:
+                name: redis-connection
+          env:
+            - name: REDIS_URL
+              value: ""

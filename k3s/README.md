@@ -1,9 +1,9 @@
 # Деплой в k3s
 
 Манифесты — по одному файлу на сервис (Deployment + Service, где сервису нужен
-входящий трафик). `waha.yaml` и `minio.yaml` дополнительно содержат
-PersistentVolumeClaim (сессии WhatsApp / файлы MinIO) — без него данные
-пропадут при пересоздании пода.
+входящий трафик). `waha.yaml`, `minio.yaml` и `redis.yaml` дополнительно
+содержат постоянные тома (сессии WhatsApp / файлы MinIO / данные Redis) —
+без них данные пропадут при пересоздании пода.
 
 Образы для tg-bot/max-bot/tg-userbot-worker/bitrix-webhook/dashboard/clients
 собираются и катятся в кластер через GitHub Actions ([.github/workflows/deploy-k3s.yml](../.github/workflows/deploy-k3s.yml)),
@@ -61,25 +61,69 @@ done
 `registry.yaml`, дождитесь, пока под реестра станет Ready, и только потом
 собирайте и пушьте остальные образы.
 
-`waha` и `minio` используют публичные образы — k3s подтянет их сам.
+`waha`, `minio` и `redis` используют публичные образы — k3s подтянет их сам.
 
 ## 2. Создать namespace и секрет с переменными окружения
 
 ```bash
 kubectl apply -f k3s/namespace.yaml
+# Перед созданием секрета добавьте в .env:
+# REDIS_PASSWORD=<случайный-длинный-пароль>
 kubectl create secret generic psi-opora-env --from-env-file=.env --namespace psi-opora
 ```
 
-Все поды получают переменные через `envFrom.secretRef` — секрет общий,
-как `env_file: .env` в docker-compose. При обновлении `.env` секрет нужно
-пересоздать (`kubectl delete secret ... && kubectl create secret ...`) и
-перезапустить поды (`kubectl rollout restart deployment -n psi-opora`).
+Все поды получают секретные переменные через `envFrom.secretRef` — секрет
+общий, как `env_file: .env` в docker-compose. Адрес `redis:6379` приложения
+получают из `redis-connection` ConfigMap. Сам Redis доступен только внутри
+кластера через ClusterIP и требует `REDIS_PASSWORD`. Для Trigger.dev
+опубликован отдельный TLS-маршрут через Traefik; незашифрованный порт 6379
+наружу не открывается.
+
+При обновлении `.env` примените секрет заново и перезапустите приложения.
+Если менялся пароль Redis, также перезапустите StatefulSet:
+
+```bash
+kubectl create secret generic psi-opora-env \
+  --from-env-file=.env --namespace psi-opora \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl rollout restart deployment -n psi-opora
+kubectl rollout restart statefulset/redis -n psi-opora
+```
 
 ## 3. Применить манифесты
 
 ```bash
 kubectl apply -f k3s/
+kubectl rollout status statefulset/redis -n psi-opora --timeout=120s
 ```
+
+Redis 8.8.1 работает в одном экземпляре с AOF (`appendfsync everysec`) и
+PVC `data-redis-0` на 2 Gi. Это сохраняет данные при пересоздании пода, но
+не заменяет внешний backup PVC.
+
+### Перенос данных и отключение облачного Redis
+
+До переключения приложений экспортируйте облачную базу в RDB и восстановите
+её в новый Redis. Для Upstash экспорт создаётся в `Backups → Backup & Export`;
+официальная инструкция: https://upstash.com/docs/redis/howto/importexport.
+На время финального экспорта остановите записи либо предусмотрите короткое
+окно обслуживания, иначе изменения после снимка потеряются. Облачную базу
+не удаляйте, пока не проверены OAuth-токены, активные сессии ботов и очереди.
+
+Задачи `packages/jobs/src/trigger/*reminders.ts` исполняются в Trigger.dev,
+то есть вне k3s. Для доступа к Redis:
+
+1. Направьте DNS A-запись `psi-opora-redis.orixon.ru` на IP k3s-сервера.
+2. Примените `redis.yaml` и дождитесь выпуска сертификата Let's Encrypt.
+3. В окружении Trigger.dev задайте:
+
+   ```dotenv
+   REDIS_URL=rediss://:<REDIS_PASSWORD>@psi-opora-redis.orixon.ru:443
+   ```
+
+Traefik принимает Redis-over-TLS на общем `websecure` entrypoint, выбирает
+маршрут по SNI и передаёт Redis обычный TCP внутри кластера. Клиент обязан
+поддерживать SNI; `ioredis`, используемый проектом, передаёт имя хоста.
 
 ## Важно: tg-userbot-worker — только 1 реплика
 

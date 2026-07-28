@@ -4,8 +4,7 @@ import {
   getLastBroadcastForStage,
   insertBroadcastRecipients,
 } from "@psi-opora/db/queries";
-import type { deliverBroadcast } from "@psi-opora/jobs";
-import { tasks } from "@trigger.dev/sdk";
+import { enqueueBroadcast } from "@psi-opora/jobs";
 import { publicProcedure } from "../../orpc";
 import { buildReport, collectRecipients } from "../../broadcast-send";
 import { MESSAGE_MAX_LENGTH, sendBroadcastSchema } from "../../schemas/broadcast";
@@ -98,7 +97,7 @@ export const send = publicProcedure
       );
 
       try {
-        await tasks.trigger<typeof deliverBroadcast>("broadcast-deliver", {
+        await enqueueBroadcast({
           broadcastId,
           mode: "initial",
         });
@@ -108,7 +107,7 @@ export const send = publicProcedure
           error: `Не удалось запустить фоновую задачу: ${(err as Error).message}`,
         });
         return {
-          error: `Рассылка не запущена: ${(err as Error).message}. Проверьте настройку trigger.dev (TRIGGER_SECRET_KEY).`,
+          error: `Рассылка не запущена: ${(err as Error).message}. Проверьте подключение Hatchet (HATCHET_CLIENT_TOKEN).`,
         };
       }
 

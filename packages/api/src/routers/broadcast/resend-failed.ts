@@ -4,14 +4,13 @@ import {
   listBroadcastRecipients,
   markBroadcastRunning,
 } from "@psi-opora/db/queries";
-import type { deliverBroadcast } from "@psi-opora/jobs";
-import { tasks } from "@trigger.dev/sdk";
+import { enqueueBroadcast } from "@psi-opora/jobs";
 import { publicProcedure } from "../../orpc";
 import { resendFailedSchema } from "../../schemas/broadcast";
 
 /**
  * Досылка сообщения получателям рассылки, у которых была ошибка отправки:
- * ставит фоновую задачу trigger.dev. Успешные и пропущенные не трогаются.
+ * ставит фоновую задачу Hatchet. Успешные и пропущенные не трогаются.
  */
 export const resendFailed = publicProcedure
   .input(resendFailedSchema)
@@ -37,7 +36,7 @@ export const resendFailed = publicProcedure
 
     await markBroadcastRunning(input.broadcastId);
     try {
-      await tasks.trigger<typeof deliverBroadcast>("broadcast-deliver", {
+      await enqueueBroadcast({
         broadcastId: input.broadcastId,
         mode: "resend",
       });

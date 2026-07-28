@@ -1,6 +1,6 @@
 import {
+  createRedisClient,
   createRedisStorage,
-  createUpstashRedis,
   type StorageAdapter,
 } from "@psi-opora/bot-core";
 import type { BitrixAppName } from "./app-name";
@@ -19,7 +19,7 @@ export interface PortalTokens {
 let storage: StorageAdapter<PortalTokens> | undefined;
 
 function getStorage(): StorageAdapter<PortalTokens> {
-  storage ??= createRedisStorage<PortalTokens>(createUpstashRedis());
+  storage ??= createRedisStorage<PortalTokens>(createRedisClient());
   return storage;
 }
 

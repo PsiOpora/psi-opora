@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { Redis } from "@upstash/redis";
+import type { RedisClient } from "../storage/redis";
 import { withUserLock } from "./lock";
 
-/** Мини-имитация Upstash Redis: только то подмножество set/get/eval,
+/** Мини-имитация Redis: только то подмножество set/get/eval,
  * которое использует withUserLock (release/renew идут через eval —
  * compare-and-delete / compare-and-expire по токену). */
 function createFakeRedis() {
@@ -30,7 +30,7 @@ function createFakeRedis() {
       if (script.includes("del")) store.delete(key);
       return 1;
     },
-  } as unknown as Redis;
+  } as unknown as RedisClient;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

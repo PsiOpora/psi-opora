@@ -37,6 +37,12 @@ spec:
           envFrom:
             - secretRef:
                 name: psi-opora-env
+            - configMapRef:
+                name: redis-connection
+          env:
+            # Явно перекрывает старый облачный URL из общего Secret.
+            - name: REDIS_URL
+              value: ""
           readinessProbe:
             httpGet:
               path: /

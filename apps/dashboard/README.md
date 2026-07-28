@@ -9,7 +9,7 @@
 - Next.js (App Router, React Server Components) — сам дашборд и REST-прокси к Bitrix24
 - shadcn/ui + Tailwind v4 — интерфейс (sidebar, таблицы, графики на Recharts)
 - `@bitrix24/b24jssdk` — встройка приложения во фрейм портала (авторизация, `installFinish`)
-- Upstash Redis (`@psi-opora/bot-core`) — хранение OAuth-токенов портала
+- Redis (`@psi-opora/bot-core`) — хранение OAuth-токенов портала
 
 ## Как это работает
 

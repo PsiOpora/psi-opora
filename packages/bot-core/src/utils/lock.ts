@@ -1,4 +1,4 @@
-import type { Redis } from "@upstash/redis";
+import type { RedisClient } from "../storage/redis";
 
 const LOCK_TTL_MS = 20_000;
 // Продлеваем задолго до истечения TTL — 2-3 продления за время жизни лока
@@ -42,7 +42,7 @@ return 0
  * атомарным compare-and-delete).
  *
  * Без этого сессия читается и пишется двумя раздельными Redis-вызовами
- * (см. storage/upstash.ts) без транзакции/блокировки: два почти
+ * (см. storage/redis.ts) без транзакции/блокировки: два почти
  * одновременных апдейта от одного клиента (двойной тап по кнопке,
  * повторная доставка вебхука) читают одно и то же старое состояние и оба
  * продвигают сценарий от него — на проде это давало зацикливание шага
@@ -58,7 +58,7 @@ return 0
  * Без Redis (локальная разработка/тесты) — no-op, просто выполняет fn.
  */
 export async function withUserLock<T>(
-  redis: Redis | undefined,
+  redis: RedisClient | undefined,
   key: string,
   fn: () => Promise<T>,
 ): Promise<T> {

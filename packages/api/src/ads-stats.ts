@@ -1,16 +1,21 @@
-import { createUpstashRedis } from "@psi-opora/bot-core";
-import { env } from "@psi-opora/config";
-import { upsertAdDailyStats, type NewAdDailyStats } from "@psi-opora/db/queries";
+import {
+  createRedisClient,
+  isRedisConfigured as hasRedisConfiguration,
+} from "@psi-opora/bot-core";
+import {
+  type NewAdDailyStats,
+  upsertAdDailyStats,
+} from "@psi-opora/db/queries";
 
-export type RedisClient = ReturnType<typeof createUpstashRedis>;
+export type RedisClient = ReturnType<typeof createRedisClient>;
 
 export function isRedisConfigured(): boolean {
-  return Boolean(env.KV_REST_API_URL && env.KV_REST_API_TOKEN);
+  return hasRedisConfiguration();
 }
 
-/** null, если KV_REST_API_URL/KV_REST_API_TOKEN не заданы (локальная разработка без Redis). */
+/** null, если Redis не задан (локальная разработка без Redis). */
 export function getRedisOrNull(): RedisClient | null {
-  return isRedisConfigured() ? createUpstashRedis() : null;
+  return isRedisConfigured() ? createRedisClient() : null;
 }
 
 const API_URL = "https://api.vk.com/method";

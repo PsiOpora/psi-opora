@@ -46,9 +46,12 @@ export const env = createEnv({
     MAX_WEBHOOK_URL: z.string().optional(),
     TG_WEBHOOK_URL: z.string().optional(),
 
-    // Redis / Upstash
-    KV_REST_API_URL: z.string().optional(),
-    KV_REST_API_TOKEN: z.string().optional(),
+    // Redis. REDIS_URL удобен локально; в k3s host/port/password задаются
+    // раздельно, чтобы пароль не приходилось подставлять внутрь URL.
+    REDIS_URL: z.string().optional(),
+    REDIS_HOST: z.string().optional(),
+    REDIS_PORT: z.coerce.number().int().positive().default(6379),
+    REDIS_PASSWORD: z.string().optional(),
 
     // Bitrix
     BITRIX_WEBHOOK_TOKEN: z.string().optional(),
@@ -142,8 +145,10 @@ export const env = createEnv({
     AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
     MAX_WEBHOOK_URL: process.env.MAX_WEBHOOK_URL,
     TG_WEBHOOK_URL: process.env.TG_WEBHOOK_URL,
-    KV_REST_API_URL: process.env.KV_REST_API_URL,
-    KV_REST_API_TOKEN: process.env.KV_REST_API_TOKEN,
+    REDIS_URL: process.env.REDIS_URL,
+    REDIS_HOST: process.env.REDIS_HOST,
+    REDIS_PORT: process.env.REDIS_PORT,
+    REDIS_PASSWORD: process.env.REDIS_PASSWORD,
     BITRIX_WEBHOOK_TOKEN: process.env.BITRIX_WEBHOOK_TOKEN,
     BITRIX_CRM_WEBHOOK_TOKEN: process.env.BITRIX_CRM_WEBHOOK_TOKEN,
     DASHBOARD_BITRIX_CLIENT_ID: process.env.DASHBOARD_BITRIX_CLIENT_ID,

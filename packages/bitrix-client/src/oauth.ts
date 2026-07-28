@@ -1,4 +1,4 @@
-import { createUpstashRedis } from "@psi-opora/bot-core";
+import { createRedisClient } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import type { BitrixAppName } from "./app-name";
 import {
@@ -68,7 +68,7 @@ async function acquireRefreshLock(
   app: BitrixAppName,
   memberId: string,
 ): Promise<(() => Promise<void>) | null> {
-  const redis = createUpstashRedis();
+  const redis = createRedisClient();
   const key = refreshLockKey(app, memberId);
   // Глобальный Web Crypto API (не node:crypto) — совместимо с Edge Runtime,
   // где деплоится apps/max-bot.

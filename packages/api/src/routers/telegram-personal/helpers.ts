@@ -1,5 +1,5 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
-import { createUpstashRedis } from "@psi-opora/bot-core";
+import { createRedisClient } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { upsertTelegramPersonalAccountConnected } from "@psi-opora/db/queries";
 import { encryptSecret } from "@psi-opora/tg-userbot";
@@ -40,7 +40,7 @@ export async function savePendingTelegramLogin(
   loginId: string,
   data: PendingTelegramLogin,
 ): Promise<void> {
-  const redis = createUpstashRedis();
+  const redis = createRedisClient();
   await redis.set(pendingLoginKey(loginId), data, {
     ex: PENDING_LOGIN_TTL_SECONDS,
   });
@@ -49,12 +49,16 @@ export async function savePendingTelegramLogin(
 export async function getPendingTelegramLogin(
   loginId: string,
 ): Promise<PendingTelegramLogin | null> {
-  const redis = createUpstashRedis();
-  return (await redis.get<PendingTelegramLogin>(pendingLoginKey(loginId))) ?? null;
+  const redis = createRedisClient();
+  return (
+    (await redis.get<PendingTelegramLogin>(pendingLoginKey(loginId))) ?? null
+  );
 }
 
-export async function deletePendingTelegramLogin(loginId: string): Promise<void> {
-  const redis = createUpstashRedis();
+export async function deletePendingTelegramLogin(
+  loginId: string,
+): Promise<void> {
+  const redis = createRedisClient();
   await redis.del(pendingLoginKey(loginId));
 }
 

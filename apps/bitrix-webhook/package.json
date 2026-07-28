@@ -19,7 +19,6 @@
     "@psi-opora/jobs": "workspace:*",
     "@psi-opora/tg-userbot": "workspace:*",
     "@psi-opora/waha": "workspace:*",
-    "@upstash/redis": "^1.38.0",
     "hono": "^4.12.31"
   },
   "devDependencies": {

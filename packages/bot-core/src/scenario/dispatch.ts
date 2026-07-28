@@ -1,4 +1,4 @@
-import type { Redis } from "@upstash/redis";
+import type { RedisClient } from "../storage/redis";
 import { appendDealComment } from "../utils/bitrix";
 import {
   submitBitrixContact,
@@ -20,7 +20,7 @@ export interface ScenarioDispatchDeps {
   /** Ключ сессии в storage: chat id (TG) / user id (MAX). */
   sessionKey: string;
   /** Redis для регистрации напоминаний; без него напоминания отключены. */
-  redis?: Redis | null;
+  redis?: RedisClient | null;
   sendMessage: (message: ScenarioMessage) => Promise<void>;
   texts: ScenarioTexts;
   /** Имя из профиля мессенджера — попадает в сделку. */

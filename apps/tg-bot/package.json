@@ -17,7 +17,6 @@
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
-    "@upstash/redis": "^1.38.0",
     "grammy": "1.45.1",
     "hono": "^4.12.32"
   },

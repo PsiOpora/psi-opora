@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
 import { FunnelChart } from "@/components/dashboard/funnel-chart";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -21,12 +22,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDashboardRange } from "@/hooks/use-bitrix-data";
 import type {
   BotFunnelSourceRow,
   BotFunnelStepStats,
 } from "@/lib/analytics/bot-funnel";
-import { useDashboardRange } from "@/hooks/use-bitrix-data";
-import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { formatNumber, formatPercent } from "@/lib/format";
 
 interface BotFunnelResponse {
@@ -53,7 +53,11 @@ export default function BotFunnelPage() {
 function BotFunnelPageContent() {
   const range = useDashboardRange();
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["dashboard-bot-funnel", range.from.toISOString(), range.to.toISOString()],
+    queryKey: [
+      "dashboard-bot-funnel",
+      range.from.toISOString(),
+      range.to.toISOString(),
+    ],
     queryFn: async () => {
       const params = new URLSearchParams({
         from: range.from.toISOString(),
@@ -90,7 +94,7 @@ function BotFunnelPageContent() {
           <CardDescription>
             {redisConfigured
               ? "За выбранный период событий нет. Счётчики шагов начинают накапливаться после деплоя ботов с трекингом — исторические данные до этого момента недоступны."
-              : "Хранилище событий недоступно: переменные KV_REST_API_URL и KV_REST_API_TOKEN не заданы. На проде (Vercel) они настроены — локально страница работает только с подключённым Redis."}
+              : "Хранилище событий недоступно: REDIS_URL или REDIS_HOST не задан. В k3s адрес задаётся автоматически; локально укажите REDIS_URL."}
           </CardDescription>
         </CardHeader>
       </Card>

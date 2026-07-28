@@ -78,7 +78,7 @@ export default function BackupSettingsPage() {
         <CardHeader>
           <CardTitle>Запуск бэкапа</CardTitle>
           <CardDescription>
-            Бэкап выполняется фоновым заданием trigger.dev — кнопка лишь ставит
+            Бэкап выполняется фоновым заданием Hatchet — кнопка лишь ставит
             его в очередь, статус появится в таблице ниже. Ночной запуск по
             расписанию делает Vercel Cron.
           </CardDescription>

@@ -1,6 +1,6 @@
 export {
-  type AvatarUploadResult,
   type AvatarUploader,
+  type AvatarUploadResult,
   type BotOptions,
   createBot,
   log,
@@ -22,11 +22,11 @@ export {
   type ScenarioAudience,
   type ScenarioButton,
   type ScenarioContact,
+  type ScenarioFlow,
   type ScenarioIssue,
   type ScenarioLead,
   type ScenarioMessage,
   type ScenarioOutput,
-  type ScenarioFlow,
   type ScenarioState,
   type ScenarioStep,
   startConsultation,
@@ -43,30 +43,32 @@ export {
 } from "./scenario/reminders";
 export {
   DEFAULT_SCENARIO_TEXTS,
-  getGuideFile,
-  getScenarioTexts,
   GUIDE_FILE_NAME_KEY,
   GUIDE_FILE_S3_KEY,
   GUIDE_FILE_SIZE_KEY,
   GUIDE_FILE_URL_KEY,
   type GuideFile,
+  getGuideFile,
+  getScenarioTexts,
   SCENARIO_TEXT_DEFS,
   type ScenarioTextDef,
   type ScenarioTextKey,
   type ScenarioTexts,
 } from "./scenario/texts";
 export {
+  createRedisClient,
   createRedisStorage,
-  createUpstashRedis,
+  isRedisConfigured,
+  type RedisClient,
   type StorageAdapter,
-} from "./storage/upstash";
+} from "./storage/redis";
 export type { AppContext, ConsultationSession } from "./types/context";
 export {
   type BitrixApiLike,
   type BitrixSource,
+  type ContactData,
   createBitrixContact,
   createBitrixDeal,
-  type ContactData,
   type DealData,
   listBitrixSources,
   mirrorOperatorMessageToOpenLine,
@@ -78,11 +80,12 @@ export {
   updateMessageInOpenLine,
 } from "./utils/bitrix";
 export {
-  type SubmitDealParams,
   type SubmitContactParams,
+  type SubmitDealParams,
   submitBitrixContact,
   submitConsultationDeal,
 } from "./utils/consultation-deal";
+export { sendGuideEmail } from "./utils/email";
 export {
   FUNNEL_STEPS,
   type FunnelEventContext,
@@ -93,6 +96,7 @@ export {
   trackFunnelStep,
   type UpsertFunnelFn,
 } from "./utils/funnel";
+export { withUserLock } from "./utils/lock";
 export {
   type BotMessageDirection,
   type BotMessageLogEntry,
@@ -101,6 +105,10 @@ export {
 } from "./utils/message-log";
 export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes";
 export { resolveMaxBotToken, resolveTelegramBotToken } from "./utils/token";
+export {
+  type TriageMessage,
+  triageOffScriptMessage,
+} from "./utils/triage";
 export {
   type BotUserProfileInput,
   upsertBotUserProfile,
@@ -112,9 +120,3 @@ export {
   type UtmParams,
 } from "./utils/utm";
 export { hasPhoneNumber, isValidEmail } from "./utils/validation";
-export { sendGuideEmail } from "./utils/email";
-export { withUserLock } from "./utils/lock";
-export {
-  triageOffScriptMessage,
-  type TriageMessage,
-} from "./utils/triage";

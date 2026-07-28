@@ -5,7 +5,7 @@
  * которым пользуется остальной этот файл через `bitrixPost`, для них не
  * подходит: Bitrix отвечает `WRONG_AUTH_TYPE`). Специально не импортируем
  * `BitrixApi` из `@psi-opora/bitrix-client` — тот пакет сам зависит от
- * bot-core (использует `createUpstashRedis`), обратная зависимость создала
+ * bot-core (использует `createRedisClient`), обратная зависимость создала
  * бы цикл воркспейсов. Вызывающая сторона (apps/tg-bot, apps/max-bot)
  * передаёт уже готовый клиент через `resolveBitrixApi(memberId)`.
  */

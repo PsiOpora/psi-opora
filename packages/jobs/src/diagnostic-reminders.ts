@@ -1,15 +1,15 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
+import type { RedisClient } from "@psi-opora/bot-core";
 import { getScenarioTexts } from "@psi-opora/bot-core";
-import type { Redis } from "@upstash/redis";
 import {
+  appendReminderSentComment,
   DEAL_CATEGORY_ID,
   DEAL_STAGE_IDS,
-  MESSENGER_CONNECTOR_MAP,
-  MESSENGER_FIELD,
-  appendReminderSentComment,
   extractClientContactId,
   formatConsultationTime,
   formatMoscowDateTime,
+  MESSENGER_CONNECTOR_MAP,
+  MESSENGER_FIELD,
   normalizeConsultationDt,
   pickChatIdForConnector,
   renderReminderMessage,
@@ -37,7 +37,11 @@ export interface SendDiagnosticRemindersResult {
   sent: number;
   skipped: number;
   errors: number;
-  details: Array<{ dealId: number; action: "sent" | "skip" | "error"; reason?: string }>;
+  details: Array<{
+    dealId: number;
+    action: "sent" | "skip" | "error";
+    reason?: string;
+  }>;
 }
 
 async function findUpcomingDealIds(api: BitrixApi): Promise<number[]> {
@@ -59,7 +63,7 @@ async function findUpcomingDealIds(api: BitrixApi): Promise<number[]> {
 
 async function trySendReminder(
   api: BitrixApi,
-  redis: Redis,
+  redis: RedisClient,
   dealId: number,
 ): Promise<{ action: "sent" | "skip" | "error"; reason?: string }> {
   const deal = await api.call<Record<string, unknown> | false>("crm.deal.get", {
@@ -88,7 +92,8 @@ async function trySendReminder(
   }
 
   const clientContactId = extractClientContactId(deal);
-  if (clientContactId <= 0) return { action: "skip", reason: "no_client_contact" };
+  if (clientContactId <= 0)
+    return { action: "skip", reason: "no_client_contact" };
 
   const texts = await getScenarioTexts();
   const template = texts.diagnostic_reminder_template?.trim();
@@ -105,7 +110,11 @@ async function trySendReminder(
     time: formatConsultationTime(diagnosticAt),
   });
 
-  const chatId = await pickChatIdForConnector(api, clientContactId, connectorContains);
+  const chatId = await pickChatIdForConnector(
+    api,
+    clientContactId,
+    connectorContains,
+  );
   if (chatId <= 0) return { action: "skip", reason: "no_openlines_chat" };
 
   // Отмечаем как отправленное до вызова send — повторный/параллельный
@@ -137,7 +146,7 @@ async function trySendReminder(
  */
 export async function sendDiagnosticReminders(
   api: BitrixApi,
-  redis: Redis,
+  redis: RedisClient,
 ): Promise<SendDiagnosticRemindersResult> {
   const dealIds = await findUpcomingDealIds(api);
   const result: SendDiagnosticRemindersResult = {
@@ -150,15 +159,23 @@ export async function sendDiagnosticReminders(
   for (const dealId of dealIds) {
     try {
       const outcome = await trySendReminder(api, redis, dealId);
-      result.details.push({ dealId, action: outcome.action, reason: outcome.reason });
+      result.details.push({
+        dealId,
+        action: outcome.action,
+        reason: outcome.reason,
+      });
       if (outcome.action === "sent") {
         result.sent++;
       } else if (outcome.action === "error") {
         result.errors++;
-        console.error(`[diagnostic-reminder] dealId=${dealId}: ${outcome.reason}`);
+        console.error(
+          `[diagnostic-reminder] dealId=${dealId}: ${outcome.reason}`,
+        );
       } else {
         result.skipped++;
-        console.log(`[diagnostic-reminder] dealId=${dealId} skipped: ${outcome.reason}`);
+        console.log(
+          `[diagnostic-reminder] dealId=${dealId} skipped: ${outcome.reason}`,
+        );
       }
     } catch (err) {
       result.errors++;

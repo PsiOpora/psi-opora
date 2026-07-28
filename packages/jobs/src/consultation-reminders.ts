@@ -1,15 +1,15 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
+import type { RedisClient } from "@psi-opora/bot-core";
 import { getScenarioTexts } from "@psi-opora/bot-core";
-import type { Redis } from "@upstash/redis";
 import {
+  appendReminderSentComment,
   DEAL_CATEGORY_ID,
   DEAL_STAGE_IDS,
-  MESSENGER_CONNECTOR_MAP,
-  MESSENGER_FIELD,
-  appendReminderSentComment,
   extractClientContactId,
   formatConsultationTime,
   formatMoscowDateTime,
+  MESSENGER_CONNECTOR_MAP,
+  MESSENGER_FIELD,
   normalizeConsultationDt,
   pickChatIdForConnector,
   renderReminderMessage,
@@ -39,14 +39,16 @@ interface ConsultationState {
 }
 
 async function readState(
-  redis: Redis,
+  redis: RedisClient,
   dealId: number,
 ): Promise<ConsultationState | undefined> {
-  return (await redis.get<ConsultationState>(dealStateKey(dealId))) ?? undefined;
+  return (
+    (await redis.get<ConsultationState>(dealStateKey(dealId))) ?? undefined
+  );
 }
 
 async function writeState(
-  redis: Redis,
+  redis: RedisClient,
   dealId: number,
   state: ConsultationState,
 ): Promise<void> {
@@ -54,7 +56,10 @@ async function writeState(
   await redis.sadd(INDEX_KEY, String(dealId));
 }
 
-async function dropFromIndex(redis: Redis, dealId: number): Promise<void> {
+async function dropFromIndex(
+  redis: RedisClient,
+  dealId: number,
+): Promise<void> {
   await redis.srem(INDEX_KEY, String(dealId));
 }
 
@@ -78,13 +83,18 @@ function pickConsultationActivity(
   let bestDelta: number | null = null;
 
   for (const activity of activities) {
-    const dt = activity.DEADLINE || activity.END_TIME || activity.START_TIME || "";
+    const dt =
+      activity.DEADLINE || activity.END_TIME || activity.START_TIME || "";
     if (!dt) continue;
 
     const ts = new Date(dt).getTime();
     if (!Number.isFinite(ts) || ts <= 0) continue;
 
-    if (targetTs !== null && targetTs > 0 && Math.abs(ts - targetTs) <= 60_000) {
+    if (
+      targetTs !== null &&
+      targetTs > 0 &&
+      Math.abs(ts - targetTs) <= 60_000
+    ) {
       return activity;
     }
 
@@ -120,7 +130,7 @@ export type ConsultationDealUpdateResult =
  */
 export async function handleConsultationDealUpdate(
   api: BitrixApi,
-  redis: Redis,
+  redis: RedisClient,
   dealId: number,
 ): Promise<ConsultationDealUpdateResult> {
   const deal = await api.call<Record<string, unknown> | false>("crm.deal.get", {
@@ -138,7 +148,9 @@ export async function handleConsultationDealUpdate(
     return { action: "skip", reason: "stage_mismatch", stageId };
   }
 
-  const newConsultationAt = normalizeConsultationDt(deal[CONSULTATION_DT_FIELD]);
+  const newConsultationAt = normalizeConsultationDt(
+    deal[CONSULTATION_DT_FIELD],
+  );
   if (newConsultationAt === null) {
     return { action: "skip", reason: "consultation_dt_empty_or_invalid" };
   }
@@ -158,7 +170,11 @@ export async function handleConsultationDealUpdate(
   const oldConsultationAt = state.lastConsultationAt;
 
   if (oldConsultationAt === newConsultationAt) {
-    return { action: "skip", reason: "dt_not_changed", consultationAt: newConsultationAt };
+    return {
+      action: "skip",
+      reason: "dt_not_changed",
+      consultationAt: newConsultationAt,
+    };
   }
 
   const oldTs = toTimestamp(oldConsultationAt);
@@ -168,7 +184,11 @@ export async function handleConsultationDealUpdate(
       lastConsultationAt: newConsultationAt,
       updatedAt: now,
     });
-    return { action: "skip", reason: "old_dt_already_passed", oldConsultationAt };
+    return {
+      action: "skip",
+      reason: "old_dt_already_passed",
+      oldConsultationAt,
+    };
   }
 
   const activities = await api.call<BitrixActivity[]>("crm.activity.list", {
@@ -182,7 +202,10 @@ export async function handleConsultationDealUpdate(
     select: ["*"],
   });
 
-  const oldActivity = pickConsultationActivity(activities ?? [], oldConsultationAt);
+  const oldActivity = pickConsultationActivity(
+    activities ?? [],
+    oldConsultationAt,
+  );
   if (!oldActivity) {
     await writeState(redis, dealId, {
       ...state,
@@ -255,7 +278,11 @@ export interface SendConsultationRemindersResult {
   sent: number;
   skipped: number;
   errors: number;
-  details: Array<{ dealId: number; action: "sent" | "skip" | "error"; reason?: string }>;
+  details: Array<{
+    dealId: number;
+    action: "sent" | "skip" | "error";
+    reason?: string;
+  }>;
 }
 
 async function trySendOneHourReminder(
@@ -264,7 +291,8 @@ async function trySendOneHourReminder(
   state: ConsultationState,
 ): Promise<{ action: "sent" | "skip" | "error"; reason?: string }> {
   const consultTs = toTimestamp(state.lastConsultationAt);
-  if (consultTs <= 0) return { action: "skip", reason: "no_consultation_dt_in_state" };
+  if (consultTs <= 0)
+    return { action: "skip", reason: "no_consultation_dt_in_state" };
 
   const diff = consultTs - Date.now();
   if (diff <= 0 || diff > REMINDER_WINDOW_MS) {
@@ -285,7 +313,9 @@ async function trySendOneHourReminder(
     return { action: "skip", reason: "stage_mismatch" };
   }
 
-  const dealConsultationAt = normalizeConsultationDt(deal[CONSULTATION_DT_FIELD]);
+  const dealConsultationAt = normalizeConsultationDt(
+    deal[CONSULTATION_DT_FIELD],
+  );
   if (dealConsultationAt === null) {
     return { action: "skip", reason: "deal_consultation_dt_empty" };
   }
@@ -297,7 +327,8 @@ async function trySendOneHourReminder(
   }
 
   const clientContactId = extractClientContactId(deal);
-  if (clientContactId <= 0) return { action: "skip", reason: "no_client_contact" };
+  if (clientContactId <= 0)
+    return { action: "skip", reason: "no_client_contact" };
 
   const texts = await getScenarioTexts();
   const template = texts.consultation_reminder_template?.trim();
@@ -314,7 +345,11 @@ async function trySendOneHourReminder(
     time: formatConsultationTime(dealConsultationAt),
   });
 
-  const chatId = await pickChatIdForConnector(api, clientContactId, connectorContains);
+  const chatId = await pickChatIdForConnector(
+    api,
+    clientContactId,
+    connectorContains,
+  );
   if (chatId <= 0) return { action: "skip", reason: "no_openlines_chat" };
 
   const sent = await api.call("imopenlines.bot.session.message.send", {
@@ -361,7 +396,10 @@ async function findUpcomingDealIdsViaRest(api: BitrixApi): Promise<number[]> {
  * сделки через тот же handleConsultationDealUpdate, что и сам вебхук —
  * если состояние в Redis уже актуально, это no-op (action: "skip").
  */
-async function resyncFromRest(api: BitrixApi, redis: Redis): Promise<void> {
+async function resyncFromRest(
+  api: BitrixApi,
+  redis: RedisClient,
+): Promise<void> {
   const dealIds = await findUpcomingDealIdsViaRest(api);
   for (const dealId of dealIds) {
     try {
@@ -384,7 +422,7 @@ async function resyncFromRest(api: BitrixApi, redis: Redis): Promise<void> {
  */
 export async function sendConsultationReminders(
   api: BitrixApi,
-  redis: Redis,
+  redis: RedisClient,
 ): Promise<SendConsultationRemindersResult> {
   await resyncFromRest(api, redis);
 
@@ -411,7 +449,11 @@ export async function sendConsultationReminders(
 
     try {
       const outcome = await trySendOneHourReminder(api, dealId, state);
-      result.details.push({ dealId, action: outcome.action, reason: outcome.reason });
+      result.details.push({
+        dealId,
+        action: outcome.action,
+        reason: outcome.reason,
+      });
       if (outcome.action === "sent") {
         result.sent++;
         await writeState(redis, dealId, {

@@ -1,15 +1,11 @@
-import { queue, schedules, task } from "@trigger.dev/sdk";
+import {
+  ConcurrencyLimitStrategy,
+  CreateTaskWorkflow,
+} from "@hatchet-dev/typescript-sdk";
 
 export interface DeliverEmailCampaignPayload {
   campaignId: string;
 }
-
-// Одна кампания за раз — createList/importContacts на Unisender не рассчитаны
-// на параллельные запуски по одному аккаунту.
-const emailCampaignQueue = queue({
-  name: "email-campaign-deliver",
-  concurrencyLimit: 1,
-});
 
 // Ограничение размера пачки importContacts — держим запросы небольшими,
 // чтобы не упереться в лимит тела запроса Unisender (32 МБ) на крупных стадиях.
@@ -20,11 +16,19 @@ const IMPORT_BATCH_SIZE = 500;
  * получателей, создаёт письмо из выбранного шаблона и запускает кампанию.
  * Дальнейший статус (доставлено/открыто/отписалось) обновляет pollEmailCampaigns.
  */
-export const deliverEmailCampaign = task({
-  id: "email-campaign-deliver",
-  queue: emailCampaignQueue,
-  maxDuration: 1800,
-  run: async (payload: DeliverEmailCampaignPayload) => {
+export const deliverEmailCampaign = CreateTaskWorkflow({
+  name: "email-campaign-deliver",
+  retries: 0,
+  executionTimeout: "30m",
+  scheduleTimeout: "24h",
+  // Одна кампания за раз — createList/importContacts на Unisender не
+  // рассчитаны на параллельные запуски по одному аккаунту.
+  concurrency: {
+    expression: "'email-campaign-deliver'",
+    maxRuns: 1,
+    limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+  },
+  fn: async (payload: DeliverEmailCampaignPayload) => {
     // Ленивый импорт: клиент БД подключается на верхнем уровне модуля
     // (top-level await + проверка POSTGRES_URL), поэтому статический импорт
     // ронял бы индексацию задач при деплое, где БД недоступна.
@@ -131,10 +135,12 @@ export const deliverEmailCampaign = task({
  * частично — при первом реальном запуске сверить, что регэксп ниже
  * действительно ловит финальный статус, и уточнить при необходимости.
  */
-export const pollEmailCampaigns = schedules.task({
-  id: "email-campaign-poll",
-  cron: "*/5 * * * *",
-  run: async () => {
+export const pollEmailCampaigns = CreateTaskWorkflow({
+  name: "email-campaign-poll",
+  on: { cron: "*/5 * * * *" },
+  retries: 0,
+  executionTimeout: "5m",
+  fn: async () => {
     const {
       finishEmailCampaign,
       getUnisenderSettings,

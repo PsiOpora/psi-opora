@@ -1,5 +1,5 @@
+import { CreateTaskWorkflow } from "@hatchet-dev/typescript-sdk";
 import { resolveMaxBotToken } from "@psi-opora/bot-core";
-import { schedules } from "@trigger.dev/sdk";
 import { RUSSIAN_TRUSTED_ROOT_CA } from "../certs/russian-trusted-ca";
 import { fetchWithCa } from "../fetch-with-ca";
 
@@ -18,10 +18,12 @@ interface MaxSubscriptionsResponse {
  * проблемах на прод-URL). Раз в 10 минут проверяем, что подписка жива,
  * и восстанавливаем её, если платформа её сбросила.
  */
-export const maxWebhookHealthcheck = schedules.task({
-  id: "max-webhook-healthcheck",
-  cron: "*/30 * * * *",
-  run: async () => {
+export const maxWebhookHealthcheck = CreateTaskWorkflow({
+  name: "max-webhook-healthcheck",
+  on: { cron: "*/30 * * * *" },
+  retries: 0,
+  executionTimeout: "5m",
+  fn: async () => {
     const token = await resolveMaxBotToken();
     const webhookUrl = process.env.MAX_WEBHOOK_URL;
     if (!token || !webhookUrl) {

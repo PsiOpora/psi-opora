@@ -21,8 +21,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@psi-opora/config": "workspace:*",
-    "@upstash/redis": "^1.38.0"
+    "@psi-opora/config": "workspace:*"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
