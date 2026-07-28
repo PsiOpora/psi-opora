@@ -35,7 +35,7 @@ const BLOCKED_HTML = `<!doctype html>
   </body>
 </html>`;
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   if (request.headers.get("sec-fetch-dest") === "document") {
     return new NextResponse(BLOCKED_HTML, {
       status: 403,

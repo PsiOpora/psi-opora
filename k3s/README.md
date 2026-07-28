@@ -89,12 +89,33 @@ kubectl rollout restart deployment -n psi-opora
 kubectl rollout restart statefulset/redis -n psi-opora
 ```
 
-## 3. Установить Hatchet
+## 3. Подключить Hatchet Cloud
 
-Control plane ставится официальным Helm chart в тот же namespace. Для
-небольшой односерверной инсталляции `k3s/hatchet/values.yaml` использует
-PostgreSQL как очередь сообщений и не поднимает RabbitMQ. PostgreSQL Hatchet
-отделён от прикладной `POSTGRES_URL` и хранится на PVC 10 Gi.
+Сейчас control plane работает в Hatchet Cloud, а `hatchet-worker` — внутри
+k3s рядом с приложениями и их Redis/MinIO. Создайте API token в Hatchet Cloud
+(`Settings → API Tokens`) и добавьте его в общий `.env`:
+
+```dotenv
+HATCHET_CLIENT_TOKEN=eyJhbGciOi...
+```
+
+Затем обновите общий Secret. Дополнительные `HATCHET_CLIENT_HOST_PORT`,
+`HATCHET_CLIENT_API_URL` и `HATCHET_CLIENT_TLS_STRATEGY` для Cloud не нужны:
+адреса подключения содержатся в выданном токене.
+
+```bash
+kubectl create secret generic psi-opora-env \
+  --from-env-file=.env --namespace psi-opora \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+### Self-hosted Hatchet в k3s (заготовка)
+
+Конфигурация собственного control plane сохранена в
+`k3s/hatchet/values.yaml`, но в текущем деплое она не применяется. Когда
+решите уйти с Cloud, control plane можно поставить официальным Helm chart в
+тот же namespace. Values используют отдельный PostgreSQL на PVC 10 Gi как
+очередь сообщений и не поднимают RabbitMQ.
 
 ```bash
 helm repo add hatchet https://hatchet-dev.github.io/hatchet-charts
@@ -115,9 +136,10 @@ kubectl get secret hatchet-client-config -n psi-opora
 ```
 
 Chart сам выполняет миграции БД и создаёт `hatchet-client-config` с
-`HATCHET_CLIENT_TOKEN`. Этот Secret подключён к dashboard, clients и
-hatchet-worker. gRPC и API доступны только внутри кластера как
-`hatchet-stack-engine:7070` и `hatchet-stack-api:8080`.
+`HATCHET_CLIENT_TOKEN`. При переключении на self-hosted нужно подключить этот
+Secret к dashboard, clients и hatchet-worker и задать им внутренние адреса
+`hatchet-stack-engine:7070`, `http://hatchet-stack-api:8080` и TLS strategy
+`none` вместо облачного токена из `psi-opora-env`.
 
 Для просмотра UI без публичного Ingress:
 
@@ -152,8 +174,8 @@ PVC `data-redis-0` на 2 Gi. Это сохраняет данные при пе
 
 Фоновые и периодические задачи выполняет `hatchet-worker` внутри k3s. Он
 получает `REDIS_HOST=redis` из того же `redis-connection` ConfigMap, поэтому
-доступ к Redis снаружи кластера ему не нужен. Состояние и история запусков
-хранятся в отдельном PostgreSQL control plane Hatchet.
+доступ к Redis снаружи кластера ему не нужен. Очередь, состояние и история
+запусков пока хранятся в Hatchet Cloud.
 
 ## Важно: tg-userbot-worker — только 1 реплика
 
