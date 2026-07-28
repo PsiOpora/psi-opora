@@ -2,12 +2,12 @@ import {
   getBotUserProfile,
   getClientMessageStats,
 } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { clientThreadSchema } from "../../schemas/messages";
 import type { ClientProfile } from "./types";
 
 /** Карточка клиента для правой панели инбокса: профиль из bot_users + сводка переписки. */
-export const profile = publicProcedure
+export const profile = bitrixProcedure
   .input(clientThreadSchema)
   .handler(async ({ input }): Promise<{ profile: ClientProfile }> => {
     const [user, stats] = await Promise.all([

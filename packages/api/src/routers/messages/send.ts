@@ -8,7 +8,7 @@ import {
 } from "@psi-opora/db/queries";
 import { sendMessengerMessage } from "@psi-opora/jobs";
 import { wahaSendText } from "@psi-opora/waha";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { sendClientMessageSchema } from "../../schemas/messages";
 import { sendViaPersonalNumber } from "../widget-message/helpers";
 
@@ -67,7 +67,10 @@ async function sendTelegramPersonal(
   if (result.error) return result;
   return {
     ok: true,
-    connector: { connectorId: account.connectorId, openLineId: account.openLineId },
+    connector: {
+      connectorId: account.connectorId,
+      openLineId: account.openLineId,
+    },
   };
 }
 
@@ -118,7 +121,10 @@ async function sendWhatsappPersonal(
     return {
       ok: true,
       externalId: id,
-      connector: { connectorId: account.connectorId, openLineId: account.openLineId },
+      connector: {
+        connectorId: account.connectorId,
+        openLineId: account.openLineId,
+      },
     };
   } catch (err) {
     return { error: `Не отправлено: ${(err as Error).message}` };
@@ -134,7 +140,7 @@ async function sendWhatsappPersonal(
  * Открытую линию ответ дублируем (см. mirrorOperatorMessageToOpenLine ниже),
  * чтобы оператор, работающий из Открытой линии, видел и эти реплики тоже.
  */
-export const send = publicProcedure
+export const send = bitrixProcedure
   .input(sendClientMessageSchema)
   .handler(
     async ({ input, context }): Promise<{ ok?: true; error?: string }> => {

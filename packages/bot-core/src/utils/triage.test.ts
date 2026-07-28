@@ -24,6 +24,7 @@ const addConversationTag = mock(() => Promise.resolve());
 mock.module("@psi-opora/db/queries", () => ({
   addClientNote,
   addConversationTag,
+  getBitrixCrmLink: () => Promise.resolve(null),
   getConversationMeta,
   insertBotMessage: () => Promise.resolve(),
   getBotTextsRecord: () => Promise.resolve({}),

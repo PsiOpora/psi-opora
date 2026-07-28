@@ -1,5 +1,8 @@
-import { listClientsWithLastMessage, upsertBotUser } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import {
+  listClientsWithLastMessage,
+  upsertBotUser,
+} from "@psi-opora/db/queries";
+import { bitrixProcedure } from "../../orpc";
 import { listClientsSchema } from "../../schemas/messages";
 import { resolveCrmContactName } from "./crm-contact";
 import type { ClientListItem } from "./types";
@@ -12,7 +15,7 @@ import type { ClientListItem } from "./types";
  */
 const MAX_CRM_NAME_LOOKUPS_PER_REQUEST = 5;
 
-export const list = publicProcedure
+export const list = bitrixProcedure
   .input(listClientsSchema)
   .handler(async ({ input, context }): Promise<{ items: ClientListItem[] }> => {
     const rows = await listClientsWithLastMessage({

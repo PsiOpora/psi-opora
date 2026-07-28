@@ -2,7 +2,10 @@ import "server-only";
 
 import { createRouterClient } from "@orpc/server";
 import { appRouter, createORPCContext } from "@psi-opora/api";
-import { MEMBER_ID_COOKIE } from "@psi-opora/bitrix-client";
+import {
+  DASHBOARD_SESSION_COOKIE,
+  verifyBitrixSessionToken,
+} from "@psi-opora/bitrix-client";
 import { cookies, headers } from "next/headers";
 
 /**
@@ -13,10 +16,14 @@ import { cookies, headers } from "next/headers";
  * @see https://orpc.dev/docs/client/server-side
  */
 export const orpc = createRouterClient(appRouter, {
-  context: async () =>
-    createORPCContext({
+  context: async () => {
+    const token = (await cookies()).get(DASHBOARD_SESSION_COOKIE)?.value;
+    const bitrixSession = verifyBitrixSessionToken(token, "dashboard");
+    return createORPCContext({
       headers: await headers(),
       session: null,
-      memberId: (await cookies()).get(MEMBER_ID_COOKIE)?.value ?? null,
-    }),
+      memberId: bitrixSession?.memberId ?? null,
+      bitrixSession,
+    });
+  },
 });

@@ -13,6 +13,7 @@ interface LoggedMessage {
 const insertBotMessage = mock((entry: LoggedMessage) => Promise.resolve(entry));
 mock.module("@psi-opora/db/queries", () => ({
   insertBotMessage,
+  getBitrixCrmLink: () => Promise.resolve(null),
   getBotTextsRecord: () => Promise.resolve({}),
   getBotConnector: () => Promise.resolve(null),
   getBotUserProfile: () => Promise.resolve(null),

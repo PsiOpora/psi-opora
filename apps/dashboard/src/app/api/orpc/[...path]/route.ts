@@ -1,6 +1,9 @@
 import { RPCHandler } from "@orpc/server/fetch";
 import { appRouter, createORPCContext } from "@psi-opora/api";
-import { MEMBER_ID_COOKIE } from "@psi-opora/bitrix-client";
+import {
+  DASHBOARD_SESSION_COOKIE,
+  verifyBitrixSessionToken,
+} from "@psi-opora/bitrix-client";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
@@ -8,10 +11,13 @@ export const dynamic = "force-dynamic";
 const handler = new RPCHandler(appRouter);
 
 async function createContext(req: Request) {
+  const token = (await cookies()).get(DASHBOARD_SESSION_COOKIE)?.value;
+  const bitrixSession = verifyBitrixSessionToken(token, "dashboard");
   return createORPCContext({
     headers: req.headers,
     session: null,
-    memberId: (await cookies()).get(MEMBER_ID_COOKIE)?.value ?? null,
+    memberId: bitrixSession?.memberId ?? null,
+    bitrixSession,
   });
 }
 

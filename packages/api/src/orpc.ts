@@ -19,6 +19,7 @@
 import { ORPCError, os } from "@orpc/server";
 import {
   type BitrixApi,
+  type BitrixSessionClaims,
   resolveBitrixApiForRequest,
 } from "@psi-opora/bitrix-client";
 import { env, logger } from "@psi-opora/config";
@@ -35,6 +36,8 @@ export interface CreateORPCContextOptions {
    * не зависел от `next/headers`. См. `getBitrixApi()` на контексте.
    */
   memberId: string | null;
+  /** Серверно проверенная сессия встроенного приложения Bitrix24. */
+  bitrixSession: BitrixSessionClaims | null;
 }
 
 export function createORPCContext(opts: CreateORPCContextOptions) {
@@ -46,6 +49,7 @@ export function createORPCContext(opts: CreateORPCContextOptions) {
     db,
     /** memberId портала Bitrix24 (для payload фоновых заданий Hatchet). */
     memberId: opts.memberId,
+    bitrixSession: opts.bitrixSession,
     /** Резолвит Bitrix24-клиент для запроса лениво и не более одного раза. */
     getBitrixApi(): Promise<BitrixApi | null> {
       bitrixApiPromise ??= resolveBitrixApiForRequest(opts.memberId);
@@ -115,6 +119,19 @@ export const protectedProcedure = publicProcedure.use(({ context, next }) => {
       session: context.session as {
         user: { id: string; email: string; name: string };
       },
+    },
+  });
+});
+
+/** Процедура, доступная только из проверенного встроенного приложения Bitrix24. */
+export const bitrixProcedure = publicProcedure.use(({ context, next }) => {
+  if (!context.bitrixSession) {
+    throw new ORPCError("UNAUTHORIZED");
+  }
+  return next({
+    context: {
+      ...context,
+      bitrixSession: context.bitrixSession as BitrixSessionClaims,
     },
   });
 });

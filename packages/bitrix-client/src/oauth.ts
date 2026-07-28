@@ -59,6 +59,59 @@ interface OAuthTokenResponse {
   error_description?: string;
 }
 
+interface ProfileResponse {
+  result?: { ID?: string | number };
+  error?: string;
+  error_description?: string;
+}
+
+function normalizedBitrixEndpoint(value: string): URL {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.username || url.password || url.port) {
+    throw new Error("Bitrix24 OAuth: небезопасный client_endpoint");
+  }
+  if (!url.pathname.startsWith("/rest/")) {
+    throw new Error("Bitrix24 OAuth: некорректный client_endpoint");
+  }
+  return url;
+}
+
+async function requestRefreshedTokens(
+  tokens: PortalTokens,
+  app: BitrixAppName,
+): Promise<PortalTokens> {
+  const url = new URL(OAUTH_SERVER);
+  url.searchParams.set("grant_type", "refresh_token");
+  url.searchParams.set("client_id", getClientId(app));
+  url.searchParams.set("client_secret", getClientSecret(app));
+  url.searchParams.set("refresh_token", tokens.refreshToken);
+
+  const res = await fetch(url, { method: "GET" });
+  const json = (await res.json()) as OAuthTokenResponse;
+  if (json.error) {
+    throw new Error(
+      `Bitrix24 OAuth refresh: ${json.error} — ${json.error_description ?? ""}`,
+    );
+  }
+  if (json.member_id !== tokens.memberId) {
+    throw new Error("Bitrix24 OAuth: member_id не совпадает");
+  }
+
+  const endpoint = normalizedBitrixEndpoint(json.client_endpoint);
+  if (endpoint.hostname.toLowerCase() !== tokens.domain.toLowerCase()) {
+    throw new Error("Bitrix24 OAuth: домен портала не совпадает");
+  }
+
+  return {
+    ...tokens,
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token,
+    clientEndpoint: endpoint.toString(),
+    scope: json.scope,
+    expiresAt: nowSeconds() + json.expires_in,
+  };
+}
+
 /**
  * Блокировка на обновление токенов портала, чтобы параллельные запросы не
  * обновляли refresh_token одновременно (Bitrix24 делает refresh_token
@@ -114,34 +167,47 @@ export async function refreshPortalTokens(
   tokens: PortalTokens,
   app: BitrixAppName = "dashboard",
 ): Promise<PortalTokens> {
-  const url = new URL(OAUTH_SERVER);
-  url.searchParams.set("grant_type", "refresh_token");
-  url.searchParams.set("client_id", getClientId(app));
-  url.searchParams.set("client_secret", getClientSecret(app));
-  url.searchParams.set("refresh_token", tokens.refreshToken);
-
-  const res = await fetch(url, { method: "GET" });
-  const json = (await res.json()) as OAuthTokenResponse;
-  if (json.error) {
+  let updated: PortalTokens;
+  try {
+    updated = await requestRefreshedTokens(tokens, app);
+  } catch (error) {
     // refresh_token протух или отозван — сбрасываем авторизацию.
-    if (json.error === "invalid_grant") {
+    if (error instanceof Error && error.message.includes("invalid_grant")) {
       await deletePortalTokens(tokens.memberId, app);
     }
+    throw error;
+  }
+  await savePortalTokens(updated, app);
+  return updated;
+}
+
+/**
+ * Проверяет, что refresh_token действительно выпущен для нашего приложения,
+ * затем подтверждает пользователя базовым REST-методом profile и только после
+ * этого сохраняет обновлённые токены.
+ */
+export async function verifyAndSavePortalTokens(
+  tokens: PortalTokens,
+  app: BitrixAppName,
+): Promise<{ tokens: PortalTokens; userId: string }> {
+  const updated = await requestRefreshedTokens(tokens, app);
+  const base = updated.clientEndpoint.replace(/\/$/, "");
+  const response = await fetch(`${base}/profile.json`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ auth: updated.accessToken }),
+  });
+  const json = (await response.json()) as ProfileResponse;
+  if (json.error || !json.result?.ID) {
     throw new Error(
-      `Bitrix24 OAuth refresh: ${json.error} — ${json.error_description ?? ""}`,
+      `Bitrix24 profile: ${json.error ?? "invalid_response"} — ${
+        json.error_description ?? ""
+      }`,
     );
   }
 
-  const updated: PortalTokens = {
-    ...tokens,
-    accessToken: json.access_token,
-    refreshToken: json.refresh_token,
-    clientEndpoint: json.client_endpoint,
-    scope: json.scope,
-    expiresAt: nowSeconds() + json.expires_in,
-  };
   await savePortalTokens(updated, app);
-  return updated;
+  return { tokens: updated, userId: String(json.result.ID) };
 }
 
 /** Возвращает актуальные токены портала, обновляя их при необходимости. */

@@ -7,6 +7,7 @@ import {
   type BitrixApiLike,
   type ConsultationSession,
   dispatchScenarioOutput,
+  enrichCrmFromClientMessage,
   formatUtmLog,
   getGuideFile,
   getScenarioTexts,
@@ -508,15 +509,26 @@ export function createMaxBot({
 
     if (!text) return;
 
-    const state = appCtx.session.scenario;
-    if (!state) {
-      if (userId) {
-        await triageOffScriptMessage({
+    const crmEnrichment = userId
+      ? enrichCrmFromClientMessage({
           messenger: "max",
           userId: String(userId),
           text,
-        });
-      }
+        })
+      : Promise.resolve();
+
+    const state = appCtx.session.scenario;
+    if (!state) {
+      await Promise.all([
+        crmEnrichment,
+        userId
+          ? triageOffScriptMessage({
+              messenger: "max",
+              userId: String(userId),
+              text,
+            })
+          : Promise.resolve(),
+      ]);
       return;
     }
 
@@ -527,17 +539,21 @@ export function createMaxBot({
       // пишет что-то своё, а не то, что просит сценарий) — бот здесь не
       // пытается сам помочь/ответить, только тихо решает, стоит ли передать
       // его оператору с пометкой (см. triageOffScriptMessage).
-      if (userId) {
-        await triageOffScriptMessage({
-          messenger: "max",
-          userId: String(userId),
-          text,
-        });
-      }
+      await Promise.all([
+        crmEnrichment,
+        userId
+          ? triageOffScriptMessage({
+              messenger: "max",
+              userId: String(userId),
+              text,
+            })
+          : Promise.resolve(),
+      ]);
       return;
     }
 
     await dispatch(appCtx, out, texts);
+    await crmEnrichment;
   });
 
   bot.catch((err, ctx) => {

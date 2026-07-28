@@ -1,5 +1,9 @@
+import {
+  createBitrixSessionToken,
+  DASHBOARD_SESSION_COOKIE,
+  verifyAndSavePortalTokens,
+} from "@psi-opora/bitrix-client";
 import { NextResponse } from "next/server";
-import { savePortalTokens } from "@/lib/bitrix/tokens";
 import { MEMBER_ID_COOKIE } from "@/lib/bitrix/session";
 
 interface SessionPayload {
@@ -36,25 +40,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }
 
-  await savePortalTokens({
-    memberId: body.memberId,
-    domain: body.domain,
-    clientEndpoint: body.clientEndpoint,
-    accessToken: body.accessToken,
-    refreshToken: body.refreshToken,
-    expiresAt: body.expiresAt,
-    scope: body.scope ?? "",
-  });
-
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(MEMBER_ID_COOKIE, body.memberId, {
-    httpOnly: true,
-    secure: true,
-    // Приложение открывается во фрейме на другом домене (портал Битрикс24),
-    // поэтому cookie обязательно должна быть SameSite=None.
-    sameSite: "none",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 180,
-  });
-  return response;
+  try {
+    const verified = await verifyAndSavePortalTokens(
+      { ...body, scope: body.scope ?? "" },
+      "dashboard",
+    );
+    const token = createBitrixSessionToken({
+      app: "dashboard",
+      memberId: verified.tokens.memberId,
+      userId: verified.userId,
+      domain: verified.tokens.domain,
+    });
+    const response = NextResponse.json({ ok: true });
+    response.cookies.set(DASHBOARD_SESSION_COOKIE, token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+      maxAge: 60 * 60 * 8,
+    });
+    response.cookies.set(MEMBER_ID_COOKIE, verified.tokens.memberId, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+      maxAge: 60 * 60 * 8,
+    });
+    return response;
+  } catch {
+    return NextResponse.json(
+      { error: "invalid bitrix session" },
+      { status: 401 },
+    );
+  }
 }

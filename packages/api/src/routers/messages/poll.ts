@@ -1,10 +1,10 @@
 import { listBotMessagesSince } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { clientPollSchema } from "../../schemas/messages";
 import { type ClientMessageItem, toClientMessageItem } from "./types";
 
 /** Новые сообщения диалога после `sinceIso` — поллинг открытого диалога в инбоксе. */
-export const poll = publicProcedure
+export const poll = bitrixProcedure
   .input(clientPollSchema)
   .handler(
     async ({

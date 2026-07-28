@@ -49,8 +49,12 @@ export function BitrixFrameProvider({
     if (typeof window === "undefined") return;
 
     if (window.parent === window) {
-      // Открыто напрямую (локальная разработка) — работаем через вебхук из .env.
-      setStatus("standalone");
+      if (process.env.NODE_ENV !== "production") {
+        setStatus("standalone");
+      } else {
+        setError("Приложение доступно только внутри Битрикс24");
+        setStatus("error");
+      }
       return;
     }
 

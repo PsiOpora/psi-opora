@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 const insertBotMessage = mock(() => Promise.resolve());
 mock.module("@psi-opora/db/queries", () => ({
   insertBotMessage,
+  getBitrixCrmLink: () => Promise.resolve(null),
   getBotTextsRecord: () => Promise.resolve({}),
   getBotConnector: () => Promise.resolve(null),
   getBotUserProfile: () => Promise.resolve(null),

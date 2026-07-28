@@ -20,6 +20,7 @@ import {
   sendMessageToOpenLine,
   updateMessageInOpenLine,
 } from "./utils/bitrix";
+import { enrichCrmFromClientMessage } from "./utils/crm-enrichment";
 import { withUserLock } from "./utils/lock";
 import { logBotMessage } from "./utils/message-log";
 import { triageOffScriptMessage } from "./utils/triage";
@@ -399,15 +400,26 @@ export function createBot({
       });
     }
 
-    const state = ctx.session.scenario;
-    if (!state) {
-      if (ctx.from) {
-        await triageOffScriptMessage({
+    const crmEnrichment = ctx.from
+      ? enrichCrmFromClientMessage({
           messenger: "telegram",
           userId: String(ctx.from.id),
           text,
-        });
-      }
+        })
+      : Promise.resolve();
+
+    const state = ctx.session.scenario;
+    if (!state) {
+      await Promise.all([
+        crmEnrichment,
+        ctx.from
+          ? triageOffScriptMessage({
+              messenger: "telegram",
+              userId: String(ctx.from.id),
+              text,
+            })
+          : Promise.resolve(),
+      ]);
       return;
     }
 
@@ -418,17 +430,21 @@ export function createBot({
       // пишет что-то своё, а не то, что просит сценарий) — бот здесь не
       // пытается сам помочь/ответить, только тихо решает, стоит ли передать
       // его оператору с пометкой (см. triageOffScriptMessage).
-      if (ctx.from) {
-        await triageOffScriptMessage({
-          messenger: "telegram",
-          userId: String(ctx.from.id),
-          text,
-        });
-      }
+      await Promise.all([
+        crmEnrichment,
+        ctx.from
+          ? triageOffScriptMessage({
+              messenger: "telegram",
+              userId: String(ctx.from.id),
+              text,
+            })
+          : Promise.resolve(),
+      ]);
       return;
     }
 
     await dispatch(ctx, out, texts);
+    await crmEnrichment;
   });
 
   // Клиент отредактировал уже отправленное сообщение — пересылаем правку

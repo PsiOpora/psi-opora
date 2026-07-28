@@ -1,9 +1,9 @@
 import { setConversationTags } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { setConversationTagsSchema } from "../../schemas/messages";
 
 /** Полностью заменяет теги диалога (пустой массив — снять все). */
-export const setTags = publicProcedure
+export const setTags = bitrixProcedure
   .input(setConversationTagsSchema)
   .handler(async ({ input }): Promise<{ ok: true }> => {
     // Дубликаты убираем на сервере, чтобы фильтры по тегам не «двоились».

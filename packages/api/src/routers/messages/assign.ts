@@ -1,5 +1,5 @@
 import { assignConversation } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { assignConversationSchema } from "../../schemas/messages";
 
 /**
@@ -8,7 +8,7 @@ import { assignConversationSchema } from "../../schemas/messages";
  * сервер их не проверяет: в этой архитектуре нет способа подтвердить личность
  * конкретного пользователя портала иначе, чем уже доверяет весь iframe.
  */
-export const assign = publicProcedure
+export const assign = bitrixProcedure
   .input(assignConversationSchema)
   .handler(async ({ input }): Promise<{ ok: true }> => {
     await assignConversation({

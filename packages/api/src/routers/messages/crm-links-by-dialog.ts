@@ -1,5 +1,5 @@
 import { getBotConnector } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { bitrixDialogSchema } from "../../schemas/messages";
 import { loadCrmLinks } from "./crm-links";
 import type { CrmLinksResult, InboxMessenger } from "./types";
@@ -49,7 +49,7 @@ async function resolveBotMessenger(
  * сначала восстанавливаем внешний userId из диалога Открытой линии, затем
  * используем тот же источник истины bitrix_crm_links, что и единый инбокс.
  */
-export const crmLinksByDialog = publicProcedure
+export const crmLinksByDialog = bitrixProcedure
   .input(bitrixDialogSchema)
   .handler(async ({ input, context }): Promise<CrmLinksResult> => {
     const empty: CrmLinksResult = { contact: null, lead: null, deals: [] };

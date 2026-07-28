@@ -1,6 +1,6 @@
 import { type BitrixApi, getPortalTokens } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { clientThreadSchema } from "../../schemas/messages";
 import { resolveDialogCrmBindings } from "./crm-contact";
 import type { CrmDealLink, CrmLinksResult, InboxMessenger } from "./types";
@@ -173,7 +173,7 @@ export async function loadCrmLinks(
  * для ботов (telegram/max) — своя БД bitrix_crm_links, куда бот сам пишет
  * контакт/сделку при создании; для личных номеров — диалог Открытой линии.
  */
-export const crmLinks = publicProcedure
+export const crmLinks = bitrixProcedure
   .input(clientThreadSchema)
   .handler(async ({ input, context }): Promise<CrmLinksResult> => {
     const empty: CrmLinksResult = { contact: null, lead: null, deals: [] };

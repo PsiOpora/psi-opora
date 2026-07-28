@@ -1,3 +1,4 @@
+import { createMessageMediaSignature } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
 import type { BotMessage, MessageDeliveryStatus } from "@psi-opora/db/queries";
 import type { Messenger } from "@psi-opora/jobs";
@@ -121,6 +122,7 @@ export interface ClientMessageItem {
 /** Общий маппинг строки bot_messages → ClientMessageItem для thread.ts/poll.ts.
  * mediaUrl строится на лету по id сообщения — сырой S3-ключ наружу не отдаётся. */
 export function toClientMessageItem(row: BotMessage): ClientMessageItem {
+  const mediaUrl = row.mediaS3Key ? signedMediaUrl(row.id) : undefined;
   return {
     id: row.id,
     direction: row.direction as "in" | "out",
@@ -132,11 +134,17 @@ export function toClientMessageItem(row: BotMessage): ClientMessageItem {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     kind: row.kind as "text" | "voice",
-    mediaUrl: row.mediaS3Key
-      ? `${env.APP_URL}/api/message-media/${row.id}`
-      : undefined,
+    mediaUrl,
     mediaMimeType: row.mediaMimeType,
     mediaDurationSec: row.mediaDurationSec,
     connectorId: row.connectorId,
   };
+}
+
+function signedMediaUrl(messageId: string): string {
+  const { expires, signature } = createMessageMediaSignature(messageId);
+  const url = new URL(`/api/message-media/${messageId}`, env.APP_URL);
+  url.searchParams.set("expires", String(expires));
+  url.searchParams.set("signature", signature);
+  return url.toString();
 }

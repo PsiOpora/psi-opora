@@ -1,8 +1,8 @@
 import { markConversationRead } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { clientThreadSchema } from "../../schemas/messages";
 
-export const markRead = publicProcedure
+export const markRead = bitrixProcedure
   .input(clientThreadSchema)
   .handler(async ({ input }): Promise<{ ok: true }> => {
     await markConversationRead(input.messenger, input.userId);

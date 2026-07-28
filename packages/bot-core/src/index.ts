@@ -85,6 +85,10 @@ export {
   submitBitrixContact,
   submitConsultationDeal,
 } from "./utils/consultation-deal";
+export {
+  type CrmEnrichmentMessage,
+  enrichCrmFromClientMessage,
+} from "./utils/crm-enrichment";
 export { sendGuideEmail } from "./utils/email";
 export {
   FUNNEL_STEPS,

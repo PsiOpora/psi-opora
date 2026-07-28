@@ -3,7 +3,7 @@ import {
   deleteClientNote,
   listClientNotes,
 } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import {
   addClientNoteSchema,
   clientThreadSchema,
@@ -28,14 +28,14 @@ function toItem(row: {
 }
 
 /** Внутренние заметки по диалогу — клиенту не отправляются. */
-export const notes = publicProcedure
+export const notes = bitrixProcedure
   .input(clientThreadSchema)
   .handler(async ({ input }): Promise<{ notes: ClientNoteItem[] }> => {
     const rows = await listClientNotes(input.messenger, input.userId);
     return { notes: rows.map(toItem) };
   });
 
-export const addNote = publicProcedure
+export const addNote = bitrixProcedure
   .input(addClientNoteSchema)
   .handler(async ({ input }): Promise<{ note: ClientNoteItem | null }> => {
     const row = await addClientNote({
@@ -48,7 +48,7 @@ export const addNote = publicProcedure
     return { note: row ? toItem(row) : null };
   });
 
-export const deleteNote = publicProcedure
+export const deleteNote = bitrixProcedure
   .input(deleteClientNoteSchema)
   .handler(async ({ input }): Promise<{ ok: true }> => {
     await deleteClientNote(input.noteId);

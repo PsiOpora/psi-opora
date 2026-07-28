@@ -3,7 +3,7 @@ import {
   listQuickReplies,
   saveQuickReply as saveQuickReplyQuery,
 } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import {
   deleteQuickReplySchema,
   saveQuickReplySchema,
@@ -19,14 +19,14 @@ function toItem(row: {
 }
 
 /** Быстрые ответы (шаблоны) — общие на всю команду. */
-export const quickReplies = publicProcedure.handler(
+export const quickReplies = bitrixProcedure.handler(
   async (): Promise<{ items: QuickReplyItem[] }> => {
     const rows = await listQuickReplies();
     return { items: rows.map(toItem) };
   },
 );
 
-export const saveQuickReply = publicProcedure
+export const saveQuickReply = bitrixProcedure
   .input(saveQuickReplySchema)
   .handler(async ({ input }): Promise<{ item: QuickReplyItem | null }> => {
     const row = await saveQuickReplyQuery({
@@ -37,7 +37,7 @@ export const saveQuickReply = publicProcedure
     return { item: row ? toItem(row) : null };
   });
 
-export const deleteQuickReply = publicProcedure
+export const deleteQuickReply = bitrixProcedure
   .input(deleteQuickReplySchema)
   .handler(async ({ input }): Promise<{ ok: true }> => {
     await deleteQuickReplyQuery(input.id);
