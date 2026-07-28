@@ -162,7 +162,11 @@ jobs:
       - name: Check Clients Bitrix OAuth credentials
         if: contains(needs.detect.outputs.services, '"clients"')
         run: |
-          for key in CLIENTS_BITRIX_CLIENT_ID CLIENTS_BITRIX_CLIENT_SECRET; do
+          for key in \
+            CLIENTS_BITRIX_CLIENT_ID \
+            CLIENTS_BITRIX_CLIENT_SECRET \
+            BITRIX_MEMBER_ID \
+            DASHBOARD_BITRIX_WEBHOOK_URL; do
             VALUE=$(kubectl get secret psi-opora-env -n psi-opora \
               -o "jsonpath={.data.${key}}" 2>/dev/null || true)
             if [ -z "$VALUE" ]; then

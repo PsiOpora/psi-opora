@@ -2,14 +2,14 @@ import {
   CLIENTS_SESSION_COOKIE,
   createBitrixSessionToken,
   MEMBER_ID_COOKIE,
-  verifyAndSavePortalTokens,
+  verifyPortalAccessToken,
 } from "@psi-opora/bitrix-client";
 import { NextResponse } from "next/server";
 
 /**
  * Привязывает браузер к порталу Битрикс24 через cookie с member_id.
  *
- * В отличие от apps/dashboard, OAuth-токены здесь НЕ сохраняем: приложение
+ * В отличие от apps/dashboard, OAuth-токены здесь не сохраняем: приложение
  * «Диалоги» зарегистрировано на портале отдельным локальным приложением со
  * своим client_id, и если бы оба писали токены под общий ключ
  * `bitrix24:dashboard:portal:{memberId}`, они бы затирали друг друга (refresh
@@ -24,23 +24,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    const verified = await verifyAndSavePortalTokens(
-      {
-        memberId: body.memberId,
-        domain: body.domain,
-        clientEndpoint: body.clientEndpoint,
-        accessToken: body.accessToken,
-        refreshToken: body.refreshToken,
-        expiresAt: body.expiresAt,
-        scope: body.scope,
-      },
-      "clients",
-    );
+    const portalTokens = {
+      memberId: body.memberId,
+      domain: body.domain,
+      clientEndpoint: body.clientEndpoint,
+      accessToken: body.accessToken,
+      refreshToken: body.refreshToken,
+      expiresAt: body.expiresAt,
+      scope: body.scope,
+    };
+    const verified = await verifyPortalAccessToken(portalTokens);
     const token = createBitrixSessionToken({
       app: "clients",
-      memberId: verified.tokens.memberId,
+      memberId: portalTokens.memberId,
       userId: verified.userId,
-      domain: verified.tokens.domain,
+      domain: portalTokens.domain,
     });
     const response = NextResponse.json({ ok: true });
     response.cookies.set(CLIENTS_SESSION_COOKIE, token, {
@@ -62,12 +60,25 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[clients/session] verification failed: ${message}`);
-    const missingCredentials = message.includes("BITRIX_CLIENT_");
+    const missingCredentials =
+      message.includes("не задан") || message.includes("некорректный домен");
+    const code = missingCredentials
+      ? "server_configuration"
+      : message.includes("неизвестный портал")
+        ? "portal_mismatch"
+        : message.includes("домен портала не совпадает")
+          ? "domain_mismatch"
+          : message.includes("app.info")
+            ? "app_rejected"
+            : message.includes("profile")
+              ? "token_rejected"
+              : "oauth_rejected";
     return NextResponse.json(
       {
         error: missingCredentials
-          ? "clients bitrix credentials are not configured"
+          ? "bitrix server configuration is incomplete"
           : "invalid bitrix session",
+        code,
       },
       { status: missingCredentials ? 503 : 401 },
     );

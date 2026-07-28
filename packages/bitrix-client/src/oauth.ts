@@ -65,6 +65,12 @@ interface ProfileResponse {
   error_description?: string;
 }
 
+interface AppInfoResponse {
+  result?: { ID?: string | number; INSTALLED?: boolean };
+  error?: string;
+  error_description?: string;
+}
+
 function normalizedBitrixEndpoint(value: string): URL {
   const url = new URL(value);
   if (url.protocol !== "https:" || url.username || url.password || url.port) {
@@ -74,6 +80,90 @@ function normalizedBitrixEndpoint(value: string): URL {
     throw new Error("Bitrix24 OAuth: некорректный client_endpoint");
   }
   return url;
+}
+
+function configuredPortalHostname(): string {
+  if (!env.DASHBOARD_BITRIX_WEBHOOK_URL) {
+    throw new Error("Bitrix24 session: DASHBOARD_BITRIX_WEBHOOK_URL не задан");
+  }
+  const url = new URL(env.DASHBOARD_BITRIX_WEBHOOK_URL);
+  if (url.protocol !== "https:" || !url.hostname) {
+    throw new Error("Bitrix24 session: некорректный домен портала");
+  }
+  return url.hostname.toLowerCase();
+}
+
+async function callWithAccessToken<T>(
+  endpoint: URL,
+  method: string,
+  accessToken: string,
+): Promise<T> {
+  const base = endpoint.toString().replace(/\/$/, "");
+  const response = await fetch(`${base}/${method}.json`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ auth: accessToken }),
+  });
+  if (!response.ok) {
+    throw new Error(`Bitrix24 ${method}: HTTP ${response.status}`);
+  }
+  return (await response.json()) as T;
+}
+
+/**
+ * Проверяет короткоживущий AUTH_ID, полученный при открытии приложения во
+ * фрейме. Не обновляет refresh_token: SDK Bitrix24 управляет им сам, а
+ * принудительный обмен при каждом открытии создаёт гонку одноразовых токенов.
+ */
+export async function verifyPortalAccessToken(
+  tokens: PortalTokens,
+): Promise<{ userId: string }> {
+  if (!env.BITRIX_MEMBER_ID) {
+    throw new Error("Bitrix24 session: BITRIX_MEMBER_ID не задан");
+  }
+  if (tokens.memberId !== env.BITRIX_MEMBER_ID) {
+    throw new Error("Bitrix24 session: неизвестный портал");
+  }
+
+  const endpoint = normalizedBitrixEndpoint(tokens.clientEndpoint);
+  const expectedHostname = configuredPortalHostname();
+  const claimedHostname = tokens.domain.toLowerCase();
+  if (
+    endpoint.hostname.toLowerCase() !== expectedHostname ||
+    claimedHostname !== expectedHostname
+  ) {
+    throw new Error("Bitrix24 session: домен портала не совпадает");
+  }
+
+  const [profile, appInfo] = await Promise.all([
+    callWithAccessToken<ProfileResponse>(
+      endpoint,
+      "profile",
+      tokens.accessToken,
+    ),
+    callWithAccessToken<AppInfoResponse>(
+      endpoint,
+      "app.info",
+      tokens.accessToken,
+    ),
+  ]);
+
+  if (profile.error || !profile.result?.ID) {
+    throw new Error(
+      `Bitrix24 profile: ${profile.error ?? "invalid_response"} — ${
+        profile.error_description ?? ""
+      }`,
+    );
+  }
+  if (appInfo.error || !appInfo.result?.ID) {
+    throw new Error(
+      `Bitrix24 app.info: ${appInfo.error ?? "invalid_response"} — ${
+        appInfo.error_description ?? ""
+      }`,
+    );
+  }
+
+  return { userId: String(profile.result.ID) };
 }
 
 async function requestRefreshedTokens(

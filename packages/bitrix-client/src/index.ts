@@ -12,6 +12,7 @@ export {
   getValidPortalTokens,
   refreshPortalTokens,
   verifyAndSavePortalTokens,
+  verifyPortalAccessToken,
 } from "./oauth";
 export {
   type BitrixSessionClaims,
