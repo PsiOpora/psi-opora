@@ -13,4 +13,7 @@ export interface SiteCodeEntry {
 export const SITE_CODES: Record<string, SiteCodeEntry> = {
   psi_opora_main: { source: "psi-opora.ru", campaign: "main_banner" },
   psi_opora_footer: { source: "psi-opora.ru", campaign: "footer" },
+  search_anorexia_708811857: { source: "yandex", campaign: "search_anorexia_708811857" },
+  rsya_retarget_anorexia_710733080: { source: "yandex", campaign: "rsya_retarget_anorexia_710733080" },
+  "РК- ОКР по конверсиям": { source: "yandex", campaign: "РК- ОКР по конверсиям" },
 };
