@@ -7,11 +7,19 @@ export interface UtmParams {
 
 export function parseUtmParams(startParam: string | undefined): UtmParams {
   if (!startParam) return {};
-  const entry = SITE_CODES[startParam];
+  let decodedParam = startParam;
+  try {
+    decodedParam = decodeURIComponent(startParam);
+  } catch {
+    // Некорректный percent-encoding не должен ломать запуск бота:
+    // сохраняем исходную метку как раньше.
+  }
+
+  const entry = SITE_CODES[decodedParam];
   if (entry) return { source: entry.source, campaign: entry.campaign };
   // код не зарегистрирован в SITE_CODES — не теряем трафик,
   // трактуем как кампанию по старой схеме, но без источника
-  return { campaign: startParam };
+  return { campaign: decodedParam };
 }
 
 export function buildStartLink(botUsername: string, code: string): string {
