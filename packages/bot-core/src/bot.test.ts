@@ -11,9 +11,17 @@ interface LoggedMessage {
   text: string;
 }
 const insertBotMessage = mock((entry: LoggedMessage) => Promise.resolve(entry));
-mock.module("@psi-opora/db/queries.edge", () => ({
+mock.module("@psi-opora/db/queries", () => ({
   insertBotMessage,
   getBotTextsRecord: () => Promise.resolve({}),
+  getBotConnector: () => Promise.resolve(null),
+  getBotUserProfile: () => Promise.resolve(null),
+  getConversationMeta: () => Promise.resolve(null),
+  addClientNote: () => Promise.resolve(null),
+  addConversationTag: () => Promise.resolve(),
+  upsertBotFunnelEvent: () => Promise.resolve(),
+  upsertBitrixCrmLink: () => Promise.resolve(),
+  upsertBotUser: () => Promise.resolve(),
 }));
 
 const { createBot } = await import("./bot");

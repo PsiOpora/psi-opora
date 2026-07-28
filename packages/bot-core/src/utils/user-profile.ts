@@ -1,4 +1,4 @@
-import { upsertBotUser } from "@psi-opora/db/queries.edge";
+import { upsertBotUser } from "@psi-opora/db/queries";
 
 export interface BotUserProfileInput {
   messenger: string;

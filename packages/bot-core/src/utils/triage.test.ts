@@ -21,10 +21,17 @@ let nextMeta: ConversationMeta = null;
 const getConversationMeta = mock(() => Promise.resolve(nextMeta));
 const addClientNote = mock(() => Promise.resolve(null));
 const addConversationTag = mock(() => Promise.resolve());
-mock.module("@psi-opora/db/queries.edge", () => ({
+mock.module("@psi-opora/db/queries", () => ({
   addClientNote,
   addConversationTag,
   getConversationMeta,
+  insertBotMessage: () => Promise.resolve(),
+  getBotTextsRecord: () => Promise.resolve({}),
+  getBotConnector: () => Promise.resolve(null),
+  getBotUserProfile: () => Promise.resolve(null),
+  upsertBotFunnelEvent: () => Promise.resolve(),
+  upsertBitrixCrmLink: () => Promise.resolve(),
+  upsertBotUser: () => Promise.resolve(),
 }));
 
 const { triageOffScriptMessage } = await import("./triage");

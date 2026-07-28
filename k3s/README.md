@@ -1,8 +1,9 @@
 # Деплой в k3s
 
 Манифесты — по одному файлу на сервис (Deployment + Service, где сервису нужен
-входящий трафик). `waha.yaml`, `minio.yaml` и `redis.yaml` дополнительно
-содержат постоянные тома (сессии WhatsApp / файлы MinIO / данные Redis) —
+входящий трафик). `waha.yaml`, `minio.yaml`, `redis.yaml` и `postgres.yaml`
+дополнительно содержат постоянные тома (сессии WhatsApp / файлы MinIO /
+данные Redis / PostgreSQL) —
 без них данные пропадут при пересоздании пода.
 
 Образы для tg-bot/max-bot/tg-userbot-worker/hatchet-worker/bitrix-webhook/dashboard/clients
@@ -71,6 +72,78 @@ kubectl apply -f k3s/namespace.yaml
 # REDIS_PASSWORD=<случайный-длинный-пароль>
 kubectl create secret generic psi-opora-env --from-env-file=.env --namespace psi-opora
 ```
+
+### PostgreSQL 18.4
+
+PostgreSQL хранит данные на PVC 20 Gi и доступен приложениям по адресу
+`postgres:5432`. Для внешнего администрирования открыт `SERVER_IP:30432`;
+внешние подключения без TLS отклоняются.
+
+До первого `kubectl apply` создайте отдельный пароль и TLS-сертификат.
+Сертификат должен содержать IP или DNS-имя сервера в `subjectAltName`:
+
+```bash
+export POSTGRES_USER=psi_opora
+export POSTGRES_DB=psi_opora
+export POSTGRES_PASSWORD="$(openssl rand -base64 36 | tr -d '\n')"
+export SERVER_IP=38.49.213.197
+
+openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
+  -keyout /tmp/postgres-tls.key -out k3s/postgres-ca.crt \
+  -subj "/CN=$SERVER_IP" \
+  -addext "subjectAltName=IP:$SERVER_IP"
+
+kubectl create secret generic postgres-tls -n psi-opora \
+  --from-file=tls.crt=k3s/postgres-ca.crt \
+  --from-file=tls.key=/tmp/postgres-tls.key
+rm /tmp/postgres-tls.key
+
+ENCODED_PASSWORD="$(printf '%s' "$POSTGRES_PASSWORD" | jq -sRr @uri)"
+INTERNAL_URL="postgresql://$POSTGRES_USER:$ENCODED_PASSWORD@postgres:5432/$POSTGRES_DB?sslmode=disable"
+kubectl create secret generic postgres-credentials -n psi-opora \
+  --from-literal=POSTGRES_USER="$POSTGRES_USER" \
+  --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  --from-literal=POSTGRES_DB="$POSTGRES_DB" \
+  --from-literal=POSTGRES_URL="$INTERNAL_URL"
+
+kubectl apply -f k3s/postgres.yaml
+kubectl rollout status statefulset/postgres -n psi-opora --timeout=180s
+```
+
+Публичный URL для клиента:
+
+```text
+postgresql://psi_opora:<URL_ENCODED_PASSWORD>@38.49.213.197:30432/psi_opora?sslmode=verify-full
+```
+
+Передавайте `k3s/postgres-ca.crt` клиенту как root certificate. Сам порт
+лучше дополнительно ограничить в firewall списком доверенных IP.
+
+### Одноразовый перенос из Neon
+
+На короткое окно финального переноса остановите приложения, которые пишут
+в БД. Исходный URL хранится только во временном Secret и после миграции
+удаляется:
+
+```bash
+kubectl scale deployment -n psi-opora \
+  tg-bot max-bot tg-userbot-worker hatchet-worker bitrix-webhook dashboard clients \
+  --replicas=0
+
+kubectl create secret generic neon-migration-source -n psi-opora \
+  --from-literal=POSTGRES_URL="$NEON_POSTGRES_URL"
+kubectl delete job neon-to-postgres -n psi-opora --ignore-not-found
+kubectl apply -f k3s/migrations/neon-to-postgres-job.yaml
+kubectl wait --for=condition=complete job/neon-to-postgres \
+  -n psi-opora --timeout=10m
+kubectl logs job/neon-to-postgres -n psi-opora
+kubectl delete secret neon-migration-source -n psi-opora
+```
+
+После проверки замените `POSTGRES_URL` в `psi-opora-env` на значение
+`POSTGRES_URL` из `postgres-credentials`, верните реплики приложений и
+обновите одноимённый GitHub Actions Secret (для сборки dashboard/clients).
+Neon не удаляйте до проверки таблиц, авторизации и работы всех ботов.
 
 Все поды получают секретные переменные через `envFrom.secretRef` — секрет
 общий, как `env_file: .env` в docker-compose. Адрес `redis:6379` приложения
@@ -155,6 +228,7 @@ notes и миграции на тестовом окружении.
 
 ```bash
 kubectl apply -f k3s/
+kubectl rollout status statefulset/postgres -n psi-opora --timeout=180s
 kubectl rollout status statefulset/redis -n psi-opora --timeout=120s
 kubectl rollout status deployment/hatchet-worker -n psi-opora --timeout=180s
 ```
@@ -229,6 +303,7 @@ GitHub Actions) новый под должен полностью поднять
 | waha            | 30050    | 3000              |
 | minio (API)     | 30900    | 9000              |
 | minio (консоль) | 30901    | 9001              |
+| postgres (TLS)  | 30432    | 5432              |
 
 Grafana торчит через `IngressRoute` (см. "Домены" ниже), без NodePort.
 

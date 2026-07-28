@@ -1,4 +1,4 @@
-import { upsertBitrixCrmLink } from "@psi-opora/db/queries.edge";
+import { upsertBitrixCrmLink } from "@psi-opora/db/queries";
 import { bitrixPost, getBotId, getEnv } from "./client";
 import {
   buildContactFields,

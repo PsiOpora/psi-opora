@@ -26,11 +26,10 @@ import {
   withUserLock,
 } from "@psi-opora/bot-core";
 import { logger } from "@psi-opora/config";
-import { upsertBotFunnelEvent } from "@psi-opora/db/queries.edge";
+import { upsertBotFunnelEvent } from "@psi-opora/db/queries";
 import { uploadMaxAvatar, uploadMaxMedia } from "./avatar-storage.js";
 
-// MAX-бот деплоится на Vercel Edge Runtime — используем neon-http через @psi-opora/db/queries.edge
-// (node-postgres недоступен в Edge, т.к. требует Node.js API: net, tls, dns)
+// MAX-бот работает в Node.js-поде k3s и подключается к обычному PostgreSQL.
 setFunnelUpsert(upsertBotFunnelEvent);
 
 export const log = (msg: string) => {

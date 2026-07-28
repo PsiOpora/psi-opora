@@ -141,6 +141,15 @@ jobs:
             exit 1
           fi
 
+      - name: Check PostgreSQL secrets
+        run: |
+          for secret in postgres-credentials postgres-tls; do
+            if ! kubectl get "secret/$secret" -n psi-opora >/dev/null 2>&1; then
+              echo "::error::В namespace psi-opora отсутствует secret/$secret"
+              exit 1
+            fi
+          done
+
       - name: Check Hatchet Cloud client token
         run: |
           VALUE=$(kubectl get secret psi-opora-env -n psi-opora \
@@ -150,14 +159,16 @@ jobs:
             exit 1
           fi
 
-      - name: Apply Redis and application configuration
+      - name: Apply PostgreSQL, Redis and application configuration
         run: |
+          kubectl apply -f k3s/postgres.yaml
           kubectl apply -f k3s/redis.yaml
           kubectl apply -f k3s/hatchet-worker.yaml
           for service in tg-bot max-bot tg-userbot-worker hatchet-worker bitrix-webhook dashboard clients; do
             kubectl patch "deployment/$service" -n psi-opora --type=strategic \
               -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"$service\",\"envFrom\":[{\"secretRef\":{\"name\":\"psi-opora-env\"}},{\"configMapRef\":{\"name\":\"redis-connection\"}}]}]}}}}"
           done
+          kubectl rollout status statefulset/postgres -n psi-opora --timeout=180s
           kubectl rollout status statefulset/redis -n psi-opora --timeout=120s
 
   deploy:

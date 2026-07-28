@@ -1,4 +1,4 @@
-import { upsertBotFunnelEvent as upsertEdge } from "@psi-opora/db/queries.edge";
+import { upsertBotFunnelEvent as upsertPostgres } from "@psi-opora/db/queries";
 import {
   createRedisClient,
   isRedisConfigured,
@@ -7,7 +7,7 @@ import {
 
 /**
  * Тип функции upsert для событий воронки.
- * Позволяет подменять реализацию (edge vs node) через setFunnelUpsert.
+ * Позволяет подменять реализацию через setFunnelUpsert в тестах и приложениях.
  */
 export type UpsertFunnelFn = (data: {
   day: string;
@@ -18,10 +18,9 @@ export type UpsertFunnelFn = (data: {
 }) => Promise<void>;
 
 /**
- * По умолчанию используется edge-версия (neon-http) — подходит для TG webhook.
- * MAX-бот (Node.js runtime) вызывает setFunnelUpsert с node-версией при старте.
+ * По умолчанию используется Node.js-драйвер обычного PostgreSQL.
  */
-let _upsertFn: UpsertFunnelFn = upsertEdge;
+let _upsertFn: UpsertFunnelFn = upsertPostgres;
 
 /**
  * Устанавливает функцию upsert для событий воронки.
