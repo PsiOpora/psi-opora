@@ -14,38 +14,52 @@ export {
   saveBotTextsSchema,
 } from "./bot";
 export {
-  LARGE_AUDIENCE_THRESHOLD,
-  MESSAGE_MAX_LENGTH,
-  resendFailedSchema,
-  type SendBroadcastInput,
-  sendBroadcastSchema,
-  type SendEmailCampaignInput,
-  sendEmailCampaignSchema,
-  type SendTestEmailInput,
-  sendTestEmailSchema,
-  type SendTestMessageInput,
-  sendTestMessageSchema,
-  type SendWidgetMessageInput,
-  sendWidgetMessageSchema,
-  templatePreviewSchema,
-  widgetPollSchema,
-  widgetRecipientSchema,
-} from "./broadcast";
-export {
   type ActivateBotConnectorInput,
   activateBotConnectorSchema,
   type DeactivateBotConnectorInput,
   deactivateBotConnectorSchema,
 } from "./bot-connector";
+export {
+  LARGE_AUDIENCE_THRESHOLD,
+  MESSAGE_MAX_LENGTH,
+  resendFailedSchema,
+  type SendBroadcastInput,
+  type SendEmailCampaignInput,
+  type SendTestEmailInput,
+  type SendTestMessageInput,
+  type SendWidgetMessageInput,
+  sendBroadcastSchema,
+  sendEmailCampaignSchema,
+  sendTestEmailSchema,
+  sendTestMessageSchema,
+  sendWidgetMessageSchema,
+  templatePreviewSchema,
+  widgetPollSchema,
+  widgetRecipientSchema,
+} from "./broadcast";
 export { type AddCostInput, addCostSchema } from "./costs";
+export {
+  type AssignConversationInput,
+  assignConversationSchema,
+  type BitrixDialogInput,
+  bitrixDialogSchema,
+  type ClientPollInput,
+  type ClientThreadInput,
+  clientPollSchema,
+  clientThreadSchema,
+  type ListClientsInput,
+  listClientsSchema,
+  type SendClientMessageInput,
+  sendClientMessageSchema,
+} from "./messages";
 export {
   type DisconnectTelegramPersonalInput,
   disconnectTelegramPersonalSchema,
   type StartTelegramLoginInput,
-  startTelegramLoginSchema,
   type SubmitTelegramCodeInput,
-  submitTelegramCodeSchema,
   type SubmitTelegramPasswordInput,
+  startTelegramLoginSchema,
+  submitTelegramCodeSchema,
   submitTelegramPasswordSchema,
 } from "./telegram-personal";
 export {
@@ -60,15 +74,3 @@ export {
   type StartWhatsappLoginInput,
   startWhatsappLoginSchema,
 } from "./whatsapp-personal";
-export {
-  type AssignConversationInput,
-  assignConversationSchema,
-  type ClientPollInput,
-  clientPollSchema,
-  type ClientThreadInput,
-  clientThreadSchema,
-  type ListClientsInput,
-  listClientsSchema,
-  type SendClientMessageInput,
-  sendClientMessageSchema,
-} from "./messages";

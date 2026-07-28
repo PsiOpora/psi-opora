@@ -3,7 +3,7 @@ import { env } from "@psi-opora/config";
 import { publicProcedure } from "../../orpc";
 import { clientThreadSchema } from "../../schemas/messages";
 import { resolveDialogCrmBindings } from "./crm-contact";
-import type { CrmDealLink, CrmLinksResult } from "./types";
+import type { CrmDealLink, CrmLinksResult, InboxMessenger } from "./types";
 
 /**
  * Домен портала для прямых ссылок на карточки CRM: из OAuth-токенов портала,
@@ -31,7 +31,9 @@ function crmUrl(
   entity: "contact" | "deal" | "lead",
   id: string,
 ): string | null {
-  return domain ? `${domain}/crm/${entity}/details/${id}/` : null;
+  if (!domain) return null;
+  const origin = /^https?:\/\//i.test(domain) ? domain : `https://${domain}`;
+  return `${origin.replace(/\/$/, "")}/crm/${entity}/details/${id}/`;
 }
 
 /** STATUS_ID → NAME для всех воронок сделок (DEAL_STAGE, DEAL_STAGE_2, …). */
@@ -70,6 +72,99 @@ interface RawDeal {
 
 const DEALS_LIMIT = 10;
 
+export async function loadCrmLinks(
+  api: BitrixApi,
+  memberId: string | null,
+  messenger: InboxMessenger,
+  userId: string,
+): Promise<CrmLinksResult> {
+  const domain = await resolvePortalDomain(memberId);
+
+  let { contactId, dealId, leadId } = await resolveDialogCrmBindings(
+    api,
+    memberId,
+    messenger,
+    userId,
+  );
+
+  // Диалог знает сделку, но не контакт (или наоборот) — достраиваем связь.
+  if (!contactId && dealId) {
+    const deal = await api
+      .call<RawDeal>("crm.deal.get", { id: dealId })
+      .catch(() => null);
+    contactId = deal?.CONTACT_ID ? String(deal.CONTACT_ID) : null;
+  }
+
+  const contact = contactId
+    ? await api
+        .call<{ NAME?: string; SECOND_NAME?: string; LAST_NAME?: string }>(
+          "crm.contact.get",
+          { id: contactId },
+        )
+        .then((raw) => ({
+          id: contactId as string,
+          name:
+            [raw?.NAME, raw?.LAST_NAME].filter(Boolean).join(" ") ||
+            `Контакт #${contactId}`,
+          url: crmUrl(domain, "contact", contactId as string),
+        }))
+        .catch(() => null)
+    : null;
+
+  const lead = leadId
+    ? await api
+        .call<{ TITLE?: string }>("crm.lead.get", { id: leadId })
+        .then((raw) => ({
+          id: leadId as string,
+          title: raw?.TITLE ?? `Лид #${leadId}`,
+          url: crmUrl(domain, "lead", leadId as string),
+        }))
+        .catch(() => null)
+    : null;
+
+  let rawDeals: RawDeal[] = [];
+  if (contactId) {
+    rawDeals = await api.list<RawDeal>("crm.deal.list", {
+      filter: { CONTACT_ID: contactId },
+      select: [
+        "ID",
+        "TITLE",
+        "STAGE_ID",
+        "OPPORTUNITY",
+        "CURRENCY_ID",
+        "CLOSED",
+      ],
+      order: { ID: "DESC" },
+    });
+  } else if (dealId) {
+    const deal = await api
+      .call<RawDeal>("crm.deal.get", { id: dealId })
+      .catch(() => null);
+    if (deal) rawDeals = [deal];
+  }
+
+  let deals: CrmDealLink[] = [];
+  if (rawDeals.length > 0) {
+    const stageNames = await loadDealStageNames(api);
+    deals = rawDeals.slice(0, DEALS_LIMIT).map((deal) => {
+      const id = String(deal.ID ?? "");
+      return {
+        id,
+        title: deal.TITLE || `Сделка #${id}`,
+        stageName: deal.STAGE_ID
+          ? (stageNames[deal.STAGE_ID] ?? deal.STAGE_ID)
+          : null,
+        opportunity: deal.OPPORTUNITY ?? null,
+        currencyId: deal.CURRENCY_ID ?? null,
+        closed: deal.CLOSED === "Y",
+        url: crmUrl(domain, "deal", id),
+      };
+    });
+  }
+
+  return { contact, lead, deals };
+}
+
 /**
  * CRM-привязки диалога: контакт, лид и сделки клиента в Битрикс24 с прямыми
  * ссылками на карточки — для панели профиля в инбоксе «Клиенты».
@@ -89,91 +184,12 @@ export const crmLinks = publicProcedure
     }
 
     try {
-      const domain = await resolvePortalDomain(context.memberId);
-
-      let { contactId, dealId, leadId } = await resolveDialogCrmBindings(
+      return await loadCrmLinks(
         api,
         context.memberId,
         input.messenger,
         input.userId,
       );
-
-      // Диалог знает сделку, но не контакт (или наоборот) — достраиваем связь.
-      if (!contactId && dealId) {
-        const deal = await api
-          .call<RawDeal>("crm.deal.get", { id: dealId })
-          .catch(() => null);
-        contactId = deal?.CONTACT_ID ? String(deal.CONTACT_ID) : null;
-      }
-
-      const contact = contactId
-        ? await api
-            .call<{ NAME?: string; SECOND_NAME?: string; LAST_NAME?: string }>(
-              "crm.contact.get",
-              { id: contactId },
-            )
-            .then((raw) => ({
-              id: contactId as string,
-              name:
-                [raw?.NAME, raw?.LAST_NAME].filter(Boolean).join(" ") ||
-                `Контакт #${contactId}`,
-              url: crmUrl(domain, "contact", contactId as string),
-            }))
-            .catch(() => null)
-        : null;
-
-      const lead = leadId
-        ? await api
-            .call<{ TITLE?: string }>("crm.lead.get", { id: leadId })
-            .then((raw) => ({
-              id: leadId as string,
-              title: raw?.TITLE ?? `Лид #${leadId}`,
-              url: crmUrl(domain, "lead", leadId as string),
-            }))
-            .catch(() => null)
-        : null;
-
-      let rawDeals: RawDeal[] = [];
-      if (contactId) {
-        rawDeals = await api.list<RawDeal>("crm.deal.list", {
-          filter: { CONTACT_ID: contactId },
-          select: [
-            "ID",
-            "TITLE",
-            "STAGE_ID",
-            "OPPORTUNITY",
-            "CURRENCY_ID",
-            "CLOSED",
-          ],
-          order: { ID: "DESC" },
-        });
-      } else if (dealId) {
-        const deal = await api
-          .call<RawDeal>("crm.deal.get", { id: dealId })
-          .catch(() => null);
-        if (deal) rawDeals = [deal];
-      }
-
-      let deals: CrmDealLink[] = [];
-      if (rawDeals.length > 0) {
-        const stageNames = await loadDealStageNames(api);
-        deals = rawDeals.slice(0, DEALS_LIMIT).map((deal) => {
-          const id = String(deal.ID ?? "");
-          return {
-            id,
-            title: deal.TITLE || `Сделка #${id}`,
-            stageName: deal.STAGE_ID
-              ? (stageNames[deal.STAGE_ID] ?? deal.STAGE_ID)
-              : null,
-            opportunity: deal.OPPORTUNITY ?? null,
-            currencyId: deal.CURRENCY_ID ?? null,
-            closed: deal.CLOSED === "Y",
-            url: crmUrl(domain, "deal", id),
-          };
-        });
-      }
-
-      return { contact, lead, deals };
     } catch (err) {
       return { ...empty, error: (err as Error).message };
     }

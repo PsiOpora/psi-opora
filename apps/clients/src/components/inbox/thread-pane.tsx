@@ -2,6 +2,7 @@
 
 import type { ClientListItem, InboxMessenger } from "@psi-opora/api";
 import {
+  LinkIcon,
   Loader2Icon,
   MessageSquareIcon,
   PanelRightCloseIcon,
@@ -10,6 +11,7 @@ import {
   UserCheckIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { ClientAvatar } from "@/components/inbox/client-avatar";
 import {
   MessageList,
@@ -20,6 +22,7 @@ import { messengerLabel } from "@/components/inbox/messenger-meta";
 import { QuickReplies } from "@/components/inbox/quick-replies";
 import { MessageComposer } from "@/components/messaging/message-composer";
 import { Button } from "@/components/ui/button";
+import { buildDialogLink, copyText } from "@/lib/dialog-link";
 import { orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
 
@@ -254,6 +257,20 @@ export function ThreadPane({
     });
   };
 
+  const copyDialogLink = async () => {
+    if (!selected) return;
+    const link = buildDialogLink(selected, window.location);
+
+    try {
+      await copyText(link);
+      toast.success("Ссылка на диалог скопирована", {
+        description: "Отправьте её боту для анализа переписки.",
+      });
+    } catch {
+      toast.error("Не удалось скопировать ссылку");
+    }
+  };
+
   if (!selected) {
     return (
       <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -283,6 +300,10 @@ export function ThreadPane({
               : " · Без ответственного"}
           </p>
         </div>
+        <Button variant="outline" size="sm" onClick={copyDialogLink}>
+          <LinkIcon data-icon="inline-start" />
+          Ссылка для анализа
+        </Button>
         {operator && client?.assignedOperatorId !== operator.id && (
           <Button
             variant="outline"

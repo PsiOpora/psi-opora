@@ -18,6 +18,7 @@ import {
 const PLACEMENTS = [
   { code: "CRM_DEAL_DETAIL_TAB", label: "Карточка сделки" },
   { code: "CRM_CONTACT_DETAIL_TAB", label: "Карточка контакта" },
+  { code: "IM_SIDEBAR", label: "Сайдбар чата" },
 ] as const;
 
 const TAB_TITLE = "Мессенджер";
@@ -36,9 +37,9 @@ const PLACEMENT_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * Регистрация вкладки «Мессенджер» в карточках CRM Битрикс24 (placement.bind).
- * Работает только внутри фрейма портала: bind/unbind выполняются от имени
- * приложения, вебхуком их вызвать нельзя.
+ * Регистрация вкладки «Мессенджер» в карточках CRM и CRM-блока в сайдбаре
+ * чата Битрикс24 (placement.bind). Работает только внутри фрейма портала:
+ * bind/unbind выполняются от имени приложения, вебхуком их вызвать нельзя.
  */
 export function CrmWidgetsCard() {
   const { b24, status } = useB24Frame();
@@ -92,11 +93,24 @@ export function CrmWidgetsCard() {
             params: {
               PLACEMENT: code,
               HANDLER: handlerUrl(),
-              TITLE: TAB_TITLE,
+              TITLE: code === "IM_SIDEBAR" ? "CRM" : TAB_TITLE,
               LANG_ALL: {
-                ru: { TITLE: TAB_TITLE },
-                en: { TITLE: "Messenger" },
+                ru: { TITLE: code === "IM_SIDEBAR" ? "CRM" : TAB_TITLE },
+                en: {
+                  TITLE: code === "IM_SIDEBAR" ? "CRM" : "Messenger",
+                },
               },
+              ...(code === "IM_SIDEBAR"
+                ? {
+                    OPTIONS: {
+                      iconName: "fa-address-card",
+                      context: "ALL",
+                      role: "USER",
+                      color: "AQUA",
+                      extranet: "N",
+                    },
+                  }
+                : {}),
             },
             requestId: Text.getUuidRfc4122(),
           });
@@ -174,7 +188,8 @@ export function CrmWidgetsCard() {
         <CardDescription>
           Добавляет в карточки сделки и контакта Битрикс24 вкладку, из которой
           менеджер может написать клиенту через бота Telegram или MAX — канал
-          определяется по полям контакта.
+          определяется по полям контакта. В чатах ботов добавляет постоянный
+          CRM-блок со ссылками на контакт и сделки.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -235,10 +250,10 @@ export function CrmWidgetsCard() {
             {allRows !== null && allRows.length > 0 && (
               <div className="flex flex-col gap-2">
                 <p className="text-xs text-muted-foreground">
-                  Все привязки вкладки «Мессенджер» на портале — если для
-                  одного места встраивания есть больше одной строки, лишние
-                  (с адресом, отличным от текущего) создают дубли вкладок в
-                  карточке CRM. Отвяжите их здесь.
+                  Все привязки вкладки «Мессенджер» на портале — если для одного
+                  места встраивания есть больше одной строки, лишние (с адресом,
+                  отличным от текущего) создают дубли вкладок в карточке CRM.
+                  Отвяжите их здесь.
                 </p>
                 <div className="flex flex-col gap-1.5">
                   {allRows.map((row) => {

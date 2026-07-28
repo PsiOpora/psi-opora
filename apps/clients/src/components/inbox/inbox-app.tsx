@@ -1,7 +1,7 @@
 "use client";
 
-import type { ClientListItem } from "@psi-opora/api";
 import { Text } from "@bitrix24/b24jssdk";
+import type { ClientListItem } from "@psi-opora/api";
 import {
   keepPreviousData,
   useQuery,
@@ -23,6 +23,10 @@ import {
 } from "@/components/inbox/thread-pane";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  parseDialogReference,
+  replaceDialogInCurrentUrl,
+} from "@/lib/dialog-link";
 import { orpc, orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +49,16 @@ export function InboxApp() {
   const [selected, setSelected] = useState<SelectedClient | null>(null);
   const [showProfile, setShowProfile] = useState(true);
   const [notificationsOn, setNotificationsOn] = useState(false);
+
+  // Глубокая ссылка, скопированная из заголовка треда, сразу открывает
+  // нужный диалог. Пара messenger + userId — тот же составной ключ, по
+  // которому сообщения хранятся и запрашиваются в API.
+  useEffect(() => {
+    const reference = parseDialogReference(
+      new URLSearchParams(window.location.search),
+    );
+    if (reference) setSelected(reference);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(
@@ -128,7 +142,12 @@ export function InboxApp() {
 
   const openClient = useCallback(
     (item: ClientListItem) => {
-      setSelected({ messenger: item.messenger, userId: item.userId });
+      const reference = {
+        messenger: item.messenger,
+        userId: item.userId,
+      };
+      setSelected(reference);
+      replaceDialogInCurrentUrl(reference);
       if (!item.unread) return;
       orpcClient.messages
         .markRead({ messenger: item.messenger, userId: item.userId })

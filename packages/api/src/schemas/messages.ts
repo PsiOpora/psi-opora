@@ -21,6 +21,11 @@ export const clientThreadSchema = z.object({
 });
 export type ClientThreadInput = z.infer<typeof clientThreadSchema>;
 
+export const bitrixDialogSchema = z.object({
+  dialogId: z.string().regex(/^chat\d+$/, "Некорректный ID диалога Bitrix24"),
+});
+export type BitrixDialogInput = z.infer<typeof bitrixDialogSchema>;
+
 export const clientPollSchema = z.object({
   messenger: inboxMessengerSchema,
   userId: z.string(),
