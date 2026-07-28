@@ -1,0 +1,9 @@
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
+CLAUDE_CODE_ATTRIBUTION_HEADER = "0"
+
+[mcp_servers.bitrix24]
+url = "https://mcp-dev.bitrix24.tech/mcp"
