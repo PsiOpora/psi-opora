@@ -9,9 +9,9 @@ import {
   UserRoundIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useB24Frame } from "@/components/bitrix/frame-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useB24Frame } from "@/components/bitrix/frame-provider";
 import { orpcClient } from "@/lib/orpc/client";
 
 function formatOpportunity(
