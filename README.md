@@ -8,7 +8,7 @@ CRM/маркетинга и интеграция всей переписки с 
 | Путь                          | Что это                                                                 |
 | ------------------------------ | ------------------------------------------------------------------------ |
 | `apps/tg-bot`                 | Официальный бот Telegram (Bot API, grammy)                              |
-| `apps/max-bot`                | Официальный бот MAX (Bot API, деплой на Vercel Edge)                     |
+| `apps/max-bot`                | Официальный бот MAX (Bot API, Node.js-под в k3s)                         |
 | `apps/dashboard`              | Bitrix24-приложение: аналитика, рассылки, настройки интеграций          |
 | `apps/bitrix-webhook`         | Приём вебхуков от Bitrix24 (ответы оператора, обновления сделок)         |
 | `apps/tg-userbot-worker`      | Always-on процесс для личных номеров Telegram (см. ниже)                |
@@ -16,7 +16,7 @@ CRM/маркетинга и интеграция всей переписки с 
 | `packages/bot-core`           | Общая логика сценария ботов, CRM-хелперы (webhook-транспорт)             |
 | `packages/bitrix-client`      | OAuth-клиент Bitrix24 (`resolveBitrixApi`) для методов, требующих app context |
 | `packages/tg-userbot`         | MTProto-клиент (mtcute) для личных номеров Telegram                      |
-| `packages/db`                 | Drizzle-схемы и запросы (Postgres/Neon)                                  |
+| `packages/db`                 | Drizzle-схемы и запросы PostgreSQL                                       |
 | `packages/api`                | oRPC-роутеры дашборда                                                    |
 
 ## Четыре способа завести переписку в Открытую линию Bitrix24
@@ -52,10 +52,10 @@ line/connector ID и никакого ручного запуска скрипт
      `set-webhook.ts`.
 - На горячем пути (`sendMessageToOpenLine`, `packages/bot-core/src/utils/bitrix/openline.ts`)
   бот читает `connectorId`/`openLineId` из той же таблицы `bot_connectors`
-  (через `@psi-opora/db/queries.edge` — работает и в Node (`apps/tg-bot`), и в
-  Edge (`apps/max-bot`)), а OAuth-клиент для самого вызова `imconnector.send.messages`
-  резолвится один раз при холодном старте: `apps/tg-bot/api/webhook.ts` и
-  `apps/max-bot/api/webhook.ts` вызывают `resolveBitrixApi(env.BITRIX_MEMBER_ID)`
+  (через `@psi-opora/db/queries`, драйвер `node-postgres`), а OAuth-клиент
+  для самого вызова `imconnector.send.messages` резолвится при старте бота:
+  `apps/tg-bot/src/server.ts` и `apps/max-bot/src/server.ts` вызывают
+  `resolveBitrixApi(env.BITRIX_MEMBER_ID)`
   (`packages/bitrix-client`) и передают его в `createBot`/`createMaxBot` как `bitrixApi`.
 - Ответ оператора приходит в `apps/bitrix-webhook` вебхуком
   (событие `ONIMCONNECTORMESSAGEADD`) и пересылается обратно клиенту через

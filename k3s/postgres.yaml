@@ -1,0 +1,195 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: psi-opora
+data:
+  pg_hba.conf: |
+    local   all  all                              trust
+    host    all  all  127.0.0.1/32                scram-sha-256
+    host    all  all  ::1/128                     scram-sha-256
+    hostnossl all all 10.42.0.0/16                scram-sha-256
+    hostssl all  all  0.0.0.0/0                   scram-sha-256
+    hostssl all  all  ::/0                        scram-sha-256
+    host    all  all  0.0.0.0/0                   reject
+    host    all  all  ::/0                        reject
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: psi-opora
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+# Внешний TCP-доступ для администрирования и CI. PostgreSQL сам завершает
+# TLS и отклоняет незашифрованные подключения извне кластера (см. pg_hba.conf).
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-external
+  namespace: psi-opora
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      nodePort: 30432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: psi-opora
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: postgres
+          image: postgres:18.4-trixie
+          imagePullPolicy: IfNotPresent
+          args:
+            - -c
+            - hba_file=/etc/postgresql/pg_hba.conf
+            - -c
+            - ssl=on
+            - -c
+            - ssl_cert_file=/etc/postgresql/tls/tls.crt
+            - -c
+            - ssl_key_file=/etc/postgresql/tls/tls.key
+            - -c
+            - password_encryption=scram-sha-256
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_DB
+            - name: POSTGRES_INITDB_ARGS
+              value: --auth-host=scram-sha-256 --data-checksums
+            - name: PGDATA
+              value: /var/lib/postgresql/18/docker
+          ports:
+            - name: postgres
+              containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+            - name: config
+              mountPath: /etc/postgresql/pg_hba.conf
+              subPath: pg_hba.conf
+              readOnly: true
+            - name: tls
+              mountPath: /etc/postgresql/tls
+              readOnly: true
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: config
+          configMap:
+            name: postgres-config
+        - name: tls
+          secret:
+            secretName: postgres-tls
+            defaultMode: 0440
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgres
+  namespace: psi-opora
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: postgres
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres
+  namespace: psi-opora
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: psi-opora
+      ports:
+        - protocol: TCP
+          port: 5432
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 5432

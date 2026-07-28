@@ -4,7 +4,18 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 // не пытался открыть настоящее сетевое соединение — только так можно
 // проверить, что он передаёт в insertBotMessage корректные аргументы.
 const insertBotMessage = mock(() => Promise.resolve());
-mock.module("@psi-opora/db/queries.edge", () => ({ insertBotMessage }));
+mock.module("@psi-opora/db/queries", () => ({
+  insertBotMessage,
+  getBotTextsRecord: () => Promise.resolve({}),
+  getBotConnector: () => Promise.resolve(null),
+  getBotUserProfile: () => Promise.resolve(null),
+  getConversationMeta: () => Promise.resolve(null),
+  addClientNote: () => Promise.resolve(null),
+  addConversationTag: () => Promise.resolve(),
+  upsertBotFunnelEvent: () => Promise.resolve(),
+  upsertBitrixCrmLink: () => Promise.resolve(),
+  upsertBotUser: () => Promise.resolve(),
+}));
 
 const { logBotMessage } = await import("./message-log");
 

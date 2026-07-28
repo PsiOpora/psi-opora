@@ -4,7 +4,7 @@ import {
   addClientNote,
   addConversationTag,
   getConversationMeta,
-} from "@psi-opora/db/queries.edge";
+} from "@psi-opora/db/queries";
 import { generateObject } from "ai";
 import { z } from "zod";
 

@@ -5,7 +5,7 @@
  * Используется в TG и MAX ботах.
  */
 
-import { getBotUserProfile } from "@psi-opora/db/queries.edge";
+import { getBotUserProfile } from "@psi-opora/db/queries";
 import { createBitrixContact, createBitrixDeal, type ContactData, type DealData } from "./bitrix";
 import { type FunnelEventContext, trackFunnelStep } from "./funnel";
 

@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: neon-to-postgres
+  namespace: psi-opora
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: neon-to-postgres
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: postgres:18.4-trixie
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+          args:
+            - |
+              echo "Экспорт Neon..."
+              pg_dump "$NEON_POSTGRES_URL" \
+                --format=custom \
+                --no-owner \
+                --no-acl \
+                --file=/tmp/neon.dump
+
+              echo "Восстановление в PostgreSQL..."
+              pg_restore \
+                --dbname="$TARGET_POSTGRES_URL" \
+                --clean \
+                --if-exists \
+                --no-owner \
+                --no-acl \
+                --exit-on-error \
+                /tmp/neon.dump
+
+              echo "Проверка количества пользовательских таблиц..."
+              psql "$TARGET_POSTGRES_URL" \
+                --set=ON_ERROR_STOP=1 \
+                --tuples-only \
+                --command="select count(*) from pg_tables where schemaname not in ('pg_catalog', 'information_schema');"
+          env:
+            - name: NEON_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: neon-migration-source
+                  key: POSTGRES_URL
+            - name: TARGET_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi

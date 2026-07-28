@@ -1,4 +1,4 @@
-import { insertBotMessage } from "@psi-opora/db/queries.edge";
+import { insertBotMessage } from "@psi-opora/db/queries";
 
 export type BotMessageDirection = "in" | "out";
 export type BotMessageSource = "scenario" | "reminder" | "widget" | "broadcast";

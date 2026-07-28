@@ -1,5 +1,5 @@
 import { decryptSecret } from "@psi-opora/config";
-import { getBotConnector } from "@psi-opora/db/queries.edge";
+import { getBotConnector } from "@psi-opora/db/queries";
 
 /**
  * Токен бота вводится в UI при подключении канала (хранится зашифрованным в

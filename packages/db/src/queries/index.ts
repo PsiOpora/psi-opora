@@ -1,6 +1,5 @@
 /**
- * Node.js запросы к БД (использует node-postgres или neon-http в зависимости от env).
- * Для Edge Runtime используйте @psi-opora/db/queries.edge
+ * Node.js запросы к PostgreSQL. В k3s используется драйвер node-postgres.
  */
 import { db } from "../client";
 import {

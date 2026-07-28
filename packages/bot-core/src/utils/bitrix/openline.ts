@@ -1,4 +1,4 @@
-import { getBotConnector } from "@psi-opora/db/queries.edge";
+import { getBotConnector } from "@psi-opora/db/queries";
 import { bitrixPost } from "./client";
 import type { BitrixApiLike } from "./types";
 

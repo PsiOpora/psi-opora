@@ -422,7 +422,7 @@ async function getOverrides(): Promise<Record<string, string>> {
   try {
     // Ленивый импорт: клиент БД падает при загрузке без POSTGRES_URL,
     // а дефолтные тексты и defs нужны и без базы (дашборд, тесты)
-    const { getBotTextsRecord } = await import("@psi-opora/db/queries.edge");
+    const { getBotTextsRecord } = await import("@psi-opora/db/queries");
     cachedOverrides = await getBotTextsRecord();
     cachedAt = now;
     return cachedOverrides;
