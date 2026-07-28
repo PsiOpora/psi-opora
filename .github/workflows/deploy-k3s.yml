@@ -159,6 +159,18 @@ jobs:
             exit 1
           fi
 
+      - name: Check Clients Bitrix OAuth credentials
+        if: contains(fromJSON(needs.changes.outputs.apps), 'clients')
+        run: |
+          for key in CLIENTS_BITRIX_CLIENT_ID CLIENTS_BITRIX_CLIENT_SECRET; do
+            VALUE=$(kubectl get secret psi-opora-env -n psi-opora \
+              -o "jsonpath={.data.${key}}" 2>/dev/null || true)
+            if [ -z "$VALUE" ]; then
+              echo "::error::secret/psi-opora-env не содержит $key для приложения clients"
+              exit 1
+            fi
+          done
+
       - name: Apply PostgreSQL, Redis and application configuration
         run: |
           kubectl apply -f k3s/postgres.yaml

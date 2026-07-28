@@ -59,10 +59,17 @@ export async function POST(request: Request) {
       maxAge: 0,
     });
     return response;
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[clients/session] verification failed: ${message}`);
+    const missingCredentials = message.includes("BITRIX_CLIENT_");
     return NextResponse.json(
-      { error: "invalid bitrix session" },
-      { status: 401 },
+      {
+        error: missingCredentials
+          ? "clients bitrix credentials are not configured"
+          : "invalid bitrix session",
+      },
+      { status: missingCredentials ? 503 : 401 },
     );
   }
 }
