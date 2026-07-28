@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
-    "@types/node": "26.1.1",
+    "@types/node": "26.1.2",
     "dotenv": "^17.4.2",
     "esbuild": "^0.28.1",
     "tsdown": "^0.22.14",
