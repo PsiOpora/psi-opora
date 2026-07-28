@@ -115,17 +115,56 @@ function fieldValues(contact: RawContact, codes: string[]): string[] {
   return out;
 }
 
+/**
+ * В IMOL Bitrix24 второй сегмент — не стандартизованное имя мессенджера,
+ * а ID коннектора. У наших каналов это, например, `psiopora_max_bot` и
+ * `psiopora_tg_bot`, у старых записей встречаются также просто `max`,
+ * `telegram` и `tg`.
+ *
+ * Сначала используем точные ID из окружения, затем безопасные алиасы:
+ * алиас должен быть отдельным сегментом ID, поэтому `maximum` не будет
+ * ошибочно распознан как MAX.
+ */
+export function messengerByConnectorId(connectorId: string): Messenger | null {
+  const normalized = connectorId.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const configured: Array<[string | undefined, Messenger]> = [
+    [process.env.TG_BITRIX_CONNECTOR_ID, "telegram"],
+    [process.env.MAX_BITRIX_CONNECTOR_ID, "max"],
+  ];
+  for (const [id, messenger] of configured) {
+    if (id?.trim().toLowerCase() === normalized) return messenger;
+  }
+
+  const segments = normalized.split(/[^a-z0-9а-яё]+/u).filter(Boolean);
+  if (
+    normalized === "telegram" ||
+    normalized === "tg" ||
+    segments.includes("telegram") ||
+    segments.includes("tg")
+  ) {
+    return "telegram";
+  }
+  if (normalized === "max" || segments.includes("max")) return "max";
+  return null;
+}
+
 function imValues(contact: RawContact, messenger: Messenger): string[] {
   return (contact.IM ?? [])
     .filter((im) => im.VALUE)
     .flatMap((im) => {
+      const value = im.VALUE.trim();
       const valueType = im.VALUE_TYPE?.toLowerCase() ?? "";
-      if (valueType === messenger) return [im.VALUE.trim()];
+      if (valueType === messenger) return [value];
       // Открытые линии Bitrix24 хранят мессенджер в IMOL-поле:
-      // imol|<messenger>|<openLineId>|<userId>|<chatId>
-      if (valueType === "imol" && im.VALUE.trim().startsWith("imol|")) {
-        const parts = im.VALUE.trim().split("|");
-        if (parts[1]?.toLowerCase() === messenger && parts[3]?.trim()) {
+      // imol|<connectorId>|<openLineId>|<userId>|<chatId>
+      if (valueType === "imol" && value.toLowerCase().startsWith("imol|")) {
+        const parts = value.split("|");
+        if (
+          messengerByConnectorId(parts[1] ?? "") === messenger &&
+          parts[3]?.trim()
+        ) {
           return [parts[3].trim()];
         }
       }
