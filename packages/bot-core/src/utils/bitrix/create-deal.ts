@@ -7,18 +7,21 @@ import {
 } from "./contact";
 import { buildDealFields, linkBitrixTrace } from "./deal";
 import { resolveOpenLineDialog } from "./openline";
-import type { DealData } from "./types";
+import type { ContactData, DealData } from "./types";
 
-export async function createBitrixDeal(
-  data: DealData,
-): Promise<{ contactId: number; dealId: number }> {
+/**
+ * Создаёт или дополняет контакт сразу после того, как клиент оставил email
+ * либо телефон. Сделку намеренно не создаёт: она появляется только после
+ * завершения соответствующего сценария.
+ */
+export async function createBitrixContact(data: ContactData): Promise<number> {
   const messenger = data.messenger ?? "telegram";
   const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
   if (!webhookUrl) {
     console.warn(
       `[bitrix] BITRIX_WEBHOOK_URL не задан для ${messenger}, пропускаем`,
     );
-    return { contactId: 0, dealId: 0 };
+    return 0;
   }
 
   // Автосоздание сделки трекером Открытой линии отключено в настройках
@@ -86,18 +89,7 @@ export async function createBitrixDeal(
     }
   }
 
-  const dealId = await bitrixPost<number>(
-    "crm.deal.add",
-    {
-      fields: buildDealFields(data, contactId),
-    },
-    messenger,
-  );
-  console.log(
-    `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
-  );
-
-  // Запоминаем контакт/сделку в своей БД — панель CRM в «Клиенты»
+  // Запоминаем контакт в своей БД — панель CRM в «Клиенты»
   // (packages/api/src/routers/messages/crm-links.ts) резолвит их отсюда,
   // а не через imopenlines.dialog.get: entity_data_2 заполняет только
   // трекер Открытой линии при автосоздании сущностей, а мы теперь всегда
@@ -108,15 +100,12 @@ export async function createBitrixDeal(
         messenger,
         userId: String(data.telegramUserId),
         contactId: String(contactId),
-        dealId: String(dealId),
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[bitrix] не удалось сохранить связку CRM в БД: ${message}`);
     }
   }
-
-  await linkBitrixTrace(messenger, contactId, dealId, data);
 
   // Привязка чата к контакту нужна, только если контакт не от трекера линии
   // (свой чат трекер привязывает сам при создании).
@@ -141,5 +130,41 @@ export async function createBitrixDeal(
     }
   }
 
+  return contactId;
+}
+
+export async function createBitrixDeal(
+  data: DealData,
+): Promise<{ contactId: number; dealId: number }> {
+  const messenger = data.messenger ?? "telegram";
+  const contactId = await createBitrixContact(data);
+  if (!contactId) return { contactId: 0, dealId: 0 };
+
+  const dealId = await bitrixPost<number>(
+    "crm.deal.add",
+    {
+      fields: buildDealFields(data, contactId),
+    },
+    messenger,
+  );
+  console.log(
+    `[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
+  );
+
+  if (data.telegramUserId) {
+    try {
+      await upsertBitrixCrmLink({
+        messenger,
+        userId: String(data.telegramUserId),
+        contactId: String(contactId),
+        dealId: String(dealId),
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[bitrix] не удалось сохранить связку CRM в БД: ${message}`);
+    }
+  }
+
+  await linkBitrixTrace(messenger, contactId, dealId, data);
   return { contactId, dealId };
 }

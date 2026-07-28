@@ -1,5 +1,5 @@
 import { bitrixPost, getSourceId } from "./client";
-import type { DealData } from "./types";
+import type { ContactData } from "./types";
 
 // Привязка мессенджера в карточке контакта — мультиполе IM с типом OPENLINE
 // и значением `imol|{connector}|{line}|{chat_id}|{внутренний id чата Bitrix}`
@@ -11,7 +11,7 @@ import type { DealData } from "./types";
 // `imol === null` — привязку не добавлять вовсе (контакт создан трекером
 // линии: Bitrix уже проставил IM сам, повторная передача без ID мультиполя
 // добавила бы дублирующую строку).
-export function buildMessengerLinkFields(data: DealData, imol?: string | null) {
+export function buildMessengerLinkFields(data: ContactData, imol?: string | null) {
   if (imol === null) return null;
   if (imol) {
     return { IM: [{ VALUE: imol, VALUE_TYPE: "OPENLINE" }] };
@@ -33,7 +33,7 @@ export function buildMessengerLinkFields(data: DealData, imol?: string | null) {
  * читаемый комментарий для карточки контакта — Bitrix не заводит под них
  * отдельных полей, поэтому это просто текстовая справка для оператора.
  */
-function buildProfileComment(data: DealData): string | undefined {
+function buildProfileComment(data: ContactData): string | undefined {
   const lines = [
     data.username && `Username: @${data.username}`,
     data.languageCode && `Язык интерфейса: ${data.languageCode}`,
@@ -43,12 +43,12 @@ function buildProfileComment(data: DealData): string | undefined {
   return lines.length ? `Профиль в мессенджере:\n${lines.join("\n")}` : undefined;
 }
 
-export function buildContactFields(data: DealData, imol?: string | null) {
+export function buildContactFields(data: ContactData, imol?: string | null) {
   const messenger = data.messenger ?? "telegram";
   const profileComment = buildProfileComment(data);
   return {
     NAME: data.name,
-    PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
+    ...(data.phone ? { PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }] } : {}),
     ...(data.email
       ? { EMAIL: [{ VALUE: data.email, VALUE_TYPE: "WORK" }] }
       : {}),
@@ -88,7 +88,7 @@ async function findContactIdByComm(
  * как раньше.
  */
 export async function findExistingContactId(
-  data: DealData,
+  data: ContactData,
 ): Promise<number | null> {
   const messenger = data.messenger ?? "telegram";
   try {

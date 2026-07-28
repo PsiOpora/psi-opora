@@ -21,6 +21,7 @@ export {
   type ScenarioAction,
   type ScenarioAudience,
   type ScenarioButton,
+  type ScenarioContact,
   type ScenarioIssue,
   type ScenarioLead,
   type ScenarioMessage,
@@ -63,7 +64,9 @@ export type { AppContext, ConsultationSession } from "./types/context";
 export {
   type BitrixApiLike,
   type BitrixSource,
+  createBitrixContact,
   createBitrixDeal,
+  type ContactData,
   type DealData,
   listBitrixSources,
   mirrorOperatorMessageToOpenLine,
@@ -76,6 +79,8 @@ export {
 } from "./utils/bitrix";
 export {
   type SubmitDealParams,
+  type SubmitContactParams,
+  submitBitrixContact,
   submitConsultationDeal,
 } from "./utils/consultation-deal";
 export {
@@ -107,6 +112,7 @@ export {
   type UtmParams,
 } from "./utils/utm";
 export { hasPhoneNumber, isValidEmail } from "./utils/validation";
+export { sendGuideEmail } from "./utils/email";
 export { withUserLock } from "./utils/lock";
 export {
   triageOffScriptMessage,

@@ -12,7 +12,11 @@ import {
 } from "@/components/ui/card";
 import { orpc } from "@/lib/orpc/client";
 import { BotTextsForm } from "./bot-texts-form";
-import { DeleteGuideButton, SetActiveGuideButton } from "./guide-actions";
+import {
+  DeleteGuideButton,
+  SendTestGuideButton,
+  SetActiveGuideButton,
+} from "./guide-actions";
 import { GuideUploadForm } from "./guide-upload-form";
 
 function groupDefs(
@@ -92,6 +96,7 @@ function GuidesLibraryCard({
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
+                    <SendTestGuideButton id={guide.id} title={guide.title} />
                     {!isActive && (
                       <SetActiveGuideButton id={guide.id} title={guide.title} />
                     )}

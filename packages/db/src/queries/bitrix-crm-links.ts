@@ -33,7 +33,9 @@ export async function upsertBitrixCrmLink(
       target: bitrixCrmLinks.id,
       set: {
         contactId: entry.contactId,
-        dealId: entry.dealId,
+        // Ранняя фиксация контакта (например, после email) не должна
+        // стирать уже привязанную сделку.
+        ...(entry.dealId !== undefined ? { dealId: entry.dealId } : {}),
         updatedAt: new Date(),
       },
     });

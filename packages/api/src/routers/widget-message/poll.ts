@@ -43,6 +43,7 @@ export const poll = publicProcedure
             const rows = await listBotMessagesSince(
               channel.messenger,
               channel.userId,
+              since,
             ).catch(() => []);
             return rows.map((row) => ({
               id: row.id,

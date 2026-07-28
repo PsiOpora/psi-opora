@@ -235,6 +235,7 @@ describe("флоу гайда: ветка «трудности с ребенко
       t.lead_magnet,
       t.phone_question,
     ]);
+    expect(out.contact).toEqual({ email: "parent@example.com" });
   });
 
   test("кнопка «без email» ведёт сразу к телефону", async () => {

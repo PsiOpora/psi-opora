@@ -1,4 +1,4 @@
-export { createBitrixDeal } from "./create-deal";
+export { createBitrixContact, createBitrixDeal } from "./create-deal";
 export {
   mirrorOperatorMessageToOpenLine,
   type OpenLineConnector,
@@ -13,4 +13,4 @@ export {
   listBitrixSources,
   registerBitrixSource,
 } from "./sources";
-export type { BitrixApiLike, DealData } from "./types";
+export type { BitrixApiLike, ContactData, DealData } from "./types";

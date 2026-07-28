@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -14,7 +15,92 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { orpc } from "@/lib/orpc/client";
+
+export function SendTestGuideButton({
+  id,
+  title,
+}: {
+  id: string;
+  title: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const mutation = useMutation(
+    orpc.bot.sendTestGuide.mutationOptions({
+      onSuccess: () => {
+        setOpen(false);
+        setEmail("");
+        toast.success("Тестовый гайд отправлен");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Не удалось отправить тестовый гайд");
+      },
+    }),
+  );
+
+  const send = () => {
+    const recipient = email.trim();
+    if (!recipient) {
+      toast.error("Укажите email получателя");
+      return;
+    }
+    mutation.mutate({ id, email: recipient });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="outline" size="sm">
+          Отправить тест
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Отправить тестовый гайд</DialogTitle>
+          <DialogDescription>
+            «{title}» будет отправлен выбранному получателю как вложение PDF.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-2">
+          <Label htmlFor={`test-guide-email-${id}`}>Email получателя</Label>
+          <Input
+            id={`test-guide-email-${id}`}
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") send();
+            }}
+            placeholder="name@example.com"
+            autoComplete="email"
+            disabled={mutation.isPending}
+          />
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            onClick={send}
+            disabled={mutation.isPending || !email.trim()}
+          >
+            {mutation.isPending ? "Отправляем…" : "Отправить"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function SetActiveGuideButton({
   id,

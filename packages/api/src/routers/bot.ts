@@ -4,7 +4,9 @@ import {
   GUIDE_FILE_SIZE_KEY,
   GUIDE_FILE_URL_KEY,
   SCENARIO_TEXT_DEFS,
+  sendGuideEmail,
 } from "@psi-opora/bot-core";
+import { env } from "@psi-opora/config";
 import {
   deleteBotGuide,
   getBotGuide,
@@ -14,7 +16,11 @@ import {
 } from "@psi-opora/db/queries";
 import { deleteGuidePdf } from "../guide-storage";
 import { publicProcedure, router } from "../orpc";
-import { guideIdSchema, saveBotTextsSchema } from "../schemas/bot";
+import {
+  guideIdSchema,
+  saveBotTextsSchema,
+  sendTestGuideSchema,
+} from "../schemas/bot";
 
 export const botRouter = router({
   getTexts: publicProcedure.handler(async () => {
@@ -52,6 +58,26 @@ export const botRouter = router({
         [GUIDE_FILE_URL_KEY]: guide.fileUrl,
         [GUIDE_FILE_SIZE_KEY]: String(guide.fileSize),
       });
+      return { ok: true };
+    }),
+
+  /** Отправляет выбранный PDF на один адрес для проверки письма и вложения. */
+  sendTestGuide: publicProcedure
+    .input(sendTestGuideSchema)
+    .handler(async ({ input }) => {
+      if (!env.EMAIL_SANDBOX_ENABLED && !env.UNISENDER_API_KEY) {
+        throw new Error("Unisender не настроен: добавьте UNISENDER_API_KEY");
+      }
+
+      const guide = await getBotGuide(input.id);
+      if (!guide) throw new Error("Гайд не найден");
+
+      await sendGuideEmail(
+        input.email,
+        { url: guide.fileUrl, name: guide.fileName },
+        `Тестовый гайд: ${guide.title}`,
+        `Во вложении — тестовая отправка гайда «${guide.title}».`,
+      );
       return { ok: true };
     }),
 

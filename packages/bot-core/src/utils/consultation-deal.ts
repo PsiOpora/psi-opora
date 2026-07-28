@@ -6,7 +6,7 @@
  */
 
 import { getBotUserProfile } from "@psi-opora/db/queries.edge";
-import { createBitrixDeal, type DealData } from "./bitrix";
+import { createBitrixContact, createBitrixDeal, type ContactData, type DealData } from "./bitrix";
 import { type FunnelEventContext, trackFunnelStep } from "./funnel";
 
 export interface SubmitDealParams {
@@ -26,6 +26,27 @@ export interface SubmitDealParams {
   flow?: DealData["flow"];
   audience?: DealData["audience"];
   issue?: DealData["issue"];
+}
+
+export interface SubmitContactParams extends Omit<ContactData, "name"> {
+  name?: string;
+}
+
+/** Сохраняет email-контакт в CRM, не создавая сделку до завершения сценария. */
+export async function submitBitrixContact(
+  params: SubmitContactParams,
+): Promise<number | null> {
+  try {
+    const contactId = await createBitrixContact({
+      ...params,
+      name: params.name?.trim() || "Клиент из бота",
+    });
+    return contactId || null;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[bitrix] ошибка создания контакта (${params.messenger}): ${message}`);
+    return null;
+  }
 }
 
 /**

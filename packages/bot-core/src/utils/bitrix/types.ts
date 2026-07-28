@@ -16,9 +16,10 @@ export interface BitrixApiLike {
   ): Promise<T>;
 }
 
-export interface DealData {
+/** Данные, достаточные для создания/обновления контакта в Bitrix24. */
+export interface ContactData {
   name: string;
-  phone: string;
+  phone?: string;
   email?: string;
   campaign?: string;
   source?: string;
@@ -28,6 +29,16 @@ export interface DealData {
    * нужен, чтобы через USER_CODE найти диалог Bitrix и созданные по нему
    * трекером Открытой линии контакт/сделку (см. resolveOpenLineDialog). */
   chatId?: number;
+  /** Ниже — доп. данные профиля из мессенджера (bot_users), для карточки контакта. */
+  username?: string;
+  languageCode?: string;
+  isPremium?: boolean;
+  bio?: string;
+}
+
+/** Контакт плюс данные, необходимые для создания сделки. */
+export interface DealData extends ContactData {
+  phone: string;
   /** Дополнительный комментарий к сделке (выбор пользователя в сценарии). */
   comment?: string;
   /** Ветка сценария (см. scenario/engine.ts) — попадает в заголовок и «Продукт». */
@@ -36,9 +47,4 @@ export interface DealData {
   audience?: "child" | "self";
   /** Выбор в флоу гайда: с чем связаны трудности. */
   issue?: "eating" | "ocd" | "other";
-  /** Ниже — доп. данные профиля из мессенджера (bot_users), для карточки контакта. */
-  username?: string;
-  languageCode?: string;
-  isPremium?: boolean;
-  bio?: string;
 }

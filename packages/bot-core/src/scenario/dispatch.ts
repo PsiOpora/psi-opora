@@ -1,6 +1,9 @@
 import type { Redis } from "@upstash/redis";
 import { appendDealComment } from "../utils/bitrix";
-import { submitConsultationDeal } from "../utils/consultation-deal";
+import {
+  submitBitrixContact,
+  submitConsultationDeal,
+} from "../utils/consultation-deal";
 import { sendGuideEmail } from "../utils/email";
 import { trackFunnelStep } from "../utils/funnel";
 import { logBotMessage } from "../utils/message-log";
@@ -100,6 +103,23 @@ export async function dispatchScenarioOutput(
     // Мутируем state по ссылке: адаптер уже положил его в сессию,
     // и сессия сохранится после завершения обработчика
     if (dealId) out.state.dealId = dealId;
+  }
+
+  if (out.contact) {
+    const contactId = await submitBitrixContact({
+      name: deps.userName,
+      email: out.contact.email,
+      messenger: deps.messenger,
+      telegramUserId: deps.userId,
+      chatId: deps.chatId,
+      source: deps.source,
+      campaign: deps.campaign,
+    });
+    if (contactId) {
+      console.log(
+        `[SCENARIO] контакт создан id=${contactId} email=${out.contact.email} user=${deps.userId} messenger=${deps.messenger}`,
+      );
+    }
   }
 
   if (out.subscribeChoice && out.state.dealId) {

@@ -84,6 +84,11 @@ export interface ScenarioLead {
   issue?: ScenarioIssue;
 }
 
+/** Контакт, который нужно сохранить в CRM без создания сделки. */
+export interface ScenarioContact {
+  email: string;
+}
+
 export interface ScenarioOutput {
   state: ScenarioState;
   messages: ScenarioMessage[];
@@ -91,6 +96,8 @@ export interface ScenarioOutput {
   track: FunnelStep[];
   /** Заявка для передачи менеджеру (сделка в Bitrix). */
   lead?: ScenarioLead;
+  /** Контакт с подтверждённым email, но ещё без завершённой заявки. */
+  contact?: ScenarioContact;
   /** Ответ на вопрос о рассылке — уходит комментарием в сделку. */
   subscribeChoice?: "yes" | "no";
   /** true — ждём ответа пользователя (при молчании сработает напоминание). */

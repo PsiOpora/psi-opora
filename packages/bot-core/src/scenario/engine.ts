@@ -18,6 +18,7 @@ import type { ScenarioTexts } from "./texts";
 import type {
   ScenarioAction,
   ScenarioAudience,
+  ScenarioContact,
   ScenarioIssue,
   ScenarioLead,
   ScenarioMessage,
@@ -50,6 +51,7 @@ export {
   type ScenarioAction,
   type ScenarioAudience,
   type ScenarioButton,
+  type ScenarioContact,
   type ScenarioFlow,
   type ScenarioIssue,
   type ScenarioLead,
@@ -66,7 +68,7 @@ function output(
   state: ScenarioState,
   messages: ScenarioMessage[],
   extra: Partial<
-    Pick<ScenarioOutput, "track" | "lead" | "subscribeChoice">
+    Pick<ScenarioOutput, "track" | "lead" | "contact" | "subscribeChoice">
   > = {},
 ): ScenarioOutput {
   return {
@@ -74,6 +76,7 @@ function output(
     messages,
     track: extra.track ?? [],
     lead: extra.lead,
+    contact: extra.contact,
     subscribeChoice: extra.subscribeChoice,
     awaitingInput: state.step !== "done",
   };
@@ -107,11 +110,12 @@ function askForPhone(
   t: ScenarioTexts,
   precedingMessages: ScenarioMessage[] = [],
   track: FunnelStep[] = [],
+  contact?: ScenarioContact,
 ): ScenarioOutput {
   return output(
     { ...fresh(state), step: "phone" },
     [...precedingMessages, phoneQuestion(t)],
-    { track },
+    { track, contact },
   );
 }
 
@@ -374,6 +378,7 @@ export async function applyScenarioText(
           t,
           [{ text: t.lead_magnet, guide: true }],
           ["email"],
+          { email: text },
         );
       }
       const attempts = (state.emailAttempts ?? 0) + 1;
