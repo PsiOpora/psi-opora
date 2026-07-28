@@ -1,7 +1,7 @@
 import {
   ConcurrencyLimitStrategy,
   CreateTaskWorkflow,
-} from "@hatchet-dev/typescript-sdk";
+} from "@hatchet-dev/typescript-sdk/v1";
 import {
   type Messenger,
   SEND_INTERVAL_MS,

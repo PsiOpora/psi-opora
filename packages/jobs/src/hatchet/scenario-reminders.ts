@@ -1,4 +1,4 @@
-import { CreateTaskWorkflow } from "@hatchet-dev/typescript-sdk";
+import { CreateTaskWorkflow } from "@hatchet-dev/typescript-sdk/v1";
 import {
   type ConsultationSession,
   createRedisClient,

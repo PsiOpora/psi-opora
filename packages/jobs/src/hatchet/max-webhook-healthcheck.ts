@@ -1,4 +1,4 @@
-import { CreateTaskWorkflow } from "@hatchet-dev/typescript-sdk";
+import { CreateTaskWorkflow } from "@hatchet-dev/typescript-sdk/v1";
 import { resolveMaxBotToken } from "@psi-opora/bot-core";
 import { RUSSIAN_TRUSTED_ROOT_CA } from "../certs/russian-trusted-ca";
 import { fetchWithCa } from "../fetch-with-ca";

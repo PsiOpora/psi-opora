@@ -1,7 +1,7 @@
 import {
   ConcurrencyLimitStrategy,
   CreateTaskWorkflow,
-} from "@hatchet-dev/typescript-sdk";
+} from "@hatchet-dev/typescript-sdk/v1";
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
 import { executeCrmBackup } from "../backup";

@@ -1,12 +1,12 @@
-import Hatchet from "@hatchet-dev/typescript-sdk";
+import { HatchetClient } from "@hatchet-dev/typescript-sdk/v1";
 
-let client: Hatchet | undefined;
+let client: HatchetClient | undefined;
 
 /**
  * Создаём клиент лениво: @psi-opora/jobs импортируется и во время next build,
  * когда runtime-секрет HATCHET_CLIENT_TOKEN намеренно недоступен.
  */
-export function getHatchetClient(): Hatchet {
-  client ??= Hatchet.init();
+export function getHatchetClient(): HatchetClient {
+  client ??= HatchetClient.init();
   return client;
 }

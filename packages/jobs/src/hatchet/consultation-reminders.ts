@@ -1,4 +1,4 @@
-import { CreateTaskWorkflow } from "@hatchet-dev/typescript-sdk";
+import { CreateTaskWorkflow } from "@hatchet-dev/typescript-sdk/v1";
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import { createRedisClient } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";

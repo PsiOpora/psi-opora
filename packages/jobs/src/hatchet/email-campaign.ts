@@ -1,7 +1,7 @@
 import {
   ConcurrencyLimitStrategy,
   CreateTaskWorkflow,
-} from "@hatchet-dev/typescript-sdk";
+} from "@hatchet-dev/typescript-sdk/v1";
 
 export type DeliverEmailCampaignPayload = {
   campaignId: string;
