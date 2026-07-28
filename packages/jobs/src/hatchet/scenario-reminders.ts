@@ -48,6 +48,6 @@ export const scenarioReminders = CreateTaskWorkflow({
       });
     }
 
-    return results;
+    console.info("[scenario-reminders] завершено", results);
   },
 });

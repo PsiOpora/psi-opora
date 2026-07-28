@@ -6,12 +6,12 @@ import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
 import { executeCrmBackup } from "../backup";
 
-export interface CrmBackupPayload {
+export type CrmBackupPayload = {
   /** member_id портала Bitrix24 (OAuth); без него — dev-вебхук из env. */
   memberId?: string;
   /** id уже созданной записи в backup_runs (см. runBackupNowAction). */
   runId?: string;
-}
+};
 
 const backupConcurrency = {
   expression: "'crm-backup'",
@@ -31,7 +31,7 @@ export const crmBackup = CreateTaskWorkflow({
   fn: async (payload: CrmBackupPayload) => {
     const api = resolveBitrixApi(payload.memberId);
     if (!api) throw new Error("Bitrix24 не подключён");
-    return executeCrmBackup(api, payload.runId);
+    await executeCrmBackup(api, payload.runId);
   },
 });
 
@@ -51,6 +51,6 @@ export const crmBackupSchedule = CreateTaskWorkflow({
   fn: async () => {
     const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
     if (!api) throw new Error("Bitrix24 не подключён");
-    return executeCrmBackup(api);
+    await executeCrmBackup(api);
   },
 });

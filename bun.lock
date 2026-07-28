@@ -125,6 +125,18 @@
         "typescript": "6.0.3",
       },
     },
+    "apps/hatchet-worker": {
+      "name": "@psi-opora/hatchet-worker",
+      "version": "0.0.1",
+      "dependencies": {
+        "@psi-opora/jobs": "workspace:*",
+      },
+      "devDependencies": {
+        "@psi-opora/tsconfig": "workspace:*",
+        "@types/node": "26.1.1",
+        "typescript": "6.0.3",
+      },
+    },
     "apps/max-bot": {
       "name": "@psi-opora/max-bot",
       "version": "0.0.2",
@@ -850,6 +862,8 @@
     "@psi-opora/emails": ["@psi-opora/emails@workspace:packages/emails"],
 
     "@psi-opora/github": ["@psi-opora/github@workspace:tooling/github"],
+
+    "@psi-opora/hatchet-worker": ["@psi-opora/hatchet-worker@workspace:apps/hatchet-worker"],
 
     "@psi-opora/jobs": ["@psi-opora/jobs@workspace:packages/jobs"],
 

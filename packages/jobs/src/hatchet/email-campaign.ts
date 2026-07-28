@@ -3,9 +3,9 @@ import {
   CreateTaskWorkflow,
 } from "@hatchet-dev/typescript-sdk";
 
-export interface DeliverEmailCampaignPayload {
+export type DeliverEmailCampaignPayload = {
   campaignId: string;
-}
+};
 
 // Ограничение размера пачки importContacts — держим запросы небольшими,
 // чтобы не упереться в лимит тела запроса Unisender (32 МБ) на крупных стадиях.

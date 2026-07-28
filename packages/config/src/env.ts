@@ -97,8 +97,13 @@ export const env = createEnv({
     // Cron
     CRON_SECRET: z.string().optional(),
 
-    // Trigger.dev (фоновые задания — рассылки)
-    TRIGGER_SECRET_KEY: z.string().optional(),
+    // Hatchet (фоновые задания и cron-задачи)
+    HATCHET_CLIENT_TOKEN: z.string().optional(),
+    HATCHET_CLIENT_HOST_PORT: z.string().optional(),
+    HATCHET_CLIENT_API_URL: z.string().optional(),
+    HATCHET_CLIENT_TLS_STRATEGY: z
+      .enum(["tls", "mtls", "none"])
+      .optional(),
 
     // OpenRouter (LLM-подстраховка на шаге «имя» в сценарии бота — см.
     // packages/bot-core/src/utils/llm-extract.ts). Без ключа шаг работает
@@ -166,7 +171,10 @@ export const env = createEnv({
     WA_PERSONAL_CONNECTOR_ID: process.env.WA_PERSONAL_CONNECTOR_ID,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     CRON_SECRET: process.env.CRON_SECRET,
-    TRIGGER_SECRET_KEY: process.env.TRIGGER_SECRET_KEY,
+    HATCHET_CLIENT_TOKEN: process.env.HATCHET_CLIENT_TOKEN,
+    HATCHET_CLIENT_HOST_PORT: process.env.HATCHET_CLIENT_HOST_PORT,
+    HATCHET_CLIENT_API_URL: process.env.HATCHET_CLIENT_API_URL,
+    HATCHET_CLIENT_TLS_STRATEGY: process.env.HATCHET_CLIENT_TLS_STRATEGY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     OPENROUTER_MODEL: process.env.OPENROUTER_MODEL,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,

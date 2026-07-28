@@ -21,32 +21,6 @@ spec:
       port: 6379
       targetPort: redis
 ---
-apiVersion: traefik.io/v1alpha1
-kind: TLSOption
-metadata:
-  name: redis-tls
-  namespace: psi-opora
-spec:
-  minVersion: VersionTLS12
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRouteTCP
-metadata:
-  name: redis
-  namespace: psi-opora
-spec:
-  entryPoints:
-    - websecure
-  routes:
-    - match: HostSNI(`psi-opora-redis.orixon.ru`)
-      services:
-        - name: redis
-          port: 6379
-  tls:
-    certResolver: letsencrypt
-    options:
-      name: redis-tls
----
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -154,11 +128,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: psi-opora
-        # Публичный TLS завершается на Traefik, после чего он подключается к
-        # Redis из namespace kube-system.
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
       ports:
         - protocol: TCP
           port: 6379

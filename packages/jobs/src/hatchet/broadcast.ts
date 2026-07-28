@@ -9,11 +9,11 @@ import {
   sleep,
 } from "../messenger";
 
-export interface DeliverBroadcastPayload {
+export type DeliverBroadcastPayload = {
   broadcastId: string;
   /** initial — получатели в статусе pending; resend — досылка по ошибкам. */
   mode: "initial" | "resend";
-}
+};
 
 export const deliverBroadcast = CreateTaskWorkflow({
   name: "broadcast-deliver",

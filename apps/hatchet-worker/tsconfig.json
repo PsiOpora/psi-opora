@@ -1,0 +1,7 @@
+{
+  "extends": "@psi-opora/tsconfig/base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

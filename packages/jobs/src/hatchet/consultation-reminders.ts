@@ -18,6 +18,6 @@ export const consultationReminders = CreateTaskWorkflow({
     const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
     if (!api) throw new Error("Bitrix24 не подключён");
     const redis = createRedisClient();
-    return sendConsultationReminders(api, redis);
+    return { ...(await sendConsultationReminders(api, redis)) };
   },
 });

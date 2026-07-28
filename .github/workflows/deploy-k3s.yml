@@ -21,6 +21,7 @@ on:
           - tg-bot
           - max-bot
           - tg-userbot-worker
+          - hatchet-worker
           - bitrix-webhook
           - dashboard
           - clients
@@ -57,7 +58,7 @@ jobs:
       - name: Detect affected services
         id: detect
         run: |
-          ALL='["tg-bot","max-bot","tg-userbot-worker","bitrix-webhook","dashboard","clients"]'
+          ALL='["tg-bot","max-bot","tg-userbot-worker","hatchet-worker","bitrix-webhook","dashboard","clients"]'
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             SERVICE="${{ github.event.inputs.service }}"
@@ -98,7 +99,7 @@ jobs:
           bunx turbo run typecheck --filter="...[$FROM]" --dry=json > turbo_out.json
 
           SERVICES=$(node -e "
-            const apps = ['tg-bot','max-bot','tg-userbot-worker','bitrix-webhook','dashboard','clients'];
+            const apps = ['tg-bot','max-bot','tg-userbot-worker','hatchet-worker','bitrix-webhook','dashboard','clients'];
             const data = require('./turbo_out.json');
             const changed = (data.packages || [])
               .map(p => p.replace(/^@psi-opora\//, ''))
@@ -140,12 +141,22 @@ jobs:
             exit 1
           fi
 
+      - name: Check Hatchet Cloud client token
+        run: |
+          VALUE=$(kubectl get secret psi-opora-env -n psi-opora \
+            -o jsonpath='{.data.HATCHET_CLIENT_TOKEN}')
+          if [ -z "$VALUE" ]; then
+            echo "::error::secret/psi-opora-env не содержит HATCHET_CLIENT_TOKEN для Hatchet Cloud"
+            exit 1
+          fi
+
       - name: Apply Redis and application configuration
         run: |
           kubectl apply -f k3s/redis.yaml
-          for service in tg-bot max-bot tg-userbot-worker bitrix-webhook dashboard clients; do
+          kubectl apply -f k3s/hatchet-worker.yaml
+          for service in tg-bot max-bot tg-userbot-worker hatchet-worker bitrix-webhook dashboard clients; do
             kubectl patch "deployment/$service" -n psi-opora --type=strategic \
-              -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"$service\",\"envFrom\":[{\"secretRef\":{\"name\":\"psi-opora-env\"}},{\"configMapRef\":{\"name\":\"redis-connection\"}}],\"env\":[{\"name\":\"REDIS_URL\",\"value\":\"\"}]}]}}}}"
+              -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"$service\",\"envFrom\":[{\"secretRef\":{\"name\":\"psi-opora-env\"}},{\"configMapRef\":{\"name\":\"redis-connection\"}}]}]}}}}"
           done
           kubectl rollout status statefulset/redis -n psi-opora --timeout=120s
 

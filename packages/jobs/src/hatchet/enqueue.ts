@@ -13,28 +13,31 @@ export interface EnqueuedRun {
   id: string;
 }
 
-async function enqueue<I extends Record<string, unknown>>(
-  task: Parameters<ReturnType<typeof getHatchetClient>["runNoWait"]>[0],
-  payload: I,
+async function toEnqueuedRun(
+  refPromise: ReturnType<ReturnType<typeof getHatchetClient>["runNoWait"]>,
 ): Promise<EnqueuedRun> {
-  const ref = await getHatchetClient().runNoWait(task, payload);
+  const ref = await refPromise;
   return { id: await ref.getWorkflowRunId() };
 }
 
 export function enqueueBroadcast(
   payload: DeliverBroadcastPayload,
 ): Promise<EnqueuedRun> {
-  return enqueue(deliverBroadcast, payload);
+  return toEnqueuedRun(
+    getHatchetClient().runNoWait(deliverBroadcast, payload),
+  );
 }
 
 export function enqueueEmailCampaign(
   payload: DeliverEmailCampaignPayload,
 ): Promise<EnqueuedRun> {
-  return enqueue(deliverEmailCampaign, payload);
+  return toEnqueuedRun(
+    getHatchetClient().runNoWait(deliverEmailCampaign, payload),
+  );
 }
 
 export function enqueueCrmBackup(
   payload: CrmBackupPayload,
 ): Promise<EnqueuedRun> {
-  return enqueue(crmBackup, payload);
+  return toEnqueuedRun(getHatchetClient().runNoWait(crmBackup, payload));
 }

@@ -5,7 +5,7 @@
 содержат постоянные тома (сессии WhatsApp / файлы MinIO / данные Redis) —
 без них данные пропадут при пересоздании пода.
 
-Образы для tg-bot/max-bot/tg-userbot-worker/bitrix-webhook/dashboard/clients
+Образы для tg-bot/max-bot/tg-userbot-worker/hatchet-worker/bitrix-webhook/dashboard/clients
 собираются и катятся в кластер через GitHub Actions ([.github/workflows/deploy-k3s.yml](../.github/workflows/deploy-k3s.yml)),
 в свой реестр (`registry.yaml`), поднятый в этом же кластере. Разделы ниже —
 разовая настройка перед первым деплоем.
@@ -50,7 +50,7 @@ ConfigMap), а не переменными окружения. Авториза�
 ```bash
 REGISTRY=registry.orixon.ru
 docker login "$REGISTRY" -u deploy -p '<пароль>'
-for app in tg-bot max-bot tg-userbot-worker bitrix-webhook dashboard clients; do
+for app in tg-bot max-bot tg-userbot-worker hatchet-worker bitrix-webhook dashboard clients; do
   docker build -t "$REGISTRY/psi-opora-$app:latest" -f "apps/$app/Dockerfile" .
   docker push "$REGISTRY/psi-opora-$app:latest"
 done
@@ -75,9 +75,8 @@ kubectl create secret generic psi-opora-env --from-env-file=.env --namespace psi
 Все поды получают секретные переменные через `envFrom.secretRef` — секрет
 общий, как `env_file: .env` в docker-compose. Адрес `redis:6379` приложения
 получают из `redis-connection` ConfigMap. Сам Redis доступен только внутри
-кластера через ClusterIP и требует `REDIS_PASSWORD`. Для Trigger.dev
-опубликован отдельный TLS-маршрут через Traefik; незашифрованный порт 6379
-наружу не открывается.
+кластера через ClusterIP и требует `REDIS_PASSWORD`. NodePort, Ingress и
+публичный DNS для Redis не создаются.
 
 При обновлении `.env` примените секрет заново и перезапустите приложения.
 Если менялся пароль Redis, также перезапустите StatefulSet:
@@ -90,11 +89,52 @@ kubectl rollout restart deployment -n psi-opora
 kubectl rollout restart statefulset/redis -n psi-opora
 ```
 
-## 3. Применить манифесты
+## 3. Установить Hatchet
+
+Control plane ставится официальным Helm chart в тот же namespace. Для
+небольшой односерверной инсталляции `k3s/hatchet/values.yaml` использует
+PostgreSQL как очередь сообщений и не поднимает RabbitMQ. PostgreSQL Hatchet
+отделён от прикладной `POSTGRES_URL` и хранится на PVC 10 Gi.
+
+```bash
+helm repo add hatchet https://hatchet-dev.github.io/hatchet-charts
+helm repo update
+
+export HATCHET_ADMIN_EMAIL=admin@example.com
+export HATCHET_ADMIN_PASSWORD='<длинный-случайный-пароль>'
+
+helm upgrade --install hatchet-stack hatchet/hatchet-stack \
+  --version 0.11.0 \
+  --namespace psi-opora \
+  --values k3s/hatchet/values.yaml \
+  --set-string sharedConfig.defaultAdminEmail="$HATCHET_ADMIN_EMAIL" \
+  --set-string sharedConfig.defaultAdminPassword="$HATCHET_ADMIN_PASSWORD" \
+  --wait --timeout=15m
+
+kubectl get secret hatchet-client-config -n psi-opora
+```
+
+Chart сам выполняет миграции БД и создаёт `hatchet-client-config` с
+`HATCHET_CLIENT_TOKEN`. Этот Secret подключён к dashboard, clients и
+hatchet-worker. gRPC и API доступны только внутри кластера как
+`hatchet-stack-engine:7070` и `hatchet-stack-api:8080`.
+
+Для просмотра UI без публичного Ingress:
+
+```bash
+kubectl port-forward -n psi-opora svc/hatchet-stack-frontend 8080:8080
+# открыть http://localhost:8080
+```
+
+Версия chart закреплена намеренно: перед её обновлением проверьте release
+notes и миграции на тестовом окружении.
+
+## 4. Применить манифесты приложений
 
 ```bash
 kubectl apply -f k3s/
 kubectl rollout status statefulset/redis -n psi-opora --timeout=120s
+kubectl rollout status deployment/hatchet-worker -n psi-opora --timeout=180s
 ```
 
 Redis 8.8.1 работает в одном экземпляре с AOF (`appendfsync everysec`) и
@@ -110,20 +150,10 @@ PVC `data-redis-0` на 2 Gi. Это сохраняет данные при пе
 окно обслуживания, иначе изменения после снимка потеряются. Облачную базу
 не удаляйте, пока не проверены OAuth-токены, активные сессии ботов и очереди.
 
-Задачи `packages/jobs/src/trigger/*reminders.ts` исполняются в Trigger.dev,
-то есть вне k3s. Для доступа к Redis:
-
-1. Направьте DNS A-запись `psi-opora-redis.orixon.ru` на IP k3s-сервера.
-2. Примените `redis.yaml` и дождитесь выпуска сертификата Let's Encrypt.
-3. В окружении Trigger.dev задайте:
-
-   ```dotenv
-   REDIS_URL=rediss://:<REDIS_PASSWORD>@psi-opora-redis.orixon.ru:443
-   ```
-
-Traefik принимает Redis-over-TLS на общем `websecure` entrypoint, выбирает
-маршрут по SNI и передаёт Redis обычный TCP внутри кластера. Клиент обязан
-поддерживать SNI; `ioredis`, используемый проектом, передаёт имя хоста.
+Фоновые и периодические задачи выполняет `hatchet-worker` внутри k3s. Он
+получает `REDIS_HOST=redis` из того же `redis-connection` ConfigMap, поэтому
+доступ к Redis снаружи кластера ему не нужен. Состояние и история запусков
+хранятся в отдельном PostgreSQL control plane Hatchet.
 
 ## Важно: tg-userbot-worker — только 1 реплика
 

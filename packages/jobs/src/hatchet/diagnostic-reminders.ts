@@ -17,6 +17,6 @@ export const diagnosticReminders = CreateTaskWorkflow({
     const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
     if (!api) throw new Error("Bitrix24 не подключён");
     const redis = createRedisClient();
-    return sendDiagnosticReminders(api, redis);
+    return { ...(await sendDiagnosticReminders(api, redis)) };
   },
 });
