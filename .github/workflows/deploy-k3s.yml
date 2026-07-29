@@ -18,13 +18,13 @@ on:
         default: all
         options:
           - all
+          - clients
+          - dashboard
           - tg-bot
           - max-bot
           - tg-userbot-worker
           - hatchet-worker
           - bitrix-webhook
-          - dashboard
-          - clients
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -58,7 +58,8 @@ jobs:
       - name: Detect affected services
         id: detect
         run: |
-          ALL='["tg-bot","max-bot","tg-userbot-worker","hatchet-worker","bitrix-webhook","dashboard","clients"]'
+          # Порядок здесь задаёт приоритет последовательного deploy matrix.
+          ALL='["clients","dashboard","tg-bot","max-bot","tg-userbot-worker","hatchet-worker","bitrix-webhook"]'
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             SERVICE="${{ github.event.inputs.service }}"
@@ -99,11 +100,12 @@ jobs:
           bunx turbo run typecheck --filter="...[$FROM]" --dry=json > turbo_out.json
 
           SERVICES=$(node -e "
-            const apps = ['tg-bot','max-bot','tg-userbot-worker','hatchet-worker','bitrix-webhook','dashboard','clients'];
+            const apps = ['clients','dashboard','tg-bot','max-bot','tg-userbot-worker','hatchet-worker','bitrix-webhook'];
             const data = require('./turbo_out.json');
             const changed = (data.packages || [])
               .map(p => p.replace(/^@psi-opora\//, ''))
-              .filter(p => apps.includes(p));
+              .filter(p => apps.includes(p))
+              .sort((a, b) => apps.indexOf(a) - apps.indexOf(b));
             console.log(JSON.stringify(changed));
           ")
 
@@ -248,6 +250,9 @@ jobs:
     runs-on: self-hosted
     strategy:
       fail-fast: false
+      # Matrix запускается как очередь, чтобы важные сервисы из списка
+      # needs.detect.outputs.services собирались и выкатывались первыми.
+      max-parallel: 1
       matrix:
         service: ${{ fromJson(needs.detect.outputs.services) }}
 
