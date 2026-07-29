@@ -155,7 +155,18 @@ function startOutboxPolling(
           );
         }
         await sendUserbotMessage(client, target, msg.text);
-        await setSendResult(msg.jobId, { ok: true });
+        const telegramUserId =
+          typeof target === "number"
+            ? target
+            : "userId" in target && typeof target.userId === "number"
+              ? target.userId
+              : undefined;
+        await setSendResult(msg.jobId, {
+          ok: true,
+          ...(telegramUserId !== undefined
+            ? { telegramUserId: String(telegramUserId) }
+            : {}),
+        });
       } catch (err) {
         const message = (err as Error).message;
         console.error(

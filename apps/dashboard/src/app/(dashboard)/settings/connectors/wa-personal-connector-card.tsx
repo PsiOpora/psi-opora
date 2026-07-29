@@ -1,9 +1,9 @@
 "use client";
 
-import type { WhatsappPersonalAccountView } from "@psi-opora/api";
 import { Text } from "@bitrix24/b24jssdk";
+import type { WhatsappPersonalAccountView } from "@psi-opora/api";
 import { env } from "@psi-opora/config";
-import { Loader2Icon, PlusIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, RefreshCwIcon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useB24Frame } from "@/components/bitrix/frame-provider";
@@ -54,6 +54,9 @@ const STATUS_LABELS: Record<string, string> = {
 export function WaPersonalConnectorCard() {
   const { b24, status } = useB24Frame();
   const [registeredIds, setRegisteredIds] = useState<string[]>([]);
+  const [registeredNames, setRegisteredNames] = useState<
+    Record<string, string>
+  >({});
   const [accounts, setAccounts] = useState<WhatsappPersonalAccountView[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
@@ -78,11 +81,16 @@ export function WaPersonalConnectorCard() {
       if (!res.isSuccess) return;
       // result — объект `{connector_id: connector_name}`, а не массив
       // (см. документацию imconnector.list).
-      const list = (res.getData() as { result?: Record<string, string> } | undefined)
-        ?.result;
-      setRegisteredIds(
-        Object.keys(list ?? {}).filter((id) => id.startsWith(CONNECTOR_PREFIX)),
+      const list = (
+        res.getData() as { result?: Record<string, string> } | undefined
+      )?.result;
+      const ownConnectors = Object.fromEntries(
+        Object.entries(list ?? {}).filter(([id]) =>
+          id.startsWith(CONNECTOR_PREFIX),
+        ),
       );
+      setRegisteredIds(Object.keys(ownConnectors));
+      setRegisteredNames(ownConnectors);
     } catch {
       // не критично — просто не покажем незанятые слоты
     }
@@ -111,7 +119,12 @@ export function WaPersonalConnectorCard() {
           params: {
             ID: slot.connectorId,
             NAME: `${CONNECTOR_NAME} №${registeredIds.length + 1}`,
-            ICON: { DATA_IMAGE: ICON_SVG, COLOR: "#25D366" },
+            ICON: {
+              DATA_IMAGE: ICON_SVG,
+              COLOR: "#25D366",
+              SIZE: "100%",
+              POSITION: "center",
+            },
             PLACEMENT_HANDLER: handlerUrl(),
             CHAT_GROUP: "N",
           },
@@ -141,6 +154,45 @@ export function WaPersonalConnectorCard() {
             "NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL не задан — ответы оператора не будут доставляться без ручной настройки исходящего вебхука в Bitrix24",
           );
         }
+      } catch (err) {
+        const message = (err as Error).message;
+        setError(message);
+        toast.error(message, { id: toastId });
+      }
+    });
+  };
+
+  const updateRegistered = () => {
+    if (!b24 || registeredIds.length === 0) return;
+    startTransition(async () => {
+      setError(null);
+      const toastId = toast.loading("Обновляем карточки WhatsApp…");
+      try {
+        for (const [index, connectorId] of registeredIds.entries()) {
+          const res = await b24.actions.v2.call.make({
+            method: "imconnector.register",
+            params: {
+              ID: connectorId,
+              NAME:
+                registeredNames[connectorId] ??
+                `${CONNECTOR_NAME} №${index + 1}`,
+              ICON: {
+                DATA_IMAGE: ICON_SVG,
+                COLOR: "#25D366",
+                SIZE: "100%",
+                POSITION: "center",
+              },
+              PLACEMENT_HANDLER: handlerUrl(),
+              CHAT_GROUP: "N",
+            },
+            requestId: Text.getUuidRfc4122(),
+          });
+          if (!res.isSuccess) {
+            throw new Error(res.getErrorMessages().join("; "));
+          }
+        }
+        await refreshRegistered();
+        toast.success("Карточки WhatsApp обновлены", { id: toastId });
       } catch (err) {
         const message = (err as Error).message;
         setError(message);
@@ -191,7 +243,7 @@ export function WaPersonalConnectorCard() {
 
         {status === "ready" && (
           <>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">
                 зарегистрировано номеров: {registeredIds.length}
               </Badge>
@@ -203,6 +255,17 @@ export function WaPersonalConnectorCard() {
                 )}
                 Добавить номер
               </Button>
+              {registeredIds.length > 0 && (
+                <Button
+                  onClick={updateRegistered}
+                  disabled={busy}
+                  size="sm"
+                  variant="outline"
+                >
+                  <RefreshCwIcon className="size-4" />
+                  Обновить карточки
+                </Button>
+              )}
             </div>
 
             {error && <p className="text-sm text-destructive">{error}</p>}

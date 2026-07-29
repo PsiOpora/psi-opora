@@ -1,7 +1,7 @@
 "use client";
 
-import type { BotConnectorView } from "@psi-opora/api";
 import { Text } from "@bitrix24/b24jssdk";
+import type { BotConnectorView } from "@psi-opora/api";
 import { env } from "@psi-opora/config";
 import { Loader2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
@@ -27,13 +27,17 @@ const CONNECTOR_IDS: Record<Messenger, string> = {
   max: "psiopora_max_bot",
 };
 
+const ICON_COLORS: Record<Messenger, string> = {
+  telegram: "#2AABEE",
+  max: "#8B00FF",
+};
+
 // Bitrix24 отклоняет регистрацию коннектора без иконки (ICON_REQUIRED).
-// DATA_IMAGE принимает data URI без CSS-обёртки url(...).
+// Base64 не содержит кавычек, которые ломают генерируемый Bitrix24 url('...').
 const ICON_SVGS: Record<Messenger, string> = {
   telegram:
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M2 21l21-9L2 3v7l15 2-15 2z'/%3E%3C/svg%3E",
-  max:
-    "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='-10 -10 62 62'%3E%3Cpath fill='%23fff' fill-rule='evenodd' d='M21.47 41.88c-4.11 0-6.02-.6-9.34-3-2.1 2.7-8.75 4.81-9.04 1.2 0-2.71-.6-5-1.28-7.5C1 29.5.08 26.07.08 21.1.08 9.23 9.82.3 21.36.3c11.55 0 20.6 9.37 20.6 20.91a20.6 20.6 0 0 1-20.49 20.67m.17-31.32c-5.62-.29-10 3.6-10.97 9.7-.8 5.05.62 11.2 1.83 11.52.58.14 2.04-1.04 2.95-1.95a10.4 10.4 0 0 0 5.08 1.81 10.7 10.7 0 0 0 11.19-9.97 10.7 10.7 0 0 0-10.08-11.1Z' clip-rule='evenodd'/%3E%3C/svg%3E",
+    "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZD0iTTIyIDEyQzIyIDE3LjUyMjggMTcuNTIyOCAyMiAxMiAyMkM2LjQ3NzE1IDIyIDIgMTcuNTIyOCAyIDEyQzIgNi40NzcxNSA2LjQ3NzE1IDIgMTIgMkMxNy41MjI4IDIgMjIgNi40NzcxNSAyMiAxMlpNMTIuNTc4MyA5LjM2MjQ0QzExLjYwNTcgOS43NjcgOS42NjE3NyAxMC42MDQzIDYuNzQ2NTcgMTEuODc0NEM2LjI3MzE4IDEyLjA2MjcgNi4wMjUyMSAxMi4yNDY5IDYuMDAyNjMgMTIuNDI2OUM1Ljk2NDQ4IDEyLjczMTMgNi4zNDU1OCAxMi44NTExIDYuODY0NTUgMTMuMDE0M0M2LjkzNTE0IDEzLjAzNjUgNy4wMDgyOSAxMy4wNTk1IDcuMDgzMjcgMTMuMDgzOEM3LjU5Mzg1IDEzLjI0OTggOC4yODA2OCAxMy40NDQgOC42Mzc3MyAxMy40NTE3QzguOTYxNjEgMTMuNDU4NyA5LjMyMzEgMTMuMzI1MiA5LjcyMjE5IDEzLjA1MTFDMTIuNDQ2IDExLjIxMjUgMTMuODUyIDEwLjI4MzIgMTMuOTQwMiAxMC4yNjMxQzE0LjAwMjUgMTAuMjQ5IDE0LjA4ODggMTAuMjMxMiAxNC4xNDczIDEwLjI4MzJDMTQuMjA1OCAxMC4zMzUyIDE0LjIgMTAuNDMzNiAxNC4xOTM4IDEwLjQ2QzE0LjE1NjEgMTAuNjIxIDEyLjY2MDEgMTIuMDExNyAxMS44ODU5IDEyLjczMTVDMTEuNjQ0NiAxMi45NTU5IDExLjQ3MzQgMTMuMTE1IDExLjQzODQgMTMuMTUxNEMxMS4zNiAxMy4yMzI4IDExLjI4MDEgMTMuMzA5OCAxMS4yMDMzIDEzLjM4MzhDMTAuNzI5IDEzLjg0MTEgMTAuMzczMiAxNC4xODQgMTEuMjIzIDE0Ljc0NEMxMS42MzE0IDE1LjAxMzEgMTEuOTU4MSAxNS4yMzU2IDEyLjI4NDEgMTUuNDU3NkMxMi42NDAxIDE1LjcwMDEgMTIuOTk1MiAxNS45NDE5IDEzLjQ1NDcgMTYuMjQzMUMxMy41NzE3IDE2LjMxOTggMTMuNjgzNSAxNi4zOTk1IDEzLjc5MjQgMTYuNDc3MUMxNC4yMDY3IDE2Ljc3MjUgMTQuNTc4OSAxNy4wMzc5IDE1LjAzODggMTYuOTk1NUMxNS4zMDYgMTYuOTcwOSAxNS41ODIgMTYuNzE5NyAxNS43MjIyIDE1Ljk3MDNDMTYuMDUzNSAxNC4xOTkzIDE2LjcwNDcgMTAuMzYyIDE2Ljg1NTIgOC43ODA4MUMxNi44Njg0IDguNjQyMjggMTYuODUxOCA4LjQ2NDk4IDE2LjgzODQgOC4zODcxNUMxNi44MjUxIDguMzA5MzIgMTYuNzk3MyA4LjE5ODQyIDE2LjY5NjEgOC4xMTYzM0MxNi41NzYzIDguMDE5MTEgMTYuMzkxMyA3Ljk5ODYxIDE2LjMwODYgOC4wMDAwN0MxNS45MzI1IDguMDA2NyAxNS4zNTU0IDguMjA3MzUgMTIuNTc4MyA5LjM2MjQ0WiIgZmlsbD0idXJsKCNwYWludDBfbGluZWFyXzQ5MzZfMjcwNSkiLz4KPGRlZnM+CjxsaW5lYXJHcmFkaWVudCBpZD0icGFpbnQwX2xpbmVhcl80OTM2XzI3MDUiIHgxPSIxMiIgeTE9IjIiIHgyPSIxMiIgeTI9IjIxLjg1MTciIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj4KPHN0b3Agc3RvcC1jb2xvcj0iIzJBQUJFRSIvPgo8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMyMjlFRDkiLz4KPC9saW5lYXJHcmFkaWVudD4KPC9kZWZzPgo8L3N2Zz4K",
+  max: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIGZpbGw9J25vbmUnIHZpZXdCb3g9Jy0xMCAtMTAgNjIgNjInPjxwYXRoIGZpbGw9JyNmZmYnIGZpbGwtcnVsZT0nZXZlbm9kZCcgZD0nTTIxLjQ3IDQxLjg4Yy00LjExIDAtNi4wMi0uNi05LjM0LTMtMi4xIDIuNy04Ljc1IDQuODEtOS4wNCAxLjIgMC0yLjcxLS42LTUtMS4yOC03LjVDMSAyOS41LjA4IDI2LjA3LjA4IDIxLjEuMDggOS4yMyA5LjgyLjMgMjEuMzYuM2MxMS41NSAwIDIwLjYgOS4zNyAyMC42IDIwLjkxYTIwLjYgMjAuNiAwIDAgMS0yMC40OSAyMC42N20uMTctMzEuMzJjLTUuNjItLjI5LTEwIDMuNi0xMC45NyA5LjctLjggNS4wNS42MiAxMS4yIDEuODMgMTEuNTIuNTguMTQgMi4wNC0xLjA0IDIuOTUtMS45NWExMC40IDEwLjQgMCAwIDAgNS4wOCAxLjgxIDEwLjcgMTAuNyAwIDAgMCAxMS4xOS05Ljk3IDEwLjcgMTAuNyAwIDAgMC0xMC4wOC0xMS4xWicgY2xpcC1ydWxlPSdldmVub2RkJy8+PC9zdmc+",
 };
 
 function handlerUrl(messenger: Messenger): string {
@@ -83,8 +87,9 @@ export function BotConnectorCard({
       if (!res.isSuccess) return;
       // result — объект `{connector_id: connector_name}`, а не массив
       // (см. документацию imconnector.list) — Object.hasOwn, не .includes.
-      const list = (res.getData() as { result?: Record<string, string> } | undefined)
-        ?.result;
+      const list = (
+        res.getData() as { result?: Record<string, string> } | undefined
+      )?.result;
       setRegistered(Object.hasOwn(list ?? {}, connectorId));
     } catch {
       // не критично — просто не покажем статус регистрации
@@ -109,7 +114,12 @@ export function BotConnectorCard({
           params: {
             ID: connectorId,
             NAME: `Пси-Опора ${label} Бот`,
-            ICON: { DATA_IMAGE: ICON_SVGS[messenger] },
+            ICON: {
+              DATA_IMAGE: ICON_SVGS[messenger],
+              COLOR: ICON_COLORS[messenger],
+              SIZE: "100%",
+              POSITION: "center",
+            },
             PLACEMENT_HANDLER: handlerUrl(messenger),
           },
           requestId: Text.getUuidRfc4122(),

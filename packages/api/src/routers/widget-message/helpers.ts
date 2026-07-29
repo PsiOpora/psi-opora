@@ -34,7 +34,7 @@ export async function sendViaPersonalNumber(params: {
   connectorId: string;
   target: { kind: "phone" | "username" | "id"; value: string };
   text: string;
-}): Promise<{ ok?: true; error?: string }> {
+}): Promise<{ ok?: true; error?: string; telegramUserId?: string }> {
   const jobId = crypto.randomUUID();
   await pushOutboundMessage({
     memberId: params.memberId,
@@ -56,7 +56,7 @@ export async function sendViaPersonalNumber(params: {
     const result = await getSendResult(jobId);
     if (result) {
       return result.ok
-        ? { ok: true }
+        ? { ok: true, telegramUserId: result.telegramUserId }
         : { error: `Не отправлено: ${result.error ?? "неизвестная ошибка"}` };
     }
     await new Promise((resolve) =>

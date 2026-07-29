@@ -1,16 +1,22 @@
-import { resolveBitrixApi } from "@psi-opora/bitrix-client";
+import {
+  type BitrixApi,
+  resolveBitrixApi,
+} from "@psi-opora/bitrix-client";
 import { mirrorOperatorMessageToOpenLine } from "@psi-opora/bot-core";
 import {
   getBotConnector,
+  getBitrixCrmLink,
   insertBotMessage,
   listTelegramPersonalAccounts,
   listWhatsappPersonalAccounts,
+  upsertBitrixCrmLink,
 } from "@psi-opora/db/queries";
 import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
 import { wahaSendText } from "@psi-opora/waha";
 import { bitrixProcedure } from "../../orpc";
 import { sendClientMessageSchema } from "../../schemas/messages";
 import { sendViaPersonalNumber } from "../widget-message/helpers";
+import { resolveTelegramPersonalTarget } from "./telegram-personal-target";
 
 interface OpenLineConnectorRef {
   connectorId: string;
@@ -26,12 +32,18 @@ interface OpenLineConnectorRef {
  * где телефон известен из карточки контакта и это kind: "phone".
  */
 async function sendTelegramPersonal(
+  api: BitrixApi | null,
   memberId: string | null,
   userId: string,
   lineId: string | undefined,
   connectorId: string | undefined,
   text: string,
-): Promise<{ ok?: true; error?: string; connector?: OpenLineConnectorRef }> {
+): Promise<{
+  ok?: true;
+  error?: string;
+  connector?: OpenLineConnectorRef;
+  telegramUserId?: string;
+}> {
   if (!memberId) {
     return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
   }
@@ -57,11 +69,12 @@ async function sendTelegramPersonal(
   }
   if (!account) return { error: "Личный номер Telegram не подключён" };
 
+  const target = await resolveTelegramPersonalTarget(api, userId);
   const result = await sendViaPersonalNumber({
     memberId,
     openLineId: account.openLineId,
     connectorId: account.connectorId,
-    target: { kind: "id", value: userId },
+    target,
     text,
   });
   if (result.error) return result;
@@ -71,6 +84,7 @@ async function sendTelegramPersonal(
       connectorId: account.connectorId,
       openLineId: account.openLineId,
     },
+    telegramUserId: result.telegramUserId,
   };
 }
 
@@ -152,9 +166,12 @@ export const send = bitrixProcedure
 
       let externalId: string | undefined;
       let connector: OpenLineConnectorRef | undefined;
+      let canonicalTelegramUserId: string | undefined;
 
       if (input.messenger === "telegram-personal") {
+        const api = await context.getBitrixApi();
         const result = await sendTelegramPersonal(
+          api,
           context.memberId,
           input.userId,
           input.lineId,
@@ -163,6 +180,33 @@ export const send = bitrixProcedure
         );
         if (result.error) return result;
         connector = result.connector;
+        canonicalTelegramUserId = result.telegramUserId;
+
+        // Если старый диалог был заведён по телефону, после успешного
+        // резолва сохраняем канонический Telegram ID как второй ключ того же
+        // контакта. Следующее входящее сообщение придёт уже по этому ID.
+        if (
+          canonicalTelegramUserId &&
+          canonicalTelegramUserId !== input.userId
+        ) {
+          try {
+            const link = await getBitrixCrmLink(
+              "telegram-personal",
+              input.userId,
+            );
+            if (link?.contactId) {
+              await upsertBitrixCrmLink({
+                messenger: "telegram-personal",
+                userId: canonicalTelegramUserId,
+                contactId: link.contactId,
+              });
+            }
+          } catch (err) {
+            console.error(
+              `[messages] не удалось сохранить канонический Telegram ID: ${(err as Error).message}`,
+            );
+          }
+        }
       } else if (input.messenger === "whatsapp-personal") {
         const result = await sendWhatsappPersonal(
           context.memberId,
@@ -226,7 +270,7 @@ export const send = bitrixProcedure
         const api = resolveBitrixApi(context.memberId ?? undefined);
         await mirrorOperatorMessageToOpenLine(api ?? undefined, connector, {
           messenger: input.messenger,
-          userId: input.userId,
+          userId: canonicalTelegramUserId ?? input.userId,
           text,
           operatorId,
         });

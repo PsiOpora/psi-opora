@@ -10,6 +10,7 @@ import {
   sendViaPersonalNumber,
   sendViaWhatsappPersonal,
 } from "./helpers";
+import { persistWidgetCrmLinks } from "./crm-linking";
 
 /** Каналы, где один и тот же messenger может быть подключён несколькими
  * личными номерами — канал однозначно определяется только парой
@@ -68,6 +69,7 @@ export const send = publicProcedure
       }
 
       let externalId: string | undefined;
+      let canonicalTelegramUserId: string | undefined;
 
       if (channel.messenger === "telegram-personal") {
         if (!context.memberId || !channel.lineId || !channel.connectorId) {
@@ -84,6 +86,7 @@ export const send = publicProcedure
           text,
         });
         if (result.error) return result;
+        canonicalTelegramUserId = result.telegramUserId;
       } else if (channel.messenger === "whatsapp-personal") {
         if (!context.memberId || !channel.lineId || !channel.connectorId) {
           return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
@@ -109,6 +112,25 @@ export const send = publicProcedure
           );
           return { error: `Не отправлено: ${formatMessengerError(error.message)}` };
         }
+      }
+
+      // CRM-виджет уже знает точный contactId, поэтому сохраняем связь сразу,
+      // не ожидая входящего сообщения и CRM-трекера Открытой линии.
+      // Для первого исходящего Telegram Personal userId часто является
+      // телефоном/username. Воркер возвращает канонический Telegram ID —
+      // сохраняем и его как второй ключ, чтобы будущий входящий диалог
+      // автоматически открыл тот же контакт.
+      try {
+        await persistWidgetCrmLinks({
+          messenger: channel.messenger,
+          userId: channel.userId,
+          contactId: contact.contactId,
+          canonicalTelegramUserId,
+        });
+      } catch (err) {
+        console.error(
+          `[widget] не удалось сохранить CRM-связь: ${(err as Error).message}`,
+        );
       }
 
       // Журнал сообщений — история видна во вкладке при следующем открытии

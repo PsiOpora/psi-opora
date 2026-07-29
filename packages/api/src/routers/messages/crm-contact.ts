@@ -140,10 +140,11 @@ const EMPTY_CRM_BINDINGS: CrmBindings = {
 
 /**
  * CRM-привязки диалога (контакт/сделка/лид) для messenger+userId:
- * - telegram-personal/whatsapp-personal: только через диалог Открытой линии
- *   (см. resolvePersonalDialog) — createBitrixDeal для личных номеров не
- *   вызывается, своей записи в bitrix_crm_links для них нет.
- * - telegram/max (боты): сперва своя БД bitrix_crm_links — её заполняет
+ * Для всех каналов сперва проверяем bitrix_crm_links:
+ * - telegram-personal/whatsapp-personal: связь пишет CRM-виджет при первой
+ *   исходящей отправке, когда contactId уже известен. Диалог Открытой линии
+ *   остаётся фолбэком для старых и входящих переписок.
+ * - telegram/max (боты): таблицу заполняет
  *   createBitrixDeal при создании сделки (packages/bot-core/src/utils/bitrix/create-deal.ts),
  *   который теперь всегда создаёт контакт/сделку сам, а не ждёт трекера
  *   Открытой линии. Диалог (entity_data_2) — фолбэк для сделок, созданных
@@ -157,16 +158,20 @@ export async function resolveDialogCrmBindings(
   messenger: InboxMessenger,
   userId: string,
 ): Promise<CrmBindings> {
+  const link = await getBitrixCrmLink(messenger, userId).catch(() => null);
+  if (link) {
+    return {
+      contactId: link.contactId,
+      dealId: link.dealId ?? null,
+      leadId: null,
+    };
+  }
+
   if (messenger === "telegram-personal" || messenger === "whatsapp-personal") {
     const dialog = await resolvePersonalDialog(api, messenger, memberId, userId);
     return dialog?.id
       ? parseCrmBindings(dialog.entity_data_2)
       : EMPTY_CRM_BINDINGS;
-  }
-
-  const link = await getBitrixCrmLink(messenger, userId).catch(() => null);
-  if (link) {
-    return { contactId: link.contactId, dealId: link.dealId ?? null, leadId: null };
   }
 
   const connector = await getBotConnector(messenger);

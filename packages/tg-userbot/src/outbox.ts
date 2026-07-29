@@ -29,6 +29,11 @@ export interface OutboundMessage {
 export interface SendResult {
   ok: boolean;
   error?: string;
+  /** Канонический Telegram user ID после резолва телефона/username.
+   * Нужен API, чтобы связать будущие входящие сообщения (они приходят уже
+   * по числовому ID, а не по телефону первого исходящего сообщения) с тем
+   * же CRM-контактом. */
+  telegramUserId?: string;
 }
 
 function outboxKey(
