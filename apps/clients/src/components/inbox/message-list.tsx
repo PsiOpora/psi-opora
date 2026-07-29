@@ -222,7 +222,7 @@ export function MessageList({
                 <button
                   type="button"
                   onClick={() => onEdit(item)}
-                  className="absolute top-1/2 -left-8 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover/message:opacity-100"
+                  className="absolute top-1/2 -left-8 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-60 transition-opacity hover:bg-muted hover:text-foreground hover:opacity-100 focus:opacity-100"
                   title="Редактировать сообщение"
                   aria-label="Редактировать сообщение"
                 >

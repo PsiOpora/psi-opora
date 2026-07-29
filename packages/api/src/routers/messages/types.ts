@@ -143,7 +143,8 @@ export function toClientMessageItem(
     canEdit:
       row.direction === "out" &&
       row.kind === "text" &&
-      row.operatorId === currentOperatorId &&
+      (row.operatorId === currentOperatorId ||
+        (row.operatorId === null && row.source === "widget")) &&
       Boolean(row.externalId) &&
       (row.messenger === "telegram" ||
         (row.messenger === "max" &&

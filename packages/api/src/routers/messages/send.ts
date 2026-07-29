@@ -146,6 +146,9 @@ export const send = bitrixProcedure
     async ({ input, context }): Promise<{ ok?: true; error?: string }> => {
       const text = input.text.trim();
       if (!text) return { error: "Введите текст сообщения" };
+      // Авторство берём из подписанной Bitrix-сессии, а не из клиентского
+      // payload: профиль оператора в React может ещё не успеть загрузиться.
+      const operatorId = context.bitrixSession.userId;
 
       let externalId: string | undefined;
       let connector: OpenLineConnectorRef | undefined;
@@ -206,7 +209,7 @@ export const send = bitrixProcedure
           direction: "out",
           source: "widget",
           text,
-          operatorId: input.operatorId,
+          operatorId,
           operatorName: input.operatorName,
           externalId,
           connectorId: connector?.connectorId,
@@ -217,16 +220,15 @@ export const send = bitrixProcedure
         );
       }
 
-      // Без operatorId (BX24 user.current ещё не подгрузился) атрибутировать
-      // сообщение в Открытой линии нечем — молча пропускаем, как и без
-      // диалога/коннектора: это дублирование best-effort, а не критический путь.
-      if (connector && input.operatorId) {
+      // Если диалог/коннектор известен, отражаем сообщение в Открытой линии.
+      // operatorId надёжно получен из подписанной Bitrix-сессии выше.
+      if (connector) {
         const api = resolveBitrixApi(context.memberId ?? undefined);
         await mirrorOperatorMessageToOpenLine(api ?? undefined, connector, {
           messenger: input.messenger,
           userId: input.userId,
           text,
-          operatorId: input.operatorId,
+          operatorId,
         });
       }
 

@@ -1,4 +1,14 @@
-import { and, asc, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { Database } from "../client.types";
 import { botConversations } from "../schema/bot-conversations";
 import { botMessages } from "../schema/bot-messages";
@@ -116,7 +126,13 @@ export async function getEditableBotMessage(
         eq(botMessages.id, id),
         eq(botMessages.direction, "out"),
         eq(botMessages.kind, "text"),
-        eq(botMessages.operatorId, operatorId),
+        or(
+          eq(botMessages.operatorId, operatorId),
+          and(
+            isNull(botMessages.operatorId),
+            eq(botMessages.source, "widget"),
+          ),
+        ),
         isNotNull(botMessages.externalId),
       ),
     )
