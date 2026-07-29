@@ -324,7 +324,7 @@ data:
                 🔴 <b>ОШИБКИ В PSI-OPORA</b>
                 {{ range .Alerts.Firing }}
                 Сервис: <code>{{ index .Labels "app" }}</code>
-                Ошибок за 5 минут: <b>{{ index .Values "B" }}</b>
+                Ошибок за 5 минут: <b>{{ index .Annotations "errors_count" }}</b>
 
                 <a href="{{ .GeneratorURL }}">Открыть алерт в Grafana</a>
                 {{ end }}
@@ -440,6 +440,7 @@ data:
             annotations:
               summary: Ошибки в логах {{ $labels.app }}
               description: За последние 5 минут найдено {{ $values.B.Value }} ошибок.
+              errors_count: "{{ $values.B.Value }}"
             labels:
               severity: error
               source: pod-logs

@@ -1,19 +1,24 @@
 import { getBotConnector } from "@psi-opora/db/queries";
+import type { RedisClient } from "../../storage/redis";
 import { bitrixPost } from "./client";
+import {
+	consumeOperatorMirrorEcho,
+	enqueueOperatorMirrorEcho,
+} from "./operator-mirror";
 import type { BitrixApiLike } from "./types";
 
 export interface OpenLineDialog {
-  /** Внутренний ID чата Bitrix (для imopenlines.crm.chat.user.add). */
-  chatId: number;
-  /** Значение для мультиполя IM контакта (тип OPENLINE):
-   * `imol|{connector}|{line}|{chat_id}|{внутренний id чата Bitrix}` —
-   * см. buildMessengerLinkFields. */
-  imol: string;
-  /** Контакт, который CRM-трекер Открытой линии создал по чату. */
-  contactId: number | null;
-  /** Сделка, которую CRM-трекер Открытой линии создал по чату. */
-  dealId: number | null;
-  leadId: number | null;
+	/** Внутренний ID чата Bitrix (для imopenlines.crm.chat.user.add). */
+	chatId: number;
+	/** Значение для мультиполя IM контакта (тип OPENLINE):
+	 * `imol|{connector}|{line}|{chat_id}|{внутренний id чата Bitrix}` —
+	 * см. buildMessengerLinkFields. */
+	imol: string;
+	/** Контакт, который CRM-трекер Открытой линии создал по чату. */
+	contactId: number | null;
+	/** Сделка, которую CRM-трекер Открытой линии создал по чату. */
+	dealId: number | null;
+	leadId: number | null;
 }
 
 /**
@@ -21,20 +26,20 @@ export interface OpenLineDialog {
  * `LEAD|0|COMPANY|0|CONTACT|123|DEAL|456` (0 = привязки нет).
  */
 function parseDialogCrmBindings(
-  raw: string | undefined,
+	raw: string | undefined,
 ): Pick<OpenLineDialog, "contactId" | "dealId" | "leadId"> {
-  const bindings: Record<string, number> = {};
-  const parts = (raw ?? "").split("|");
-  for (let i = 0; i + 1 < parts.length; i += 2) {
-    const type = parts[i];
-    const id = Number(parts[i + 1]);
-    if (type && Number.isFinite(id) && id > 0) bindings[type] = id;
-  }
-  return {
-    contactId: bindings.CONTACT ?? null,
-    dealId: bindings.DEAL ?? null,
-    leadId: bindings.LEAD ?? null,
-  };
+	const bindings: Record<string, number> = {};
+	const parts = (raw ?? "").split("|");
+	for (let i = 0; i + 1 < parts.length; i += 2) {
+		const type = parts[i];
+		const id = Number(parts[i + 1]);
+		if (type && Number.isFinite(id) && id > 0) bindings[type] = id;
+	}
+	return {
+		contactId: bindings.CONTACT ?? null,
+		dealId: bindings.DEAL ?? null,
+		leadId: bindings.LEAD ?? null,
+	};
 }
 
 /**
@@ -50,34 +55,34 @@ function parseDialogCrmBindings(
  * через коннектор ещё не отправлялось) — не логируем как ошибку.
  */
 export async function resolveOpenLineDialog(
-  messenger: string,
-  userId: number,
-  chatId: number,
+	messenger: string,
+	userId: number,
+	chatId: number,
 ): Promise<OpenLineDialog | null> {
-  const config = await getBotConnector(messenger);
-  if (!config) return null;
-  const userCode = `${config.connectorId}|${config.openLineId}|${chatId}|${userId}`;
-  try {
-    const result = await bitrixPost<{ id?: number; entity_data_2?: string }>(
-      "imopenlines.dialog.get",
-      { USER_CODE: userCode },
-      messenger,
-    );
-    if (!result?.id) return null;
-    return {
-      chatId: result.id,
-      imol: `imol|${config.connectorId}|${config.openLineId}|${chatId}|${result.id}`,
-      ...parseDialogCrmBindings(result.entity_data_2),
-    };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (!message.includes("ACCESS_ERROR")) {
-      console.error(
-        `[bitrix] не удалось получить диалог по USER_CODE ${userCode}: ${message}`,
-      );
-    }
-    return null;
-  }
+	const config = await getBotConnector(messenger);
+	if (!config) return null;
+	const userCode = `${config.connectorId}|${config.openLineId}|${chatId}|${userId}`;
+	try {
+		const result = await bitrixPost<{ id?: number; entity_data_2?: string }>(
+			"imopenlines.dialog.get",
+			{ USER_CODE: userCode },
+			messenger,
+		);
+		if (!result?.id) return null;
+		return {
+			chatId: result.id,
+			imol: `imol|${config.connectorId}|${config.openLineId}|${chatId}|${result.id}`,
+			...parseDialogCrmBindings(result.entity_data_2),
+		};
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		if (!message.includes("ACCESS_ERROR")) {
+			console.error(
+				`[bitrix] не удалось получить диалог по USER_CODE ${userCode}: ${message}`,
+			);
+		}
+		return null;
+	}
 }
 
 // Bitrix отклоняет весь вызов imconnector.send.messages, если user.name не
@@ -85,36 +90,36 @@ export async function resolveOpenLineDialog(
 // имена из Telegram/MAX могут содержать эмодзи и цифры, поэтому подставляем
 // поле, только если оно точно пройдёт проверку.
 function sanitizeOpenLineName(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  const trimmed = value.trim().slice(0, 25);
-  return /^[\p{L}\s'-]+$/u.test(trimmed) ? trimmed : undefined;
+	if (!value) return undefined;
+	const trimmed = value.trim().slice(0, 25);
+	return /^[\p{L}\s'-]+$/u.test(trimmed) ? trimmed : undefined;
 }
 
 export interface OpenLineMessageData {
-  messenger: string;
-  userId: number;
-  /** ID чата в мессенджере (Telegram chat_id / MAX chat_id) — по этому
-   * значению Bitrix сопоставляет сообщение с уже открытым диалогом. */
-  chatId: number;
-  text: string;
-  /** Имя клиента для отображения в диалоге (необязательно). */
-  name?: string;
-  /** Собственный ID сообщения во внешней системе (Telegram message_id) —
-   * делает внешний ID сообщения в Bitrix детерминированным, чтобы потом
-   * адресно обновить его через updateMessageInOpenLine (правка сообщения
-   * в Telegram). Без него используется текущее время — обновить такое
-   * сообщение позже уже нельзя. */
-  messageId?: number;
-  /** Вложения (фото/документ/голосовое) — прямая ссылка и имя файла. */
-  files?: { url: string; name: string }[];
+	messenger: string;
+	userId: number;
+	/** ID чата в мессенджере (Telegram chat_id / MAX chat_id) — по этому
+	 * значению Bitrix сопоставляет сообщение с уже открытым диалогом. */
+	chatId: number;
+	text: string;
+	/** Имя клиента для отображения в диалоге (необязательно). */
+	name?: string;
+	/** Собственный ID сообщения во внешней системе (Telegram message_id) —
+	 * делает внешний ID сообщения в Bitrix детерминированным, чтобы потом
+	 * адресно обновить его через updateMessageInOpenLine (правка сообщения
+	 * в Telegram). Без него используется текущее время — обновить такое
+	 * сообщение позже уже нельзя. */
+	messageId?: number;
+	/** Вложения (фото/документ/голосовое) — прямая ссылка и имя файла. */
+	files?: { url: string; name: string }[];
 }
 
 function buildExternalMessageId(
-  data: Pick<OpenLineMessageData, "messenger" | "userId" | "messageId">,
+	data: Pick<OpenLineMessageData, "messenger" | "userId" | "messageId">,
 ): string {
-  return data.messageId != null
-    ? `${data.messenger}-${data.userId}-${data.messageId}`
-    : `${data.messenger}-${data.userId}-${Date.now()}`;
+	return data.messageId != null
+		? `${data.messenger}-${data.userId}-${data.messageId}`
+		: `${data.messenger}-${data.userId}-${Date.now()}`;
 }
 
 /**
@@ -133,45 +138,45 @@ function buildExternalMessageId(
  * критично для остальной работы бота).
  */
 export async function sendMessageToOpenLine(
-  api: BitrixApiLike | undefined,
-  data: OpenLineMessageData,
+	api: BitrixApiLike | undefined,
+	data: OpenLineMessageData,
 ): Promise<void> {
-  if (!api) return;
-  const config = await getBotConnector(data.messenger);
-  if (!config) return;
+	if (!api) return;
+	const config = await getBotConnector(data.messenger);
+	if (!config) return;
 
-  const name = sanitizeOpenLineName(data.name);
+	const name = sanitizeOpenLineName(data.name);
 
-  try {
-    await api.call("imconnector.send.messages", {
-      CONNECTOR: config.connectorId,
-      LINE: Number(config.openLineId),
-      MESSAGES: [
-        {
-          user: {
-            id: String(data.userId),
-            ...(name ? { name } : {}),
-            skip_phone_validate: "Y",
-          },
-          message: {
-            id: buildExternalMessageId(data),
-            date: Math.floor(Date.now() / 1000),
-            text: data.text,
-            ...(data.files?.length ? { files: data.files } : {}),
-          },
-          chat: {
-            id: String(data.chatId),
-            name: data.name || `${data.messenger} #${data.userId}`,
-          },
-        },
-      ],
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[bitrix] не удалось переслать сообщение в Открытую линию: ${message}`,
-    );
-  }
+	try {
+		await api.call("imconnector.send.messages", {
+			CONNECTOR: config.connectorId,
+			LINE: Number(config.openLineId),
+			MESSAGES: [
+				{
+					user: {
+						id: String(data.userId),
+						...(name ? { name } : {}),
+						skip_phone_validate: "Y",
+					},
+					message: {
+						id: buildExternalMessageId(data),
+						date: Math.floor(Date.now() / 1000),
+						text: data.text,
+						...(data.files?.length ? { files: data.files } : {}),
+					},
+					chat: {
+						id: String(data.chatId),
+						name: data.name || `${data.messenger} #${data.userId}`,
+					},
+				},
+			],
+		});
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(
+			`[bitrix] не удалось переслать сообщение в Открытую линию: ${message}`,
+		);
+	}
 }
 
 /**
@@ -182,62 +187,62 @@ export async function sendMessageToOpenLine(
  * без него нечего обновлять — id совпадёт лишь случайно.
  */
 export async function updateMessageInOpenLine(
-  api: BitrixApiLike | undefined,
-  data: OpenLineMessageData & { messageId: number },
+	api: BitrixApiLike | undefined,
+	data: OpenLineMessageData & { messageId: number },
 ): Promise<void> {
-  if (!api) return;
-  const config = await getBotConnector(data.messenger);
-  if (!config) return;
+	if (!api) return;
+	const config = await getBotConnector(data.messenger);
+	if (!config) return;
 
-  const name = sanitizeOpenLineName(data.name);
+	const name = sanitizeOpenLineName(data.name);
 
-  try {
-    await api.call("imconnector.update.messages", {
-      CONNECTOR: config.connectorId,
-      LINE: Number(config.openLineId),
-      MESSAGES: [
-        {
-          user: {
-            id: String(data.userId),
-            ...(name ? { name } : {}),
-            skip_phone_validate: "Y",
-          },
-          message: {
-            id: buildExternalMessageId(data),
-            date: Math.floor(Date.now() / 1000),
-            text: data.text,
-          },
-          chat: {
-            id: String(data.chatId),
-            name: data.name || `${data.messenger} #${data.userId}`,
-          },
-        },
-      ],
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[bitrix] не удалось переслать правку сообщения в Открытую линию: ${message}`,
-    );
-  }
+	try {
+		await api.call("imconnector.update.messages", {
+			CONNECTOR: config.connectorId,
+			LINE: Number(config.openLineId),
+			MESSAGES: [
+				{
+					user: {
+						id: String(data.userId),
+						...(name ? { name } : {}),
+						skip_phone_validate: "Y",
+					},
+					message: {
+						id: buildExternalMessageId(data),
+						date: Math.floor(Date.now() / 1000),
+						text: data.text,
+					},
+					chat: {
+						id: String(data.chatId),
+						name: data.name || `${data.messenger} #${data.userId}`,
+					},
+				},
+			],
+		});
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(
+			`[bitrix] не удалось переслать правку сообщения в Открытую линию: ${message}`,
+		);
+	}
 }
 
 export interface OpenLineConnector {
-  connectorId: string;
-  openLineId: string;
+	connectorId: string;
+	openLineId: string;
 }
 
 export interface OperatorReplyData {
-  messenger: string;
-  /** Тот же ID, под которым уже существует диалог в Открытой линии
-   * (chat.id всегда равен user.id для наших коннекторов — см. USER_CODE в
-   * resolveDialogCrmBindings/resolvePersonalDialog, packages/api). */
-  userId: string | number;
-  text: string;
-  /** Bitrix ID сотрудника, отправившего сообщение из единого инбокса
-   * («Клиенты») — передаётся в message.user_id, чтобы Bitrix атрибутировал
-   * сообщение менеджеру, а не клиенту. */
-  operatorId: string;
+	messenger: string;
+	/** Тот же ID, под которым уже существует диалог в Открытой линии
+	 * (chat.id всегда равен user.id для наших коннекторов — см. USER_CODE в
+	 * resolveDialogCrmBindings/resolvePersonalDialog, packages/api). */
+	userId: string | number;
+	text: string;
+	/** Bitrix ID сотрудника, отправившего сообщение из единого инбокса
+	 * («Клиенты») — передаётся в message.user_id, чтобы Bitrix атрибутировал
+	 * сообщение менеджеру, а не клиенту. */
+	operatorId: string;
 }
 
 /**
@@ -257,37 +262,49 @@ export interface OperatorReplyData {
  * от лица клиента (user.id), чтобы не выглядело, будто клиент написал себе сам.
  */
 export async function mirrorOperatorMessageToOpenLine(
-  api: BitrixApiLike | undefined,
-  connector: OpenLineConnector,
-  data: OperatorReplyData,
+	api: BitrixApiLike | undefined,
+	connector: OpenLineConnector,
+	data: OperatorReplyData,
+	redis?: RedisClient,
 ): Promise<void> {
-  if (!api) return;
+	if (!api) return;
 
-  try {
-    await api.call("imconnector.send.messages", {
-      CONNECTOR: connector.connectorId,
-      LINE: Number(connector.openLineId),
-      MESSAGES: [
-        {
-          user: { id: String(data.userId), skip_phone_validate: "Y" },
-          message: {
-            id: `operator-${data.operatorId}-${Date.now()}`,
-            date: Math.floor(Date.now() / 1000),
-            text: data.text,
-            user_id: Number(data.operatorId),
-          },
-          chat: {
-            id: String(data.userId),
-            name: `${data.messenger} #${data.userId}`,
-          },
-        },
-      ],
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[bitrix] не удалось отразить ответ оператора в Открытой линии: ${message}`,
-    );
-  }
+	const echo = {
+		connectorId: connector.connectorId,
+		lineId: connector.openLineId,
+		userId: data.userId,
+		operatorId: data.operatorId,
+		text: data.text,
+	};
+	const echoQueued = await enqueueOperatorMirrorEcho(redis, echo);
+
+	try {
+		await api.call("imconnector.send.messages", {
+			CONNECTOR: connector.connectorId,
+			LINE: Number(connector.openLineId),
+			MESSAGES: [
+				{
+					user: { id: String(data.userId), skip_phone_validate: "Y" },
+					message: {
+						id: `operator-${data.operatorId}-${Date.now()}`,
+						date: Math.floor(Date.now() / 1000),
+						text: data.text,
+						user_id: Number(data.operatorId),
+					},
+					chat: {
+						id: String(data.userId),
+						name: `${data.messenger} #${data.userId}`,
+					},
+				},
+			],
+		});
+	} catch (err: unknown) {
+		// Вызов не создал событие — убираем только что добавленный маркер, чтобы
+		// он не поглотил следующий настоящий ответ с таким же текстом.
+		if (echoQueued) await consumeOperatorMirrorEcho(redis, echo);
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(
+			`[bitrix] не удалось отразить ответ оператора в Открытой линии: ${message}`,
+		);
+	}
 }
-

@@ -1,26 +1,35 @@
 import { type BitrixApi, resolveBitrixApi } from "@psi-opora/bitrix-client";
-import { mirrorOperatorMessageToOpenLine } from "@psi-opora/bot-core";
 import {
-  getBitrixCrmLink,
-  getBotConnector,
-  insertBotMessage,
-  listTelegramPersonalAccounts,
-  listWhatsappPersonalAccounts,
-  upsertBitrixCrmLink,
+	createRedisClient,
+	isRedisConfigured,
+	mirrorOperatorMessageToOpenLine,
+	type RedisClient,
+} from "@psi-opora/bot-core";
+import {
+	getBitrixCrmLink,
+	getBotConnector,
+	insertBotMessage,
+	listTelegramPersonalAccounts,
+	listWhatsappPersonalAccounts,
+	upsertBitrixCrmLink,
 } from "@psi-opora/db/queries";
 import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
 import { wahaSendText } from "@psi-opora/waha";
 import { bitrixProcedure } from "../../orpc";
 import { sendClientMessageSchema } from "../../schemas/messages";
 import {
-  captureWhatsappPresence,
-  sendViaPersonalNumber,
+	captureWhatsappPresence,
+	sendViaPersonalNumber,
 } from "../widget-message/helpers";
 import { resolveTelegramPersonalTarget } from "./telegram-personal-target";
 
+const operatorMirrorRedis: RedisClient | undefined = isRedisConfigured()
+	? createRedisClient()
+	: undefined;
+
 interface OpenLineConnectorRef {
-  connectorId: string;
-  openLineId: string;
+	connectorId: string;
+	openLineId: string;
 }
 
 /**
@@ -32,60 +41,60 @@ interface OpenLineConnectorRef {
  * где телефон известен из карточки контакта и это kind: "phone".
  */
 async function sendTelegramPersonal(
-  api: BitrixApi | null,
-  memberId: string | null,
-  userId: string,
-  lineId: string | undefined,
-  connectorId: string | undefined,
-  text: string,
+	api: BitrixApi | null,
+	memberId: string | null,
+	userId: string,
+	lineId: string | undefined,
+	connectorId: string | undefined,
+	text: string,
 ): Promise<{
-  ok?: true;
-  error?: string;
-  connector?: OpenLineConnectorRef;
-  telegramUserId?: string;
+	ok?: true;
+	error?: string;
+	connector?: OpenLineConnectorRef;
+	telegramUserId?: string;
 }> {
-  if (!memberId) {
-    return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
-  }
-  const accounts = (await listTelegramPersonalAccounts(memberId)).filter(
-    (a) => a.status === "connected",
-  );
+	if (!memberId) {
+		return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
+	}
+	const accounts = (await listTelegramPersonalAccounts(memberId)).filter(
+		(a) => a.status === "connected",
+	);
 
-  let account: (typeof accounts)[number] | undefined;
-  if (connectorId) {
-    account = accounts.find((a) => a.connectorId === connectorId);
-  } else {
-    const matches = lineId
-      ? accounts.filter((a) => a.openLineId === lineId)
-      : accounts;
-    if (matches.length > 1) {
-      return {
-        error: lineId
-          ? "На этой линии несколько личных номеров Telegram — уточните, с какого отправить"
-          : "На портале несколько личных номеров Telegram — отправка из единого инбокса пока поддерживает один",
-      };
-    }
-    account = matches[0];
-  }
-  if (!account) return { error: "Личный номер Telegram не подключён" };
+	let account: (typeof accounts)[number] | undefined;
+	if (connectorId) {
+		account = accounts.find((a) => a.connectorId === connectorId);
+	} else {
+		const matches = lineId
+			? accounts.filter((a) => a.openLineId === lineId)
+			: accounts;
+		if (matches.length > 1) {
+			return {
+				error: lineId
+					? "На этой линии несколько личных номеров Telegram — уточните, с какого отправить"
+					: "На портале несколько личных номеров Telegram — отправка из единого инбокса пока поддерживает один",
+			};
+		}
+		account = matches[0];
+	}
+	if (!account) return { error: "Личный номер Telegram не подключён" };
 
-  const target = await resolveTelegramPersonalTarget(api, userId);
-  const result = await sendViaPersonalNumber({
-    memberId,
-    openLineId: account.openLineId,
-    connectorId: account.connectorId,
-    target,
-    text,
-  });
-  if (result.error) return result;
-  return {
-    ok: true,
-    connector: {
-      connectorId: account.connectorId,
-      openLineId: account.openLineId,
-    },
-    telegramUserId: result.telegramUserId,
-  };
+	const target = await resolveTelegramPersonalTarget(api, userId);
+	const result = await sendViaPersonalNumber({
+		memberId,
+		openLineId: account.openLineId,
+		connectorId: account.connectorId,
+		target,
+		text,
+	});
+	if (result.error) return result;
+	return {
+		ok: true,
+		connector: {
+			connectorId: account.connectorId,
+			openLineId: account.openLineId,
+		},
+		telegramUserId: result.telegramUserId,
+	};
 }
 
 /**
@@ -94,60 +103,60 @@ async function sendTelegramPersonal(
  * WAHA отправляет по нему напрямую, без отдельного шага резолва пира.
  */
 async function sendWhatsappPersonal(
-  memberId: string | null,
-  userId: string,
-  lineId: string | undefined,
-  connectorId: string | undefined,
-  text: string,
+	memberId: string | null,
+	userId: string,
+	lineId: string | undefined,
+	connectorId: string | undefined,
+	text: string,
 ): Promise<{
-  ok?: true;
-  error?: string;
-  externalId?: string;
-  connector?: OpenLineConnectorRef;
+	ok?: true;
+	error?: string;
+	externalId?: string;
+	connector?: OpenLineConnectorRef;
 }> {
-  if (!memberId) {
-    return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
-  }
-  const accounts = (await listWhatsappPersonalAccounts(memberId)).filter(
-    (a) => a.status === "connected",
-  );
+	if (!memberId) {
+		return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
+	}
+	const accounts = (await listWhatsappPersonalAccounts(memberId)).filter(
+		(a) => a.status === "connected",
+	);
 
-  let account: (typeof accounts)[number] | undefined;
-  if (connectorId) {
-    account = accounts.find((a) => a.connectorId === connectorId);
-  } else {
-    const matches = lineId
-      ? accounts.filter((a) => a.openLineId === lineId)
-      : accounts;
-    if (matches.length > 1) {
-      return {
-        error: lineId
-          ? "На этой линии несколько личных номеров WhatsApp — уточните, с какого отправить"
-          : "На портале несколько личных номеров WhatsApp — отправка из единого инбокса пока поддерживает один",
-      };
-    }
-    account = matches[0];
-  }
-  if (!account) return { error: "Личный номер WhatsApp не подключён" };
+	let account: (typeof accounts)[number] | undefined;
+	if (connectorId) {
+		account = accounts.find((a) => a.connectorId === connectorId);
+	} else {
+		const matches = lineId
+			? accounts.filter((a) => a.openLineId === lineId)
+			: accounts;
+		if (matches.length > 1) {
+			return {
+				error: lineId
+					? "На этой линии несколько личных номеров WhatsApp — уточните, с какого отправить"
+					: "На портале несколько личных номеров WhatsApp — отправка из единого инбокса пока поддерживает один",
+			};
+		}
+		account = matches[0];
+	}
+	if (!account) return { error: "Личный номер WhatsApp не подключён" };
 
-  try {
-    const { id } = await wahaSendText(account.sessionName, userId, text);
-    await captureWhatsappPresence(account.sessionName, userId).catch((err) =>
-      console.error(
-        `[messages] не удалось получить WhatsApp presence ${userId}: ${(err as Error).message}`,
-      ),
-    );
-    return {
-      ok: true,
-      externalId: id,
-      connector: {
-        connectorId: account.connectorId,
-        openLineId: account.openLineId,
-      },
-    };
-  } catch (err) {
-    return { error: `Не отправлено: ${(err as Error).message}` };
-  }
+	try {
+		const { id } = await wahaSendText(account.sessionName, userId, text);
+		await captureWhatsappPresence(account.sessionName, userId).catch((err) =>
+			console.error(
+				`[messages] не удалось получить WhatsApp presence ${userId}: ${(err as Error).message}`,
+			),
+		);
+		return {
+			ok: true,
+			externalId: id,
+			connector: {
+				connectorId: account.connectorId,
+				openLineId: account.openLineId,
+			},
+		};
+	} catch (err) {
+		return { error: `Не отправлено: ${(err as Error).message}` };
+	}
 }
 
 /**
@@ -160,127 +169,132 @@ async function sendWhatsappPersonal(
  * чтобы оператор, работающий из Открытой линии, видел и эти реплики тоже.
  */
 export const send = bitrixProcedure
-  .input(sendClientMessageSchema)
-  .handler(
-    async ({ input, context }): Promise<{ ok?: true; error?: string }> => {
-      const text = input.text.trim();
-      if (!text) return { error: "Введите текст сообщения" };
-      // Авторство берём из подписанной Bitrix-сессии, а не из клиентского
-      // payload: профиль оператора в React может ещё не успеть загрузиться.
-      const operatorId = context.bitrixSession.userId;
+	.input(sendClientMessageSchema)
+	.handler(
+		async ({ input, context }): Promise<{ ok?: true; error?: string }> => {
+			const text = input.text.trim();
+			if (!text) return { error: "Введите текст сообщения" };
+			// Авторство берём из подписанной Bitrix-сессии, а не из клиентского
+			// payload: профиль оператора в React может ещё не успеть загрузиться.
+			const operatorId = context.bitrixSession.userId;
 
-      let externalId: string | undefined;
-      let connector: OpenLineConnectorRef | undefined;
-      let canonicalTelegramUserId: string | undefined;
+			let externalId: string | undefined;
+			let connector: OpenLineConnectorRef | undefined;
+			let canonicalTelegramUserId: string | undefined;
 
-      if (input.messenger === "telegram-personal") {
-        const api = await context.getBitrixApi();
-        const result = await sendTelegramPersonal(
-          api,
-          context.memberId,
-          input.userId,
-          input.lineId,
-          input.connectorId,
-          text,
-        );
-        if (result.error) return result;
-        connector = result.connector;
-        canonicalTelegramUserId = result.telegramUserId;
+			if (input.messenger === "telegram-personal") {
+				const api = await context.getBitrixApi();
+				const result = await sendTelegramPersonal(
+					api,
+					context.memberId,
+					input.userId,
+					input.lineId,
+					input.connectorId,
+					text,
+				);
+				if (result.error) return result;
+				connector = result.connector;
+				canonicalTelegramUserId = result.telegramUserId;
 
-        // Если старый диалог был заведён по телефону, после успешного
-        // резолва сохраняем канонический Telegram ID как второй ключ того же
-        // контакта. Следующее входящее сообщение придёт уже по этому ID.
-        if (
-          canonicalTelegramUserId &&
-          canonicalTelegramUserId !== input.userId
-        ) {
-          try {
-            const link = await getBitrixCrmLink(
-              "telegram-personal",
-              input.userId,
-            );
-            if (link?.contactId) {
-              await upsertBitrixCrmLink({
-                messenger: "telegram-personal",
-                userId: canonicalTelegramUserId,
-                contactId: link.contactId,
-              });
-            }
-          } catch (err) {
-            console.error(
-              `[messages] не удалось сохранить канонический Telegram ID: ${(err as Error).message}`,
-            );
-          }
-        }
-      } else if (input.messenger === "whatsapp-personal") {
-        const result = await sendWhatsappPersonal(
-          context.memberId,
-          input.userId,
-          input.lineId,
-          input.connectorId,
-          text,
-        );
-        if (result.error) return result;
-        externalId = result.externalId;
-        connector = result.connector;
-      } else {
-        try {
-          externalId = await sendMessengerMessage(
-            input.messenger,
-            input.userId,
-            text,
-          );
-        } catch (err) {
-          const error = err as Error;
-          console.error(
-            `[messages] ошибка отправки ${input.messenger}: ${error.message}`,
-            error.cause ?? "",
-          );
-          return {
-            error: `Не отправлено: ${formatMessengerError(error.message)}`,
-          };
-        }
-        const botConnector = await getBotConnector(input.messenger).catch(
-          () => null,
-        );
-        if (botConnector) {
-          connector = {
-            connectorId: botConnector.connectorId,
-            openLineId: botConnector.openLineId,
-          };
-        }
-      }
+				// Если старый диалог был заведён по телефону, после успешного
+				// резолва сохраняем канонический Telegram ID как второй ключ того же
+				// контакта. Следующее входящее сообщение придёт уже по этому ID.
+				if (
+					canonicalTelegramUserId &&
+					canonicalTelegramUserId !== input.userId
+				) {
+					try {
+						const link = await getBitrixCrmLink(
+							"telegram-personal",
+							input.userId,
+						);
+						if (link?.contactId) {
+							await upsertBitrixCrmLink({
+								messenger: "telegram-personal",
+								userId: canonicalTelegramUserId,
+								contactId: link.contactId,
+							});
+						}
+					} catch (err) {
+						console.error(
+							`[messages] не удалось сохранить канонический Telegram ID: ${(err as Error).message}`,
+						);
+					}
+				}
+			} else if (input.messenger === "whatsapp-personal") {
+				const result = await sendWhatsappPersonal(
+					context.memberId,
+					input.userId,
+					input.lineId,
+					input.connectorId,
+					text,
+				);
+				if (result.error) return result;
+				externalId = result.externalId;
+				connector = result.connector;
+			} else {
+				try {
+					externalId = await sendMessengerMessage(
+						input.messenger,
+						input.userId,
+						text,
+					);
+				} catch (err) {
+					const error = err as Error;
+					console.error(
+						`[messages] ошибка отправки ${input.messenger}: ${error.message}`,
+						error.cause ?? "",
+					);
+					return {
+						error: `Не отправлено: ${formatMessengerError(error.message)}`,
+					};
+				}
+				const botConnector = await getBotConnector(input.messenger).catch(
+					() => null,
+				);
+				if (botConnector) {
+					connector = {
+						connectorId: botConnector.connectorId,
+						openLineId: botConnector.openLineId,
+					};
+				}
+			}
 
-      try {
-        await insertBotMessage({
-          messenger: input.messenger,
-          userId: input.userId,
-          direction: "out",
-          source: "widget",
-          text,
-          operatorId,
-          operatorName: input.operatorName,
-          externalId,
-          connectorId: connector?.connectorId,
-        });
-      } catch (err) {
-        console.error(
-          `[messages] не удалось записать сообщение в журнал: ${(err as Error).message}`,
-        );
-      }
+			try {
+				await insertBotMessage({
+					messenger: input.messenger,
+					userId: input.userId,
+					direction: "out",
+					source: "widget",
+					text,
+					operatorId,
+					operatorName: input.operatorName,
+					externalId,
+					connectorId: connector?.connectorId,
+				});
+			} catch (err) {
+				console.error(
+					`[messages] не удалось записать сообщение в журнал: ${(err as Error).message}`,
+				);
+			}
 
-      // Если диалог/коннектор известен, отражаем сообщение в Открытой линии.
-      // operatorId надёжно получен из подписанной Bitrix-сессии выше.
-      if (connector) {
-        const api = resolveBitrixApi(context.memberId ?? undefined);
-        await mirrorOperatorMessageToOpenLine(api ?? undefined, connector, {
-          messenger: input.messenger,
-          userId: canonicalTelegramUserId ?? input.userId,
-          text,
-          operatorId,
-        });
-      }
+			// Если диалог/коннектор известен, отражаем сообщение в Открытой линии.
+			// operatorId надёжно получен из подписанной Bitrix-сессии выше.
+			if (connector) {
+				const api = resolveBitrixApi(context.memberId ?? undefined);
+				await mirrorOperatorMessageToOpenLine(
+					api ?? undefined,
+					connector,
+					{
+						messenger: input.messenger,
+						userId: canonicalTelegramUserId ?? input.userId,
+						text,
+						operatorId,
+					},
+					operatorMirrorRedis,
+				);
+			}
 
-      return { ok: true };
-    },
-  );
+			return { ok: true };
+		},
+	);

@@ -84,6 +84,11 @@ export function ProfilePane({
   const { data, isLoading } = useQuery(
     orpc.messages.profile.queryOptions({
       input: { messenger: selected.messenger, userId: selected.userId },
+      refetchInterval:
+        selected.messenger === "telegram-personal" ||
+        selected.messenger === "whatsapp-personal"
+          ? 30_000
+          : false,
     }),
   );
 

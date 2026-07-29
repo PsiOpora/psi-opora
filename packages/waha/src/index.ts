@@ -68,6 +68,13 @@ export interface WahaSession {
   name: string;
   status: WahaSessionStatus;
   me?: { id?: string; pushName?: string } | null;
+  config?: Record<string, unknown> & {
+    webhooks?: Array<{
+      url?: string;
+      events?: string[];
+      [key: string]: unknown;
+    }>;
+  };
 }
 
 /**
@@ -184,12 +191,62 @@ export interface WahaChatPresence {
   presences: WahaPresence[];
 }
 
+const presenceWebhookConfigured = new Set<string>();
+
+/**
+ * Довключает presence.update в уже существующую WAHA-сессию. Это позволяет
+ * обновить старые подключения без удаления сессии и повторного pairing.
+ */
+async function wahaEnsurePresenceWebhook(session: string): Promise<void> {
+  if (presenceWebhookConfigured.has(session) || !env.WAHA_WEBHOOK_URL) return;
+
+  const current = await wahaGetSession(session);
+  if (!current) return;
+  const currentConfig = current.config ?? {};
+  const webhooks = [...(currentConfig.webhooks ?? [])];
+  const index = webhooks.findIndex(
+    (webhook) => webhook.url === env.WAHA_WEBHOOK_URL,
+  );
+  const existing = index >= 0 ? webhooks[index] : undefined;
+  if (existing?.events?.includes("presence.update")) {
+    presenceWebhookConfigured.add(session);
+    return;
+  }
+
+  const webhook = {
+    ...existing,
+    url: env.WAHA_WEBHOOK_URL,
+    events: Array.from(
+      new Set([
+        ...(existing?.events ?? ["message", "message.ack"]),
+        "presence.update",
+      ]),
+    ),
+    ...(env.WAHA_WEBHOOK_SECRET
+      ? { hmac: { key: env.WAHA_WEBHOOK_SECRET } }
+      : {}),
+    retries: { policy: "constant", delaySeconds: 2, attempts: 5 },
+  };
+  if (index >= 0) webhooks[index] = webhook;
+  else webhooks.push(webhook);
+
+  await wahaFetch<WahaSession>(`/api/sessions/${encodeURIComponent(session)}`, {
+    method: "PUT",
+    body: {
+      name: session,
+      config: { ...currentConfig, webhooks },
+    },
+  });
+  presenceWebhookConfigured.add(session);
+}
+
 /** Запрашивает текущий presence и одновременно подписывает WAHA на
  * последующие presence.update для этого диалога. */
 export async function wahaGetChatPresence(
   session: string,
   chatId: string,
 ): Promise<WahaChatPresence> {
+  await wahaEnsurePresenceWebhook(session);
   return wahaFetch<WahaChatPresence>(
     `/api/${encodeURIComponent(session)}/presence/${encodeURIComponent(chatId)}`,
   );
