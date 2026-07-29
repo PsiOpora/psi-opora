@@ -154,6 +154,13 @@
       "when": 1785327215042,
       "tag": "0021_flippant_sprite",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785337017787,
+      "tag": "0022_loud_titanium_man",
+      "breakpoints": true
     }
   ]
 }

@@ -27,8 +27,8 @@ import {
 } from "./bot-funnel";
 import {
   getBotMessageMedia as _getBotMessageMedia,
-  getEditableBotMessage as _getEditableBotMessage,
   getClientMessageStats as _getClientMessageStats,
+  getEditableBotMessage as _getEditableBotMessage,
   insertBotMessage as _insertBotMessage,
   listBotMessages as _listBotMessages,
   listBotMessagesSince as _listBotMessagesSince,
@@ -48,7 +48,9 @@ import {
 import {
   getBotUserProfile as _getBotUserProfile,
   listBotUsersMissingAvatarUpload as _listBotUsersMissingAvatarUpload,
+  updateExistingBotUserPresence as _updateExistingBotUserPresence,
   upsertBotUser as _upsertBotUser,
+  upsertBotUserPresence as _upsertBotUserPresence,
   type BotUserProfileEntry,
 } from "./bot-users";
 import {
@@ -84,10 +86,10 @@ export type {
 } from "./bot-messages";
 export type { BotText } from "./bot-texts";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
-export type { ClientNote, NewClientNoteEntry } from "./client-notes";
-export type { QuickReply } from "./quick-replies";
 export * from "./broadcast";
+export type { ClientNote, NewClientNoteEntry } from "./client-notes";
 export * from "./email-campaign";
+export type { QuickReply } from "./quick-replies";
 export * from "./telegram-personal";
 export * from "./unisender";
 export * from "./whatsapp-personal";
@@ -189,6 +191,18 @@ export async function getBotFunnelEventsByDateRange(
 
 export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {
   return _upsertBotUser(db, entry);
+}
+
+export async function upsertBotUserPresence(
+  entry: Parameters<typeof _upsertBotUserPresence>[1],
+): Promise<void> {
+  return _upsertBotUserPresence(db, entry);
+}
+
+export async function updateExistingBotUserPresence(
+  entry: Parameters<typeof _updateExistingBotUserPresence>[1],
+): Promise<void> {
+  return _updateExistingBotUserPresence(db, entry);
 }
 
 export async function getBotUserProfile(messenger: string, userId: string) {

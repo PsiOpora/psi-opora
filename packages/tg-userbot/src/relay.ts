@@ -1,7 +1,20 @@
 import { MemoryStorage, MtPeerNotFoundError, type tl } from "@mtcute/core";
-import { TelegramClient } from "@mtcute/node";
 import type { Message } from "@mtcute/node";
+import { TelegramClient } from "@mtcute/node";
 import type { TelegramApiCredentials } from "./login";
+
+export interface UserbotPresence {
+  userId: number;
+  status:
+    | "online"
+    | "offline"
+    | "recently"
+    | "within_week"
+    | "within_month"
+    | "long_time_ago"
+    | "bot";
+  lastOnline: Date | null;
+}
 
 /**
  * Используется воркером (Фаза 2, apps/tg-userbot-worker) — держит живой
@@ -37,6 +50,35 @@ export function listenForMessages(
     if (message.isOutgoing) return;
     void onMessage(message);
   });
+}
+
+/** Подписка на MTProto updateUserStatus. Поток глобальный для аккаунта,
+ * поэтому вызывающий код должен сохранять только уже известных клиентов. */
+export function listenForUserPresence(
+  client: TelegramClient,
+  onPresence: (presence: UserbotPresence) => void | Promise<void>,
+): void {
+  client.onUserStatusUpdate.add((update) => {
+    void onPresence({
+      userId: update.userId,
+      status: update.status,
+      lastOnline: update.lastOnline,
+    });
+  });
+}
+
+/** Текущий presence пользователя после резолва/отправки первого сообщения. */
+export async function getUserPresence(
+  client: TelegramClient,
+  target: number | tl.TypeInputPeer,
+): Promise<UserbotPresence | null> {
+  const [user] = await client.getUsers(target);
+  if (!user) return null;
+  return {
+    userId: user.id,
+    status: user.status,
+    lastOnline: user.lastOnline,
+  };
 }
 
 export async function sendUserbotMessage(
@@ -89,9 +131,7 @@ export async function resolveClientUsername(
     return await client.resolvePeer(cleaned);
   } catch (err) {
     if (err instanceof MtPeerNotFoundError) {
-      throw new Error(
-        `Клиент не найден в Telegram по username @${cleaned}`,
-      );
+      throw new Error(`Клиент не найден в Telegram по username @${cleaned}`);
     }
     throw err;
   }

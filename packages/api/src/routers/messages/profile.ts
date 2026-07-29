@@ -30,6 +30,9 @@ export const profile = bitrixProcedure
         source: user?.source ?? null,
         campaign: user?.campaign ?? null,
         firstSeenAt: user?.firstSeenAt?.toISOString() ?? null,
+        presenceStatus: user?.presenceStatus ?? null,
+        messengerLastSeenAt: user?.messengerLastSeenAt?.toISOString() ?? null,
+        presenceObservedAt: user?.presenceObservedAt?.toISOString() ?? null,
         lastSeenAt: user?.lastSeenAt?.toISOString() ?? null,
         stats: {
           totalCount: stats.totalCount,

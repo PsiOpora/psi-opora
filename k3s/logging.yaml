@@ -294,6 +294,157 @@ data:
         options:
           path: /var/lib/grafana/dashboards
 ---
+# --- Grafana Alerting: ошибки из Loki → Telegram ---
+#
+# ВАЖНО: токен и chat_id намеренно хранятся прямо в этом файле по решению
+# владельца проекта. Не публиковать этот манифест и репозиторий.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alerting
+  namespace: psi-opora
+data:
+  psi-opora-alerting.yaml: |
+    apiVersion: 1
+
+    contactPoints:
+      - orgId: 1
+        name: psi-opora-telegram
+        receivers:
+          - uid: psi-opora-telegram
+            type: telegram
+            disableResolveMessage: false
+            settings:
+              bottoken: "8974638619:AAFvjwecyX7XEyRFMZvpH-XB-XCt0ssYt_0"
+              chatid: "5652886641"
+              parse_mode: HTML
+              disable_web_page_preview: true
+              message: |
+                {{- if gt (len .Alerts.Firing) 0 }}
+                🔴 <b>ОШИБКИ В PSI-OPORA</b>
+                {{ range .Alerts.Firing }}
+                Сервис: <code>{{ index .Labels "app" }}</code>
+                Ошибок за 5 минут: <b>{{ index .Values "B" }}</b>
+
+                <a href="{{ .GeneratorURL }}">Открыть алерт в Grafana</a>
+                {{ end }}
+                {{- else }}
+                ✅ <b>РАБОТА ВОССТАНОВЛЕНА</b>
+                {{ range .Alerts.Resolved }}
+                Сервис: <code>{{ index .Labels "app" }}</code>
+                Ошибок больше нет.
+
+                <a href="{{ .GeneratorURL }}">Открыть алерт в Grafana</a>
+                {{ end }}
+                {{- end }}
+
+    policies:
+      - orgId: 1
+        receiver: psi-opora-telegram
+        group_by:
+          - grafana_folder
+          - alertname
+          - app
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+
+    groups:
+      - orgId: 1
+        name: pod-log-errors
+        folder: psi-opora
+        interval: 1m
+        rules:
+          - uid: psi-opora-pod-log-errors
+            title: Ошибки в логах подов
+            condition: C
+            data:
+              - refId: A
+                queryType: instant
+                relativeTimeRange:
+                  from: 300
+                  to: 0
+                datasourceUid: loki
+                model:
+                  datasource:
+                    type: loki
+                    uid: loki
+                  editorMode: code
+                  expr: >-
+                    sum by (app) (count_over_time({namespace="psi-opora", app!~"grafana|loki|promtail"} |~ `(?i)error|exception|fatal|panic` [5m]))
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+                  queryType: instant
+                  refId: A
+              - refId: B
+                queryType: ""
+                relativeTimeRange:
+                  from: 300
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  conditions:
+                    - evaluator:
+                        params: []
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params: []
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                  datasource:
+                    type: __expr__
+                    uid: __expr__
+                  expression: A
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+                  reducer: last
+                  refId: B
+                  type: reduce
+              - refId: C
+                queryType: ""
+                relativeTimeRange:
+                  from: 300
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  conditions:
+                    - evaluator:
+                        params:
+                          - 0
+                        type: gt
+                      operator:
+                        type: and
+                      query:
+                        params:
+                          - C
+                      reducer:
+                        params: []
+                        type: last
+                      type: query
+                  datasource:
+                    type: __expr__
+                    uid: __expr__
+                  expression: B
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+                  refId: C
+                  type: threshold
+            noDataState: OK
+            execErrState: Error
+            for: 1m
+            annotations:
+              summary: Ошибки в логах {{ $labels.app }}
+              description: За последние 5 минут найдено {{ $values.B.Value }} ошибок.
+            labels:
+              severity: error
+              source: pod-logs
+            isPaused: false
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -533,6 +684,8 @@ spec:
                 secretKeyRef:
                   name: grafana-admin
                   key: password
+            - name: GF_SERVER_ROOT_URL
+              value: https://psi-opora-grafana.orixon.ru
           readinessProbe:
             httpGet:
               path: /api/health
@@ -548,6 +701,8 @@ spec:
           volumeMounts:
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
+            - name: alerting
+              mountPath: /etc/grafana/provisioning/alerting
             - name: dashboards-provider
               mountPath: /etc/grafana/provisioning/dashboards
             - name: dashboards-json
@@ -558,6 +713,9 @@ spec:
         - name: datasources
           configMap:
             name: grafana-datasources
+        - name: alerting
+          configMap:
+            name: grafana-alerting
         - name: dashboards-provider
           configMap:
             name: grafana-dashboards-provider

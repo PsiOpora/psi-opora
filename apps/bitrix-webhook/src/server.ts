@@ -18,6 +18,7 @@ import {
   removeBotConnector,
   updateBotMessageStatus,
   upsertBotUser,
+  upsertBotUserPresence,
 } from "@psi-opora/db/queries";
 import {
   handleConsultationDealUpdate,
@@ -25,7 +26,12 @@ import {
   sendMessengerMessage,
 } from "@psi-opora/jobs";
 import { pushOutboundMessage } from "@psi-opora/tg-userbot";
-import { phoneFromJid, wahaAckToStatus, wahaSendText } from "@psi-opora/waha";
+import {
+  phoneFromJid,
+  wahaAckToStatus,
+  wahaGetChatPresence,
+  wahaSendText,
+} from "@psi-opora/waha";
 import { Hono } from "hono";
 import { uploadWahaMedia } from "./media-storage.js";
 
@@ -164,6 +170,24 @@ async function relayToWhatsAppPersonal(
       reply.text,
     );
     externalId = result.id;
+    const snapshot = await wahaGetChatPresence(
+      account.sessionName,
+      String(reply.chatId),
+    ).catch(() => null);
+    const presence = snapshot?.presences[0];
+    if (presence) {
+      await upsertBotUserPresence({
+        messenger: "whatsapp-personal",
+        userId: String(reply.chatId),
+        status: presence.lastKnownPresence,
+        lastSeenAt:
+          presence.lastSeen == null ? null : new Date(presence.lastSeen * 1000),
+      }).catch((err) =>
+        console.error(
+          `[bitrix-webhook] не удалось сохранить WhatsApp presence: ${(err as Error).message}`,
+        ),
+      );
+    }
     console.log(
       `[bitrix-webhook] ответ оператора отправлен с личного номера ${account.phone} chat=${reply.chatId}`,
     );
@@ -266,6 +290,12 @@ interface WahaMessageEvent {
     /** Только для event === "message.ack". */
     ack?: number;
     ackName?: string;
+    /** Только для event === "presence.update". */
+    presences?: Array<{
+      participant?: string;
+      lastKnownPresence?: string;
+      lastSeen?: number | null;
+    }>;
     /** Голосовые/аудио и другие вложения — WAHA скачивает медиа сама и
      * отдаёт ссылку в вебхуке (опция downloadMedia в конфиге сессии).
      * Форма пейлоада не задокументирована жёстко — код ниже читает поля
@@ -312,6 +342,27 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
       await updateBotMessageStatus(id, status).catch((err) =>
         console.error(
           `[waha-webhook] не удалось обновить статус сообщения ${id}: ${(err as Error).message}`,
+        ),
+      );
+    }
+    return Response.json({ ok: true });
+  }
+
+  if (event.event === "presence.update") {
+    const chatId = event.payload?.id;
+    const presence =
+      event.payload?.presences?.find((item) => item.participant === chatId) ??
+      event.payload?.presences?.[0];
+    if (chatId?.endsWith("@c.us") && presence?.lastKnownPresence) {
+      await upsertBotUserPresence({
+        messenger: "whatsapp-personal",
+        userId: chatId,
+        status: presence.lastKnownPresence,
+        lastSeenAt:
+          presence.lastSeen == null ? null : new Date(presence.lastSeen * 1000),
+      }).catch((err) =>
+        console.error(
+          `[waha-webhook] не удалось сохранить presence ${chatId}: ${(err as Error).message}`,
         ),
       );
     }

@@ -4,9 +4,14 @@ import {
   listBotMessages,
   listTelegramPersonalAccounts,
   listWhatsappPersonalAccounts,
+  upsertBotUserPresence,
 } from "@psi-opora/db/queries";
 import { getSendResult, pushOutboundMessage } from "@psi-opora/tg-userbot";
-import { jidFromPhone, wahaSendText } from "@psi-opora/waha";
+import {
+  jidFromPhone,
+  wahaGetChatPresence,
+  wahaSendText,
+} from "@psi-opora/waha";
 import {
   discoverMessengerFields,
   findMaxId,
@@ -19,6 +24,24 @@ import type { WidgetChannel, WidgetEntity, WidgetHistoryItem } from "./types";
 
 const SEND_RESULT_POLL_INTERVAL_MS = 300;
 const SEND_RESULT_TIMEOUT_MS = 6000;
+
+export async function captureWhatsappPresence(
+  session: string,
+  chatId: string,
+): Promise<void> {
+  const snapshot = await wahaGetChatPresence(session, chatId);
+  const presence =
+    snapshot.presences.find((item) => item.participant === chatId) ??
+    snapshot.presences[0];
+  if (!presence) return;
+  await upsertBotUserPresence({
+    messenger: "whatsapp-personal",
+    userId: chatId,
+    status: presence.lastKnownPresence,
+    lastSeenAt:
+      presence.lastSeen == null ? null : new Date(presence.lastSeen * 1000),
+  });
+}
 
 /**
  * Личный номер (в отличие от бота) не держит соединение в этом процессе —
@@ -93,6 +116,12 @@ export async function sendViaWhatsappPersonal(params: {
       account.sessionName,
       params.jid,
       params.text,
+    );
+    await captureWhatsappPresence(account.sessionName, params.jid).catch(
+      (err) =>
+        console.error(
+          `[whatsapp-personal] не удалось получить presence ${params.jid}: ${(err as Error).message}`,
+        ),
     );
     return { ok: true, externalId: id };
   } catch (err) {

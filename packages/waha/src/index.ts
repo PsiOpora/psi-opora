@@ -94,7 +94,7 @@ export async function wahaCreateSession(
               webhooks: [
                 {
                   url: webhook.url,
-                  events: ["message", "message.ack"],
+                  events: ["message", "message.ack", "presence.update"],
                   ...(webhook.hmacKey
                     ? { hmac: { key: webhook.hmacKey } }
                     : {}),
@@ -164,6 +164,35 @@ export async function wahaSendText(
     body: { session, chatId, text },
   });
   return { id: res?.id };
+}
+
+export interface WahaPresence {
+  participant: string;
+  lastKnownPresence:
+    | "online"
+    | "offline"
+    | "typing"
+    | "recording"
+    | "paused"
+    | (string & {});
+  /** Unix timestamp в секундах; null, если WhatsApp не раскрыл точное время. */
+  lastSeen: number | null;
+}
+
+export interface WahaChatPresence {
+  id: string;
+  presences: WahaPresence[];
+}
+
+/** Запрашивает текущий presence и одновременно подписывает WAHA на
+ * последующие presence.update для этого диалога. */
+export async function wahaGetChatPresence(
+  session: string,
+  chatId: string,
+): Promise<WahaChatPresence> {
+  return wahaFetch<WahaChatPresence>(
+    `/api/${encodeURIComponent(session)}/presence/${encodeURIComponent(chatId)}`,
+  );
 }
 
 /** sent | delivered | read | failed — см. packages/db BotMessageEntry.status. */

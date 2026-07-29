@@ -1,11 +1,8 @@
-import {
-  type BitrixApi,
-  resolveBitrixApi,
-} from "@psi-opora/bitrix-client";
+import { type BitrixApi, resolveBitrixApi } from "@psi-opora/bitrix-client";
 import { mirrorOperatorMessageToOpenLine } from "@psi-opora/bot-core";
 import {
-  getBotConnector,
   getBitrixCrmLink,
+  getBotConnector,
   insertBotMessage,
   listTelegramPersonalAccounts,
   listWhatsappPersonalAccounts,
@@ -15,7 +12,10 @@ import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
 import { wahaSendText } from "@psi-opora/waha";
 import { bitrixProcedure } from "../../orpc";
 import { sendClientMessageSchema } from "../../schemas/messages";
-import { sendViaPersonalNumber } from "../widget-message/helpers";
+import {
+  captureWhatsappPresence,
+  sendViaPersonalNumber,
+} from "../widget-message/helpers";
 import { resolveTelegramPersonalTarget } from "./telegram-personal-target";
 
 interface OpenLineConnectorRef {
@@ -132,6 +132,11 @@ async function sendWhatsappPersonal(
 
   try {
     const { id } = await wahaSendText(account.sessionName, userId, text);
+    await captureWhatsappPresence(account.sessionName, userId).catch((err) =>
+      console.error(
+        `[messages] не удалось получить WhatsApp presence ${userId}: ${(err as Error).message}`,
+      ),
+    );
     return {
       ok: true,
       externalId: id,

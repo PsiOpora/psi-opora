@@ -4,13 +4,17 @@ import {
   listConnectedTelegramPersonalAccounts,
   markTelegramPersonalAccountError,
   type TelegramPersonalAccount,
+  updateExistingBotUserPresence,
   upsertBotUser,
+  upsertBotUserPresence,
 } from "@psi-opora/db/queries";
 import {
   createUserbotClient,
   decryptSecret,
   drainOutboundMessages,
+  getUserPresence,
   listenForMessages,
+  listenForUserPresence,
   resolveClientPhoneNumber,
   resolveClientUsername,
   sendUserbotMessage,
@@ -19,6 +23,25 @@ import {
 
 const OUTBOX_POLL_INTERVAL_MS = 3000;
 const ACCOUNTS_RESCAN_INTERVAL_MS = 60_000;
+
+async function saveTelegramPresence(
+  presence: {
+    userId: number;
+    status: string;
+    lastOnline: Date | null;
+  },
+  onlyExisting = false,
+): Promise<void> {
+  const save = onlyExisting
+    ? updateExistingBotUserPresence
+    : upsertBotUserPresence;
+  await save({
+    messenger: "telegram-personal",
+    userId: String(presence.userId),
+    status: presence.status,
+    lastSeenAt: presence.lastOnline,
+  });
+}
 
 function accountLabel(account: TelegramPersonalAccount): string {
   return `${account.memberId}:${account.openLineId} (${account.phone})`;
@@ -161,6 +184,30 @@ function startOutboxPolling(
             : "userId" in target && typeof target.userId === "number"
               ? target.userId
               : undefined;
+        if (telegramUserId !== undefined) {
+          const presence = await getUserPresence(client, target).catch(
+            () => null,
+          );
+          if (presence) {
+            await saveTelegramPresence(presence).catch((err) =>
+              console.error(
+                `[tg-userbot-worker] не удалось сохранить presence ${telegramUserId}: ${(err as Error).message}`,
+              ),
+            );
+            // Первые исходящие диалоги могут пока быть ключованы телефоном
+            // или username. Сохраняем тот же снимок и под исходным ключом,
+            // чтобы presence сразу появился в уже открытой карточке.
+            const originalUserId = msg.phone ?? msg.telegramUsername;
+            if (originalUserId) {
+              await upsertBotUserPresence({
+                messenger: "telegram-personal",
+                userId: originalUserId,
+                status: presence.status,
+                lastSeenAt: presence.lastOnline,
+              }).catch(() => {});
+            }
+          }
+        }
         await setSendResult(msg.jobId, {
           ok: true,
           ...(telegramUserId !== undefined
@@ -196,6 +243,14 @@ async function startAccountWorker(
       apiHash,
     });
 
+    listenForUserPresence(client, (presence) =>
+      saveTelegramPresence(presence, true).catch((err) =>
+        console.error(
+          `[tg-userbot-worker] не удалось обновить presence ${presence.userId}: ${(err as Error).message}`,
+        ),
+      ),
+    );
+
     listenForMessages(client, (message) => {
       const text = message.text;
       if (!text) return;
@@ -217,6 +272,20 @@ async function startAccountWorker(
         isPremium:
           "isPremium" in message.sender ? message.sender.isPremium : undefined,
       });
+      if (
+        "status" in message.sender &&
+        typeof message.sender.status === "string"
+      ) {
+        void saveTelegramPresence({
+          userId: message.sender.id,
+          status: message.sender.status,
+          lastOnline:
+            "lastOnline" in message.sender &&
+            message.sender.lastOnline instanceof Date
+              ? message.sender.lastOnline
+              : null,
+        });
+      }
       void relayInboundMessage(
         account,
         message.sender.id,

@@ -15,27 +15,29 @@ import {
   upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
 import {
-  type BotMessageEntry,
   insertBotMessage as _insertBotMessage,
-  type MessageDeliveryStatus,
   updateBotMessageStatus as _updateBotMessageStatus,
+  type BotMessageEntry,
+  type MessageDeliveryStatus,
 } from "./bot-messages";
 import { getBotTextsRecord as _getBotTextsRecord } from "./bot-texts";
 import {
-  type BotUserProfileEntry,
   getBotUserProfile as _getBotUserProfile,
+  updateExistingBotUserPresence as _updateExistingBotUserPresence,
   upsertBotUser as _upsertBotUser,
+  upsertBotUserPresence as _upsertBotUserPresence,
+  type BotUserProfileEntry,
 } from "./bot-users";
 import {
   addClientNote as _addClientNote,
   type NewClientNoteEntry,
 } from "./client-notes";
 
+export type { BotConnector } from "./bot-connectors";
+export type { BotConversation } from "./bot-conversations";
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
 export type { BotMessageEntry, MessageDeliveryStatus } from "./bot-messages";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
-export type { BotConnector } from "./bot-connectors";
-export type { BotConversation } from "./bot-conversations";
 export type { ClientNote, NewClientNoteEntry } from "./client-notes";
 
 export async function getBotConnector(messenger: string) {
@@ -78,6 +80,18 @@ export async function getBotFunnelEventsByDateRange(
 
 export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {
   return _upsertBotUser(db, entry);
+}
+
+export async function upsertBotUserPresence(
+  entry: Parameters<typeof _upsertBotUserPresence>[1],
+): Promise<void> {
+  return _upsertBotUserPresence(db, entry);
+}
+
+export async function updateExistingBotUserPresence(
+  entry: Parameters<typeof _updateExistingBotUserPresence>[1],
+): Promise<void> {
+  return _updateExistingBotUserPresence(db, entry);
 }
 
 export async function getBotUserProfile(messenger: string, userId: string) {

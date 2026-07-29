@@ -24,6 +24,14 @@ export interface BotUserProfileEntry {
   rawProfile?: unknown;
 }
 
+export interface BotUserPresenceEntry {
+  messenger: string;
+  userId: string;
+  status: string;
+  lastSeenAt?: Date | null;
+  observedAt?: Date;
+}
+
 function makeId(messenger: string, userId: string): string {
   return `${messenger}:${userId}`;
 }
@@ -85,6 +93,60 @@ export async function upsertBotUser(
         updatedAt: sql`now()`,
       },
     });
+}
+
+/**
+ * Сохраняет presence, полученный непосредственно от API мессенджера.
+ * В отличие от bot_users.last_seen_at это не время сообщения/обновления
+ * профиля, а настоящий online/last seen с учётом настроек приватности.
+ */
+export async function upsertBotUserPresence(
+  db: Database,
+  entry: BotUserPresenceEntry,
+): Promise<void> {
+  if (!db) return;
+
+  const id = makeId(entry.messenger, entry.userId);
+  const observedAt = entry.observedAt ?? new Date();
+  await db
+    .insert(botUsers)
+    .values({
+      id,
+      messenger: entry.messenger,
+      userId: entry.userId,
+      presenceStatus: entry.status,
+      messengerLastSeenAt: entry.lastSeenAt ?? null,
+      presenceObservedAt: observedAt,
+    })
+    .onConflictDoUpdate({
+      target: botUsers.id,
+      set: {
+        presenceStatus: entry.status,
+        messengerLastSeenAt: entry.lastSeenAt ?? null,
+        presenceObservedAt: observedAt,
+        updatedAt: sql`now()`,
+      },
+    });
+}
+
+/** Обновляет presence только у уже известных клиентов. Используется для
+ * глобального потока Telegram updateUserStatus, чтобы не импортировать в
+ * инбокс всю адресную книгу подключённого личного аккаунта. */
+export async function updateExistingBotUserPresence(
+  db: Database,
+  entry: BotUserPresenceEntry,
+): Promise<void> {
+  if (!db) return;
+
+  await db
+    .update(botUsers)
+    .set({
+      presenceStatus: entry.status,
+      messengerLastSeenAt: entry.lastSeenAt ?? null,
+      presenceObservedAt: entry.observedAt ?? new Date(),
+      updatedAt: sql`now()`,
+    })
+    .where(eq(botUsers.id, makeId(entry.messenger, entry.userId)));
 }
 
 /**

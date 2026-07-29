@@ -1,4 +1,11 @@
-import { boolean, index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
 /**
  * Профиль клиента, обратившегося к боту, — снимок данных из API мессенджера
@@ -32,6 +39,15 @@ export const botUsers = pgTable(
     /** Сырой ответ API (getChat/getChatMembers) — на случай полей, которые ещё не завели колонкой. */
     rawProfile: jsonb("raw_profile"),
     firstSeenAt: timestamp("first_seen_at").defaultNow().notNull(),
+    /** Последний статус присутствия, который вернул сам мессенджер.
+     * Telegram: online/offline/recently/within_week/within_month/long_time_ago.
+     * WhatsApp: online/offline/typing/recording/paused. */
+    presenceStatus: text("presence_status"),
+    /** Точное messenger last seen, только когда его раскрывают настройки
+     * приватности клиента. Не заменяется приблизительным временем. */
+    messengerLastSeenAt: timestamp("messenger_last_seen_at"),
+    /** Когда мы в последний раз получили presence от API мессенджера. */
+    presenceObservedAt: timestamp("presence_observed_at"),
     lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

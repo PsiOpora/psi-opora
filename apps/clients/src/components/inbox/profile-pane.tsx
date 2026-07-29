@@ -34,6 +34,22 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function formatPresence(
+  status: string | null,
+  lastSeenAt: string | null,
+): string | null {
+  if (status === "online") return "Сейчас в сети";
+  if (status === "typing") return "Печатает…";
+  if (status === "recording") return "Записывает аудио…";
+  if (status === "recently") return "Был(а) недавно";
+  if (status === "within_week") return "Был(а) на этой неделе";
+  if (status === "within_month") return "Был(а) в этом месяце";
+  if (status === "long_time_ago") return "Был(а) давно";
+  if (lastSeenAt) return formatFullDate(lastSeenAt);
+  if (status === "offline" || status === "paused") return "Не в сети";
+  return null;
+}
+
 function Section({
   icon: Icon,
   title,
@@ -170,10 +186,26 @@ export function ProfilePane({
 
       <Section icon={ActivityIcon} title="Активность">
         <Row
+          label="В мессенджере"
+          value={formatPresence(
+            profile.presenceStatus,
+            profile.messengerLastSeenAt,
+          )}
+        />
+        {profile.presenceObservedAt && profile.presenceStatus && (
+          <Row
+            label="Статус проверен"
+            value={formatFullDate(profile.presenceObservedAt)}
+          />
+        )}
+        <Row
           label="Первое обращение"
           value={formatFullDate(profile.firstSeenAt)}
         />
-        <Row label="Был активен" value={formatFullDate(profile.lastSeenAt)} />
+        <Row
+          label="Активность у нас"
+          value={formatFullDate(profile.lastSeenAt)}
+        />
       </Section>
 
       <Separator />

@@ -88,6 +88,9 @@ export interface ClientProfile {
   source: string | null;
   campaign: string | null;
   firstSeenAt: string | null;
+  presenceStatus: string | null;
+  messengerLastSeenAt: string | null;
+  presenceObservedAt: string | null;
   lastSeenAt: string | null;
   stats: {
     totalCount: number;

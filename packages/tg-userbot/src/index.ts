@@ -8,17 +8,20 @@ export {
   type TelegramApiCredentials,
 } from "./login";
 export {
+  drainOutboundMessages,
   getSendResult,
   type OutboundMessage,
-  drainOutboundMessages,
   pushOutboundMessage,
   type SendResult,
   setSendResult,
 } from "./outbox";
 export {
   createUserbotClient,
+  getUserPresence,
   listenForMessages,
+  listenForUserPresence,
   resolveClientPhoneNumber,
   resolveClientUsername,
   sendUserbotMessage,
+  type UserbotPresence,
 } from "./relay";
