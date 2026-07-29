@@ -131,6 +131,14 @@ jobs:
             echo "kubeconfig: записан как обычный текст"
           fi
           chmod 600 "$HOME/.kube/config"
+      - name: Diagnose Kubernetes connection
+        run: |
+          kubectl config current-context
+          kubectl config view --minify \
+            -o jsonpath='{.clusters[0].cluster.server}'
+          echo
+          env | grep -iE '^(http|https|no)_proxy=' || true
+          kubectl --request-timeout=10s get --raw=/version -v=8
 
       - name: Check Redis password
         if: false
@@ -153,6 +161,7 @@ jobs:
           done
 
       - name: Check Hatchet Cloud client token
+        if: false
         run: |
           VALUE=$(kubectl get secret psi-opora-env -n psi-opora \
             -o jsonpath='{.data.HATCHET_CLIENT_TOKEN}')
