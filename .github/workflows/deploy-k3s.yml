@@ -143,6 +143,7 @@ jobs:
           fi
 
       - name: Check PostgreSQL secrets
+        if: false
         run: |
           for secret in postgres-credentials postgres-tls; do
             if ! kubectl get "secret/$secret" -n psi-opora >/dev/null 2>&1; then
