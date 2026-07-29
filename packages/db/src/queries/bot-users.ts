@@ -36,6 +36,16 @@ function makeId(messenger: string, userId: string): string {
   return `${messenger}:${userId}`;
 }
 
+/** В БД хранится только путь; публичный домен добавляет API при выдаче. */
+export function normalizeAvatarUrl(
+  avatarUrl: string | undefined,
+): string | undefined {
+  if (!avatarUrl || !/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
+
+  const url = new URL(avatarUrl);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 /**
  * Сохраняет/обновляет профиль клиента бота. При повторном обращении
  * новые непустые поля перезаписывают старые, а поля, не пришедшие в этот
@@ -61,7 +71,7 @@ export async function upsertBotUser(
     isPremium: entry.isPremium,
     isBot: entry.isBot,
     bio: entry.bio,
-    avatarUrl: entry.avatarUrl,
+    avatarUrl: normalizeAvatarUrl(entry.avatarUrl),
     photoFileId: entry.photoFileId,
     avatarS3Key: entry.avatarS3Key,
     source: entry.source,

@@ -45,7 +45,10 @@ export async function POST(request: Request) {
 	try {
 		const portalTokens = { ...body, scope: body.scope ?? "" };
 		const verified = await verifyPortalAccessToken(portalTokens);
-		await savePortalTokens(portalTokens, "dashboard");
+		await savePortalTokens(
+			{ ...portalTokens, clientEndpoint: verified.clientEndpoint },
+			"dashboard",
+		);
 		const token = createBitrixSessionToken({
 			app: "dashboard",
 			memberId: portalTokens.memberId,

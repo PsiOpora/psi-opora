@@ -125,7 +125,7 @@ async function callWithAccessToken<T>(
  */
 export async function verifyPortalAccessToken(
   tokens: PortalTokens,
-): Promise<{ userId: string }> {
+): Promise<{ userId: string; clientEndpoint: string }> {
   if (!env.BITRIX_MEMBER_ID) {
     throw new Error("Bitrix24 session: BITRIX_MEMBER_ID не задан");
   }
@@ -136,11 +136,12 @@ export async function verifyPortalAccessToken(
   // REST endpoint строим только из серверной конфигурации. Значение,
   // пришедшее из браузера, не используем как URL назначения.
   const endpoint = configuredPortalEndpoint();
-  const expectedHostname = endpoint.hostname.toLowerCase();
-  const claimedHostname = normalizedPortalHostname(tokens.domain);
-  if (claimedHostname !== expectedHostname) {
-    throw new Error("Bitrix24 session: домен портала не совпадает");
-  }
+  // DOMAIN — адрес портала для интерфейса, а не обязательно хост REST API.
+  // Bitrix24 может, например, передать portal.bitrix24.com в domain и
+  // portal.bitrix24.ru в client_endpoint. Поэтому здесь проверяем только
+  // безопасный формат домена; принадлежность порталу подтверждают member_id
+  // и вызовы profile/app.info через серверно настроенный endpoint.
+  normalizedPortalHostname(tokens.domain);
 
   const [profile, appInfo] = await Promise.all([
     callWithAccessToken<ProfileResponse>(
@@ -170,7 +171,10 @@ export async function verifyPortalAccessToken(
     );
   }
 
-  return { userId: String(profile.result.ID) };
+  return {
+    userId: String(profile.result.ID),
+    clientEndpoint: endpoint.toString(),
+  };
 }
 
 async function requestRefreshedTokens(
@@ -195,7 +199,11 @@ async function requestRefreshedTokens(
   }
 
   const endpoint = normalizedBitrixEndpoint(json.client_endpoint);
-  if (endpoint.hostname.toLowerCase() !== tokens.domain.toLowerCase()) {
+  const previousEndpoint = normalizedBitrixEndpoint(tokens.clientEndpoint);
+  if (
+    endpoint.hostname.toLowerCase() !==
+    previousEndpoint.hostname.toLowerCase()
+  ) {
     throw new Error("Bitrix24 OAuth: домен портала не совпадает");
   }
 

@@ -4,7 +4,7 @@ import {
 } from "@psi-opora/db/queries";
 import { bitrixProcedure } from "../../orpc";
 import { clientThreadSchema } from "../../schemas/messages";
-import type { ClientProfile } from "./types";
+import { type ClientProfile, toPublicAvatarUrl } from "./types";
 
 /** Карточка клиента для правой панели инбокса: профиль из bot_users + сводка переписки. */
 export const profile = bitrixProcedure
@@ -26,7 +26,7 @@ export const profile = bitrixProcedure
         languageCode: user?.languageCode ?? null,
         isPremium: user?.isPremium ?? null,
         bio: user?.bio ?? null,
-        avatarUrl: user?.avatarUrl ?? null,
+        avatarUrl: toPublicAvatarUrl(user?.avatarUrl ?? null),
         source: user?.source ?? null,
         campaign: user?.campaign ?? null,
         firstSeenAt: user?.firstSeenAt?.toISOString() ?? null,

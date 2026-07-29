@@ -122,8 +122,7 @@ function sessionKeyOf(ctx: AppContext): string {
  * Скачивает аватар клиента с CDN MAX и перезаливает в наше S3 (см.
  * ./avatar-storage.ts) — max-bot работает как обычный Node.js-сервер в k3s,
  * никаких Edge-ограничений тут нет. При любой ошибке возвращает undefined —
- * вызывающий код тогда сохранит исходный hotlink на CDN MAX вместо
- * перезалитого файла.
+ * исходный hotlink на CDN MAX в bot_users не сохраняется.
  */
 async function syncMaxAvatar(
   userId: number,
@@ -161,6 +160,7 @@ async function collectMaxProfile(
   const userLocale = (ctx.update as { user_locale?: unknown }).user_locale;
 
   let bio: string | undefined;
+  let sourceAvatarUrl: string | undefined;
   let avatarUrl: string | undefined;
   let avatarS3Key: string | undefined;
   let rawProfile: unknown = user;
@@ -170,7 +170,7 @@ async function collectMaxProfile(
     if (member) {
       rawProfile = member;
       bio = member.description ?? undefined;
-      avatarUrl = member.avatar_url;
+      sourceAvatarUrl = member.avatar_url;
     }
   } catch (err) {
     log(
@@ -178,10 +178,10 @@ async function collectMaxProfile(
     );
   }
 
-  if (!avatarUrl && ctx.chatId) {
+  if (!sourceAvatarUrl && ctx.chatId) {
     try {
       const chat = await ctx.getChat(ctx.chatId);
-      if (chat.icon?.url) avatarUrl = chat.icon.url;
+      if (chat.icon?.url) sourceAvatarUrl = chat.icon.url;
     } catch (err) {
       log(
         `[profile] не удалось получить getChat для user=${user.user_id}: ${describeError(err)}`,
@@ -189,8 +189,8 @@ async function collectMaxProfile(
     }
   }
 
-  if (avatarUrl) {
-    const uploaded = await syncMaxAvatar(user.user_id, avatarUrl);
+  if (sourceAvatarUrl) {
+    const uploaded = await syncMaxAvatar(user.user_id, sourceAvatarUrl);
     if (uploaded) {
       avatarUrl = uploaded.avatarUrl;
       avatarS3Key = uploaded.avatarS3Key;

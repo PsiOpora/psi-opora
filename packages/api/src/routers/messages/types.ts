@@ -128,6 +128,12 @@ export interface ClientMessageItem {
 	connectorId: string | null;
 }
 
+/** Превращает внутренний путь аватара из bot_users в публичный URL. */
+export function toPublicAvatarUrl(avatarUrl: string | null): string | null {
+	if (!avatarUrl) return null;
+	return new URL(avatarUrl, env.APP_URL).toString();
+}
+
 /** Общий маппинг строки bot_messages → ClientMessageItem для thread.ts/poll.ts.
  * mediaUrl строится на лету по id сообщения — сырой S3-ключ наружу не отдаётся. */
 export function toClientMessageItem(

@@ -5,7 +5,7 @@ import {
 import { bitrixProcedure } from "../../orpc";
 import { listClientsSchema } from "../../schemas/messages";
 import { resolveCrmContactName } from "./crm-contact";
-import type { ClientListItem } from "./types";
+import { type ClientListItem, toPublicAvatarUrl } from "./types";
 
 /**
  * Сколько строк без имени/username за один запрос пробуем обогатить именем
@@ -57,7 +57,7 @@ export const list = bitrixProcedure
         userId: row.userId,
         name: names[i] ?? `${row.messenger}:${row.userId}`,
         username: row.username,
-        avatarUrl: row.avatarUrl,
+        avatarUrl: toPublicAvatarUrl(row.avatarUrl),
         lastMessageText: row.lastMessageText,
         lastMessageDirection: row.lastMessageDirection,
         lastMessageAt: row.lastMessageAt.toISOString(),

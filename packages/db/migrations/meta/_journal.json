@@ -175,6 +175,13 @@
 			"when": 1785339232298,
 			"tag": "0024_chilly_anthem",
 			"breakpoints": true
+		},
+		{
+			"idx": 25,
+			"version": "7",
+			"when": 1785355200000,
+			"tag": "0025_normalize_avatar_urls",
+			"breakpoints": true
 		}
 	]
 }

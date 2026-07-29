@@ -1,5 +1,4 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { env } from "@psi-opora/config";
 import { getBackupCredentials } from "@psi-opora/db/queries";
 
 /**
@@ -49,7 +48,7 @@ function extensionFor(contentType: string): string {
   return "jpg";
 }
 
-/** Скачивает и заливает аватар клиента MAX в S3, возвращает стабильный URL раздачи. */
+/** Скачивает и заливает аватар клиента MAX в S3, возвращает внутренний путь раздачи. */
 export async function uploadMaxAvatar(params: {
   bytes: Uint8Array;
   contentType: string;
@@ -71,7 +70,7 @@ export async function uploadMaxAvatar(params: {
     }),
   );
 
-  const avatarUrl = `${env.APP_URL}/api/avatar-file/max/${params.userId}`;
+  const avatarUrl = `/api/avatar-file/max/${params.userId}`;
   return { avatarUrl, avatarS3Key: key };
 }
 
