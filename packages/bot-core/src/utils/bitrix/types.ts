@@ -21,6 +21,12 @@ export interface ContactData {
   name: string;
   phone?: string;
   email?: string;
+  /**
+   * Явное согласие, полученное внутри сценария бота. Для контактов,
+   * созданных из произвольного сообщения оператору, должно быть false:
+   * сам факт отправки телефона/email не равен согласию на рассылку.
+   */
+  consentGranted?: boolean;
   campaign?: string;
   source?: string;
   telegramUserId?: number;

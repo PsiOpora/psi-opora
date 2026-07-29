@@ -40,7 +40,11 @@ interface SentCall {
 
 /** Бот с замоканным Bot API: вызовы копятся в sent, сеть не трогается. */
 function makeBot() {
-  const bot = createBot({ token: "1:TEST_TOKEN" });
+  const bot = createBot({
+    token: "1:TEST_TOKEN",
+    // Эти тесты проверяют сценарий и журнал, а не реальный Bitrix.
+    enrichCrm: () => Promise.resolve(),
+  });
   bot.botInfo = {
     id: 42,
     is_bot: true,

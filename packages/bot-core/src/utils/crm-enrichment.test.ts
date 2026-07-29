@@ -32,10 +32,15 @@ let contact: Record<string, unknown> = {
   NAME: "Марина",
   PHONE: [{ VALUE: "89680388189" }],
 };
-const getBitrixCrmLink = mock(() =>
-  Promise.resolve({ contactId: "7624", dealId: "5336" }),
-);
+let crmLink: {
+  contactId: string;
+  dealId: string | null;
+} | null = { contactId: "7624", dealId: "5336" };
+const getBitrixCrmLink = mock(() => Promise.resolve(crmLink));
 mock.module("@psi-opora/db/queries", () => ({ getBitrixCrmLink }));
+
+const createBitrixContact = mock(() => Promise.resolve(9001));
+mock.module("./bitrix/create-deal", () => ({ createBitrixContact }));
 
 const bitrixPost = mock((method: string) => {
   if (method === "crm.contact.get") return Promise.resolve(contact);
@@ -54,6 +59,8 @@ describe("enrichCrmFromClientMessage", () => {
     getBitrixCrmLink.mockClear();
     bitrixPost.mockClear();
     appendDealComment.mockClear();
+    createBitrixContact.mockClear();
+    crmLink = { contactId: "7624", dealId: "5336" };
     contact = {
       NAME: "Марина",
       PHONE: [{ VALUE: "89680388189" }],
@@ -77,6 +84,57 @@ describe("enrichCrmFromClientMessage", () => {
         },
       },
       "max",
+    );
+  });
+
+  test("создаёт и привязывает контакт по телефону вне сценария", async () => {
+    crmLink = null;
+    contact = {
+      NAME: "Екатерина",
+      PHONE: [{ VALUE: "+79095775055" }],
+    };
+
+    await enrichCrmFromClientMessage({
+      messenger: "max",
+      userId: "124364923",
+      text: "+79095775055",
+      name: "Екатерина",
+      chatId: 124364923,
+      source: "search",
+      campaign: "anorexia",
+    });
+
+    expect(createBitrixContact).toHaveBeenCalledWith({
+      name: "Екатерина",
+      phone: "+79095775055",
+      email: undefined,
+      consentGranted: false,
+      messenger: "max",
+      telegramUserId: 124364923,
+      chatId: 124364923,
+      source: "search",
+      campaign: "anorexia",
+    });
+    expect(generateObject).not.toHaveBeenCalled();
+  });
+
+  test("создаёт контакт, когда телефон указан внутри фразы", async () => {
+    crmLink = null;
+
+    await enrichCrmFromClientMessage({
+      messenger: "telegram",
+      userId: "777",
+      text: "Мой телефон +7 (999) 123-45-67",
+      name: "Анна",
+    });
+
+    expect(createBitrixContact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Анна",
+        phone: "+7 (999) 123-45-67",
+        consentGranted: false,
+        telegramUserId: 777,
+      }),
     );
   });
 

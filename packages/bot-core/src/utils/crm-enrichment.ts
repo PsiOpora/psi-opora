@@ -4,6 +4,7 @@ import { getBitrixCrmLink } from "@psi-opora/db/queries";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { bitrixPost } from "./bitrix/client";
+import { createBitrixContact } from "./bitrix/create-deal";
 import { appendDealComment } from "./bitrix/sources";
 import { OPENROUTER_FALLBACK_MODELS } from "./openrouter";
 import { hasPhoneNumber, isValidEmail } from "./validation";
@@ -35,6 +36,10 @@ export interface CrmEnrichmentMessage {
   messenger: string;
   userId: string;
   text: string;
+  name?: string;
+  chatId?: number;
+  source?: string;
+  campaign?: string;
 }
 
 const EXTRACTION_TIMEOUT_MS = 8_000;
@@ -68,12 +73,17 @@ function extractObviousContacts(text: string): ExtractedCrmFacts {
   const email =
     emailCandidate && isValidEmail(emailCandidate) ? emailCandidate : undefined;
 
-  const trimmed = text.trim();
+  // Поддерживаем как отдельный номер, так и естественный ответ оператору
+  // «мой телефон +7 ...». Разделители ограничены телефонными символами,
+  // чтобы не принять произвольную последовательность чисел за номер.
+  const phoneCandidate = text.match(/(?:\+?\d[\d\s()-]{5,}\d)/)?.[0]?.trim();
+  const digitsCount = phoneCandidate?.replace(/\D/g, "").length ?? 0;
   const phone =
-    hasPhoneNumber(trimmed) &&
-    /^[+\d\s()-]+$/.test(trimmed) &&
-    trimmed.replace(/\D/g, "").length <= 15
-      ? trimmed
+    phoneCandidate &&
+    hasPhoneNumber(phoneCandidate) &&
+    digitsCount >= 7 &&
+    digitsCount <= 15
+      ? phoneCandidate
       : undefined;
 
   return { email, phone };
@@ -171,10 +181,54 @@ export async function enrichCrmFromClientMessage(
   if (!text) return;
 
   try {
-    const link = await getBitrixCrmLink(message.messenger, message.userId);
+    const obvious = extractObviousContacts(text);
+    let link = await getBitrixCrmLink(message.messenger, message.userId);
+
+    // Телефон/email, присланные вне активного шага сценария (например,
+    // в ответ на ручной вопрос оператора), раньше терялись: обогащение
+    // требовало уже существующую bitrix_crm_links. Теперь создаём минимальный
+    // контакт либо находим существующий по коммуникации, а createBitrixContact
+    // сразу сохраняет связку messenger+userId → contactId.
+    if (
+      !link?.contactId &&
+      (obvious.phone || obvious.email) &&
+      (message.messenger === "telegram" || message.messenger === "max")
+    ) {
+      const numericUserId = Number(message.userId);
+      if (Number.isSafeInteger(numericUserId) && numericUserId > 0) {
+        const contactId = await createBitrixContact({
+          name:
+            message.name?.trim() ||
+            `${message.messenger === "max" ? "MAX" : "Telegram"} #${message.userId}`,
+          phone: obvious.phone,
+          email: obvious.email,
+          consentGranted: false,
+          messenger: message.messenger,
+          telegramUserId: numericUserId,
+          chatId: message.chatId ?? numericUserId,
+          source: message.source,
+          campaign: message.campaign,
+        });
+        if (contactId) {
+          link = {
+            id: `${message.messenger}:${message.userId}`,
+            messenger: message.messenger,
+            userId: message.userId,
+            contactId: String(contactId),
+            dealId: null,
+            updatedAt: new Date(),
+          };
+          logger.info("bot.crm_enrichment.contact_created", {
+            messenger: message.messenger,
+            userId: message.userId,
+            contactId,
+          });
+        }
+      }
+    }
+
     if (!link?.contactId) return;
 
-    const obvious = extractObviousContacts(text);
     const facts = await extractWithLlm(text, obvious);
     if (
       !facts.name &&

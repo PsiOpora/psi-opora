@@ -168,6 +168,8 @@ export interface BotOptions {
    * Без неё голосовые пересылаются в Открытую линию Bitrix как раньше, но
    * в bot_messages/инбоксе «Клиенты» остаются текстом-заглушкой. */
   uploadMedia?: MediaUploader;
+  /** Подмена CRM-обогащения в интеграционных тестах бота. */
+  enrichCrm?: typeof enrichCrmFromClientMessage;
 }
 
 function toInlineKeyboard(
@@ -248,6 +250,7 @@ export function createBot({
   token,
   uploadAvatar,
   uploadMedia,
+  enrichCrm = enrichCrmFromClientMessage,
 }: BotOptions = {}) {
   const resolvedToken = token || "";
   const bot = new Bot<AppContext>(
@@ -401,10 +404,16 @@ export function createBot({
     }
 
     const crmEnrichment = ctx.from
-      ? enrichCrmFromClientMessage({
+      ? enrichCrm({
           messenger: "telegram",
           userId: String(ctx.from.id),
           text,
+          name: [ctx.from.first_name, ctx.from.last_name]
+            .filter(Boolean)
+            .join(" "),
+          chatId: ctx.chatId,
+          source: ctx.session.source,
+          campaign: ctx.session.campaign,
         })
       : Promise.resolve();
 

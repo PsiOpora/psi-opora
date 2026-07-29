@@ -40,6 +40,7 @@ export async function submitBitrixContact(
     const contactId = await createBitrixContact({
       ...params,
       name: params.name?.trim() || "Клиент из бота",
+      consentGranted: params.consentGranted ?? true,
     });
     return contactId || null;
   } catch (err: unknown) {
@@ -100,6 +101,7 @@ export async function submitConsultationDeal(
     const dealData: DealData = {
       name,
       phone,
+      consentGranted: true,
       ...(email ? { email } : {}),
       campaign,
       source,

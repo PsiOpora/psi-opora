@@ -514,6 +514,10 @@ export function createMaxBot({
           messenger: "max",
           userId: String(userId),
           text,
+          name: appCtx.user?.name,
+          chatId: userId,
+          source: appCtx.session.source,
+          campaign: appCtx.session.campaign,
         })
       : Promise.resolve();
 

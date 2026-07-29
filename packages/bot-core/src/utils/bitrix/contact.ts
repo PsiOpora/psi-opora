@@ -56,11 +56,12 @@ export function buildContactFields(data: ContactData, imol?: string | null) {
     SOURCE_DESCRIPTION: [data.source, data.campaign]
       .filter(Boolean)
       .join(" / "),
-    // Сценарий бота (см. scenario/engine.ts) всегда показывает экран
-    // согласия с публичной офертой перед сбором контактов — и во флоу
-    // консультации, и во флоу гайда, — так что к моменту создания
-    // контакта согласие уже получено.
-    UF_CRM_CONTACT_1779910236669: 1,
+    // Сценарий бота всегда передаёт consentGranted=true после экрана
+    // согласия. Контакт, созданный из произвольного входящего телефона/email,
+    // не получает этот флаг автоматически.
+    ...(data.consentGranted
+      ? { UF_CRM_CONTACT_1779910236669: 1 }
+      : {}),
     ...(profileComment ? { COMMENTS: profileComment } : {}),
     ...(buildMessengerLinkFields(data, imol) ?? {}),
   };
