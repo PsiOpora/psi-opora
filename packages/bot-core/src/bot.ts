@@ -42,7 +42,6 @@ function createInitialSession(): ConsultationSession {
  * и не может напрямую тянуть S3-клиент/node-postgres.
  */
 export interface AvatarUploadResult {
-  avatarUrl: string;
   avatarS3Key: string;
 }
 
@@ -103,7 +102,6 @@ async function collectTelegramProfile(
     );
   }
 
-  let avatarUrl: string | undefined;
   let avatarS3Key: string | undefined;
   if (photoFileId && uploadAvatar) {
     try {
@@ -119,7 +117,6 @@ async function collectTelegramProfile(
             messenger: "telegram",
             userId: from.id,
           });
-          avatarUrl = uploaded.avatarUrl;
           avatarS3Key = uploaded.avatarS3Key;
         }
       }
@@ -141,7 +138,6 @@ async function collectTelegramProfile(
     isBot: from.is_bot,
     bio,
     photoFileId,
-    avatarUrl,
     avatarS3Key,
     source,
     campaign,

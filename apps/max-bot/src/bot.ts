@@ -127,7 +127,7 @@ function sessionKeyOf(ctx: AppContext): string {
 async function syncMaxAvatar(
   userId: number,
   sourceUrl: string,
-): Promise<{ avatarUrl: string; avatarS3Key: string } | undefined> {
+): Promise<{ avatarS3Key: string } | undefined> {
   try {
     const res = await fetch(sourceUrl);
     if (!res.ok) throw new Error(`источник недоступен: HTTP ${res.status}`);
@@ -161,7 +161,6 @@ async function collectMaxProfile(
 
   let bio: string | undefined;
   let sourceAvatarUrl: string | undefined;
-  let avatarUrl: string | undefined;
   let avatarS3Key: string | undefined;
   let rawProfile: unknown = user;
   try {
@@ -192,7 +191,6 @@ async function collectMaxProfile(
   if (sourceAvatarUrl) {
     const uploaded = await syncMaxAvatar(user.user_id, sourceAvatarUrl);
     if (uploaded) {
-      avatarUrl = uploaded.avatarUrl;
       avatarS3Key = uploaded.avatarS3Key;
     }
   }
@@ -205,7 +203,6 @@ async function collectMaxProfile(
     isBot: user.is_bot,
     languageCode: typeof userLocale === "string" ? userLocale : undefined,
     bio,
-    avatarUrl,
     avatarS3Key,
     source,
     campaign,

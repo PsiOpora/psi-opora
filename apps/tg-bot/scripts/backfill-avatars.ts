@@ -48,7 +48,6 @@ for (const user of users) {
     await upsertBotUser({
       messenger: "telegram",
       userId: user.userId,
-      avatarUrl: uploaded.avatarUrl,
       avatarS3Key: uploaded.avatarS3Key,
     });
 

@@ -16,7 +16,6 @@ export interface BotUserProfileEntry {
   isPremium?: boolean;
   isBot?: boolean;
   bio?: string;
-  avatarUrl?: string;
   photoFileId?: string;
   avatarS3Key?: string;
   source?: string;
@@ -34,16 +33,6 @@ export interface BotUserPresenceEntry {
 
 function makeId(messenger: string, userId: string): string {
   return `${messenger}:${userId}`;
-}
-
-/** В БД хранится только путь; публичный домен добавляет API при выдаче. */
-export function normalizeAvatarUrl(
-  avatarUrl: string | undefined,
-): string | undefined {
-  if (!avatarUrl || !/^https?:\/\//i.test(avatarUrl)) return avatarUrl;
-
-  const url = new URL(avatarUrl);
-  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 /**
@@ -71,7 +60,6 @@ export async function upsertBotUser(
     isPremium: entry.isPremium,
     isBot: entry.isBot,
     bio: entry.bio,
-    avatarUrl: normalizeAvatarUrl(entry.avatarUrl),
     photoFileId: entry.photoFileId,
     avatarS3Key: entry.avatarS3Key,
     source: entry.source,
@@ -93,7 +81,6 @@ export async function upsertBotUser(
         isPremium: sql`coalesce(${values.isPremium ?? null}, ${botUsers.isPremium})`,
         isBot: sql`coalesce(${values.isBot ?? null}, ${botUsers.isBot})`,
         bio: sql`coalesce(${values.bio ?? null}, ${botUsers.bio})`,
-        avatarUrl: sql`coalesce(${values.avatarUrl ?? null}, ${botUsers.avatarUrl})`,
         photoFileId: sql`coalesce(${values.photoFileId ?? null}, ${botUsers.photoFileId})`,
         avatarS3Key: sql`coalesce(${values.avatarS3Key ?? null}, ${botUsers.avatarS3Key})`,
         source: sql`coalesce(${botUsers.source}, ${values.source ?? null})`,

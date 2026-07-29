@@ -27,8 +27,6 @@ export const botUsers = pgTable(
     isPremium: boolean("is_premium"),
     isBot: boolean("is_bot"),
     bio: text("bio"),
-    /** Стабильный URL аватара для раздачи из нашего хранилища (/api/avatar-file). */
-    avatarUrl: text("avatar_url"),
     /** big_file_id фото профиля в Telegram — для получения ссылки нужен отдельный getFile с токеном бота. */
     photoFileId: text("photo_file_id"),
     /** Ключ объекта в S3 (bot/avatar/…), если аватар скачан и перезалит в наше хранилище. */

@@ -54,7 +54,7 @@ export async function uploadTelegramAvatar(params: {
   contentType: string;
   messenger: "telegram";
   userId: number;
-}): Promise<{ avatarUrl: string; avatarS3Key: string }> {
+}): Promise<{ avatarS3Key: string }> {
   if (params.bytes.byteLength === 0 || params.bytes.byteLength > MAX_AVATAR_SIZE) {
     throw new Error(`некорректный размер аватара: ${params.bytes.byteLength} байт`);
   }
@@ -71,8 +71,7 @@ export async function uploadTelegramAvatar(params: {
     }),
   );
 
-  const avatarUrl = `/api/avatar-file/${params.messenger}/${params.userId}`;
-  return { avatarUrl, avatarS3Key: key };
+  return { avatarS3Key: key };
 }
 
 const MEDIA_PREFIX = "bot/media/";

@@ -11,7 +11,6 @@ export interface BotUserProfileInput {
   isPremium?: boolean;
   isBot?: boolean;
   bio?: string;
-  avatarUrl?: string;
   photoFileId?: string;
   avatarS3Key?: string;
   source?: string;
@@ -41,7 +40,6 @@ export async function upsertBotUserProfile(
       isPremium: entry.isPremium,
       isBot: entry.isBot,
       bio: entry.bio,
-      avatarUrl: entry.avatarUrl,
       photoFileId: entry.photoFileId,
       avatarS3Key: entry.avatarS3Key,
       source: entry.source,

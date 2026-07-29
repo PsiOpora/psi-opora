@@ -128,10 +128,15 @@ export interface ClientMessageItem {
 	connectorId: string | null;
 }
 
-/** Превращает внутренний путь аватара из bot_users в публичный URL. */
-export function toPublicAvatarUrl(avatarUrl: string | null): string | null {
-	if (!avatarUrl) return null;
-	return new URL(avatarUrl, env.APP_URL).toString();
+/** Формирует публичный URL для аватара, который уже загружен в S3. */
+export function createAvatarUrl(
+	messenger: string,
+	userId: string,
+	hasAvatar: boolean,
+): string | null {
+	if (!hasAvatar) return null;
+	const path = `/api/avatar-file/${encodeURIComponent(messenger)}/${encodeURIComponent(userId)}`;
+	return new URL(path, env.APP_URL).toString();
 }
 
 /** Общий маппинг строки bot_messages → ClientMessageItem для thread.ts/poll.ts.

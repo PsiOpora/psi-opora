@@ -323,7 +323,7 @@ export interface ClientListItem {
 	userId: string;
 	name: string | null;
 	username: string | null;
-	avatarUrl: string | null;
+	hasAvatar: boolean;
 	lastMessageText: string;
 	lastMessageDirection: "in" | "out";
 	lastMessageAt: Date;
@@ -375,7 +375,7 @@ export async function listClientsWithLastMessage(
 			userId: lastMessage.userId,
 			name: botUsers.name,
 			username: botUsers.username,
-			avatarUrl: botUsers.avatarUrl,
+			hasAvatar: sql<boolean>`${botUsers.avatarS3Key} is not null`,
 			lastMessageText: lastMessage.text,
 			lastMessageDirection: lastMessage.direction,
 			lastMessageAt: lastMessage.createdAt,
@@ -417,7 +417,7 @@ export async function listClientsWithLastMessage(
 		userId: row.userId,
 		name: row.name,
 		username: row.username,
-		avatarUrl: row.avatarUrl,
+		hasAvatar: row.hasAvatar,
 		lastMessageText: row.lastMessageText,
 		lastMessageDirection: row.lastMessageDirection as "in" | "out",
 		lastMessageAt: row.lastMessageAt,

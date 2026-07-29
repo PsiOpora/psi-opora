@@ -1,0 +1,1 @@
+ALTER TABLE "bot_users" DROP COLUMN "avatar_url";
