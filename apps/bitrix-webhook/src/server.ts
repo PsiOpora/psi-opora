@@ -71,10 +71,12 @@ async function logOperatorReply(
 	reply: OperatorReplyMessage,
 	externalId?: string,
 	status?: MessageDeliveryStatus,
-): Promise<void> {
+	messageId = crypto.randomUUID(),
+): Promise<string> {
 	const userId = String(reply.chatId);
 	try {
 		await insertBotMessage({
+			id: messageId,
 			messenger,
 			userId,
 			direction: "out",
@@ -85,6 +87,8 @@ async function logOperatorReply(
 					? String(reply.operatorUserId)
 					: undefined,
 			externalId,
+			externalChatId: messenger === "telegram-personal" ? userId : undefined,
+			bitrixMessageId: reply.bitrixMessageId,
 			status,
 			connectorId: reply.connector,
 		});
@@ -94,7 +98,7 @@ async function logOperatorReply(
 		);
 	}
 
-	if (reply.operatorUserId === undefined) return;
+	if (reply.operatorUserId === undefined) return messageId;
 	try {
 		await assignConversationIfUnassigned({
 			messenger,
@@ -107,6 +111,7 @@ async function logOperatorReply(
 			`[bitrix-webhook] не удалось назначить ответственного по ответу оператора: ${(err as Error).message}`,
 		);
 	}
+	return messageId;
 }
 
 /**
@@ -136,6 +141,12 @@ async function relayToTelegramPersonal(
 		return false;
 	}
 
+	const journalMessageId = await logOperatorReply(
+		"telegram-personal",
+		reply,
+		undefined,
+		"sent",
+	);
 	await pushOutboundMessage({
 		memberId: account.memberId,
 		openLineId: account.openLineId,
@@ -143,11 +154,11 @@ async function relayToTelegramPersonal(
 		jobId: crypto.randomUUID(),
 		telegramUserId: Number(reply.chatId),
 		text: reply.text,
+		journalMessageId,
 	});
 	console.log(
 		`[bitrix-webhook] ответ оператора поставлен в очередь личного номера ${account.phone} chat=${reply.chatId}`,
 	);
-	await logOperatorReply("telegram-personal", reply);
 	return true;
 }
 

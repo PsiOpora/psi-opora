@@ -4,16 +4,16 @@ import { TelegramClient } from "@mtcute/node";
 import type { TelegramApiCredentials } from "./login";
 
 export interface UserbotPresence {
-  userId: number;
-  status:
-    | "online"
-    | "offline"
-    | "recently"
-    | "within_week"
-    | "within_month"
-    | "long_time_ago"
-    | "bot";
-  lastOnline: Date | null;
+	userId: number;
+	status:
+		| "online"
+		| "offline"
+		| "recently"
+		| "within_week"
+		| "within_month"
+		| "long_time_ago"
+		| "bot";
+	lastOnline: Date | null;
 }
 
 /**
@@ -25,16 +25,16 @@ export interface UserbotPresence {
  * для этого номера при подключении (packages/db телеgram_personal_accounts).
  */
 export async function createUserbotClient(
-  session: string,
-  credentials: TelegramApiCredentials,
+	session: string,
+	credentials: TelegramApiCredentials,
 ): Promise<TelegramClient> {
-  const tg = new TelegramClient({
-    apiId: credentials.apiId,
-    apiHash: credentials.apiHash,
-    storage: new MemoryStorage(),
-  });
-  await tg.importSession(session);
-  return tg;
+	const tg = new TelegramClient({
+		apiId: credentials.apiId,
+		apiHash: credentials.apiHash,
+		storage: new MemoryStorage(),
+	});
+	await tg.importSession(session);
+	return tg;
 }
 
 /**
@@ -43,50 +43,62 @@ export async function createUserbotClient(
  * подключён к реальному Bitrix24-порталу, чтобы протестировать вживую).
  */
 export function listenForMessages(
-  client: TelegramClient,
-  onMessage: (message: Message) => void | Promise<void>,
+	client: TelegramClient,
+	onMessage: (message: Message) => void | Promise<void>,
 ): void {
-  client.onNewMessage.add((message) => {
-    if (message.isOutgoing) return;
-    void onMessage(message);
-  });
+	client.onNewMessage.add((message) => {
+		if (message.isOutgoing) return;
+		void onMessage(message);
+	});
 }
 
 /** Подписка на MTProto updateUserStatus. Поток глобальный для аккаунта,
  * поэтому вызывающий код должен сохранять только уже известных клиентов. */
 export function listenForUserPresence(
-  client: TelegramClient,
-  onPresence: (presence: UserbotPresence) => void | Promise<void>,
+	client: TelegramClient,
+	onPresence: (presence: UserbotPresence) => void | Promise<void>,
 ): void {
-  client.onUserStatusUpdate.add((update) => {
-    void onPresence({
-      userId: update.userId,
-      status: update.status,
-      lastOnline: update.lastOnline,
-    });
-  });
+	client.onUserStatusUpdate.add((update) => {
+		void onPresence({
+			userId: update.userId,
+			status: update.status,
+			lastOnline: update.lastOnline,
+		});
+	});
 }
 
 /** Текущий presence пользователя после резолва/отправки первого сообщения. */
 export async function getUserPresence(
-  client: TelegramClient,
-  target: number | tl.TypeInputPeer,
+	client: TelegramClient,
+	target: number | tl.TypeInputPeer,
 ): Promise<UserbotPresence | null> {
-  const [user] = await client.getUsers(target);
-  if (!user) return null;
-  return {
-    userId: user.id,
-    status: user.status,
-    lastOnline: user.lastOnline,
-  };
+	const [user] = await client.getUsers(target);
+	if (!user) return null;
+	return {
+		userId: user.id,
+		status: user.status,
+		lastOnline: user.lastOnline,
+	};
 }
 
 export async function sendUserbotMessage(
-  client: TelegramClient,
-  target: number | tl.TypeInputPeer,
-  text: string,
+	client: TelegramClient,
+	target: number | tl.TypeInputPeer,
+	text: string,
+): Promise<string> {
+	const message = await client.sendText(target, text);
+	return String(message.id);
+}
+
+/** Отзывает сообщение личного аккаунта для обеих сторон диалога. */
+export async function deleteUserbotMessage(
+	client: TelegramClient,
+	target: number | tl.TypeInputPeer,
+	externalId: string,
 ): Promise<void> {
-  await client.sendText(target, text);
+	await client.deleteMessagesById(target, [Number(externalId)], {
+		revoke: true,
+	});
 }
 
 /**
@@ -98,19 +110,19 @@ export async function sendUserbotMessage(
  * приватности («Кто видит мой номер телефона»).
  */
 export async function resolveClientPhoneNumber(
-  client: TelegramClient,
-  phone: string,
+	client: TelegramClient,
+	phone: string,
 ): Promise<tl.TypeInputPeer> {
-  try {
-    return await client.resolvePhoneNumber(phone);
-  } catch (err) {
-    if (err instanceof MtPeerNotFoundError) {
-      throw new Error(
-        "Клиент не найден в Telegram по этому номеру — либо у него нет Telegram, либо скрыт номер телефона в настройках приватности",
-      );
-    }
-    throw err;
-  }
+	try {
+		return await client.resolvePhoneNumber(phone);
+	} catch (err) {
+		if (err instanceof MtPeerNotFoundError) {
+			throw new Error(
+				"Клиент не найден в Telegram по этому номеру — либо у него нет Telegram, либо скрыт номер телефона в настройках приватности",
+			);
+		}
+		throw err;
+	}
 }
 
 /**
@@ -120,19 +132,19 @@ export async function resolveClientPhoneNumber(
  * username (см. TelegramUsername_WZ и подобные UF-поля интеграций).
  */
 export async function resolveClientUsername(
-  client: TelegramClient,
-  username: string,
+	client: TelegramClient,
+	username: string,
 ): Promise<tl.TypeInputPeer> {
-  const cleaned = username
-    .trim()
-    .replace(/^https?:\/\/t\.me\//i, "")
-    .replace(/^@/, "");
-  try {
-    return await client.resolvePeer(cleaned);
-  } catch (err) {
-    if (err instanceof MtPeerNotFoundError) {
-      throw new Error(`Клиент не найден в Telegram по username @${cleaned}`);
-    }
-    throw err;
-  }
+	const cleaned = username
+		.trim()
+		.replace(/^https?:\/\/t\.me\//i, "")
+		.replace(/^@/, "");
+	try {
+		return await client.resolvePeer(cleaned);
+	} catch (err) {
+		if (err instanceof MtPeerNotFoundError) {
+			throw new Error(`Клиент не найден в Telegram по username @${cleaned}`);
+		}
+		throw err;
+	}
 }

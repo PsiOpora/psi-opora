@@ -14,33 +14,33 @@ import { env } from "@psi-opora/config";
 export class WahaError extends Error {}
 
 function wahaUrl(path: string): string {
-  const base = env.WAHA_URL;
-  if (!base)
-    throw new WahaError("WAHA_URL не задан — контейнер WAHA не настроен");
-  return `${base.replace(/\/+$/, "")}${path}`;
+	const base = env.WAHA_URL;
+	if (!base)
+		throw new WahaError("WAHA_URL не задан — контейнер WAHA не настроен");
+	return `${base.replace(/\/+$/, "")}${path}`;
 }
 
 async function wahaFetch<T>(
-  path: string,
-  init?: { method?: string; body?: unknown },
+	path: string,
+	init?: { method?: string; body?: unknown },
 ): Promise<T> {
-  const res = await fetch(wahaUrl(path), {
-    method: init?.method ?? "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(env.WAHA_API_KEY ? { "X-Api-Key": env.WAHA_API_KEY } : {}),
-    },
-    ...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new WahaError(
-      `WAHA ${init?.method ?? "GET"} ${path} → ${res.status}: ${text.slice(0, 300)}`,
-    );
-  }
-  // Некоторые эндпоинты (logout/delete) отвечают пустым телом.
-  const text = await res.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+	const res = await fetch(wahaUrl(path), {
+		method: init?.method ?? "GET",
+		headers: {
+			"Content-Type": "application/json",
+			...(env.WAHA_API_KEY ? { "X-Api-Key": env.WAHA_API_KEY } : {}),
+		},
+		...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+	});
+	if (!res.ok) {
+		const text = await res.text().catch(() => "");
+		throw new WahaError(
+			`WAHA ${init?.method ?? "GET"} ${path} → ${res.status}: ${text.slice(0, 300)}`,
+		);
+	}
+	// Некоторые эндпоинты (logout/delete) отвечают пустым телом.
+	const text = await res.text();
+	return (text ? JSON.parse(text) : undefined) as T;
 }
 
 /**
@@ -53,28 +53,28 @@ async function wahaFetch<T>(
  * линии теперь может быть несколько номеров) — включаем его в имя сессии,
  * иначе два номера на одной линии получили бы одну и ту же WAHA-сессию. */
 export function waSessionName(memberId: string, connectorId: string): string {
-  return `wa_${memberId}_${connectorId}`.replace(/[^a-zA-Z0-9_]/g, "_");
+	return `wa_${memberId}_${connectorId}`.replace(/[^a-zA-Z0-9_]/g, "_");
 }
 
 export type WahaSessionStatus =
-  | "STOPPED"
-  | "STARTING"
-  | "SCAN_QR_CODE"
-  | "WORKING"
-  | "FAILED"
-  | (string & {});
+	| "STOPPED"
+	| "STARTING"
+	| "SCAN_QR_CODE"
+	| "WORKING"
+	| "FAILED"
+	| (string & {});
 
 export interface WahaSession {
-  name: string;
-  status: WahaSessionStatus;
-  me?: { id?: string; pushName?: string } | null;
-  config?: Record<string, unknown> & {
-    webhooks?: Array<{
-      url?: string;
-      events?: string[];
-      [key: string]: unknown;
-    }>;
-  };
+	name: string;
+	status: WahaSessionStatus;
+	me?: { id?: string; pushName?: string } | null;
+	config?: Record<string, unknown> & {
+		webhooks?: Array<{
+			url?: string;
+			events?: string[];
+			[key: string]: unknown;
+		}>;
+	};
 }
 
 /**
@@ -83,50 +83,50 @@ export interface WahaSession {
  * WAHA не используем, чтобы URL/секрет жили в одном месте с нашим кодом.
  */
 export async function wahaCreateSession(
-  session: string,
-  webhook?: { url: string; hmacKey?: string },
+	session: string,
+	webhook?: { url: string; hmacKey?: string },
 ): Promise<WahaSession> {
-  // Идемпотентность повторного входа: если сессия уже есть (прошлая
-  // незавершённая попытка или переподключение номера) — сносим целиком,
-  // чтобы получить чистый логин, а не FAILED-состояние старой авторизации.
-  await wahaDeleteSession(session).catch(() => {});
-  return wahaFetch<WahaSession>("/api/sessions", {
-    method: "POST",
-    body: {
-      name: session,
-      start: true,
-      config: {
-        ...(webhook
-          ? {
-              webhooks: [
-                {
-                  url: webhook.url,
-                  events: ["message", "message.ack", "presence.update"],
-                  ...(webhook.hmacKey
-                    ? { hmac: { key: webhook.hmacKey } }
-                    : {}),
-                  retries: { policy: "constant", delaySeconds: 2, attempts: 5 },
-                },
-              ],
-            }
-          : {}),
-        // Статусы («сторис») в линию не тащим; группы пропускает сам
-        // вебхук-обработчик — здесь фильтр не у всех движков одинаков.
-        ignore: { status: true },
-      },
-    },
-  });
+	// Идемпотентность повторного входа: если сессия уже есть (прошлая
+	// незавершённая попытка или переподключение номера) — сносим целиком,
+	// чтобы получить чистый логин, а не FAILED-состояние старой авторизации.
+	await wahaDeleteSession(session).catch(() => {});
+	return wahaFetch<WahaSession>("/api/sessions", {
+		method: "POST",
+		body: {
+			name: session,
+			start: true,
+			config: {
+				...(webhook
+					? {
+							webhooks: [
+								{
+									url: webhook.url,
+									events: ["message", "message.ack", "presence.update"],
+									...(webhook.hmacKey
+										? { hmac: { key: webhook.hmacKey } }
+										: {}),
+									retries: { policy: "constant", delaySeconds: 2, attempts: 5 },
+								},
+							],
+						}
+					: {}),
+				// Статусы («сторис») в линию не тащим; группы пропускает сам
+				// вебхук-обработчик — здесь фильтр не у всех движков одинаков.
+				ignore: { status: true },
+			},
+		},
+	});
 }
 
 export async function wahaGetSession(
-  session: string,
+	session: string,
 ): Promise<WahaSession | null> {
-  try {
-    return await wahaFetch<WahaSession>(`/api/sessions/${session}`);
-  } catch (err) {
-    if (err instanceof WahaError && err.message.includes("→ 404")) return null;
-    throw err;
-  }
+	try {
+		return await wahaFetch<WahaSession>(`/api/sessions/${session}`);
+	} catch (err) {
+		if (err instanceof WahaError && err.message.includes("→ 404")) return null;
+		throw err;
+	}
 }
 
 /**
@@ -135,19 +135,19 @@ export async function wahaGetSession(
  * Телефон — только цифры с кодом страны, без «+» и разделителей.
  */
 export async function wahaRequestPairingCode(
-  session: string,
-  phone: string,
+	session: string,
+	phone: string,
 ): Promise<string> {
-  const { code } = await wahaFetch<{ code: string }>(
-    `/api/${session}/auth/request-code`,
-    { method: "POST", body: { phoneNumber: phone.replace(/\D/g, "") } },
-  );
-  return code;
+	const { code } = await wahaFetch<{ code: string }>(
+		`/api/${session}/auth/request-code`,
+		{ method: "POST", body: { phoneNumber: phone.replace(/\D/g, "") } },
+	);
+	return code;
 }
 
 /** Разлогин + полное удаление сессии (конфигурация и данные авторизации). */
 export async function wahaDeleteSession(session: string): Promise<void> {
-  await wahaFetch<void>(`/api/sessions/${session}`, { method: "DELETE" });
+	await wahaFetch<void>(`/api/sessions/${session}`, { method: "DELETE" });
 }
 
 /**
@@ -162,33 +162,45 @@ export async function wahaDeleteSession(session: string): Promise<void> {
  * статус просто не продвинется дальше "sent", без ошибки.
  */
 export async function wahaSendText(
-  session: string,
-  chatId: string,
-  text: string,
+	session: string,
+	chatId: string,
+	text: string,
 ): Promise<{ id?: string }> {
-  const res = await wahaFetch<{ id?: string } | undefined>("/api/sendText", {
-    method: "POST",
-    body: { session, chatId, text },
-  });
-  return { id: res?.id };
+	const res = await wahaFetch<{ id?: string } | undefined>("/api/sendText", {
+		method: "POST",
+		body: { session, chatId, text },
+	});
+	return { id: res?.id };
+}
+
+/** Удаляет сообщение из WhatsApp-диалога для обеих сторон. */
+export async function wahaDeleteMessage(
+	session: string,
+	chatId: string,
+	messageId: string,
+): Promise<void> {
+	await wahaFetch<void>(
+		`/api/${encodeURIComponent(session)}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`,
+		{ method: "DELETE" },
+	);
 }
 
 export interface WahaPresence {
-  participant: string;
-  lastKnownPresence:
-    | "online"
-    | "offline"
-    | "typing"
-    | "recording"
-    | "paused"
-    | (string & {});
-  /** Unix timestamp в секундах; null, если WhatsApp не раскрыл точное время. */
-  lastSeen: number | null;
+	participant: string;
+	lastKnownPresence:
+		| "online"
+		| "offline"
+		| "typing"
+		| "recording"
+		| "paused"
+		| (string & {});
+	/** Unix timestamp в секундах; null, если WhatsApp не раскрыл точное время. */
+	lastSeen: number | null;
 }
 
 export interface WahaChatPresence {
-  id: string;
-  presences: WahaPresence[];
+	id: string;
+	presences: WahaPresence[];
 }
 
 const presenceWebhookConfigured = new Set<string>();
@@ -198,58 +210,58 @@ const presenceWebhookConfigured = new Set<string>();
  * обновить старые подключения без удаления сессии и повторного pairing.
  */
 async function wahaEnsurePresenceWebhook(session: string): Promise<void> {
-  if (presenceWebhookConfigured.has(session) || !env.WAHA_WEBHOOK_URL) return;
+	if (presenceWebhookConfigured.has(session) || !env.WAHA_WEBHOOK_URL) return;
 
-  const current = await wahaGetSession(session);
-  if (!current) return;
-  const currentConfig = current.config ?? {};
-  const webhooks = [...(currentConfig.webhooks ?? [])];
-  const index = webhooks.findIndex(
-    (webhook) => webhook.url === env.WAHA_WEBHOOK_URL,
-  );
-  const existing = index >= 0 ? webhooks[index] : undefined;
-  if (existing?.events?.includes("presence.update")) {
-    presenceWebhookConfigured.add(session);
-    return;
-  }
+	const current = await wahaGetSession(session);
+	if (!current) return;
+	const currentConfig = current.config ?? {};
+	const webhooks = [...(currentConfig.webhooks ?? [])];
+	const index = webhooks.findIndex(
+		(webhook) => webhook.url === env.WAHA_WEBHOOK_URL,
+	);
+	const existing = index >= 0 ? webhooks[index] : undefined;
+	if (existing?.events?.includes("presence.update")) {
+		presenceWebhookConfigured.add(session);
+		return;
+	}
 
-  const webhook = {
-    ...existing,
-    url: env.WAHA_WEBHOOK_URL,
-    events: Array.from(
-      new Set([
-        ...(existing?.events ?? ["message", "message.ack"]),
-        "presence.update",
-      ]),
-    ),
-    ...(env.WAHA_WEBHOOK_SECRET
-      ? { hmac: { key: env.WAHA_WEBHOOK_SECRET } }
-      : {}),
-    retries: { policy: "constant", delaySeconds: 2, attempts: 5 },
-  };
-  if (index >= 0) webhooks[index] = webhook;
-  else webhooks.push(webhook);
+	const webhook = {
+		...existing,
+		url: env.WAHA_WEBHOOK_URL,
+		events: Array.from(
+			new Set([
+				...(existing?.events ?? ["message", "message.ack"]),
+				"presence.update",
+			]),
+		),
+		...(env.WAHA_WEBHOOK_SECRET
+			? { hmac: { key: env.WAHA_WEBHOOK_SECRET } }
+			: {}),
+		retries: { policy: "constant", delaySeconds: 2, attempts: 5 },
+	};
+	if (index >= 0) webhooks[index] = webhook;
+	else webhooks.push(webhook);
 
-  await wahaFetch<WahaSession>(`/api/sessions/${encodeURIComponent(session)}`, {
-    method: "PUT",
-    body: {
-      name: session,
-      config: { ...currentConfig, webhooks },
-    },
-  });
-  presenceWebhookConfigured.add(session);
+	await wahaFetch<WahaSession>(`/api/sessions/${encodeURIComponent(session)}`, {
+		method: "PUT",
+		body: {
+			name: session,
+			config: { ...currentConfig, webhooks },
+		},
+	});
+	presenceWebhookConfigured.add(session);
 }
 
 /** Запрашивает текущий presence и одновременно подписывает WAHA на
  * последующие presence.update для этого диалога. */
 export async function wahaGetChatPresence(
-  session: string,
-  chatId: string,
+	session: string,
+	chatId: string,
 ): Promise<WahaChatPresence> {
-  await wahaEnsurePresenceWebhook(session);
-  return wahaFetch<WahaChatPresence>(
-    `/api/${encodeURIComponent(session)}/presence/${encodeURIComponent(chatId)}`,
-  );
+	await wahaEnsurePresenceWebhook(session);
+	return wahaFetch<WahaChatPresence>(
+		`/api/${encodeURIComponent(session)}/presence/${encodeURIComponent(chatId)}`,
+	);
 }
 
 /** sent | delivered | read | failed — см. packages/db BotMessageEntry.status. */
@@ -264,25 +276,25 @@ export type MessageDeliveryStatus = "sent" | "delivered" | "read" | "failed";
  * Неизвестные/промежуточные значения — `null`, статус не меняем.
  */
 export function wahaAckToStatus(payload: {
-  ack?: number;
-  ackName?: string;
+	ack?: number;
+	ackName?: string;
 }): MessageDeliveryStatus | null {
-  const name = payload.ackName?.toUpperCase();
-  if (name === "ERROR" || payload.ack === -1) return "failed";
-  if (name === "DEVICE" || payload.ack === 2) return "delivered";
-  if (name === "READ" || name === "PLAYED" || (payload.ack ?? 0) >= 3) {
-    return "read";
-  }
-  return null;
+	const name = payload.ackName?.toUpperCase();
+	if (name === "ERROR" || payload.ack === -1) return "failed";
+	if (name === "DEVICE" || payload.ack === 2) return "delivered";
+	if (name === "READ" || name === "PLAYED" || (payload.ack ?? 0) >= 3) {
+		return "read";
+	}
+	return null;
 }
 
 /** "79991234567@c.us" → "+79991234567"; для не-личных jid (группы) — null. */
 export function phoneFromJid(jid: string): string | null {
-  const match = /^(\d{5,15})@c\.us$/.exec(jid);
-  return match ? `+${match[1]}` : null;
+	const match = /^(\d{5,15})@c\.us$/.exec(jid);
+	return match ? `+${match[1]}` : null;
 }
 
 /** "+7 999 123-45-67" → "79991234567@c.us" — первое сообщение по номеру из CRM. */
 export function jidFromPhone(phone: string): string {
-  return `${phone.replace(/\D/g, "")}@c.us`;
+	return `${phone.replace(/\D/g, "")}@c.us`;
 }

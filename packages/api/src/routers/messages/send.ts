@@ -11,6 +11,7 @@ import {
 	insertBotMessage,
 	listTelegramPersonalAccounts,
 	listWhatsappPersonalAccounts,
+	setBotMessageBitrixExternalId,
 	upsertBitrixCrmLink,
 } from "@psi-opora/db/queries";
 import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
@@ -52,6 +53,7 @@ async function sendTelegramPersonal(
 	error?: string;
 	connector?: OpenLineConnectorRef;
 	telegramUserId?: string;
+	externalId?: string;
 }> {
 	if (!memberId) {
 		return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
@@ -94,6 +96,7 @@ async function sendTelegramPersonal(
 			openLineId: account.openLineId,
 		},
 		telegramUserId: result.telegramUserId,
+		externalId: result.externalId,
 	};
 }
 
@@ -195,6 +198,7 @@ export const send = bitrixProcedure
 				if (result.error) return result;
 				connector = result.connector;
 				canonicalTelegramUserId = result.telegramUserId;
+				externalId = result.externalId;
 
 				// Если старый диалог был заведён по телефону, после успешного
 				// резолва сохраняем канонический Telegram ID как второй ключ того же
@@ -260,8 +264,9 @@ export const send = bitrixProcedure
 				}
 			}
 
+			let storedMessageId: string | undefined;
 			try {
-				await insertBotMessage({
+				storedMessageId = await insertBotMessage({
 					messenger: input.messenger,
 					userId: input.userId,
 					direction: "out",
@@ -270,6 +275,7 @@ export const send = bitrixProcedure
 					operatorId,
 					operatorName: input.operatorName,
 					externalId,
+					externalChatId: canonicalTelegramUserId,
 					connectorId: connector?.connectorId,
 				});
 			} catch (err) {
@@ -282,7 +288,7 @@ export const send = bitrixProcedure
 			// operatorId надёжно получен из подписанной Bitrix-сессии выше.
 			if (connector) {
 				const api = resolveBitrixApi(context.memberId ?? undefined);
-				await mirrorOperatorMessageToOpenLine(
+				const bitrixExternalId = await mirrorOperatorMessageToOpenLine(
 					api ?? undefined,
 					connector,
 					{
@@ -293,6 +299,16 @@ export const send = bitrixProcedure
 					},
 					operatorMirrorRedis,
 				);
+				if (storedMessageId && bitrixExternalId) {
+					await setBotMessageBitrixExternalId(
+						storedMessageId,
+						bitrixExternalId,
+					).catch((err) =>
+						console.error(
+							`[messages] не удалось сохранить ID зеркала Bitrix: ${(err as Error).message}`,
+						),
+					);
+				}
 			}
 
 			return { ok: true };

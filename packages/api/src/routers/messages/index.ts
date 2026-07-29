@@ -1,52 +1,54 @@
 import { router } from "../../orpc";
 import { assign } from "./assign";
-import { edit } from "./edit";
 import { crmLinks } from "./crm-links";
 import { crmLinksByDialog } from "./crm-links-by-dialog";
+import { deleteMessage } from "./delete";
+import { edit } from "./edit";
 import { list } from "./list";
 import { markRead } from "./mark-read";
 import { addNote, deleteNote, notes } from "./notes";
 import { poll } from "./poll";
 import { profile } from "./profile";
 import {
-  deleteQuickReply,
-  quickReplies,
-  saveQuickReply,
+	deleteQuickReply,
+	quickReplies,
+	saveQuickReply,
 } from "./quick-replies";
 import { send } from "./send";
 import { setTags } from "./set-tags";
 import { thread } from "./thread";
 
 export const messagesRouter = router({
-  list,
-  thread,
-  poll,
-  send,
-  edit,
-  markRead,
-  assign,
-  profile,
-  crmLinks,
-  crmLinksByDialog,
-  setTags,
-  notes,
-  addNote,
-  deleteNote,
-  quickReplies,
-  saveQuickReply,
-  deleteQuickReply,
+	list,
+	thread,
+	poll,
+	send,
+	edit,
+	delete: deleteMessage,
+	markRead,
+	assign,
+	profile,
+	crmLinks,
+	crmLinksByDialog,
+	setTags,
+	notes,
+	addNote,
+	deleteNote,
+	quickReplies,
+	saveQuickReply,
+	deleteQuickReply,
 });
 
 export type {
-  ClientListItem,
-  ClientMessageItem,
-  ClientNoteItem,
-  ClientProfile,
-  CrmContactLink,
-  CrmDealLink,
-  CrmLeadLink,
-  CrmLinksResult,
-  InboxMessenger,
-  MessageDeliveryStatus,
-  QuickReplyItem,
+	ClientListItem,
+	ClientMessageItem,
+	ClientNoteItem,
+	ClientProfile,
+	CrmContactLink,
+	CrmDealLink,
+	CrmLeadLink,
+	CrmLinksResult,
+	InboxMessenger,
+	MessageDeliveryStatus,
+	QuickReplyItem,
 } from "./types";

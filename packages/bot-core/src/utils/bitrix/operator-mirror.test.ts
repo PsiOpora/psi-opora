@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { RedisClient } from "../../storage/redis";
+import { mirrorOperatorMessageToOpenLine } from "./openline";
 import {
 	consumeOperatorMirrorEcho,
 	enqueueOperatorMirrorEcho,
@@ -63,5 +64,31 @@ describe("operator mirror echo", () => {
 		expect(operatorMirrorEchoKey(incomplete)).toBeNull();
 		expect(await enqueueOperatorMirrorEcho(redis, incomplete)).toBe(false);
 		expect(await consumeOperatorMirrorEcho(redis, incomplete)).toBe(false);
+	});
+
+	test("возвращает ID зеркала, пригодный для последующего удаления", async () => {
+		let payload: Record<string, unknown> | undefined;
+		const api = {
+			async call(_method: string, params: Record<string, unknown>) {
+				payload = params;
+			},
+		};
+
+		const externalId = await mirrorOperatorMessageToOpenLine(
+			api,
+			{ connectorId: "psiopora_max_bot", openLineId: "7" },
+			{
+				messenger: "max",
+				userId: 32263492,
+				operatorId: "17",
+				text: "Ответ",
+			},
+		);
+
+		expect(externalId).toStartWith("operator-17-");
+		const messages = payload?.MESSAGES as Array<{
+			message: { id: string };
+		}>;
+		expect(messages[0]?.message.id).toBe(externalId);
 	});
 });

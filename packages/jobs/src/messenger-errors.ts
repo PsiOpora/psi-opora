@@ -17,6 +17,9 @@ const MESSENGER_ERROR_MESSAGES: Record<string, string> = {
 		"Telegram больше не разрешает изменять это сообщение",
 	"message to edit not found":
 		"Сообщение для редактирования не найдено в Telegram",
+	"message to delete not found": "Сообщение для удаления не найдено в Telegram",
+	"message can't be deleted":
+		"Telegram больше не разрешает удалить это сообщение",
 	"error.dialog.notfound":
 		"Диалог с клиентом в MAX не найден — возможно, он не писал боту или удалил чат",
 	"error.dialog.suspended":

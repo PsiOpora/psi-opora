@@ -6,31 +6,31 @@ import { db } from "../client.edge";
 import { upsertBitrixCrmLink as _upsertBitrixCrmLink } from "./bitrix-crm-links";
 import { getBotConnector as _getBotConnector } from "./bot-connectors";
 import {
-  addConversationTag as _addConversationTag,
-  getConversationMeta as _getConversationMeta,
-  setConversationTags as _setConversationTags,
+	addConversationTag as _addConversationTag,
+	getConversationMeta as _getConversationMeta,
+	setConversationTags as _setConversationTags,
 } from "./bot-conversations";
 import {
-  getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
-  upsertBotFunnelEvent as _upsertBotFunnelEvent,
+	getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
+	upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
 import {
-  insertBotMessage as _insertBotMessage,
-  updateBotMessageStatus as _updateBotMessageStatus,
-  type BotMessageEntry,
-  type MessageDeliveryStatus,
+	insertBotMessage as _insertBotMessage,
+	updateBotMessageStatus as _updateBotMessageStatus,
+	type BotMessageEntry,
+	type MessageDeliveryStatus,
 } from "./bot-messages";
 import { getBotTextsRecord as _getBotTextsRecord } from "./bot-texts";
 import {
-  getBotUserProfile as _getBotUserProfile,
-  updateExistingBotUserPresence as _updateExistingBotUserPresence,
-  upsertBotUser as _upsertBotUser,
-  upsertBotUserPresence as _upsertBotUserPresence,
-  type BotUserProfileEntry,
+	getBotUserProfile as _getBotUserProfile,
+	updateExistingBotUserPresence as _updateExistingBotUserPresence,
+	upsertBotUser as _upsertBotUser,
+	upsertBotUserPresence as _upsertBotUserPresence,
+	type BotUserProfileEntry,
 } from "./bot-users";
 import {
-  addClientNote as _addClientNote,
-  type NewClientNoteEntry,
+	addClientNote as _addClientNote,
+	type NewClientNoteEntry,
 } from "./client-notes";
 
 export type { BotConnector } from "./bot-connectors";
@@ -41,83 +41,85 @@ export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
 export type { ClientNote, NewClientNoteEntry } from "./client-notes";
 
 export async function getBotConnector(messenger: string) {
-  return _getBotConnector(db, messenger);
+	return _getBotConnector(db, messenger);
 }
 
 export async function upsertBitrixCrmLink(
-  entry: Parameters<typeof _upsertBitrixCrmLink>[1],
+	entry: Parameters<typeof _upsertBitrixCrmLink>[1],
 ): Promise<void> {
-  return _upsertBitrixCrmLink(db, entry);
+	return _upsertBitrixCrmLink(db, entry);
 }
 
-export async function insertBotMessage(entry: BotMessageEntry): Promise<void> {
-  return _insertBotMessage(db, entry);
+export async function insertBotMessage(
+	entry: BotMessageEntry,
+): Promise<string | undefined> {
+	return _insertBotMessage(db, entry);
 }
 
 export async function updateBotMessageStatus(
-  externalId: string,
-  status: MessageDeliveryStatus,
+	externalId: string,
+	status: MessageDeliveryStatus,
 ): Promise<void> {
-  return _updateBotMessageStatus(db, externalId, status);
+	return _updateBotMessageStatus(db, externalId, status);
 }
 
 export async function getBotTextsRecord(): Promise<Record<string, string>> {
-  return _getBotTextsRecord(db);
+	return _getBotTextsRecord(db);
 }
 
 export async function upsertBotFunnelEvent(
-  data: Parameters<typeof _upsertBotFunnelEvent>[1],
+	data: Parameters<typeof _upsertBotFunnelEvent>[1],
 ): Promise<void> {
-  return _upsertBotFunnelEvent(db, data);
+	return _upsertBotFunnelEvent(db, data);
 }
 
 export async function getBotFunnelEventsByDateRange(
-  fromDate: string,
-  toDate: string,
+	fromDate: string,
+	toDate: string,
 ) {
-  return _getBotFunnelEventsByDateRange(db, fromDate, toDate);
+	return _getBotFunnelEventsByDateRange(db, fromDate, toDate);
 }
 
 export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {
-  return _upsertBotUser(db, entry);
+	return _upsertBotUser(db, entry);
 }
 
 export async function upsertBotUserPresence(
-  entry: Parameters<typeof _upsertBotUserPresence>[1],
+	entry: Parameters<typeof _upsertBotUserPresence>[1],
 ): Promise<void> {
-  return _upsertBotUserPresence(db, entry);
+	return _upsertBotUserPresence(db, entry);
 }
 
 export async function updateExistingBotUserPresence(
-  entry: Parameters<typeof _updateExistingBotUserPresence>[1],
+	entry: Parameters<typeof _updateExistingBotUserPresence>[1],
 ): Promise<void> {
-  return _updateExistingBotUserPresence(db, entry);
+	return _updateExistingBotUserPresence(db, entry);
 }
 
 export async function getBotUserProfile(messenger: string, userId: string) {
-  return _getBotUserProfile(db, messenger, userId);
+	return _getBotUserProfile(db, messenger, userId);
 }
 
 export async function getConversationMeta(messenger: string, userId: string) {
-  return _getConversationMeta(db, messenger, userId);
+	return _getConversationMeta(db, messenger, userId);
 }
 
 export async function setConversationTags(
-  messenger: string,
-  userId: string,
-  tags: string[],
+	messenger: string,
+	userId: string,
+	tags: string[],
 ): Promise<void> {
-  return _setConversationTags(db, messenger, userId, tags);
+	return _setConversationTags(db, messenger, userId, tags);
 }
 
 export async function addConversationTag(
-  messenger: string,
-  userId: string,
-  tag: string,
+	messenger: string,
+	userId: string,
+	tag: string,
 ): Promise<void> {
-  return _addConversationTag(db, messenger, userId, tag);
+	return _addConversationTag(db, messenger, userId, tag);
 }
 
 export async function addClientNote(entry: NewClientNoteEntry) {
-  return _addClientNote(db, entry);
+	return _addClientNote(db, entry);
 }

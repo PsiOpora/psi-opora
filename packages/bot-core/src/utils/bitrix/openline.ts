@@ -266,8 +266,8 @@ export async function mirrorOperatorMessageToOpenLine(
 	connector: OpenLineConnector,
 	data: OperatorReplyData,
 	redis?: RedisClient,
-): Promise<void> {
-	if (!api) return;
+): Promise<string | undefined> {
+	if (!api) return undefined;
 
 	const echo = {
 		connectorId: connector.connectorId,
@@ -277,6 +277,7 @@ export async function mirrorOperatorMessageToOpenLine(
 		text: data.text,
 	};
 	const echoQueued = await enqueueOperatorMirrorEcho(redis, echo);
+	const externalMessageId = `operator-${data.operatorId}-${Date.now()}`;
 
 	try {
 		await api.call("imconnector.send.messages", {
@@ -286,7 +287,7 @@ export async function mirrorOperatorMessageToOpenLine(
 				{
 					user: { id: String(data.userId), skip_phone_validate: "Y" },
 					message: {
-						id: `operator-${data.operatorId}-${Date.now()}`,
+						id: externalMessageId,
 						date: Math.floor(Date.now() / 1000),
 						text: data.text,
 						user_id: Number(data.operatorId),
@@ -298,6 +299,7 @@ export async function mirrorOperatorMessageToOpenLine(
 				},
 			],
 		});
+		return externalMessageId;
 	} catch (err: unknown) {
 		// Вызов не создал событие — убираем только что добавленный маркер, чтобы
 		// он не поглотил следующий настоящий ответ с таким же текстом.
@@ -306,5 +308,6 @@ export async function mirrorOperatorMessageToOpenLine(
 		console.error(
 			`[bitrix] не удалось отразить ответ оператора в Открытой линии: ${message}`,
 		);
+		return undefined;
 	}
 }
