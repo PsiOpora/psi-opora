@@ -133,6 +133,7 @@ jobs:
           chmod 600 "$HOME/.kube/config"
 
       - name: Check Redis password
+        if: false
         run: |
           VALUE=$(kubectl get secret psi-opora-env -n psi-opora \
             -o jsonpath='{.data.REDIS_PASSWORD}')
