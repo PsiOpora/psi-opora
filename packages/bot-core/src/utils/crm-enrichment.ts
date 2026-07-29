@@ -5,6 +5,7 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import { bitrixPost } from "./bitrix/client";
 import { appendDealComment } from "./bitrix/sources";
+import { OPENROUTER_FALLBACK_MODELS } from "./openrouter";
 import { hasPhoneNumber, isValidEmail } from "./validation";
 
 const CrmEnrichmentSchema = z.object({
@@ -43,17 +44,23 @@ type OpenRouterClient = ReturnType<typeof createOpenRouter>;
 type OpenRouterModel = ReturnType<OpenRouterClient["chat"]>;
 
 let cachedClient: OpenRouterClient | null = null;
-let cachedModel: OpenRouterModel | null = null;
+const cachedModels = new Map<string, OpenRouterModel>();
 
-function getModel(): OpenRouterModel | null {
-  if (!env.OPENROUTER_API_KEY) return null;
+function getModels(): OpenRouterModel[] {
+  if (!env.OPENROUTER_API_KEY) return [];
   if (!cachedClient) {
     cachedClient = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY });
   }
-  if (!cachedModel) {
-    cachedModel = cachedClient.chat(env.OPENROUTER_MODEL);
-  }
-  return cachedModel;
+  const client = cachedClient;
+
+  return [env.OPENROUTER_MODEL, ...OPENROUTER_FALLBACK_MODELS].map((name) => {
+    let model = cachedModels.get(name);
+    if (!model) {
+      model = client.chat(name);
+      cachedModels.set(name, model);
+    }
+    return model;
+  });
 }
 
 function extractObviousContacts(text: string): ExtractedCrmFacts {
@@ -95,42 +102,60 @@ async function extractWithLlm(
     return obvious;
   }
 
-  const model = getModel();
-  if (!model) return obvious;
+  const models = getModels();
+  if (models.length === 0) return obvious;
 
-  const { object } = await generateObject({
-    model,
-    schema: CrmEnrichmentSchema,
-    abortSignal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS),
-    system:
-      "Ты извлекаешь полезные данные из одного сообщения клиента " +
-      "психологического центра для дополнения его CRM-карточки. Извлекай " +
-      "только факты, которые клиент явно сообщает о себе или человеке, для " +
-      "которого просит помощь. Не принимай за данные клиента контакты, имена, " +
-      "города и даты, упомянутые в цитатах, примерах или рассказе о других " +
-      "людях. name — только если клиент явно представился. phone, email и city — " +
-      "только явно указанные значения. usefulSummary — одна короткая фраза до " +
-      "25 слов только для содержательного и полезного CRM-факта: причина " +
-      "обращения, возраст того, кому нужна помощь, предпочтения по консультации " +
-      "или времени связи. Для приветствий, благодарностей, контактов без " +
-      "дополнительного смысла, подтверждений и рутинных реплик верни null. " +
-      "Не ставь диагнозов и ничего не додумывай.",
-    prompt: text,
-  });
+  for (const model of models) {
+    try {
+      const { object } = await generateObject({
+        model,
+        schema: CrmEnrichmentSchema,
+        abortSignal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS),
+        system:
+          "Ты извлекаешь полезные данные из одного сообщения клиента " +
+          "психологического центра для дополнения его CRM-карточки. Извлекай " +
+          "только факты, которые клиент явно сообщает о себе или человеке, для " +
+          "которого просит помощь. Не принимай за данные клиента контакты, имена, " +
+          "города и даты, упомянутые в цитатах, примерах или рассказе о других " +
+          "людях. name — только если клиент явно представился. phone, email и city — " +
+          "только явно указанные значения. usefulSummary — одна короткая фраза до " +
+          "25 слов только для содержательного и полезного CRM-факта: причина " +
+          "обращения, возраст того, кому нужна помощь, предпочтения по консультации " +
+          "или времени связи. Для приветствий, благодарностей, контактов без " +
+          "дополнительного смысла, подтверждений и рутинных реплик верни null. " +
+          "Не ставь диагнозов и ничего не додумывай.",
+        prompt: text,
+      });
 
-  const llmEmail = object.email?.trim();
-  const llmPhone = object.phone?.trim();
-  return {
-    name: object.name?.trim() || undefined,
-    phone:
-      obvious.phone ||
-      (llmPhone && hasPhoneNumber(llmPhone) ? llmPhone : undefined),
-    email:
-      obvious.email ||
-      (llmEmail && isValidEmail(llmEmail) ? llmEmail : undefined),
-    city: object.city?.trim() || undefined,
-    usefulSummary: object.usefulSummary?.trim() || undefined,
-  };
+      const llmEmail = object.email?.trim();
+      const llmPhone = object.phone?.trim();
+      return {
+        name: object.name?.trim() || undefined,
+        phone:
+          obvious.phone ||
+          (llmPhone && hasPhoneNumber(llmPhone) ? llmPhone : undefined),
+        email:
+          obvious.email ||
+          (llmEmail && isValidEmail(llmEmail) ? llmEmail : undefined),
+        city: object.city?.trim() || undefined,
+        usefulSummary: object.usefulSummary?.trim() || undefined,
+      };
+    } catch (err) {
+      const meta = {
+        provider: "openrouter",
+        model: model.modelId,
+        textLength: text.length,
+        timeoutMs: EXTRACTION_TIMEOUT_MS,
+      };
+      if (err instanceof Error && err.name === "TimeoutError") {
+        logger.warn("bot.crm_enrichment.timed_out", meta);
+      } else {
+        logger.error("bot.crm_enrichment.model_failed", err, meta);
+      }
+    }
+  }
+
+  return obvious;
 }
 
 /**

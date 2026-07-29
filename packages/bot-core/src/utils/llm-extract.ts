@@ -2,6 +2,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { env, logger } from "@psi-opora/config";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { OPENROUTER_FALLBACK_MODELS } from "./openrouter";
 import { hasPhoneNumber } from "./validation";
 
 const ExtractedContactSchema = z.object({
@@ -39,13 +40,6 @@ function looksLikePlainName(text: string): boolean {
 // ошибку — например, превышен лимит бесплатного воркера у провайдера
 // ("ResourceExhausted: Worker local total request limit reached"). Пробуем
 // по очереди, пока одна из них не отработает.
-const FALLBACK_MODELS = [
-  "inclusionai/ling-3.0-flash:free",
-  "nvidia/nemotron-3-super-120b-a12b:free",
-  "cohere/north-mini-code:free",
-  "poolside/laguna-s-2.1:free",
-] as const;
-
 type OpenRouterClient = ReturnType<typeof createOpenRouter>;
 type OpenRouterModel = ReturnType<OpenRouterClient["chat"]>;
 
@@ -64,7 +58,7 @@ function getModels(): OpenRouterModel[] {
   const client = getClient();
   if (!client) return [];
 
-  const modelNames = [env.OPENROUTER_MODEL, ...FALLBACK_MODELS];
+  const modelNames = [env.OPENROUTER_MODEL, ...OPENROUTER_FALLBACK_MODELS];
   return modelNames.map((name) => {
     let model = cachedModels.get(name);
     if (!model) {

@@ -15,7 +15,11 @@ mock.module("ai", () => ({ generateObject }));
 
 mock.module("@psi-opora/config", () => ({
   env: { OPENROUTER_API_KEY: "test-key", OPENROUTER_MODEL: "test-model" },
-  logger: { error: mock(() => {}), info: mock(() => {}) },
+  logger: {
+    error: mock(() => {}),
+    info: mock(() => {}),
+    warn: mock(() => {}),
+  },
 }));
 
 mock.module("@openrouter/ai-sdk-provider", () => ({
@@ -92,5 +96,66 @@ describe("enrichCrmFromClientMessage", () => {
       ([method]) => method === "crm.contact.update",
     );
     expect(updateCalls).toHaveLength(0);
+  });
+
+  test("при таймауте LLM сохраняет очевидный email из текста", async () => {
+    generateObject.mockImplementationOnce(() =>
+      Promise.reject(
+        new DOMException("The operation timed out.", "TimeoutError"),
+      ),
+    );
+
+    await enrichCrmFromClientMessage({
+      messenger: "max",
+      userId: "32263492",
+      text: "Моя почта для связи: client@example.com",
+    });
+
+    expect(bitrixPost).toHaveBeenCalledWith(
+      "crm.contact.update",
+      {
+        id: 7624,
+        fields: {
+          EMAIL: [{ VALUE: "client@example.com", VALUE_TYPE: "WORK" }],
+        },
+      },
+      "max",
+    );
+  });
+
+  test("после таймаута основной модели использует fallback", async () => {
+    generateObject
+      .mockImplementationOnce(() =>
+        Promise.reject(
+          new DOMException("The operation timed out.", "TimeoutError"),
+        ),
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve({
+          object: {
+            name: null,
+            phone: null,
+            email: null,
+            city: "Казань",
+            usefulSummary: null,
+          },
+        }),
+      );
+
+    await enrichCrmFromClientMessage({
+      messenger: "max",
+      userId: "32263492",
+      text: "Я живу в Казани и ищу очную консультацию",
+    });
+
+    expect(generateObject).toHaveBeenCalledTimes(2);
+    expect(generateObject.mock.calls[1]?.[0].model).toEqual({
+      modelId: "inclusionai/ling-3.0-flash:free",
+    });
+    expect(bitrixPost).toHaveBeenCalledWith(
+      "crm.contact.update",
+      { id: 7624, fields: { ADDRESS_CITY: "Казань" } },
+      "max",
+    );
   });
 });
