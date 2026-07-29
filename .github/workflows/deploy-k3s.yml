@@ -233,9 +233,10 @@ jobs:
         run: bun run --filter @psi-opora/config build
 
       - name: Run Drizzle migrations
+        working-directory: packages/db
         env:
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
-        run: bunx drizzle-kit migrate --config packages/db/drizzle.config.ts
+        run: bunx drizzle-kit migrate --config drizzle.config.ts
 
   deploy:
     name: Build & deploy ${{ matrix.service }}
