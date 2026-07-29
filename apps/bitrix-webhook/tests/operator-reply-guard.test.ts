@@ -5,7 +5,7 @@ import {
 	claimOperatorReply,
 	isMirroredOperatorReply,
 	operatorReplyDedupKey,
-} from "./operator-reply-guard";
+} from "../src/operator-reply-guard";
 
 const reply: OperatorReplyMessage = {
 	connector: "psiopora_max_bot",

@@ -176,6 +176,11 @@ data:
           - source_labels: [__meta_kubernetes_namespace]
             action: keep
             regex: psi-opora
+          # Логи самого стека мониторинга не отправляем в Loki: они создают
+          # лишний шум и могут приводить к циклическим алертам.
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: drop
+            regex: grafana|loki|promtail
           - source_labels: [__meta_kubernetes_pod_label_app]
             target_label: app
           - source_labels: [__meta_kubernetes_pod_name]
@@ -325,6 +330,8 @@ data:
                 {{ range .Alerts.Firing }}
                 Сервис: <code>{{ index .Labels "app" }}</code>
                 Ошибок за 5 минут: <b>{{ index .Annotations "errors_count" }}</b>
+                Текст ошибки:
+                <pre>{{ printf "%.1200s" (index .Annotations "error_text") | html }}</pre>
 
                 <a href="{{ .GeneratorURL }}">Открыть алерт в Grafana</a>
                 {{ end }}
@@ -371,7 +378,7 @@ data:
                     uid: loki
                   editorMode: code
                   expr: >-
-                    sum by (app) (count_over_time({namespace="psi-opora", app!~"grafana|loki|promtail"} |~ `(?i)error|exception|fatal|panic` [5m]))
+                    sum by (app, error_message) (count_over_time({namespace="psi-opora", app!~"grafana|loki|promtail"} |~ `(?i)error|exception|fatal|panic` | regexp `(?P<error_message>.*)` [5m]))
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -441,6 +448,7 @@ data:
               summary: Ошибки в логах {{ $labels.app }}
               description: За последние 5 минут найдено {{ $values.B.Value }} ошибок.
               errors_count: "{{ $values.B.Value }}"
+              error_text: "{{ $labels.error_message }}"
             labels:
               severity: error
               source: pod-logs

@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { type BitrixWebhookPayload, getOperatorReplyMessage } from "./index";
+import {
+	type BitrixWebhookPayload,
+	getOperatorReplyMessage,
+} from "../src/index";
 
 describe("getOperatorReplyMessage", () => {
 	test("сохраняет внешний и внутренний ID сообщения", () => {

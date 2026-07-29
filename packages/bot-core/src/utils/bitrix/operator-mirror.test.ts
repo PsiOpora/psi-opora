@@ -31,7 +31,7 @@ function createFakeRedis(): RedisClient {
 		async expire() {
 			return 1;
 		},
-  } as unknown as RedisClient;
+	} as unknown as RedisClient;
 }
 
 describe("operator mirror echo", () => {
