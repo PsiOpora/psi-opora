@@ -1,3 +1,4 @@
+import { env } from "@psi-opora/config";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
  */
 async function handle(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const target = new URL("/widget/wa-personal-connector", url.origin);
+  const target = new URL("/widget/wa-personal-connector", env.APP_URL);
   url.searchParams.forEach((value, key) => {
     target.searchParams.set(key, value);
   });
