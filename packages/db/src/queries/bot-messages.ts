@@ -351,7 +351,10 @@ export async function listClientsWithLastMessage(
 		.selectDistinctOn([botMessages.messenger, botMessages.userId], {
 			messenger: botMessages.messenger,
 			userId: botMessages.userId,
-			text: sql<string>`case when ${botMessages.deletedAt} is not null then 'Сообщение удалено' else ${botMessages.text} end`,
+			text:
+				sql<string>`case when ${botMessages.deletedAt} is not null then 'Сообщение удалено' else ${botMessages.text} end`.as(
+					"text",
+				),
 			direction: botMessages.direction,
 			createdAt: botMessages.createdAt,
 		})
