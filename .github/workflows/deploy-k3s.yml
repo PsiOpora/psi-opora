@@ -122,21 +122,39 @@ jobs:
         uses: azure/setup-kubectl@v4
 
       - name: Write kubeconfig
+        env:
+          KUBECONFIG_SECRET: ${{ secrets.KUBECONFIG }}
         run: |
-          mkdir -p "$HOME/.kube"
-          if echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$HOME/.kube/config" 2>/dev/null; then
+          set -euo pipefail
+
+          if [ -z "$KUBECONFIG_SECRET" ]; then
+            echo "::error::GitHub Secret KUBECONFIG пуст или недоступен этому workflow"
+            exit 1
+          fi
+
+          CONFIG="$RUNNER_TEMP/kubeconfig"
+          DECODED="$RUNNER_TEMP/kubeconfig.decoded"
+
+          if printf '%s' "$KUBECONFIG_SECRET" | base64 -d > "$DECODED" 2>/dev/null \
+            && grep -q '^apiVersion:' "$DECODED"; then
+            mv "$DECODED" "$CONFIG"
             echo "kubeconfig: декодирован из base64"
           else
-            echo "${{ secrets.KUBECONFIG }}" > "$HOME/.kube/config"
-            echo "kubeconfig: записан как обычный текст"
+            rm -f "$DECODED"
+            printf '%s\n' "$KUBECONFIG_SECRET" > "$CONFIG"
+            echo "kubeconfig: записан как YAML"
           fi
-          chmod 600 "$HOME/.kube/config"
-      - name: Diagnose Kubernetes connection
-        run: |
-          kubectl config current-context
-          kubectl config view --minify \
+
+          chmod 600 "$CONFIG"
+          echo "KUBECONFIG=$CONFIG" >> "$GITHUB_ENV"
+
+          kubectl --kubeconfig="$CONFIG" config current-context
+          kubectl --kubeconfig="$CONFIG" config view --minify \
             -o jsonpath='{.clusters[0].cluster.server}'
           echo
+
+      - name: Diagnose Kubernetes connection
+        run: |
           env | grep -iE '^(http|https|no)_proxy=' || true
           kubectl --request-timeout=10s get --raw=/version -v=8
 
@@ -246,18 +264,36 @@ jobs:
         uses: azure/setup-kubectl@v4
 
       - name: Write kubeconfig
+        env:
+          KUBECONFIG_SECRET: ${{ secrets.KUBECONFIG }}
         run: |
-          mkdir -p "$HOME/.kube"
-          # Секрет KUBECONFIG может быть как base64, так и обычным YAML —
-          # раньше жёсткий base64 -d падал с "invalid input", если секрет
-          # положили без кодирования.
-          if echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$HOME/.kube/config" 2>/dev/null; then
+          set -euo pipefail
+
+          if [ -z "$KUBECONFIG_SECRET" ]; then
+            echo "::error::GitHub Secret KUBECONFIG пуст или недоступен этому workflow"
+            exit 1
+          fi
+
+          CONFIG="$RUNNER_TEMP/kubeconfig"
+          DECODED="$RUNNER_TEMP/kubeconfig.decoded"
+
+          if printf '%s' "$KUBECONFIG_SECRET" | base64 -d > "$DECODED" 2>/dev/null \
+            && grep -q '^apiVersion:' "$DECODED"; then
+            mv "$DECODED" "$CONFIG"
             echo "kubeconfig: декодирован из base64"
           else
-            echo "${{ secrets.KUBECONFIG }}" > "$HOME/.kube/config"
-            echo "kubeconfig: записан как обычный текст"
+            rm -f "$DECODED"
+            printf '%s\n' "$KUBECONFIG_SECRET" > "$CONFIG"
+            echo "kubeconfig: записан как YAML"
           fi
-          chmod 600 "$HOME/.kube/config"
+
+          chmod 600 "$CONFIG"
+          echo "KUBECONFIG=$CONFIG" >> "$GITHUB_ENV"
+
+          kubectl --kubeconfig="$CONFIG" config current-context
+          kubectl --kubeconfig="$CONFIG" config view --minify \
+            -o jsonpath='{.clusters[0].cluster.server}'
+          echo
 
       - name: Roll out new image
         run: |
