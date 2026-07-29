@@ -1,3 +1,4 @@
+import type { StageInfo } from "./deals";
 import type {
   DealRecord,
   DealStatus,
@@ -6,7 +7,6 @@ import type {
   Summary,
   TrendPoint,
 } from "./types";
-import type { StageInfo } from "./deals";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -93,23 +93,46 @@ function groupBy(
 }
 
 export function groupByUtmSource(deals: DealRecord[]): GroupStats[] {
-  return groupBy(deals, (d) => d.utmSource);
+  return groupBy(
+    deals,
+    (d) => d.utmSource,
+    (key) => key || "Без метки",
+  );
 }
 
 export function groupByUtmCampaign(deals: DealRecord[]): GroupStats[] {
-  return groupBy(deals, (d) => `${d.utmSource} / ${d.utmCampaign}`);
+  return groupBy(
+    deals,
+    (d) => `${d.utmSource}\u0000${d.utmCampaign}`,
+    (key) => {
+      const [source, campaign] = key.split("\u0000");
+      return `${source || "Без utm_source"} / ${campaign || "Без utm_campaign"}`;
+    },
+  );
 }
 
 export function groupByUtmMedium(deals: DealRecord[]): GroupStats[] {
-  return groupBy(deals, (d) => d.utmMedium);
+  return groupBy(
+    deals,
+    (d) => d.utmMedium,
+    (key) => key || "Без метки",
+  );
 }
 
 export function groupByUtmContent(deals: DealRecord[]): GroupStats[] {
-  return groupBy(deals, (d) => d.utmContent);
+  return groupBy(
+    deals,
+    (d) => d.utmContent,
+    (key) => key || "Без метки",
+  );
 }
 
 export function groupByUtmTerm(deals: DealRecord[]): GroupStats[] {
-  return groupBy(deals, (d) => d.utmTerm);
+  return groupBy(
+    deals,
+    (d) => d.utmTerm,
+    (key) => key || "Без метки",
+  );
 }
 
 export function groupBySource(

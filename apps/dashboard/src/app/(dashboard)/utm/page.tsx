@@ -86,10 +86,16 @@ function UtmReportPageContent() {
   ];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-1">
+        <h1 className="font-heading text-xl font-semibold">UTM-отчёт</h1>
+        <p className="text-sm text-muted-foreground">
+          Сравнивайте каналы по количеству сделок и по заполненной сумме
+        </p>
+      </div>
       <UtmLegendCard />
       <Tabs defaultValue="source" className="flex flex-col gap-4">
-        <TabsList>
+        <TabsList className="max-w-full justify-start overflow-x-auto">
           {dimensions.map((dim) => (
             <TabsTrigger key={dim.value} value={dim.value}>
               {dim.tab}
@@ -102,20 +108,31 @@ function UtmReportPageContent() {
             value={dim.value}
             className="flex flex-col gap-4"
           >
-            <GroupBarChart
-              title={dim.columnLabel}
-              description={`Сумма выигранных сделок — ${dim.tab.toLowerCase()}`}
-              hint={dim.hint}
-              data={dim.data}
-            />
+            <div className="grid items-start gap-4 xl:grid-cols-2">
+              <GroupBarChart
+                title="По количеству сделок"
+                description="Все созданные сделки, независимо от заполнения суммы"
+                hint={dim.hint}
+                data={dim.data}
+                metric="deals"
+              />
+              <GroupBarChart
+                title="По указанной сумме"
+                description="Сумма всех сделок, где заполнено поле «Сумма»"
+                hint={dim.hint}
+                data={dim.data}
+                metric="opportunitySum"
+              />
+            </div>
             <GroupStatsCard
               title={`По ${dim.columnLabel}`}
-              description={dim.description}
+              description={`${dim.description}. Основная сортировка — по количеству сделок.`}
               hint={dim.hint}
               columnLabel={dim.columnLabel}
               csvName={`utm-${dim.value}.csv`}
               data={dim.data}
               dealDomain={dealDomain}
+              showOpportunity
             />
           </TabsContent>
         ))}

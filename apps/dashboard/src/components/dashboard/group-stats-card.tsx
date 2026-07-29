@@ -19,6 +19,7 @@ export function GroupStatsCard({
   csvName,
   data,
   dealDomain,
+  showOpportunity = false,
 }: {
   title: string;
   description: string;
@@ -27,15 +28,47 @@ export function GroupStatsCard({
   csvName: string;
   data: GroupStats[];
   dealDomain?: string | null;
+  showOpportunity?: boolean;
 }) {
-  const csvRows = data.map((row) => [
-    row.label,
-    row.deals,
-    row.won,
-    (row.conversionRate * 100).toFixed(1),
-    Math.round(row.wonSum),
-    Math.round(row.opportunitySum),
-  ]);
+  const csvHeaders = showOpportunity
+    ? [
+        columnLabel,
+        "Сделок",
+        "Сделок с суммой",
+        "Выиграно",
+        "Конверсия, %",
+        "Сумма в воронке",
+        "Сумма выигранных",
+      ]
+    : [
+        columnLabel,
+        "Сделок",
+        "Выиграно",
+        "Конверсия, %",
+        "Сумма выигранных",
+        "Сумма в воронке",
+      ];
+
+  const csvRows = data.map((row) =>
+    showOpportunity
+      ? [
+          row.label,
+          row.deals,
+          countDealsWithAmount(row),
+          row.won,
+          (row.conversionRate * 100).toFixed(1),
+          Math.round(row.opportunitySum),
+          Math.round(row.wonSum),
+        ]
+      : [
+          row.label,
+          row.deals,
+          row.won,
+          (row.conversionRate * 100).toFixed(1),
+          Math.round(row.wonSum),
+          Math.round(row.opportunitySum),
+        ],
+  );
 
   return (
     <Card>
@@ -48,14 +81,7 @@ export function GroupStatsCard({
         <CardAction>
           <ExportCsvButton
             filename={csvName}
-            headers={[
-              columnLabel,
-              "Сделок",
-              "Выиграно",
-              "Конверсия, %",
-              "Сумма выигранных",
-              "Сумма в воронке",
-            ]}
+            headers={csvHeaders}
             rows={csvRows}
           />
         </CardAction>
@@ -65,8 +91,13 @@ export function GroupStatsCard({
           columnLabel={columnLabel}
           data={data}
           dealDomain={dealDomain}
+          showOpportunity={showOpportunity}
         />
       </CardContent>
     </Card>
   );
+}
+
+function countDealsWithAmount(row: GroupStats): number {
+  return row.items.filter((deal) => deal.opportunity > 0).length;
 }
