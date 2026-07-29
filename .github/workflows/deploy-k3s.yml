@@ -159,7 +159,6 @@ jobs:
           kubectl --request-timeout=10s get --raw=/version -v=8
 
       - name: Check Redis password
-        if: false
         run: |
           VALUE=$(kubectl get secret psi-opora-env -n psi-opora \
             -o jsonpath='{.data.REDIS_PASSWORD}')
@@ -169,7 +168,6 @@ jobs:
           fi
 
       - name: Check PostgreSQL secrets
-        if: false
         run: |
           for secret in postgres-credentials postgres-tls; do
             if ! kubectl get "secret/$secret" -n psi-opora >/dev/null 2>&1; then
@@ -179,7 +177,6 @@ jobs:
           done
 
       - name: Check Hatchet Cloud client token
-        if: false
         run: |
           VALUE=$(kubectl get secret psi-opora-env -n psi-opora \
             -o jsonpath='{.data.HATCHET_CLIENT_TOKEN}')

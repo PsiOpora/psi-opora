@@ -26,9 +26,9 @@
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@psi-opora/emails": "workspace:*",
-    "ai": "^7.0.37",
+    "ai": "^7.0.41",
     "grammy": "^1.45.1",
-    "ioredis": "^5.7.0",
+    "ioredis": "^5.11.1",
     "zod": "4.4.3"
   },
   "devDependencies": {
