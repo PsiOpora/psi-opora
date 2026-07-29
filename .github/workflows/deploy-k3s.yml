@@ -229,6 +229,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build configuration package
+        run: bun run --filter @psi-opora/config build
+
       - name: Run Drizzle migrations
         env:
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
