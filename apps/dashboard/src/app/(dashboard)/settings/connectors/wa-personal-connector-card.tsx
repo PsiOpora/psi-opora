@@ -27,10 +27,10 @@ import { orpcClient } from "@/lib/orpc/client";
 const CONNECTOR_PREFIX = "psiopora_wa_personal";
 const CONNECTOR_NAME = "WhatsApp (личный номер)";
 
-// Простая монохромная иконка «пузырь диалога» — Bitrix24 отклоняет
-// регистрацию коннектора без иконки (ICON_REQUIRED).
+// WhatsApp-иконка — Bitrix24 отклоняет регистрацию коннектора без неё
+// (ICON_REQUIRED). DATA_IMAGE принимает data URI без CSS-обёртки url(...).
 const ICON_SVG =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 3C7 3 3 6.9 3 11.7c0 2.1.8 4 2.1 5.5L4 21l4-1.1c1.2.6 2.6.9 4 .9 5 0 9-3.9 9-8.7S17 3 12 3z'/%3E%3C/svg%3E";
+  "data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20fill%3D%22%23fff%22%20height%3D%22512%22%20width%3D%22512%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20fill%3D%22%2345d354%22%20rx%3D%2215%25%22/%3E%3Cpath%20d%3D%22M308%20273c-3-2-6-3-9%201l-12%2016c-3%202-5%203-9%201-15-8-36-17-54-47-1-4%201-6%203-8l9-14c2-2%201-4%200-6l-12-29c-3-8-6-7-9-7h-8c-2%200-6%201-10%205-22%2022-13%2053%203%2073%203%204%2023%2040%2066%2059%2032%2014%2039%2012%2048%2010%2011-1%2022-10%2027-19%201-3%206-16%202-18m-79%2094c-41%200-72-22-72-22l-49%2013%2012-48s-20-31-20-70c0-72%2059-132%20132-132%2068%200%20126%2053%20126%20127%200%2072-58%20131-129%20132m-159%2029l83-23a158%20158%200%200%200%20230-140c0-86-68-155-154-155a158%20158%200%200%200-137%20236%22/%3E%3C/svg%3E";
 
 function handlerUrl(): string {
   return `${window.location.origin}/api/bitrix/wa-personal-widget`;

@@ -27,10 +27,14 @@ const CONNECTOR_IDS: Record<Messenger, string> = {
   max: "psiopora_max_bot",
 };
 
-// Простая монохромная иконка «бумажный самолётик» — Bitrix24 отклоняет
-// регистрацию коннектора без иконки (ICON_REQUIRED).
-const ICON_SVG =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M2 21l21-9L2 3v7l15 2-15 2z'/%3E%3C/svg%3E";
+// Bitrix24 отклоняет регистрацию коннектора без иконки (ICON_REQUIRED).
+// DATA_IMAGE принимает data URI без CSS-обёртки url(...).
+const ICON_SVGS: Record<Messenger, string> = {
+  telegram:
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M2 21l21-9L2 3v7l15 2-15 2z'/%3E%3C/svg%3E",
+  max:
+    "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='-10 -10 62 62'%3E%3Cpath fill='%23fff' fill-rule='evenodd' d='M21.47 41.88c-4.11 0-6.02-.6-9.34-3-2.1 2.7-8.75 4.81-9.04 1.2 0-2.71-.6-5-1.28-7.5C1 29.5.08 26.07.08 21.1.08 9.23 9.82.3 21.36.3c11.55 0 20.6 9.37 20.6 20.91a20.6 20.6 0 0 1-20.49 20.67m.17-31.32c-5.62-.29-10 3.6-10.97 9.7-.8 5.05.62 11.2 1.83 11.52.58.14 2.04-1.04 2.95-1.95a10.4 10.4 0 0 0 5.08 1.81 10.7 10.7 0 0 0 11.19-9.97 10.7 10.7 0 0 0-10.08-11.1Z' clip-rule='evenodd'/%3E%3C/svg%3E",
+};
 
 function handlerUrl(messenger: Messenger): string {
   return `${window.location.origin}/api/bitrix/bot-connector-widget/${messenger}`;
@@ -105,7 +109,7 @@ export function BotConnectorCard({
           params: {
             ID: connectorId,
             NAME: `Пси-Опора ${label} Бот`,
-            ICON: { DATA_IMAGE: ICON_SVG },
+            ICON: { DATA_IMAGE: ICON_SVGS[messenger] },
             PLACEMENT_HANDLER: handlerUrl(messenger),
           },
           requestId: Text.getUuidRfc4122(),
