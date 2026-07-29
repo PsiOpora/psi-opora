@@ -43,6 +43,8 @@ spec:
             # Явно перекрывает старый облачный URL из общего Secret.
             - name: REDIS_URL
               value: ""
+            - name: LOG_LEVEL
+              value: "error"
           readinessProbe:
             httpGet:
               path: /

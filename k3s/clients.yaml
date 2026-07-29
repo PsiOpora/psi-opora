@@ -42,6 +42,8 @@ spec:
           env:
             - name: REDIS_URL
               value: ""
+            - name: LOG_LEVEL
+              value: "error"
           readinessProbe:
             httpGet:
               path: /
