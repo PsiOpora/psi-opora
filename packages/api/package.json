@@ -33,8 +33,8 @@
     "@psi-opora/unisender-client": "workspace:*",
     "@psi-opora/waha": "workspace:*",
     "@psi-opora/validators": "workspace:*",
-    "@orpc/contract": "^1.14.12",
-    "@orpc/server": "^1.14.12",
+    "@orpc/contract": "^1.14.13",
+    "@orpc/server": "^1.14.13",
     "better-auth": "1.6.25",
     "superjson": "2.2.6",
     "zod": "4.4.3"

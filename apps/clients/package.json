@@ -11,9 +11,9 @@
   },
   "dependencies": {
     "@bitrix24/b24jssdk": "2.0.0",
-    "@orpc/client": "^1.14.12",
-    "@orpc/server": "^1.14.12",
-    "@orpc/tanstack-query": "^1.14.12",
+    "@orpc/client": "^1.14.13",
+    "@orpc/server": "^1.14.13",
+    "@orpc/tanstack-query": "^1.14.13",
     "@psi-opora/api": "workspace:*",
     "@psi-opora/bitrix-client": "workspace:*",
     "@tanstack/react-query": "^5.101.4",
