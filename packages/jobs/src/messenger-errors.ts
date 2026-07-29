@@ -6,21 +6,22 @@
  * запросов) возвращаем как есть.
  */
 const MESSENGER_ERROR_MESSAGES: Record<string, string> = {
-  "chat not found":
-    "Диалог с клиентом в Telegram не найден — возможно, он не писал боту или удалил чат",
-  "bot was blocked by the user":
-    "Пользователь заблокировал бота в Telegram",
-  "user is deactivated":
-    "Аккаунт пользователя в Telegram удалён или деактивирован",
-  "message is too long":
-    "Слишком длинное сообщение — Telegram/MAX его не принимает",
-  "error.dialog.notfound":
-    "Диалог с клиентом в MAX не найден — возможно, он не писал боту или удалил чат",
+	"chat not found":
+		"Диалог с клиентом в Telegram не найден — возможно, он не писал боту или удалил чат",
+	"bot was blocked by the user": "Пользователь заблокировал бота в Telegram",
+	"user is deactivated":
+		"Аккаунт пользователя в Telegram удалён или деактивирован",
+	"message is too long":
+		"Слишком длинное сообщение — Telegram/MAX его не принимает",
+	"error.dialog.notfound":
+		"Диалог с клиентом в MAX не найден — возможно, он не писал боту или удалил чат",
+	"error.dialog.suspended":
+		"Клиент остановил бота в MAX — отправка станет доступна, когда клиент снова запустит бота",
 };
 
 export function formatMessengerError(message: string): string {
-  for (const [code, text] of Object.entries(MESSENGER_ERROR_MESSAGES)) {
-    if (message.toLowerCase().includes(code.toLowerCase())) return text;
-  }
-  return message;
+	for (const [code, text] of Object.entries(MESSENGER_ERROR_MESSAGES)) {
+		if (message.toLowerCase().includes(code.toLowerCase())) return text;
+	}
+	return message;
 }
