@@ -83,6 +83,8 @@ export function ThreadPane({
   const [sending, startSending] = useTransition();
   const [assigning, startAssigning] = useTransition();
   const sinceRef = useRef(new Date().toISOString());
+  const selectedMessenger = selected?.messenger;
+  const selectedUserId = selected?.userId;
 
   // Личные номера (Telegram/WhatsApp) на портале может быть несколько —
   // без явного выбора отправка ушла бы с первого попавшегося, а это не
@@ -164,36 +166,46 @@ export function ThreadPane({
 
   // Поллинг открытого диалога — новые сообщения (клиент, оператор из Bitrix, виджет CRM).
   useEffect(() => {
-    if (!selected) return;
-    const { messenger, userId } = selected;
+    if (!selectedMessenger || !selectedUserId) return;
+    let cancelled = false;
+    let polling = false;
 
     const poll = async () => {
-      if (document.hidden) return;
-      const result = await orpcClient.messages.poll({
-        messenger,
-        userId,
-        sinceIso: sinceRef.current,
-      });
-      if (!result.messages || result.messages.length === 0) return;
-      sinceRef.current = latestUpdatedAt(result.messages);
-      setMessages((prev) =>
-        mergeThread(
-          prev,
-          result.messages?.map((m) => ({
-            id: m.id,
-            direction: m.direction,
-            source: m.source,
-            text: m.text,
-            operatorName: m.operatorName,
-            status: m.status,
-            createdAt: m.createdAt,
-            updatedAt: m.updatedAt,
-            kind: m.kind,
-            mediaUrl: m.mediaUrl,
-            connectorId: m.connectorId,
-          })) ?? [],
-        ),
-      );
+      if (document.hidden || polling) return;
+      polling = true;
+      try {
+        const result = await orpcClient.messages.poll({
+          messenger: selectedMessenger,
+          userId: selectedUserId,
+          sinceIso: sinceRef.current,
+        });
+        // Запрос мог завершиться уже после переключения на другой диалог.
+        // В таком случае его сообщения нельзя вливать в новый открытый тред.
+        if (cancelled || !result.messages || result.messages.length === 0)
+          return;
+        const polledMessages = result.messages;
+        sinceRef.current = latestUpdatedAt(polledMessages);
+        setMessages((prev) =>
+          mergeThread(
+            prev,
+            polledMessages.map((m) => ({
+              id: m.id,
+              direction: m.direction,
+              source: m.source,
+              text: m.text,
+              operatorName: m.operatorName,
+              status: m.status,
+              createdAt: m.createdAt,
+              updatedAt: m.updatedAt,
+              kind: m.kind,
+              mediaUrl: m.mediaUrl,
+              connectorId: m.connectorId,
+            })),
+          ),
+        );
+      } finally {
+        polling = false;
+      }
     };
 
     const interval = setInterval(poll, THREAD_POLL_INTERVAL_MS);
@@ -203,10 +215,11 @@ export function ThreadPane({
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
+      cancelled = true;
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [selected]);
+  }, [selectedMessenger, selectedUserId]);
 
   const send = () => {
     if (!selected) return;

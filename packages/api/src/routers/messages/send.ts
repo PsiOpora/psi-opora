@@ -6,7 +6,7 @@ import {
   listTelegramPersonalAccounts,
   listWhatsappPersonalAccounts,
 } from "@psi-opora/db/queries";
-import { sendMessengerMessage } from "@psi-opora/jobs";
+import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
 import { wahaSendText } from "@psi-opora/waha";
 import { bitrixProcedure } from "../../orpc";
 import { sendClientMessageSchema } from "../../schemas/messages";
@@ -180,7 +180,7 @@ export const send = bitrixProcedure
             `[messages] ошибка отправки ${input.messenger}: ${error.message}`,
             error.cause ?? "",
           );
-          return { error: `Не отправлено: ${error.message}` };
+          return { error: `Не отправлено: ${formatMessengerError(error.message)}` };
         }
         const botConnector = await getBotConnector(input.messenger).catch(
           () => null,

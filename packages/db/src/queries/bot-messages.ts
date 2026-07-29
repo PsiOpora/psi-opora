@@ -138,7 +138,7 @@ export async function listBotMessagesSince(
       and(
         eq(botMessages.messenger, messenger),
         eq(botMessages.userId, userId),
-        //gt(botMessages.updatedAt, since),
+        gt(botMessages.updatedAt, since),
       ),
     )
     .orderBy(asc(botMessages.updatedAt))

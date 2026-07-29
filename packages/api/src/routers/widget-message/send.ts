@@ -1,5 +1,5 @@
 import { insertBotMessage } from "@psi-opora/db/queries";
-import { sendMessengerMessage } from "@psi-opora/jobs";
+import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
 import { publicProcedure } from "../../orpc";
 import {
   MESSAGE_MAX_LENGTH,
@@ -16,18 +16,6 @@ import {
  * (messenger, lineId). */
 function needsLineMatch(messenger: string): boolean {
   return messenger === "telegram-personal" || messenger === "whatsapp-personal";
-}
-
-const MESSENGER_ERROR_MESSAGES: Record<string, string> = {
-  "error.dialog.notfound":
-    "Диалог с клиентом в MAX не найден — возможно, он не писал боту или удалил чат",
-};
-
-function formatSendError(message: string): string {
-  for (const [code, text] of Object.entries(MESSENGER_ERROR_MESSAGES)) {
-    if (message.includes(code)) return text;
-  }
-  return message;
 }
 
 /**
@@ -119,7 +107,7 @@ export const send = publicProcedure
             error.cause ?? "",
             error.stack ?? "",
           );
-          return { error: `Не отправлено: ${formatSendError(error.message)}` };
+          return { error: `Не отправлено: ${formatMessengerError(error.message)}` };
         }
       }
 

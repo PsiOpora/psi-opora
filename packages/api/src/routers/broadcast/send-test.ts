@@ -1,4 +1,4 @@
-import { sendMessengerMessage } from "@psi-opora/jobs";
+import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
 import { publicProcedure } from "../../orpc";
 import { sendTestMessageSchema } from "../../schemas/broadcast";
 
@@ -16,6 +16,6 @@ export const sendTest = publicProcedure
       await sendMessengerMessage(input.messenger, input.userId, message);
       return { ok: true };
     } catch (err) {
-      return { ok: false, error: (err as Error).message };
+      return { ok: false, error: formatMessengerError((err as Error).message) };
     }
   });

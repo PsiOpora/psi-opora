@@ -2,6 +2,7 @@ import {
   ConcurrencyLimitStrategy,
   CreateTaskWorkflow,
 } from "@hatchet-dev/typescript-sdk/v1";
+import { formatMessengerError } from "../messenger-errors";
 import {
   type Messenger,
   SEND_INTERVAL_MS,
@@ -84,7 +85,7 @@ export const deliverBroadcast = CreateTaskWorkflow({
         } catch (err) {
           await updateBroadcastRecipient(recipient.id, {
             status: "error",
-            error: (err as Error).message,
+            error: formatMessengerError((err as Error).message),
             sentAt: null,
           });
         }

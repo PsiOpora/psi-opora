@@ -11,6 +11,7 @@ export {
   sendMessengerMessage,
   setMessengerWebhook,
 } from "./messenger";
+export { formatMessengerError } from "./messenger-errors";
 export {
   type DeliverBroadcastPayload,
   deliverBroadcast,
