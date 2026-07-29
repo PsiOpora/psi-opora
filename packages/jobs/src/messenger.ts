@@ -43,7 +43,7 @@ async function sendTelegram(
   userId: string,
   text: string,
   buttons?: MessengerButton[][],
-): Promise<void> {
+): Promise<string | undefined> {
   const token = await resolveTelegramBotToken();
   if (!token) throw new Error("Токен Telegram-бота не задан в БД");
 
@@ -74,6 +74,7 @@ async function sendTelegram(
       ok: boolean;
       description?: string;
       parameters?: { retry_after?: number };
+      result?: { message_id?: number };
     };
     if (json.ok) {
       logger.info("messenger.send.ok", {
@@ -81,7 +82,9 @@ async function sendTelegram(
         userId,
         attempt,
       });
-      return;
+      return json.result?.message_id != null
+        ? String(json.result.message_id)
+        : undefined;
     }
     if (
       res.status === 400 &&
@@ -133,7 +136,7 @@ async function sendMax(
   userId: string,
   text: string,
   buttons?: MessengerButton[][],
-): Promise<void> {
+): Promise<string | undefined> {
   const token = await resolveMaxBotToken();
   if (!token) throw new Error("Токен MAX-бота не задан в БД");
 
@@ -172,12 +175,16 @@ async function sendMax(
       RUSSIAN_TRUSTED_ROOT_CA,
     );
     if (res.ok) {
+      const json = (await res.json().catch(() => null)) as {
+        message?: { body?: { mid?: string } };
+        body?: { mid?: string };
+      } | null;
       logger.info("messenger.send.ok", {
         messenger: "max",
         userId,
         attempt,
       });
-      return;
+      return json?.message?.body?.mid ?? json?.body?.mid;
     }
     if (res.status === 400 && withMarkdown) {
       logger.warn("messenger.send.retry.markdown_fallback", {
@@ -230,9 +237,100 @@ export async function sendMessengerMessage(
   userId: string,
   text: string,
   buttons?: MessengerButton[][],
+): Promise<string | undefined> {
+  if (messenger === "telegram") return sendTelegram(userId, text, buttons);
+  return sendMax(userId, text, buttons);
+}
+
+async function editTelegramMessage(
+  userId: string,
+  externalId: string,
+  text: string,
 ): Promise<void> {
-  if (messenger === "telegram") await sendTelegram(userId, text, buttons);
-  else await sendMax(userId, text, buttons);
+  const token = await resolveTelegramBotToken();
+  if (!token) throw new Error("Токен Telegram-бота не задан в БД");
+
+  let withMarkdown = true;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const res = await fetch(
+      `https://api.telegram.org/bot${token}/editMessageText`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: userId,
+          message_id: Number(externalId),
+          text,
+          ...(withMarkdown ? { parse_mode: "Markdown" } : {}),
+        }),
+      },
+    );
+    const json = (await res.json()) as {
+      ok: boolean;
+      description?: string;
+    };
+    if (json.ok) return;
+    // Внешнее редактирование могло пройти, а локальная запись — нет. При
+    // повторе Telegram сообщает "not modified"; считаем это успехом, чтобы
+    // API смог синхронизировать локальный текст.
+    if (/message is not modified/i.test(json.description ?? "")) return;
+    if (
+      res.status === 400 &&
+      withMarkdown &&
+      /parse entities/i.test(json.description ?? "")
+    ) {
+      withMarkdown = false;
+      continue;
+    }
+    throw new Error(json.description ?? `Telegram HTTP ${res.status}`);
+  }
+}
+
+async function editMaxMessage(externalId: string, text: string): Promise<void> {
+  const token = await resolveMaxBotToken();
+  if (!token) throw new Error("Токен MAX-бота не задан в БД");
+
+  let withMarkdown = true;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const url = new URL("https://platform-api2.max.ru/messages");
+    url.searchParams.set("message_id", externalId);
+    const res = await fetchWithCa(
+      url,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: token },
+        body: JSON.stringify({
+          text,
+          ...(withMarkdown ? { format: "markdown" } : {}),
+        }),
+      },
+      RUSSIAN_TRUSTED_ROOT_CA,
+    );
+    const json = (await res.json().catch(() => null)) as {
+      success?: boolean;
+      message?: string;
+    } | null;
+    if (res.ok && json?.success !== false) return;
+    if (res.status === 400 && withMarkdown) {
+      withMarkdown = false;
+      continue;
+    }
+    throw new Error(json?.message ?? `MAX HTTP ${res.status}`);
+  }
+}
+
+/** Редактирует ранее отправленное ботом текстовое сообщение. */
+export async function editMessengerMessage(
+  messenger: Messenger,
+  userId: string,
+  externalId: string,
+  text: string,
+): Promise<void> {
+  if (messenger === "telegram") {
+    await editTelegramMessage(userId, externalId, text);
+  } else {
+    await editMaxMessage(externalId, text);
+  }
 }
 
 async function setTelegramWebhook(): Promise<void> {

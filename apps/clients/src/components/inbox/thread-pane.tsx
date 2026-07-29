@@ -7,6 +7,7 @@ import {
   MessageSquareIcon,
   PanelRightCloseIcon,
   PanelRightOpenIcon,
+  SaveIcon,
   SendIcon,
   UserCheckIcon,
 } from "lucide-react";
@@ -22,6 +23,14 @@ import { messengerLabel } from "@/components/inbox/messenger-meta";
 import { QuickReplies } from "@/components/inbox/quick-replies";
 import { MessageComposer } from "@/components/messaging/message-composer";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { buildDialogLink, copyText } from "@/lib/dialog-link";
 import { orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
@@ -81,6 +90,9 @@ export function ThreadPane({
   const [text, setText] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, startSending] = useTransition();
+  const [editing, startEditing] = useTransition();
+  const [editTarget, setEditTarget] = useState<ThreadMessage | null>(null);
+  const [editText, setEditText] = useState("");
   const [assigning, startAssigning] = useTransition();
   const sinceRef = useRef(new Date().toISOString());
   const selectedMessenger = selected?.messenger;
@@ -108,6 +120,8 @@ export function ThreadPane({
     setMessages([]);
     setText("");
     setSendError(null);
+    setEditTarget(null);
+    setEditText("");
     setPersonalAccounts([]);
     setConnectorId(undefined);
     setThreadLoading(true);
@@ -132,6 +146,8 @@ export function ThreadPane({
             status: m.status,
             createdAt: m.createdAt,
             updatedAt: m.updatedAt,
+            editedAt: m.editedAt,
+            canEdit: m.canEdit,
             kind: m.kind,
             mediaUrl: m.mediaUrl,
             connectorId: m.connectorId,
@@ -197,6 +213,8 @@ export function ThreadPane({
               status: m.status,
               createdAt: m.createdAt,
               updatedAt: m.updatedAt,
+              editedAt: m.editedAt,
+              canEdit: m.canEdit,
               kind: m.kind,
               mediaUrl: m.mediaUrl,
               connectorId: m.connectorId,
@@ -267,6 +285,47 @@ export function ThreadPane({
         operatorName: operator.name,
       });
       onAssigned(operator);
+    });
+  };
+
+  const openEditor = (message: ThreadMessage) => {
+    setEditTarget(message);
+    setEditText(message.text);
+  };
+
+  const saveEdit = () => {
+    const trimmed = editText.trim();
+    if (!editTarget || !trimmed || editing) return;
+
+    startEditing(async () => {
+      const result = await orpcClient.messages.edit({
+        messageId: editTarget.id,
+        text: trimmed,
+      });
+      if (result.error || !result.message) {
+        toast.error(result.error ?? "Не удалось изменить сообщение");
+        return;
+      }
+      const updated: ThreadMessage = {
+        id: result.message.id,
+        direction: result.message.direction,
+        source: result.message.source,
+        text: result.message.text,
+        operatorName: result.message.operatorName,
+        status: result.message.status,
+        createdAt: result.message.createdAt,
+        updatedAt: result.message.updatedAt,
+        editedAt: result.message.editedAt,
+        canEdit: result.message.canEdit,
+        kind: result.message.kind,
+        mediaUrl: result.message.mediaUrl,
+        connectorId: result.message.connectorId,
+      };
+      setMessages((prev) => mergeThread(prev, [updated]));
+      setEditTarget(null);
+      setEditText("");
+      onAfterSend();
+      toast.success("Сообщение изменено");
     });
   };
 
@@ -363,6 +422,7 @@ export function ThreadPane({
         ) : (
           <MessageList
             messages={messages}
+            onEdit={openEditor}
             connectorLabels={Object.fromEntries(
               personalAccounts.map((a) => [a.connectorId, a.phone]),
             )}
@@ -420,6 +480,49 @@ export function ThreadPane({
           </Button>
         </div>
       </div>
+
+      <Dialog
+        open={Boolean(editTarget)}
+        onOpenChange={(open) => {
+          if (!open && !editing) {
+            setEditTarget(null);
+            setEditText("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Редактировать сообщение</DialogTitle>
+            <DialogDescription>
+              Изменение сразу увидит клиент в{" "}
+              {selected?.messenger === "max" ? "MAX" : "Telegram"}.
+            </DialogDescription>
+          </DialogHeader>
+          <MessageComposer
+            text={editText}
+            onTextChange={setEditText}
+            onSend={saveEdit}
+            placeholder="Новый текст сообщения"
+          />
+          <DialogFooter>
+            <Button
+              onClick={saveEdit}
+              disabled={
+                editing ||
+                !editText.trim() ||
+                editText.trim() === editTarget?.text
+              }
+            >
+              {editing ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <SaveIcon className="size-4" />
+              )}
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -7,6 +7,7 @@ export {
 } from "./backup";
 export {
   type Messenger,
+  editMessengerMessage,
   SEND_INTERVAL_MS,
   sendMessengerMessage,
   setMessengerWebhook,

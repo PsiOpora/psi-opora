@@ -39,8 +39,8 @@ export const botMessages = pgTable(
      * только WAHA (ack-вебхук) — для остальных каналов статус не поднимается
      * выше "sent". */
     status: text("status").notNull().default("sent"),
-    /** id сообщения во внешней системе (сейчас — WAHA) — по нему ack-вебхук
-     * находит строку, чтобы обновить статус. */
+    /** ID сообщения во внешней системе: нужен для ack WAHA и редактирования
+     * исходящих сообщений Telegram/MAX. */
     externalId: text("external_id"),
     /** Только для messenger="telegram-personal"/"whatsapp-personal" — каким
      * из нескольких личных номеров портала отправлено/получено сообщение
@@ -52,6 +52,8 @@ export const botMessages = pgTable(
      * поллинг инбокса (listBotMessagesSince) ловит статусные апдейты уже
      * показанных сообщений. */
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    /** Когда оператор в последний раз изменил текст во внешнем мессенджере. */
+    editedAt: timestamp("edited_at"),
   },
   (table) => [
     index("bot_messages_user_idx").on(

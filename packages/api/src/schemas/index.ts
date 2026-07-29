@@ -47,6 +47,8 @@ export {
   type ClientThreadInput,
   clientPollSchema,
   clientThreadSchema,
+  type EditClientMessageInput,
+  editClientMessageSchema,
   type ListClientsInput,
   listClientsSchema,
   type SendClientMessageInput,

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import type { Database } from "../client.types";
 import { botConversations } from "../schema/bot-conversations";
 import { botMessages } from "../schema/bot-messages";
@@ -23,7 +23,7 @@ export interface BotMessageEntry {
   operatorName?: string;
   /** По умолчанию "sent". */
   status?: MessageDeliveryStatus;
-  /** id сообщения во внешней системе (WAHA) — для сопоставления с ack-вебхуком. */
+  /** ID сообщения во внешней системе: ack WAHA / редактирование TG и MAX. */
   externalId?: string;
   /** Только для telegram-personal/whatsapp-personal — какой из нескольких
    * личных номеров портала отправил/принял сообщение. */
@@ -99,6 +99,45 @@ export async function updateBotMessageStatus(
     .update(botMessages)
     .set({ status, updatedAt: new Date() })
     .where(eq(botMessages.externalId, externalId));
+}
+
+/** Возвращает текстовое сообщение, которое текущий оператор вправе изменить. */
+export async function getEditableBotMessage(
+  db: Database,
+  id: string,
+  operatorId: string,
+): Promise<BotMessage | null> {
+  if (!db) return null;
+  const [row] = await db
+    .select()
+    .from(botMessages)
+    .where(
+      and(
+        eq(botMessages.id, id),
+        eq(botMessages.direction, "out"),
+        eq(botMessages.kind, "text"),
+        eq(botMessages.operatorId, operatorId),
+        isNotNull(botMessages.externalId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/** Фиксирует текст после успешного редактирования во внешнем мессенджере. */
+export async function updateBotMessageText(
+  db: Database,
+  id: string,
+  text: string,
+): Promise<BotMessage | null> {
+  if (!db) return null;
+  const now = new Date();
+  const [row] = await db
+    .update(botMessages)
+    .set({ text, editedAt: now, updatedAt: now })
+    .where(eq(botMessages.id, id))
+    .returning();
+  return row ?? null;
 }
 
 /** Последние сообщения диалога с клиентом (новые первыми). */

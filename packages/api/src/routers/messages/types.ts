@@ -108,6 +108,9 @@ export interface ClientMessageItem {
   status: MessageDeliveryStatus;
   createdAt: string;
   updatedAt: string;
+  editedAt: string | null;
+  /** Можно ли текущему оператору изменить это сообщение во внешнем боте. */
+  canEdit: boolean;
   /** "voice" — mediaUrl ведёт на раздающий роут apps/dashboard/api/message-media. */
   kind: "text" | "voice";
   mediaUrl?: string;
@@ -121,7 +124,10 @@ export interface ClientMessageItem {
 
 /** Общий маппинг строки bot_messages → ClientMessageItem для thread.ts/poll.ts.
  * mediaUrl строится на лету по id сообщения — сырой S3-ключ наружу не отдаётся. */
-export function toClientMessageItem(row: BotMessage): ClientMessageItem {
+export function toClientMessageItem(
+  row: BotMessage,
+  currentOperatorId?: string,
+): ClientMessageItem {
   const mediaUrl = row.mediaS3Key ? signedMediaUrl(row.id) : undefined;
   return {
     id: row.id,
@@ -133,6 +139,15 @@ export function toClientMessageItem(row: BotMessage): ClientMessageItem {
     status: row.status as MessageDeliveryStatus,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    editedAt: row.editedAt?.toISOString() ?? null,
+    canEdit:
+      row.direction === "out" &&
+      row.kind === "text" &&
+      row.operatorId === currentOperatorId &&
+      Boolean(row.externalId) &&
+      (row.messenger === "telegram" ||
+        (row.messenger === "max" &&
+          Date.now() - row.createdAt.getTime() < 7 * 24 * 60 * 60 * 1000)),
     kind: row.kind as "text" | "voice",
     mediaUrl,
     mediaMimeType: row.mediaMimeType,

@@ -193,8 +193,13 @@ async function relayOperatorReply(reply: OperatorReplyMessage): Promise<void> {
   }
 
   let status: MessageDeliveryStatus = "sent";
+  let externalId: string | undefined;
   try {
-    await sendMessengerMessage(messenger, String(reply.chatId), reply.text);
+    externalId = await sendMessengerMessage(
+      messenger,
+      String(reply.chatId),
+      reply.text,
+    );
     console.log(
       `[bitrix-webhook] ответ оператора переслан в ${messenger} chat=${reply.chatId}`,
     );
@@ -205,7 +210,7 @@ async function relayOperatorReply(reply: OperatorReplyMessage): Promise<void> {
     );
   }
 
-  await logOperatorReply(messenger, reply, undefined, status);
+  await logOperatorReply(messenger, reply, externalId, status);
 }
 
 /**

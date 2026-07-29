@@ -7,6 +7,7 @@ import {
   CheckIcon,
   CircleAlertIcon,
   HeadsetIcon,
+  PencilIcon,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { formatDayLabel, formatTime } from "@/lib/format";
@@ -24,6 +25,8 @@ export interface ThreadMessage {
   operatorName?: string | null;
   createdAt: string;
   updatedAt?: string;
+  editedAt?: string | null;
+  canEdit?: boolean;
   status?: MessageDeliveryStatus;
   pending?: boolean;
   /** "voice" — рендерим плеер вместо текста (см. bot_messages.kind). */
@@ -125,12 +128,14 @@ function dayKey(iso: string): string {
 export function MessageList({
   messages,
   connectorLabels,
+  onEdit,
 }: {
   messages: ThreadMessage[];
   /** connectorId → номер телефона (только подключённые сейчас номера —
    * для отключённого исторический connectorId просто не найдётся, тег не
    * покажем, чем гадать по неактуальным данным). */
   connectorLabels?: Record<string, string>;
+  onEdit?: (message: ThreadMessage) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -204,15 +209,35 @@ export function MessageList({
             )}
             <div
               className={cn(
-                "max-w-[70%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap shadow-sm",
-                BUBBLE_STYLES[item.direction === "in" ? "in" : meta!.category],
+                "group/message relative max-w-[70%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap shadow-sm",
+                BUBBLE_STYLES[
+                  item.direction === "in"
+                    ? "in"
+                    : (meta?.category ?? "operator")
+                ],
                 item.pending && "opacity-60",
               )}
             >
+              {item.canEdit && onEdit && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(item)}
+                  className="absolute top-1/2 -left-8 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover/message:opacity-100"
+                  title="Редактировать сообщение"
+                  aria-label="Редактировать сообщение"
+                >
+                  <PencilIcon className="size-3.5" />
+                </button>
+              )}
               {item.kind === "voice" && item.mediaUrl ? (
                 <>
                   {/* biome-ignore lint/a11y/useMediaCaption: голосовое сообщение клиента, субтитров нет */}
-                  <audio controls preload="none" src={item.mediaUrl} className="max-w-full" />
+                  <audio
+                    controls
+                    preload="none"
+                    src={item.mediaUrl}
+                    className="max-w-full"
+                  />
                   {item.text && item.text !== VOICE_PLACEHOLDER_TEXT && (
                     <p className="mt-1.5">{item.text}</p>
                   )}
@@ -234,6 +259,12 @@ export function MessageList({
                   </>
                 )}
                 <span>{formatTime(item.createdAt)}</span>
+                {item.editedAt && (
+                  <>
+                    <span>·</span>
+                    <span>изменено</span>
+                  </>
+                )}
                 {phoneLabel && (
                   <>
                     <span>·</span>

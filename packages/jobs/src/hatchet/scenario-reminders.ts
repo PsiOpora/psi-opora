@@ -38,13 +38,14 @@ export const scenarioReminders = CreateTaskWorkflow({
         redis,
         messenger,
         storage,
-        send: (sessionKey, message) =>
-          sendMessengerMessage(
+        send: async (sessionKey, message) => {
+          await sendMessengerMessage(
             messenger,
             sessionKey,
             message.text,
             toButtons(message),
-          ),
+          );
+        },
       });
     }
 

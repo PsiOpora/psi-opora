@@ -49,6 +49,12 @@ export const sendClientMessageSchema = z.object({
 });
 export type SendClientMessageInput = z.infer<typeof sendClientMessageSchema>;
 
+export const editClientMessageSchema = z.object({
+  messageId: z.string().min(1),
+  text: z.string().trim().min(1).max(MESSAGE_MAX_LENGTH),
+});
+export type EditClientMessageInput = z.infer<typeof editClientMessageSchema>;
+
 export const assignConversationSchema = z.object({
   messenger: inboxMessengerSchema,
   userId: z.string(),

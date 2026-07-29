@@ -27,12 +27,14 @@ import {
 } from "./bot-funnel";
 import {
   getBotMessageMedia as _getBotMessageMedia,
+  getEditableBotMessage as _getEditableBotMessage,
   getClientMessageStats as _getClientMessageStats,
   insertBotMessage as _insertBotMessage,
   listBotMessages as _listBotMessages,
   listBotMessagesSince as _listBotMessagesSince,
   listClientsWithLastMessage as _listClientsWithLastMessage,
   updateBotMessageStatus as _updateBotMessageStatus,
+  updateBotMessageText as _updateBotMessageText,
   type BotMessageEntry,
   type BotMessageMedia,
   type ClientListItem,
@@ -128,6 +130,14 @@ export async function getBotMessageMedia(
   id: string,
 ): Promise<BotMessageMedia | null> {
   return _getBotMessageMedia(db, id);
+}
+
+export async function getEditableBotMessage(id: string, operatorId: string) {
+  return _getEditableBotMessage(db, id, operatorId);
+}
+
+export async function updateBotMessageText(id: string, text: string) {
+  return _updateBotMessageText(db, id, text);
 }
 
 export async function updateBotMessageStatus(

@@ -173,14 +173,20 @@ export const send = bitrixProcedure
         connector = result.connector;
       } else {
         try {
-          await sendMessengerMessage(input.messenger, input.userId, text);
+          externalId = await sendMessengerMessage(
+            input.messenger,
+            input.userId,
+            text,
+          );
         } catch (err) {
           const error = err as Error;
           console.error(
             `[messages] ошибка отправки ${input.messenger}: ${error.message}`,
             error.cause ?? "",
           );
-          return { error: `Не отправлено: ${formatMessengerError(error.message)}` };
+          return {
+            error: `Не отправлено: ${formatMessengerError(error.message)}`,
+          };
         }
         const botConnector = await getBotConnector(input.messenger).catch(
           () => null,

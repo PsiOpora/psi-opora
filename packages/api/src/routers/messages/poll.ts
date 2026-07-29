@@ -9,6 +9,7 @@ export const poll = bitrixProcedure
   .handler(
     async ({
       input,
+      context,
     }): Promise<{ messages?: ClientMessageItem[]; error?: string }> => {
       const since = new Date(input.sinceIso);
       if (Number.isNaN(since.getTime())) return { error: "Некорректная дата" };
@@ -20,7 +21,9 @@ export const poll = bitrixProcedure
       );
 
       return {
-        messages: rows.map(toClientMessageItem),
+        messages: rows.map((row) =>
+          toClientMessageItem(row, context.bitrixSession.userId),
+        ),
       };
     },
   );

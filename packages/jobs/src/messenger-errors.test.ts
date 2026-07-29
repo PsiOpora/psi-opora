@@ -13,4 +13,10 @@ describe("formatMessengerError", () => {
 	test("keeps an unknown error unchanged", () => {
 		expect(formatMessengerError("Unknown API error")).toBe("Unknown API error");
 	});
+
+	test("explains that Telegram rejected editing", () => {
+		expect(formatMessengerError("Bad Request: message can't be edited")).toBe(
+			"Telegram больше не разрешает изменять это сообщение",
+		);
+	});
 });

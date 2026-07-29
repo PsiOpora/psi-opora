@@ -1,5 +1,6 @@
 import { router } from "../../orpc";
 import { assign } from "./assign";
+import { edit } from "./edit";
 import { crmLinks } from "./crm-links";
 import { crmLinksByDialog } from "./crm-links-by-dialog";
 import { list } from "./list";
@@ -21,6 +22,7 @@ export const messagesRouter = router({
   thread,
   poll,
   send,
+  edit,
   markRead,
   assign,
   profile,

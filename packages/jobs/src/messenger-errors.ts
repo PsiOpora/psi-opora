@@ -13,6 +13,10 @@ const MESSENGER_ERROR_MESSAGES: Record<string, string> = {
 		"Аккаунт пользователя в Telegram удалён или деактивирован",
 	"message is too long":
 		"Слишком длинное сообщение — Telegram/MAX его не принимает",
+	"message can't be edited":
+		"Telegram больше не разрешает изменять это сообщение",
+	"message to edit not found":
+		"Сообщение для редактирования не найдено в Telegram",
 	"error.dialog.notfound":
 		"Диалог с клиентом в MAX не найден — возможно, он не писал боту или удалил чат",
 	"error.dialog.suspended":
