@@ -148,6 +148,9 @@ describe("handleDiagnosticDealUpdate", () => {
 		expect(
 			calls.filter((call) => call.method === "calendar.event.update"),
 		).toHaveLength(1);
+		expect(
+			calls.filter((call) => call.method === "crm.timeline.comment.add"),
+		).toHaveLength(2);
 
 		const add = calls.find((call) => call.method === "calendar.event.add");
 		expect(add?.params.ownerId).toBe(17);

@@ -409,11 +409,11 @@ export async function handleDiagnosticDealUpdate(
 				const result = await sendChat({ api, deal, contactId, message });
 				chat = result.status;
 				chatReason = result.reason;
-				if (chat === "sent" || chat === "skipped") {
-					state = { ...state, lastChatStageId: stageId };
-					await redis.set(stateKey(dealId), state, { ex: STATE_TTL_SECONDS });
-				}
 			}
+			// Ошибка фиксируется как завершённая попытка для этой стадии. Иначе
+			// timeline-комментарий сам вызывает OnCrmDealUpdate и создаёт цикл.
+			state = { ...state, lastChatStageId: stageId };
+			await redis.set(stateKey(dealId), state, { ex: STATE_TTL_SECONDS });
 		}
 
 		let emailStatus: DiagnosticDealUpdateResult["email"] = "already_sent";
@@ -442,15 +442,17 @@ export async function handleDiagnosticDealUpdate(
 						text: message,
 					});
 					emailStatus = "sent";
-					state = { ...state, lastEmailStageId: stageId };
-					await redis.set(stateKey(dealId), state, {
-						ex: STATE_TTL_SECONDS,
-					});
 				} catch (error) {
 					emailStatus = "error";
 					emailReason = (error as Error).message;
 				}
 			}
+			// Не повторяем неуспешную отправку на каждом техническом обновлении
+			// сделки. Новая попытка будет при следующей целевой стадии.
+			state = { ...state, lastEmailStageId: stageId };
+			await redis.set(stateKey(dealId), state, {
+				ex: STATE_TTL_SECONDS,
+			});
 		}
 
 		const delivery = [
