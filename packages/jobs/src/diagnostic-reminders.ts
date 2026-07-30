@@ -2,9 +2,13 @@ import type { BitrixApi } from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
 import { getScenarioTexts } from "@psi-opora/bot-core";
 import {
+  DIAGNOSTIC_DT_FIELD,
+  DIAGNOSTIC_STAGE_IDS,
+  findContactEmail,
+} from "./diagnostic-scheduling";
+import {
   appendReminderSentComment,
   DEAL_CATEGORY_ID,
-  DEAL_STAGE_IDS,
   extractClientContactId,
   formatConsultationTime,
   formatMoscowDateTime,
@@ -15,8 +19,6 @@ import {
   renderReminderMessage,
   toTimestamp,
 } from "./reminders/shared";
-
-const DIAGNOSTIC_DT_FIELD = "UF_CRM_1779871551489";
 
 // Напоминание шлём, если диагностика через 0–65 минут — запас на случай
 // редких прогонов крона.
@@ -29,8 +31,12 @@ const SENT_TTL_SECONDS = 2 * 24 * 60 * 60;
  * вебхука и Redis-состояния для отслеживания изменений, как у платной
  * консультации (см. consultation-reminders.ts).
  */
-function sentKey(dealId: number, diagnosticAtIso: string): string {
-  return `diag-reminder:sent:${dealId}:${diagnosticAtIso}`;
+function sentKey(
+  dealId: number,
+  diagnosticAtIso: string,
+  channel: "chat" | "email",
+): string {
+  return `diag-reminder:sent:${channel}:${dealId}:${diagnosticAtIso}`;
 }
 
 export interface SendDiagnosticRemindersResult {
@@ -51,7 +57,7 @@ async function findUpcomingDealIds(api: BitrixApi): Promise<number[]> {
     select: ["ID"],
     filter: {
       CATEGORY_ID: DEAL_CATEGORY_ID,
-      STAGE_ID: DEAL_STAGE_IDS,
+      STAGE_ID: DIAGNOSTIC_STAGE_IDS,
       [`>=${DIAGNOSTIC_DT_FIELD}`]: now.toISOString(),
       [`<=${DIAGNOSTIC_DT_FIELD}`]: windowEnd.toISOString(),
     },
@@ -81,16 +87,6 @@ async function trySendReminder(
     return { action: "skip", reason: "outside_1h_window" };
   }
 
-  const key = sentKey(dealId, diagnosticAt);
-  const alreadySent = await redis.get(key);
-  if (alreadySent) return { action: "skip", reason: "already_sent" };
-
-  const messengerValue = String(deal[MESSENGER_FIELD] ?? "");
-  const connectorContains = MESSENGER_CONNECTOR_MAP[messengerValue];
-  if (!messengerValue || !connectorContains) {
-    return { action: "skip", reason: "messenger_not_set_or_unknown" };
-  }
-
   const clientContactId = extractClientContactId(deal);
   if (clientContactId <= 0)
     return { action: "skip", reason: "no_client_contact" };
@@ -99,10 +95,13 @@ async function trySendReminder(
   const template = texts.diagnostic_reminder_template?.trim();
   if (!template) return { action: "skip", reason: "empty_template_message" };
 
-  const contact = await api.call<Record<string, unknown> | false>(
-    "crm.contact.get",
-    { id: clientContactId },
-  );
+  const contact = await api.call<
+    | {
+        NAME?: string;
+        EMAIL?: Array<{ VALUE?: string }>;
+      }
+    | false
+  >("crm.contact.get", { id: clientContactId });
   const clientName = contact ? String(contact.NAME ?? "").trim() : "";
 
   const message = renderReminderMessage(template, {
@@ -110,31 +109,76 @@ async function trySendReminder(
     time: formatConsultationTime(diagnosticAt),
   });
 
-  const chatId = await pickChatIdForConnector(
-    api,
-    clientContactId,
-    connectorContains,
-  );
-  if (chatId <= 0) return { action: "skip", reason: "no_openlines_chat" };
+  const delivered: string[] = [];
+  const reasons: string[] = [];
+  let hadError = false;
 
-  // Отмечаем как отправленное до вызова send — повторный/параллельный
-  // прогон крона в то же окно не продублирует сообщение.
-  await redis.set(key, "1", { ex: SENT_TTL_SECONDS });
+  const chatKey = sentKey(dealId, diagnosticAt, "chat");
+  const legacyChatKey = `diag-reminder:sent:${dealId}:${diagnosticAt}`;
+  if ((await redis.get(chatKey)) || (await redis.get(legacyChatKey))) {
+    reasons.push("chat_already_sent");
+  } else {
+    const messengerValue = String(deal[MESSENGER_FIELD] ?? "");
+    const connectorContains = MESSENGER_CONNECTOR_MAP[messengerValue];
+    if (!messengerValue || !connectorContains) {
+      reasons.push("messenger_not_set_or_unknown");
+    } else {
+      const chatId = await pickChatIdForConnector(
+        api,
+        clientContactId,
+        connectorContains,
+      );
+      if (chatId <= 0) {
+        reasons.push("no_openlines_chat");
+      } else {
+        const sent = await api.call("imopenlines.bot.session.message.send", {
+          CHAT_ID: chatId,
+          NAME: "DEFAULT",
+          MESSAGE: message,
+        });
+        if (sent) {
+          await redis.set(chatKey, "1", { ex: SENT_TTL_SECONDS });
+          delivered.push("чат");
+        } else {
+          reasons.push("chat_send_failed");
+          hadError = true;
+        }
+      }
+    }
+  }
 
-  const sent = await api.call("imopenlines.bot.session.message.send", {
-    CHAT_ID: chatId,
-    NAME: "DEFAULT",
-    MESSAGE: message,
-  });
-  if (!sent) return { action: "error", reason: "send_failed" };
+  const email = findContactEmail(contact);
+  const emailKey = sentKey(dealId, diagnosticAt, "email");
+  if (await redis.get(emailKey)) {
+    reasons.push("email_already_sent");
+  } else if (!email) {
+    reasons.push("contact_email_empty");
+  } else {
+    try {
+      const { sendDiagnosticEmail } = await import("./diagnostic-email");
+      await sendDiagnosticEmail({
+        to: email,
+        subject: "Через час — диагностическая консультация",
+        text: message,
+      });
+      await redis.set(emailKey, "1", { ex: SENT_TTL_SECONDS });
+      delivered.push(`email ${email}`);
+    } catch (error) {
+      reasons.push(`email_send_failed: ${(error as Error).message}`);
+      hadError = true;
+    }
+  }
 
-  await appendReminderSentComment(
-    api,
-    dealId,
-    `🔔 Напоминание о диагностике (${formatConsultationTime(diagnosticAt)} МСК) отправлено клиенту в чат — ${formatMoscowDateTime()}`,
-  );
-
-  return { action: "sent" };
+  if (delivered.length > 0) {
+    await appendReminderSentComment(
+      api,
+      dealId,
+      `🔔 Напоминание о диагностике (${formatConsultationTime(diagnosticAt)} МСК) отправлено: ${delivered.join(" и ")} — ${formatMoscowDateTime()}`,
+    );
+    return { action: "sent", reason: reasons.join(", ") || undefined };
+  }
+  if (hadError) return { action: "error", reason: reasons.join(", ") };
+  return { action: "skip", reason: reasons.join(", ") || "nothing_to_send" };
 }
 
 /**

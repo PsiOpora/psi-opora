@@ -16,6 +16,10 @@ export {
 	sendDiagnosticReminders,
 } from "./diagnostic-reminders";
 export {
+	type DiagnosticDealUpdateResult,
+	handleDiagnosticDealUpdate,
+} from "./diagnostic-scheduling";
+export {
 	type DeliverBroadcastPayload,
 	deliverBroadcast,
 } from "./hatchet/broadcast";

@@ -27,6 +27,7 @@ import {
 } from "@psi-opora/db/queries";
 import {
 	handleConsultationDealUpdate,
+	handleDiagnosticDealUpdate,
 	type Messenger,
 	sendMessengerMessage,
 } from "@psi-opora/jobs";
@@ -574,10 +575,15 @@ async function handleConsultationReminderDealUpdate(
 	request: Request,
 ): Promise<Response> {
 	try {
-		const webhookToken = env.BITRIX_CRM_WEBHOOK_TOKEN;
-		if (!webhookToken) {
+		const webhookTokens = [
+			env.BITRIX_CRM_WEBHOOK_TOKEN,
+			...(env.BITRIX_WEBHOOK_TOKEN ?? "").split(","),
+		]
+			.map((token) => token?.trim())
+			.filter((token): token is string => Boolean(token));
+		if (webhookTokens.length === 0) {
 			return Response.json(
-				{ success: false, message: "BITRIX_CRM_WEBHOOK_TOKEN не задан" },
+				{ success: false, message: "Токен CRM-вебхука не задан" },
 				{ status: 500 },
 			);
 		}
@@ -587,7 +593,9 @@ async function handleConsultationReminderDealUpdate(
 			return new Response("Invalid form data", { status: 400 });
 		}
 
-		if (form.get("auth[application_token]") !== webhookToken) {
+		if (
+			!webhookTokens.includes(String(form.get("auth[application_token]") ?? ""))
+		) {
 			return new Response("Unauthorized", { status: 401 });
 		}
 
@@ -604,11 +612,12 @@ async function handleConsultationReminderDealUpdate(
 			);
 		}
 
-		const result = await handleConsultationDealUpdate(
-			api,
-			createRedisClient(),
-			dealId,
-		);
+		const redis = createRedisClient();
+		const [consultation, diagnostic] = await Promise.all([
+			handleConsultationDealUpdate(api, redis, dealId),
+			handleDiagnosticDealUpdate(api, redis, dealId),
+		]);
+		const result = { consultation, diagnostic };
 		return Response.json({ success: true, result });
 	} catch (err) {
 		const message =
@@ -621,6 +630,39 @@ async function handleConsultationReminderDealUpdate(
 				stack: message,
 			},
 			{ status: 500 },
+		);
+	}
+}
+
+const CRM_DEAL_UPDATE_HANDLER_URL =
+	process.env.BITRIX_CRM_DEAL_UPDATE_HANDLER_URL?.trim() ||
+	"https://psi-opora-bitrix-webhook.orixon.ru/api/consultation-reminder-deal-update";
+
+async function ensureCrmDealUpdateSubscription(): Promise<void> {
+	try {
+		const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
+		if (!api) throw new Error("Bitrix24 не подключён");
+
+		const handlers =
+			await api.call<Array<{ event?: string; handler?: string }>>("event.get");
+		const alreadyBound = handlers.some(
+			(item) =>
+				String(item.event ?? "").toUpperCase() === "ONCRMDEALUPDATE" &&
+				String(item.handler ?? "").replace(/\/$/, "") ===
+					CRM_DEAL_UPDATE_HANDLER_URL.replace(/\/$/, ""),
+		);
+		if (alreadyBound) return;
+
+		await api.call("event.bind", {
+			event: "OnCrmDealUpdate",
+			handler: CRM_DEAL_UPDATE_HANDLER_URL,
+		});
+		console.log(
+			`[diagnostic-schedule] подписка OnCrmDealUpdate создана: ${CRM_DEAL_UPDATE_HANDLER_URL}`,
+		);
+	} catch (error) {
+		console.error(
+			`[diagnostic-schedule] не удалось проверить/создать подписку OnCrmDealUpdate: ${(error as Error).message}`,
 		);
 	}
 }
@@ -647,6 +689,7 @@ app.post("/api/consultation-reminder-deal-update", (c) =>
 const port = Number(process.env.PORT ?? 3000);
 const server = serve({ fetch: app.fetch, port }, (info) => {
 	console.log(`[bitrix-webhook] слушает на :${info.port}`);
+	void ensureCrmDealUpdateSubscription();
 });
 
 // При rollout k8s шлёт SIGTERM до SIGKILL — дожидаемся завершения активных
