@@ -28,24 +28,6 @@ spec:
       port: 5432
       targetPort: postgres
 ---
-# Внешний TCP-доступ для администрирования и CI. PostgreSQL сам завершает
-# TLS и отклоняет незашифрованные подключения извне кластера (см. pg_hba.conf).
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres-external
-  namespace: psi-opora
-spec:
-  type: NodePort
-  externalTrafficPolicy: Local
-  selector:
-    app: postgres
-  ports:
-    - name: postgres
-      port: 5432
-      targetPort: postgres
-      nodePort: 30432
----
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -184,12 +166,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: psi-opora
-      ports:
-        - protocol: TCP
-          port: 5432
-    - from:
-        - ipBlock:
-            cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
           port: 5432
