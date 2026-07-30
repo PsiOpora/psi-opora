@@ -42,6 +42,12 @@ async function createDatabase(): Promise<Database> {
     import("drizzle-orm/node-postgres"),
   ]);
   const pool = new Pool({ connectionString });
+  // Без обработчика идле-клиенты, оборвавшие соединение, могут оставить пул
+  // в битом состоянии до перезапуска процесса — просто логируем и даём pg
+  // пересоздать клиента самостоятельно.
+  pool.on("error", (err) => {
+    console.error("[db] postgres pool error:", err.message);
+  });
   return drizzlePg({ client: pool, schema, casing: "snake_case" });
 }
 
