@@ -73,9 +73,10 @@ jobs:
             exit 0
           fi
 
-          # Изменения в лок-файле/package.json/turbo.json/самом workflow затрагивают
-          # все сервисы разом — turbo не умеет вывести это из графа пакетов.
-          if git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -qE '^(bun\.lock|package\.json|turbo\.json|\.github/workflows/deploy-k3s\.yml)$'; then
+          # Изменения в лок-файле/package.json/turbo.json затрагивают все
+          # сервисы разом — turbo не умеет вывести это из графа пакетов.
+          # Сам workflow образ приложения не меняет.
+          if git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -qE '^(bun\.lock|package\.json|turbo\.json)$'; then
             SERVICES="$ALL"
             echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
             echo "Изменился общий файл — деплоим все сервисы: $SERVICES"
@@ -222,19 +223,46 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect migration changes
+        id: migrations
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Ручной deploy: миграции не запускаются"
+            exit 0
+          fi
+
+          FROM="${{ github.event.before }}"
+          if [ -z "$FROM" ] || [ "$FROM" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$FROM" 2>/dev/null; then
+            FROM="HEAD~1"
+          fi
+
+          if git diff --quiet "$FROM" "${{ github.sha }}" -- packages/db/migrations/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Файлы миграций не менялись — шаг пропущен"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Bun
+        if: steps.migrations.outputs.changed == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
 
       - name: Install dependencies
+        if: steps.migrations.outputs.changed == 'true'
         run: bun install --frozen-lockfile
 
       - name: Build configuration package
+        if: steps.migrations.outputs.changed == 'true'
         run: bun run --filter @psi-opora/config build
 
       - name: Run Drizzle migrations
+        if: steps.migrations.outputs.changed == 'true'
         working-directory: packages/db
         env:
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
