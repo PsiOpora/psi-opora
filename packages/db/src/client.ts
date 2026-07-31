@@ -33,22 +33,22 @@ async function createDatabase(): Promise<Database> {
     });
   }
 
-  // Dynamically import node-postgres so that the `pg` native module (and the
-  // `node:module`/`createRequire` interop it otherwise needs) is not loaded
-  // or bundled in edge runtimes (e.g. Vercel Edge Functions) when the
-  // neon-http driver is used.
-  const [{ Pool }, { drizzle: drizzlePg }] = await Promise.all([
-    import("pg"),
-    import("drizzle-orm/node-postgres"),
+  // Dynamically import postgres.js so it's not loaded or bundled in edge
+  // runtimes (e.g. Vercel Edge Functions) when the neon-http driver is used.
+  //
+  // Use postgres.js instead of node-postgres (`pg`) here: under Bun,
+  // long-lived `pg` pools stop recovering after the server (or network)
+  // silently drops an idle connection — every later query fails forever
+  // with "Connection terminated unexpectedly" until the process restarts
+  // (see oven-sh/bun#18013, #21559). postgres.js detects dropped
+  // connections and transparently reconnects instead of leaving the pool
+  // permanently broken.
+  const [postgres, { drizzle: drizzlePostgresJs }] = await Promise.all([
+    import("postgres"),
+    import("drizzle-orm/postgres-js"),
   ]);
-  const pool = new Pool({ connectionString });
-  // Без обработчика идле-клиенты, оборвавшие соединение, могут оставить пул
-  // в битом состоянии до перезапуска процесса — просто логируем и даём pg
-  // пересоздать клиента самостоятельно.
-  pool.on("error", (err) => {
-    console.error("[db] postgres pool error:", err.message);
-  });
-  return drizzlePg({ client: pool, schema, casing: "snake_case" });
+  const sql = postgres.default(connectionString);
+  return drizzlePostgresJs(sql, { schema, casing: "snake_case" });
 }
 
 export const db: Database = await createDatabase();

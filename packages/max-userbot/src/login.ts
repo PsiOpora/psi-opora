@@ -3,24 +3,33 @@ import { OPCODE } from "./protocol/opcodes";
 
 /**
  * Логин личного аккаунта MAX идёт в несколько шагов через отдельные
- * HTTP-запросы дашборда (Фаза 2, по образцу packages/tg-userbot/src/login.ts)
- * — без держания сокета между ними: каждый шаг открывает своё TLS-соединение
- * и восстанавливает нужный контекст (deviceId, токен от предыдущего шага) из
+ * HTTP-запросы дашборда (по образцу packages/tg-userbot/src/login.ts) — без
+ * держания сокета между ними: каждый шаг открывает своё TLS-соединение и
+ * восстанавливает нужный контекст (deviceId, токен от предыдущего шага) из
  * непрозрачной строки `pendingSession`, которую вызывающий код (Redis,
  * см. tg-userbot/outbox.ts и telegram-personal/helpers.ts) хранит между
  * шагами сам — этот модуль ничего не персистит.
  *
  * ВНИМАНИЕ: протокол MAX/OneMe нигде официально не задокументирован — форма
- * ответов на AUTH (opcode 18) и LOGIN (opcode 19), конкретно имена полей с
- * токеном сессии, взяты из открытых разборов (см. src/protocol/opcodes.ts) и
- * почти наверняка потребуют правки по итогам живой проверки с реальным
- * номером телефона (см. scripts/manual-login.ts).
+ * ответа на AUTH (opcode 18) взята из открытых разборов (см.
+ * src/protocol/opcodes.ts) и почти наверняка потребует правки по итогам
+ * живой проверки с реальным номером телефона (см. scripts/manual-login.ts).
+ *
+ * Итоговый LOGIN (opcode 19) сюда сознательно не входит: по рабочим
+ * клиентам Grovvik/vkmax-nodejs (`signIn`/`loginByToken`) и nsdkinx/vkmax
+ * (`sign_in`/`login_by_token`) один успешный AUTH уже переводит текущее
+ * соединение в залогиненное состояние; LOGIN (19) нужен только на *новом*
+ * соединении, когда сессия восстанавливается по ранее сохранённому токену —
+ * этим занимается relay.ts (Фаза 2, воркер личного номера), а не логин-флоу.
  */
 
 const APP_VERSION = "26.8.1";
 const BUILD_NUMBER = 6606;
 
-function userAgentPayload() {
+/** Экспортируется для переиспользования в relay.ts (Фаза 2) — одна и та же
+ * user-agent форма должна уходить что на разовых подключениях логина, что
+ * на постоянном соединении воркера. */
+export function userAgentPayload() {
   // Порядок ключей важен (см. src/protocol/frame.ts) — не менять местами.
   return {
     deviceType: "ANDROID",
@@ -37,7 +46,8 @@ function userAgentPayload() {
   };
 }
 
-async function sessionInit(
+/** Экспортируется для переиспользования в relay.ts (Фаза 2). */
+export async function sessionInit(
   client: MaxProtocolClient,
   deviceId: string,
 ): Promise<void> {
@@ -63,6 +73,22 @@ function readToken(payload: Record<string, unknown>): string | undefined {
     if (typeof value === "string" && value.length > 0) return value;
   }
   return undefined;
+}
+
+/**
+ * Токен для реконнекта (предъявляется в LOGIN, opcode 19, на новом
+ * соединении) — по обоим рабочим клиентам (Grovvik/vkmax-nodejs,
+ * nsdkinx/vkmax) он лежит в ответе AUTH по пути
+ * `tokenAttrs.LOGIN.token`, а не в верхнеуровневом `token` (тот — токен
+ * верификации SMS-кода, годный только для самого AUTH). Если сервер когда-
+ * нибудь начнёт отдавать его иначе, откатываемся на readToken() как раньше.
+ */
+function readLoginToken(payload: Record<string, unknown>): string | undefined {
+  const tokenAttrs = payload.tokenAttrs as Record<string, unknown> | undefined;
+  const loginAttr = tokenAttrs?.LOGIN as Record<string, unknown> | undefined;
+  const nested = loginAttr?.token;
+  if (typeof nested === "string" && nested.length > 0) return nested;
+  return readToken(payload);
 }
 
 export interface PendingMaxLogin {
@@ -109,10 +135,22 @@ export async function sendLoginCode(phone: string): Promise<SendLoginCodeResult>
   }
 }
 
+/**
+ * Персистентная сессия личного номера MAX — то, что нужно relay.ts (Фаза 2)
+ * для реконнекта через LOGIN (opcode 19) на новом соединении. Сериализуется
+ * в JSON и шифруется (encryptSecret) перед записью в БД, как и session у
+ * telegram-personal.
+ */
+export interface MaxUserbotSession {
+  phone: string;
+  deviceId: string;
+  /** `tokenAttrs.LOGIN.token` из ответа AUTH — см. readLoginToken(). */
+  sessionToken: string;
+}
+
 export interface ConfirmLoginCodeResult {
   status: "connected";
-  /** Финальная сессия — вызывающий код шифрует её (encryptSecret) перед
-   * записью в БД, как и session у telegram-personal. */
+  /** JSON-сериализованный MaxUserbotSession. */
   session: string;
 }
 
@@ -129,18 +167,16 @@ export async function confirmLoginCode(params: {
       authTokenType: "CHECK_CODE",
     });
 
-    // LOGIN (19) заявлен разбором как отдельный шаг, завершающий вход по
-    // токену, полученному на AUTH — если сервер уже отдаёт финальную сессию
-    // прямо в ответе на AUTH, этот запрос, возможно, окажется лишним; решится
-    // на живой проверке (см. предупреждение в начале файла).
-    const loginToken = readToken(authResponse) ?? pending.verifyToken;
-    const loginResponse = await client.request(OPCODE.LOGIN, {
-      token: loginToken,
-    });
+    const sessionToken = readLoginToken(authResponse);
+    if (!sessionToken) {
+      throw new Error(
+        `MAX не вернул токен для повторного входа в ответе на AUTH: ${JSON.stringify(authResponse)}`,
+      );
+    }
 
-    const sessionToken = readToken(loginResponse) ?? loginToken;
-    const session: PendingMaxLogin & { sessionToken: string } = {
-      ...pending,
+    const session: MaxUserbotSession = {
+      phone: pending.phone,
+      deviceId: pending.deviceId,
       sessionToken,
     };
     return { status: "connected", session: JSON.stringify(session) };
