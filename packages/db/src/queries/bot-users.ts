@@ -85,7 +85,7 @@ export async function upsertBotUser(
         avatarS3Key: sql`coalesce(${values.avatarS3Key ?? null}, ${botUsers.avatarS3Key})`,
         source: sql`coalesce(${botUsers.source}, ${values.source ?? null})`,
         campaign: sql`coalesce(${botUsers.campaign}, ${values.campaign ?? null})`,
-        rawProfile: sql`coalesce(${values.rawProfile ?? null}, ${botUsers.rawProfile})`,
+        rawProfile: sql`coalesce(${values.rawProfile != null ? JSON.stringify(values.rawProfile) : null}, ${botUsers.rawProfile})`,
         lastSeenAt: sql`now()`,
         updatedAt: sql`now()`,
       },
