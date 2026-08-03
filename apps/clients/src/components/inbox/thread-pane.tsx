@@ -31,6 +31,11 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { buildDialogLink, copyText } from "@/lib/dialog-link";
 import { orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
@@ -401,6 +406,7 @@ export function ThreadPane({
 	}
 
 	const name = client?.name ?? selected.userId;
+	const dialogLink = buildDialogLink(selected, window.location);
 
 	return (
 		<div className="flex min-w-0 flex-1 flex-col">
@@ -420,10 +426,15 @@ export function ThreadPane({
 							: " · Без ответственного"}
 					</p>
 				</div>
-				<Button variant="outline" size="sm" onClick={copyDialogLink}>
-					<LinkIcon data-icon="inline-start" />
-					Ссылка для анализа
-				</Button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button variant="outline" size="sm" onClick={copyDialogLink}>
+							<LinkIcon data-icon="inline-start" />
+							Ссылка для анализа
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>{dialogLink}</TooltipContent>
+				</Tooltip>
 				{operator && client?.assignedOperatorId !== operator.id && (
 					<Button
 						variant="outline"
