@@ -144,10 +144,10 @@ async function syncMaxAvatar(
 
 /**
  * Сохраняет профиль клиента в bot_users: поля из апдейта (всегда доступны)
- * плюс description/avatar из getChatMembers (не работает для диалога 1:1 —
- * MAX отдаёт 400 "Method is not available for dialogs", этот метод годится
- * только для групповых чатов). Для 1:1 добираем аватар через getChat: там
- * поле icon для диалога — это фото собеседника, а не иконка чата.
+ * плюс аватар через getChat — bot работает только в диалогах 1:1, групповых
+ * чатов нет, поэтому getChatMembers не используем (MAX всё равно отдаёт для
+ * него 400 "Method is not available for dialogs"). Поле icon для диалога —
+ * это фото собеседника, а не иконка чата.
  */
 async function collectMaxProfile(
   ctx: AppContext,
@@ -159,25 +159,11 @@ async function collectMaxProfile(
 
   const userLocale = (ctx.update as { user_locale?: unknown }).user_locale;
 
-  let bio: string | undefined;
   let sourceAvatarUrl: string | undefined;
   let avatarS3Key: string | undefined;
-  let rawProfile: unknown = user;
-  try {
-    const { members } = await ctx.getChatMembers({ user_ids: [user.user_id] });
-    const member = members[0];
-    if (member) {
-      rawProfile = member;
-      bio = member.description ?? undefined;
-      sourceAvatarUrl = member.avatar_url;
-    }
-  } catch (err) {
-    log(
-      `[profile] не удалось получить getChatMembers для user=${user.user_id}: ${describeError(err)}`,
-    );
-  }
+  const rawProfile: unknown = user;
 
-  if (!sourceAvatarUrl && ctx.chatId) {
+  if (ctx.chatId) {
     try {
       const chat = await ctx.getChat(ctx.chatId);
       if (chat.icon?.url) sourceAvatarUrl = chat.icon.url;
@@ -202,7 +188,6 @@ async function collectMaxProfile(
     username: user.username ?? undefined,
     isBot: user.is_bot,
     languageCode: typeof userLocale === "string" ? userLocale : undefined,
-    bio,
     avatarS3Key,
     source,
     campaign,
