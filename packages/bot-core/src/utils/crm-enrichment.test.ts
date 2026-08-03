@@ -181,6 +181,23 @@ describe("enrichCrmFromClientMessage", () => {
     );
   });
 
+  test("не падает, если контакт удалён в Bitrix", async () => {
+    contact = undefined as unknown as Record<string, unknown>;
+
+    await expect(
+      enrichCrmFromClientMessage({
+        messenger: "max",
+        userId: "32263492",
+        text: "pronina9@yandex.ru",
+      }),
+    ).resolves.toBeUndefined();
+
+    const updateCalls = bitrixPost.mock.calls.filter(
+      ([method]) => method === "crm.contact.update",
+    );
+    expect(updateCalls).toHaveLength(0);
+  });
+
   test("после таймаута основной модели использует fallback", async () => {
     generateObject
       .mockImplementationOnce(() =>

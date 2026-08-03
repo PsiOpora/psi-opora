@@ -248,6 +248,15 @@ export async function enrichCrmFromClientMessage(
       { id: contactId },
       message.messenger,
     );
+    if (!contact) {
+      logger.warn("bot.crm_enrichment.contact_not_found", {
+        messenger: message.messenger,
+        userId: message.userId,
+        contactId,
+      });
+      return;
+    }
+
     const fields: Record<string, unknown> = {};
     if (facts.name && canReplaceName(contact.NAME)) fields.NAME = facts.name;
     if (facts.phone && !hasValue(contact.PHONE)) {
