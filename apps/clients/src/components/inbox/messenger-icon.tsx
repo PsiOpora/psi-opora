@@ -121,6 +121,8 @@ export function MessengerIcon({
       return <WhatsAppBadge className={className} circleColor="#16A34A" />;
     case "max":
       return <MaxBadge className={className} />;
+    case "max-personal":
+      return <MaxBadge className={className} />;
     default:
       return null;
   }

@@ -77,6 +77,9 @@ export const env = createEnv({
     // было активировать на одной линии одновременно.
     TG_USERBOT_CONNECTOR_ID: z.string().default("psiopora_tg_personal"),
 
+    // Личный номер MAX через неофициальный reverse-engineered протокол.
+    MAX_USERBOT_CONNECTOR_ID: z.string().default("psiopora_max_personal"),
+
     // WhatsApp userbot (личный номер как коннектор Открытых линий, WAHA).
     // Постоянное соединение держит контейнер WAHA (docker-compose, сервис
     // `waha`) — WAHA_URL должен быть доступен и с Vercel (oRPC-роутеры,
@@ -164,6 +167,7 @@ export const env = createEnv({
     BITRIX_MEMBER_ID: process.env.BITRIX_MEMBER_ID,
     TG_USERBOT_ENCRYPTION_KEY: process.env.TG_USERBOT_ENCRYPTION_KEY,
     TG_USERBOT_CONNECTOR_ID: process.env.TG_USERBOT_CONNECTOR_ID,
+    MAX_USERBOT_CONNECTOR_ID: process.env.MAX_USERBOT_CONNECTOR_ID,
     WAHA_URL: process.env.WAHA_URL,
     WAHA_API_KEY: process.env.WAHA_API_KEY,
     WAHA_WEBHOOK_URL: process.env.WAHA_WEBHOOK_URL,

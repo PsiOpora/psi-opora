@@ -9,12 +9,17 @@ import {
 	getBitrixCrmLink,
 	getBotConnector,
 	insertBotMessage,
+	listMaxPersonalAccounts,
 	listTelegramPersonalAccounts,
 	listWhatsappPersonalAccounts,
 	setBotMessageBitrixExternalId,
 	upsertBitrixCrmLink,
 } from "@psi-opora/db/queries";
 import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
+import {
+	getMaxSendResult,
+	pushMaxOutboundMessage,
+} from "@psi-opora/max-userbot";
 import { wahaSendText } from "@psi-opora/waha";
 import { bitrixProcedure } from "../../orpc";
 import { sendClientMessageSchema } from "../../schemas/messages";
@@ -31,6 +36,68 @@ const operatorMirrorRedis: RedisClient | undefined = isRedisConfigured()
 interface OpenLineConnectorRef {
 	connectorId: string;
 	openLineId: string;
+}
+
+async function sendMaxPersonal(
+	memberId: string | null,
+	userId: string,
+	lineId: string | undefined,
+	connectorId: string | undefined,
+	text: string,
+): Promise<{
+	ok?: true;
+	error?: string;
+	externalId?: string;
+	connector?: OpenLineConnectorRef;
+}> {
+	if (!memberId) return { error: "Нет активной сессии Битрикс24" };
+	const chatId = userId.trim();
+	if (!/^\d+$/.test(chatId)) {
+		return { error: "Для диалога MAX не сохранён числовой chatId" };
+	}
+	const accounts = (await listMaxPersonalAccounts(memberId)).filter(
+		(account) => account.status === "connected",
+	);
+	const matches = connectorId
+		? accounts.filter((account) => account.connectorId === connectorId)
+		: lineId
+			? accounts.filter((account) => account.openLineId === lineId)
+			: accounts;
+	if (matches.length > 1) {
+		return {
+			error: "Подключено несколько личных номеров MAX — выберите номер",
+		};
+	}
+	const account = matches[0];
+	if (!account) return { error: "Личный номер MAX не подключён" };
+
+	const jobId = crypto.randomUUID();
+	await pushMaxOutboundMessage({
+		memberId,
+		openLineId: account.openLineId,
+		connectorId: account.connectorId,
+		jobId,
+		chatId,
+		text,
+	});
+	const deadline = Date.now() + 6000;
+	while (Date.now() < deadline) {
+		const result = await getMaxSendResult(jobId);
+		if (result) {
+			return result.ok
+				? {
+						ok: true,
+						externalId: result.externalId,
+						connector: {
+							connectorId: account.connectorId,
+							openLineId: account.openLineId,
+						},
+					}
+				: { error: `Не отправлено: ${result.error ?? "неизвестная ошибка"}` };
+		}
+		await new Promise((resolve) => setTimeout(resolve, 300));
+	}
+	return { error: "Не удалось дождаться ответа max-userbot-worker" };
 }
 
 /**
@@ -236,6 +303,17 @@ export const send = bitrixProcedure
 				if (result.error) return result;
 				externalId = result.externalId;
 				connector = result.connector;
+			} else if (input.messenger === "max-personal") {
+				const result = await sendMaxPersonal(
+					context.memberId,
+					input.userId,
+					input.lineId,
+					input.connectorId,
+					text,
+				);
+				if (result.error) return result;
+				externalId = result.externalId;
+				connector = result.connector;
 			} else {
 				try {
 					externalId = await sendMessengerMessage(
@@ -275,7 +353,10 @@ export const send = bitrixProcedure
 					operatorId,
 					operatorName: input.operatorName,
 					externalId,
-					externalChatId: canonicalTelegramUserId,
+					externalChatId:
+						input.messenger === "max-personal"
+							? input.userId
+							: canonicalTelegramUserId,
 					connectorId: connector?.connectorId,
 				});
 			} catch (err) {

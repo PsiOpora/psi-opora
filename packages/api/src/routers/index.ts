@@ -25,6 +25,7 @@ import { costsRouter } from "./costs";
 import { emailRouter } from "./email";
 import { emailBroadcastRouter } from "./email-broadcast";
 import { messagesRouter } from "./messages";
+import { maxPersonalRouter } from "./max-personal";
 import { telegramPersonalRouter } from "./telegram-personal";
 import { whatsappPersonalRouter } from "./whatsapp-personal";
 import { widgetMessageRouter } from "./widget-message";
@@ -39,6 +40,7 @@ export {
   emailRouter,
   emailBroadcastRouter,
   messagesRouter,
+  maxPersonalRouter,
   telegramPersonalRouter,
   whatsappPersonalRouter,
   widgetMessageRouter,
@@ -53,6 +55,7 @@ export const appRouter = {
   email: emailRouter,
   emailBroadcast: emailBroadcastRouter,
   messages: messagesRouter,
+  maxPersonal: maxPersonalRouter,
   telegramPersonal: telegramPersonalRouter,
   whatsappPersonal: whatsappPersonalRouter,
   widgetMessage: widgetMessageRouter,

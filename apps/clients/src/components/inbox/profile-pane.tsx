@@ -86,7 +86,8 @@ export function ProfilePane({
       input: { messenger: selected.messenger, userId: selected.userId },
       refetchInterval:
         selected.messenger === "telegram-personal" ||
-        selected.messenger === "whatsapp-personal"
+        selected.messenger === "whatsapp-personal" ||
+        selected.messenger === "max-personal"
           ? 30_000
           : false,
     }),

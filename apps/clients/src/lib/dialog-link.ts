@@ -5,6 +5,7 @@ const INBOX_MESSENGERS: readonly InboxMessenger[] = [
   "max",
   "telegram-personal",
   "whatsapp-personal",
+  "max-personal",
 ];
 
 export interface DialogReference {

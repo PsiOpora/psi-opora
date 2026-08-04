@@ -2,6 +2,7 @@ import { type BitrixApi, createWebhookApi } from "@psi-opora/bitrix-client";
 import {
   getBitrixCrmLink,
   getBotConnector,
+  listMaxPersonalAccounts,
   listTelegramPersonalAccounts,
   listWhatsappPersonalAccounts,
 } from "@psi-opora/db/queries";
@@ -108,7 +109,7 @@ export function parseCrmBindings(raw: string | undefined): {
  */
 export async function resolvePersonalDialog(
   api: BitrixApi,
-  messenger: "telegram-personal" | "whatsapp-personal",
+  messenger: "telegram-personal" | "whatsapp-personal" | "max-personal",
   memberId: string | null,
   userId: string,
 ): Promise<OpenLineDialogRaw | null> {
@@ -116,7 +117,9 @@ export async function resolvePersonalDialog(
   const accounts =
     messenger === "telegram-personal"
       ? await listTelegramPersonalAccounts(memberId)
-      : await listWhatsappPersonalAccounts(memberId);
+      : messenger === "whatsapp-personal"
+        ? await listWhatsappPersonalAccounts(memberId)
+        : await listMaxPersonalAccounts(memberId);
 
   for (const account of accounts.filter((a) => a.status === "connected")) {
     const userCode = `${account.connectorId}|${account.openLineId}|${userId}|${userId}`;
@@ -167,7 +170,11 @@ export async function resolveDialogCrmBindings(
     };
   }
 
-  if (messenger === "telegram-personal" || messenger === "whatsapp-personal") {
+  if (
+    messenger === "telegram-personal" ||
+    messenger === "whatsapp-personal" ||
+    messenger === "max-personal"
+  ) {
     const dialog = await resolvePersonalDialog(api, messenger, memberId, userId);
     return dialog?.id
       ? parseCrmBindings(dialog.entity_data_2)

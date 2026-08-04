@@ -15,6 +15,7 @@ import {
 import { env } from "@psi-opora/config";
 import {
 	assignConversationIfUnassigned,
+	getMaxPersonalAccountByConnector,
 	getTelegramPersonalAccountByConnector,
 	getWhatsappPersonalAccountByConnector,
 	getWhatsappPersonalAccountBySession,
@@ -32,6 +33,7 @@ import {
 	sendMessengerMessage,
 } from "@psi-opora/jobs";
 import { pushOutboundMessage } from "@psi-opora/tg-userbot";
+import { pushMaxOutboundMessage } from "@psi-opora/max-userbot";
 import {
 	phoneFromJid,
 	wahaAckToStatus,
@@ -88,7 +90,10 @@ async function logOperatorReply(
 					? String(reply.operatorUserId)
 					: undefined,
 			externalId,
-			externalChatId: messenger === "telegram-personal" ? userId : undefined,
+			externalChatId:
+				messenger === "telegram-personal" || messenger === "max-personal"
+					? userId
+					: undefined,
 			bitrixMessageId: reply.bitrixMessageId,
 			status,
 			connectorId: reply.connector,
@@ -159,6 +164,50 @@ async function relayToTelegramPersonal(
 	});
 	console.log(
 		`[bitrix-webhook] ответ оператора поставлен в очередь личного номера ${account.phone} chat=${reply.chatId}`,
+	);
+	return true;
+}
+
+/** Ответ оператора для личного MAX ставится в очередь always-on воркера. */
+async function relayToMaxPersonal(
+	reply: OperatorReplyMessage,
+): Promise<boolean> {
+	if (!reply.connector || !reply.lineId) return false;
+	const account = await getMaxPersonalAccountByConnector(
+		reply.connector,
+		String(reply.lineId),
+	);
+	if (!account) {
+		if (reply.connector.startsWith(env.MAX_USERBOT_CONNECTOR_ID)) {
+			console.warn(
+				`[bitrix-webhook] не найден личный номер MAX для коннектора ${reply.connector} линии ${reply.lineId}`,
+			);
+		}
+		return false;
+	}
+
+	const chatId = String(reply.chatId).trim();
+	if (!/^\d+$/.test(chatId)) {
+		console.error(`[bitrix-webhook] некорректный MAX chatId: ${reply.chatId}`);
+		return false;
+	}
+	const journalMessageId = await logOperatorReply(
+		"max-personal",
+		reply,
+		undefined,
+		"sent",
+	);
+	await pushMaxOutboundMessage({
+		memberId: account.memberId,
+		openLineId: account.openLineId,
+		connectorId: account.connectorId,
+		jobId: crypto.randomUUID(),
+		chatId,
+		text: reply.text,
+		journalMessageId,
+	});
+	console.log(
+		`[bitrix-webhook] ответ оператора поставлен в очередь личного MAX ${account.phone} chat=${reply.chatId}`,
 	);
 	return true;
 }
@@ -260,6 +309,7 @@ async function relayOperatorReply(reply: OperatorReplyMessage): Promise<void> {
 	}
 
 	if (await relayToTelegramPersonal(reply)) return;
+	if (await relayToMaxPersonal(reply)) return;
 	if (await relayToWhatsAppPersonal(reply)) return;
 
 	const messenger = messengerByConnector(reply.connector);

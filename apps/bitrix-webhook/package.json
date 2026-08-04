@@ -17,6 +17,7 @@
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@psi-opora/jobs": "workspace:*",
+    "@psi-opora/max-userbot": "workspace:*",
     "@psi-opora/tg-userbot": "workspace:*",
     "@psi-opora/waha": "workspace:*",
     "hono": "^4.12.32"

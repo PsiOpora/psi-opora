@@ -95,6 +95,7 @@ export type { ClientNote, NewClientNoteEntry } from "./client-notes";
 export * from "./email-campaign";
 export type { QuickReply } from "./quick-replies";
 export * from "./telegram-personal";
+export * from "./max-personal";
 export * from "./unisender";
 export * from "./whatsapp-personal";
 

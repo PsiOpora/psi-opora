@@ -39,6 +39,14 @@ export {
 } from "./broadcast";
 export { type AddCostInput, addCostSchema } from "./costs";
 export {
+  type DisconnectMaxPersonalInput,
+  disconnectMaxPersonalSchema,
+  type StartMaxLoginInput,
+  startMaxLoginSchema,
+  type SubmitMaxCodeInput,
+  submitMaxCodeSchema,
+} from "./max-personal";
+export {
   type AssignConversationInput,
   assignConversationSchema,
   type BitrixDialogInput,

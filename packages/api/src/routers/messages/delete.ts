@@ -1,12 +1,17 @@
 import {
 	getBotConnector,
 	getDeletableBotMessage,
+	listMaxPersonalAccounts,
 	listTelegramPersonalAccounts,
 	listWhatsappPersonalAccounts,
 	markBotMessageDeleted,
 } from "@psi-opora/db/queries";
 import { deleteMessengerMessage, formatMessengerError } from "@psi-opora/jobs";
 import { getSendResult, pushOutboundMessage } from "@psi-opora/tg-userbot";
+import {
+	getMaxSendResult,
+	pushMaxOutboundMessage,
+} from "@psi-opora/max-userbot";
 import { wahaDeleteMessage } from "@psi-opora/waha";
 import { bitrixProcedure } from "../../orpc";
 import { deleteClientMessageSchema } from "../../schemas/messages";
@@ -56,6 +61,38 @@ async function deleteTelegramPersonal(params: {
 		);
 	}
 	throw new Error("Не удалось дождаться удаления от worker личного Telegram");
+}
+
+async function deleteMaxPersonal(params: {
+	memberId: string;
+	connector: OpenLineRef;
+	chatId: string;
+	externalId: string;
+}): Promise<void> {
+	const chatId = params.chatId.trim();
+	if (!/^\d+$/.test(chatId)) throw new Error("Некорректный chatId MAX");
+	const jobId = crypto.randomUUID();
+	await pushMaxOutboundMessage({
+		memberId: params.memberId,
+		openLineId: params.connector.openLineId,
+		connectorId: params.connector.connectorId,
+		jobId,
+		action: "delete",
+		chatId,
+		externalId: params.externalId,
+	});
+	const deadline = Date.now() + USERBOT_RESULT_TIMEOUT_MS;
+	while (Date.now() < deadline) {
+		const result = await getMaxSendResult(jobId);
+		if (result) {
+			if (result.ok) return;
+			throw new Error(result.error ?? "Личный MAX не удалил сообщение");
+		}
+		await new Promise((resolve) =>
+			setTimeout(resolve, USERBOT_RESULT_POLL_INTERVAL_MS),
+		);
+	}
+	throw new Error("Не удалось дождаться удаления от max-userbot-worker");
 }
 
 export const deleteMessage = bitrixProcedure
@@ -124,6 +161,16 @@ export const deleteMessage = bitrixProcedure
 						};
 						whatsappSession = account.sessionName;
 					}
+				} else if (row.messenger === "max-personal") {
+					const account = (
+						await listMaxPersonalAccounts(context.memberId)
+					).find((item) => item.connectorId === row.connectorId);
+					if (account) {
+						connector = {
+							connectorId: account.connectorId,
+							openLineId: account.openLineId,
+						};
+					}
 				}
 				if (!connector) {
 					return { error: "Личный номер сообщения больше не подключён" };
@@ -152,6 +199,16 @@ export const deleteMessage = bitrixProcedure
 						throw new Error("Сессия личного WhatsApp не найдена");
 					}
 					await wahaDeleteMessage(whatsappSession, row.userId, row.externalId);
+				} else if (row.messenger === "max-personal") {
+					if (!context.memberId || !connector) {
+						throw new Error("Личный номер MAX не найден");
+					}
+					await deleteMaxPersonal({
+						memberId: context.memberId,
+						connector,
+						chatId: row.externalChatId ?? row.userId,
+						externalId: row.externalId,
+					});
 				} else {
 					return { error: `Удаление для ${row.messenger} не поддерживается` };
 				}

@@ -30,7 +30,7 @@ async function main(): Promise<void> {
       const text = await rl.question("Текст сообщения: ");
       const messageId = await sendUserbotMessage(
         client,
-        Number(chatIdInput.trim()),
+        chatIdInput.trim(),
         text.trim(),
       );
       console.log(`← Отправлено, messageId: ${messageId}`);

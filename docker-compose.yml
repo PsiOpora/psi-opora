@@ -64,6 +64,16 @@ services:
     env_file:
       - .env
 
+  # Личные номера MAX — постоянное TLS-соединение reverse-engineered
+  # протокола на каждый подключённый аккаунт.
+  max-userbot-worker:
+    build:
+      context: .
+      dockerfile: apps/max-userbot-worker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+
   # Личные номера WhatsApp (packages/waha, роутеры whatsapp-personal) —
   # WAHA держит постоянные соединения с WhatsApp (движок NOWEB/Baileys),
   # наружу отдаёт REST API + вебхуки. Аналог tg-userbot-worker, только

@@ -121,7 +121,9 @@ export function ThreadPane({
 		if (!selected) return;
 		const { messenger, userId } = selected;
 		const isPersonal =
-			messenger === "telegram-personal" || messenger === "whatsapp-personal";
+			messenger === "telegram-personal" ||
+			messenger === "whatsapp-personal" ||
+			messenger === "max-personal";
 		let cancelled = false;
 
 		setMessages([]);
@@ -139,7 +141,9 @@ export function ThreadPane({
 			isPersonal
 				? messenger === "telegram-personal"
 					? orpcClient.telegramPersonal.list()
-					: orpcClient.whatsappPersonal.list()
+					: messenger === "whatsapp-personal"
+						? orpcClient.whatsappPersonal.list()
+						: orpcClient.maxPersonal.list()
 				: Promise.resolve({ accounts: [] as PersonalAccountOption[] }),
 		])
 			.then(([threadRes, accountsRes]) => {

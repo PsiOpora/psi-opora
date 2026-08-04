@@ -15,14 +15,14 @@ export const HEADER_LENGTH = 10;
 export type FrameCommand = 0 | 1 | 3;
 
 export interface FrameHeader {
-  version: number;
-  cmd: FrameCommand;
-  seq: number;
-  opcode: number;
-  /** LZ4-сжатие пейлоада — по разбору применяется только при payload > 32
-   * байт; для логина не ожидается, но флаг всё равно разбираем. */
-  compressed: boolean;
-  payloadLength: number;
+	version: number;
+	cmd: FrameCommand;
+	seq: number;
+	opcode: number;
+	/** LZ4-сжатие пейлоада — по разбору применяется только при payload > 32
+	 * байт; для логина не ожидается, но флаг всё равно разбираем. */
+	compressed: boolean;
+	payloadLength: number;
 }
 
 /** Версия протокола — "допустимый диапазон 5–10" по разбору koval01, берём
@@ -30,43 +30,43 @@ export interface FrameHeader {
 const PROTOCOL_VERSION = 10;
 
 export function encodeHeader(header: {
-  cmd: FrameCommand;
-  seq: number;
-  opcode: number;
-  payloadLength: number;
-  compressed?: boolean;
+	cmd: FrameCommand;
+	seq: number;
+	opcode: number;
+	payloadLength: number;
+	compressed?: boolean;
 }): Buffer {
-  const buf = Buffer.alloc(HEADER_LENGTH);
-  buf.writeUInt8(PROTOCOL_VERSION, 0);
-  buf.writeUInt8(header.cmd, 1);
-  buf.writeUInt16BE(header.seq, 2);
-  buf.writeUInt16BE(header.opcode, 4);
-  buf.writeUInt8(header.compressed ? 1 : 0, 6);
-  buf.writeUIntBE(header.payloadLength, 7, 3);
-  return buf;
+	const buf = Buffer.alloc(HEADER_LENGTH);
+	buf.writeUInt8(PROTOCOL_VERSION, 0);
+	buf.writeUInt8(header.cmd, 1);
+	buf.writeUInt16BE(header.seq, 2);
+	buf.writeUInt16BE(header.opcode, 4);
+	buf.writeUInt8(header.compressed ? 1 : 0, 6);
+	buf.writeUIntBE(header.payloadLength, 7, 3);
+	return buf;
 }
 
 export function decodeHeader(buf: Buffer): FrameHeader {
-  if (buf.length < HEADER_LENGTH) {
-    throw new Error(`Заголовок MAX короче ${HEADER_LENGTH} байт`);
-  }
-  return {
-    version: buf.readUInt8(0),
-    cmd: buf.readUInt8(1) as FrameCommand,
-    seq: buf.readUInt16BE(2),
-    opcode: buf.readUInt16BE(4),
-    compressed: buf.readUInt8(6) !== 0,
-    payloadLength: buf.readUIntBE(7, 3),
-  };
+	if (buf.length < HEADER_LENGTH) {
+		throw new Error(`Заголовок MAX короче ${HEADER_LENGTH} байт`);
+	}
+	return {
+		version: buf.readUInt8(0),
+		cmd: buf.readUInt8(1) as FrameCommand,
+		seq: buf.readUInt16BE(2),
+		opcode: buf.readUInt16BE(4),
+		compressed: buf.readUInt8(6) !== 0,
+		payloadLength: buf.readUIntBE(7, 3),
+	};
 }
 
 export function encodeFrame(
-  header: { cmd: FrameCommand; seq: number; opcode: number },
-  payload: Record<string, unknown>,
+	header: { cmd: FrameCommand; seq: number; opcode: number },
+	payload: Record<string, unknown>,
 ): Buffer {
-  const body = Buffer.from(encode(payload));
-  const headerBuf = encodeHeader({ ...header, payloadLength: body.length });
-  return Buffer.concat([headerBuf, body]);
+	const body = Buffer.from(encode(payload, { useBigInt64: true }));
+	const headerBuf = encodeHeader({ ...header, payloadLength: body.length });
+	return Buffer.concat([headerBuf, body]);
 }
 
 /**
@@ -80,16 +80,40 @@ export function encodeFrame(
  * только эту функцию, вызывающий код (client.ts) о префиксе не знает.
  */
 export function decodePayload(payload: Uint8Array): Record<string, unknown> {
-  try {
-    return decode(payload) as Record<string, unknown>;
-  } catch (err) {
-    if (payload.length > 2) {
-      try {
-        return decode(payload.subarray(2)) as Record<string, unknown>;
-      } catch {
-        // ниже пробрасываем исходную ошибку — она информативнее для отладки
-      }
-    }
-    throw err;
-  }
+	const decodeAndNormalize = (value: Uint8Array) =>
+		normalizeBigInts(decode(value, { useBigInt64: true })) as Record<
+			string,
+			unknown
+		>;
+	try {
+		return decodeAndNormalize(payload);
+	} catch (err) {
+		if (payload.length > 2) {
+			try {
+				return decodeAndNormalize(payload.subarray(2));
+			} catch {
+				// ниже пробрасываем исходную ошибку — она информативнее для отладки
+			}
+		}
+		throw err;
+	}
+}
+
+function normalizeBigInts(value: unknown): unknown {
+	if (typeof value === "bigint") return value.toString();
+	if (Array.isArray(value)) return value.map(normalizeBigInts);
+	if (
+		value instanceof Uint8Array ||
+		value === null ||
+		typeof value !== "object" ||
+		Object.getPrototypeOf(value) !== Object.prototype
+	) {
+		return value;
+	}
+	return Object.fromEntries(
+		Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+			key,
+			normalizeBigInts(item),
+		]),
+	);
 }

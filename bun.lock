@@ -26,6 +26,7 @@
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
         "@psi-opora/jobs": "workspace:*",
+        "@psi-opora/max-userbot": "workspace:*",
         "@psi-opora/tg-userbot": "workspace:*",
         "@psi-opora/waha": "workspace:*",
         "hono": "^4.12.32",
@@ -156,6 +157,21 @@
         "typescript": "6.0.3",
       },
     },
+    "apps/max-userbot-worker": {
+      "name": "@psi-opora/max-userbot-worker",
+      "version": "0.0.1",
+      "dependencies": {
+        "@psi-opora/bitrix-client": "workspace:*",
+        "@psi-opora/db": "workspace:*",
+        "@psi-opora/max-userbot": "workspace:*",
+      },
+      "devDependencies": {
+        "@psi-opora/tsconfig": "workspace:*",
+        "@types/bun": "1.3.14",
+        "tsdown": "^0.22.14",
+        "typescript": "6.0.3",
+      },
+    },
     "apps/tg-bot": {
       "name": "@psi-opora/tg-bot",
       "version": "0.0.1",
@@ -200,6 +216,7 @@
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
         "@psi-opora/jobs": "workspace:*",
+        "@psi-opora/max-userbot": "workspace:*",
         "@psi-opora/tg-userbot": "workspace:*",
         "@psi-opora/unisender-client": "workspace:*",
         "@psi-opora/validators": "workspace:*",
@@ -349,6 +366,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@msgpack/msgpack": "^3.1.3",
+        "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
       },
       "devDependencies": {
@@ -867,6 +885,8 @@
     "@psi-opora/max-bot": ["@psi-opora/max-bot@workspace:apps/max-bot"],
 
     "@psi-opora/max-userbot": ["@psi-opora/max-userbot@workspace:packages/max-userbot"],
+
+    "@psi-opora/max-userbot-worker": ["@psi-opora/max-userbot-worker@workspace:apps/max-userbot-worker"],
 
     "@psi-opora/tailwind-config": ["@psi-opora/tailwind-config@workspace:tooling/tailwind"],
 

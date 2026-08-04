@@ -10,7 +10,8 @@ export type { MessageDeliveryStatus };
 export type InboxMessenger =
 	| Messenger
 	| "telegram-personal"
-	| "whatsapp-personal";
+	| "whatsapp-personal"
+	| "max-personal";
 
 export interface ClientListItem {
 	messenger: InboxMessenger;
@@ -154,7 +155,8 @@ export function toClientMessageItem(
 		row.messenger === "telegram" ||
 		row.messenger === "max" ||
 		row.messenger === "telegram-personal" ||
-		row.messenger === "whatsapp-personal";
+		row.messenger === "whatsapp-personal" ||
+		row.messenger === "max-personal";
 	const isWithinTelegramDeleteWindow =
 		row.messenger !== "telegram" ||
 		Date.now() - row.createdAt.getTime() < 48 * 60 * 60 * 1000;

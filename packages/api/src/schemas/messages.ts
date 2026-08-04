@@ -6,6 +6,7 @@ const inboxMessengerSchema = z.enum([
 	"max",
 	"telegram-personal",
 	"whatsapp-personal",
+	"max-personal",
 ]);
 
 export const listClientsSchema = z.object({
@@ -36,7 +37,7 @@ export type ClientPollInput = z.infer<typeof clientPollSchema>;
 export const sendClientMessageSchema = z.object({
 	messenger: inboxMessengerSchema,
 	userId: z.string(),
-	/** Только для messenger="telegram-personal"/"whatsapp-personal" — на
+	/** Только для персональных каналов — на
 	 * портале может быть несколько подключённых номеров, каждый на своей линии. */
 	lineId: z.string().optional(),
 	/** Уточняет конкретный номер, если на выбранной линии их несколько. */
