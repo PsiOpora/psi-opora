@@ -427,8 +427,10 @@ async function getOverrides(): Promise<Record<string, string>> {
     cachedAt = now;
     return cachedOverrides;
   } catch (err) {
+    const cause = (err as Error).cause;
     console.error(
       `[texts] не удалось загрузить тексты бота: ${(err as Error).message}`,
+      cause ? `cause: ${cause}` : "",
     );
     return cachedOverrides ?? {};
   }

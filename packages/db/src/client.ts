@@ -47,7 +47,14 @@ async function createDatabase(): Promise<Database> {
     import("postgres"),
     import("drizzle-orm/postgres-js"),
   ]);
-  const sql = postgres.default(connectionString);
+  const sql = postgres.default(connectionString, {
+    // Без этого мёртвый (тихо оборванный сетью) сокет остаётся в пуле как
+    // будто живой: следующий запрос зависает на TCP-таймаут (замечено ~2 мин)
+    // вместо того чтобы сразу открыть новое соединение.
+    idle_timeout: 30,
+    connect_timeout: 10,
+    max_lifetime: 60 * 30,
+  });
   return drizzlePostgresJs(sql, { schema, casing: "snake_case" });
 }
 
