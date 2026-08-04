@@ -17,12 +17,22 @@ import {
 } from "./reminders/shared";
 
 const CONSULTATION_DT_FIELD = "UF_CRM_1779802779513";
+// ID пользователя Bitrix24 — Андрей Клюев. Используется и как ответственный
+// за CRM-активность консультации, и как владелец календаря по умолчанию.
 const RESPONSIBLE_USER_ID = 1;
 
 // Напоминание шлём, если консультация через 0–65 минут — запас на случай
 // редких прогонов крона.
 const REMINDER_WINDOW_MS = 65 * 60 * 1000;
 const STATE_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+// Бесплатная консультация проходит по телефону, без видеозвонка.
+const CONSULTATION_DURATION_MS = 60 * 60 * 1000;
+const CONSULTATION_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
+  timeZone: "Europe/Moscow",
+  dateStyle: "long",
+  timeStyle: "short",
+});
 
 function dealStateKey(dealId: number): string {
   return `consult-reminder:deal:${dealId}`;
@@ -34,8 +44,181 @@ interface ConsultationState {
   lastConsultationAt: string;
   lastActivityId?: number;
   lastDescription?: string;
+  calendarEventId?: number;
   reminderSentAt: string | null;
   updatedAt: string;
+}
+
+interface ConsultationContactEmail {
+  VALUE?: string;
+}
+
+interface ConsultationContactPhone {
+  VALUE?: string;
+}
+
+interface ConsultationContact {
+  ID?: string | number;
+  NAME?: string;
+  LAST_NAME?: string;
+  EMAIL?: ConsultationContactEmail[];
+  PHONE?: ConsultationContactPhone[];
+}
+
+// Владелец события — Андрей Клюев (RESPONSIBLE_USER_ID). Переменная окружения
+// оставлена для явного переопределения, но по умолчанию событие всегда
+// попадает именно в его календарь, а не в общий/системный.
+function consultationOwnerUserId(): number {
+  const configured = Number(
+    process.env.BITRIX_CONSULTATION_USER_ID ?? RESPONSIBLE_USER_ID,
+  );
+  return Number.isInteger(configured) && configured > 0
+    ? configured
+    : RESPONSIBLE_USER_ID;
+}
+
+function consultationContactName(contact: ConsultationContact | false): string {
+  if (!contact) return "";
+  return [contact.NAME, contact.LAST_NAME]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function consultationContactPhone(
+  contact: ConsultationContact | false,
+): string {
+  if (!contact) return "";
+  return String(contact.PHONE?.[0]?.VALUE ?? "").trim();
+}
+
+function formatConsultationDate(iso: string): string {
+  return CONSULTATION_DATE_FORMATTER.format(new Date(iso));
+}
+
+function consultationEventName(
+  deal: Record<string, unknown>,
+  clientName: string,
+): string {
+  const suffix = clientName || String(deal.TITLE ?? "").trim();
+  return suffix ? `Бесплатная консультация — ${suffix}` : "Бесплатная консультация";
+}
+
+function consultationEventDescription(params: {
+  dealId: number;
+  clientName: string;
+  phone: string;
+}): string {
+  return [
+    params.clientName ? `Клиент: ${params.clientName}` : "",
+    params.phone ? `Телефон: ${params.phone}` : "",
+    `Сделка Bitrix24: D_${params.dealId}`,
+    "Формат: звонок по телефону",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function consultationCalendarFields(params: {
+  dealId: number;
+  contactId: number;
+  consultationAt: string;
+  name: string;
+  description: string;
+}): Record<string, unknown> {
+  const startsAt = new Date(params.consultationAt);
+  const endsAt = new Date(startsAt.getTime() + CONSULTATION_DURATION_MS);
+  return {
+    type: "user",
+    ownerId: consultationOwnerUserId(),
+    name: params.name,
+    description: params.description,
+    from: startsAt.toISOString(),
+    to: endsAt.toISOString(),
+    skip_time: "N",
+    timezone_from: "Europe/Moscow",
+    timezone_to: "Europe/Moscow",
+    accessibility: "busy",
+    importance: "high",
+    private_event: "N",
+    is_meeting: "N",
+    remind: [{ type: "min", count: 15 }],
+    crm_fields: [
+      `D_${params.dealId}`,
+      ...(params.contactId > 0 ? [`C_${params.contactId}`] : []),
+    ],
+  };
+}
+
+/**
+ * Создаёт или обновляет событие в календаре Bitrix24 под бесплатную
+ * консультацию. Отдельно от crm.activity.todo.add (задачи, а не события
+ * календаря) — портал сам не показывал б/п консультации в календаре
+ * Андрея Клюева, только диагностику.
+ */
+async function syncConsultationCalendarEvent(params: {
+  api: BitrixApi;
+  dealId: number;
+  deal: Record<string, unknown>;
+  contactId: number;
+  consultationAt: string;
+  previousConsultationAt?: string;
+  previousCalendarEventId?: number;
+}): Promise<number> {
+  const { api, dealId, deal, contactId, consultationAt } = params;
+  let calendarEventId = params.previousCalendarEventId ?? 0;
+
+  if (calendarEventId && params.previousConsultationAt === consultationAt) {
+    return calendarEventId;
+  }
+
+  const contact =
+    contactId > 0
+      ? await api.call<ConsultationContact | false>("crm.contact.get", {
+          id: contactId,
+        })
+      : false;
+  const clientName = consultationContactName(contact);
+  const fields = consultationCalendarFields({
+    dealId,
+    contactId,
+    consultationAt,
+    name: consultationEventName(deal, clientName),
+    description: consultationEventDescription({
+      dealId,
+      clientName,
+      phone: consultationContactPhone(contact),
+    }),
+  });
+
+  if (!calendarEventId) {
+    calendarEventId = Number(
+      await api.call("calendar.event.add", {
+        ...fields,
+        auto_detect_section: "Y",
+      }),
+    );
+    if (!calendarEventId) {
+      throw new Error("Bitrix24 не вернул ID события консультации");
+    }
+    return calendarEventId;
+  }
+
+  try {
+    await api.call("calendar.event.update", { id: calendarEventId, ...fields });
+  } catch (error) {
+    console.warn(
+      `[consultation-reminder] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
+    );
+    calendarEventId = Number(
+      await api.call("calendar.event.add", {
+        ...fields,
+        auto_detect_section: "Y",
+      }),
+    );
+    if (!calendarEventId) throw error;
+  }
+  return calendarEventId;
 }
 
 async function readState(
@@ -112,13 +295,14 @@ function pickConsultationActivity(
 
 export type ConsultationDealUpdateResult =
   | { action: "skip"; reason: string; [extra: string]: unknown }
-  | { action: "init"; lastConsultationAt: string }
+  | { action: "init"; lastConsultationAt: string; calendarEventId?: number }
   | {
       action: "recreate";
       oldConsultationAt: string;
       newConsultationAt: string;
       oldActivityId: number;
       newActivityId: number | null;
+      calendarEventId: number;
       completedOld: boolean;
     };
 
@@ -157,14 +341,33 @@ export async function handleConsultationDealUpdate(
 
   const state = await readState(redis, dealId);
   const now = new Date().toISOString();
+  const contactId = extractClientContactId(deal);
 
   if (!state?.lastConsultationAt) {
+    const calendarEventId = await syncConsultationCalendarEvent({
+      api,
+      dealId,
+      deal,
+      contactId,
+      consultationAt: newConsultationAt,
+      previousCalendarEventId: state?.calendarEventId,
+    });
     await writeState(redis, dealId, {
       lastConsultationAt: newConsultationAt,
+      calendarEventId,
       reminderSentAt: null,
       updatedAt: now,
     });
-    return { action: "init", lastConsultationAt: newConsultationAt };
+    await appendReminderSentComment(
+      api,
+      dealId,
+      `📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${calendarEventId}.`,
+    );
+    return {
+      action: "init",
+      lastConsultationAt: newConsultationAt,
+      calendarEventId,
+    };
   }
 
   const oldConsultationAt = state.lastConsultationAt;
@@ -179,9 +382,19 @@ export async function handleConsultationDealUpdate(
 
   const oldTs = toTimestamp(oldConsultationAt);
   if (oldTs > 0 && oldTs <= Date.now()) {
+    const calendarEventId = await syncConsultationCalendarEvent({
+      api,
+      dealId,
+      deal,
+      contactId,
+      consultationAt: newConsultationAt,
+      previousConsultationAt: oldConsultationAt,
+      previousCalendarEventId: state.calendarEventId,
+    });
     await writeState(redis, dealId, {
       ...state,
       lastConsultationAt: newConsultationAt,
+      calendarEventId,
       updatedAt: now,
     });
     return {
@@ -207,9 +420,19 @@ export async function handleConsultationDealUpdate(
     oldConsultationAt,
   );
   if (!oldActivity) {
+    const calendarEventId = await syncConsultationCalendarEvent({
+      api,
+      dealId,
+      deal,
+      contactId,
+      consultationAt: newConsultationAt,
+      previousConsultationAt: oldConsultationAt,
+      previousCalendarEventId: state.calendarEventId,
+    });
     await writeState(redis, dealId, {
       ...state,
       lastConsultationAt: newConsultationAt,
+      calendarEventId,
       reminderSentAt: null,
       updatedAt: now,
     });
@@ -256,13 +479,30 @@ export async function handleConsultationDealUpdate(
     );
   }
 
+  const calendarEventId = await syncConsultationCalendarEvent({
+    api,
+    dealId,
+    deal,
+    contactId,
+    consultationAt: newConsultationAt,
+    previousConsultationAt: oldConsultationAt,
+    previousCalendarEventId: state.calendarEventId,
+  });
+
   await writeState(redis, dealId, {
     lastConsultationAt: newConsultationAt,
     lastActivityId: newActivityId ?? undefined,
     lastDescription: oldDescription,
+    calendarEventId,
     reminderSentAt: null,
     updatedAt: now,
   });
+
+  await appendReminderSentComment(
+    api,
+    dealId,
+    `📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${calendarEventId}.`,
+  );
 
   return {
     action: "recreate",
@@ -270,6 +510,7 @@ export async function handleConsultationDealUpdate(
     newConsultationAt,
     oldActivityId,
     newActivityId,
+    calendarEventId,
     completedOld,
   };
 }

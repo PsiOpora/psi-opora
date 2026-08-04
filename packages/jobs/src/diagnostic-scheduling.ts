@@ -72,6 +72,8 @@ function lockKey(dealId: number): string {
 	return `diagnostic-schedule:lock:${dealId}`;
 }
 
+// ID 1 — Андрей Клюев в Bitrix24. Владелец события по умолчанию, чтобы
+// диагностика всегда попадала именно в его календарь.
 function diagnosticOwnerUserId(): number {
 	const configured = Number(process.env.BITRIX_DIAGNOSTIC_USER_ID ?? 1);
 	return Number.isInteger(configured) && configured > 0 ? configured : 1;
