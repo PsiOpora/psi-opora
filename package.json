@@ -9,6 +9,7 @@
     "tooling/*"
   ],
   "scripts": {
+    "migrate": "bun run --cwd packages/db migrate",
     "format": "biome format . --skip-parse-errors",
     "format:fix": "biome format --write . --skip-parse-errors",
     "lint": "biome lint . --skip-parse-errors",
