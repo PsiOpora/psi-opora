@@ -262,7 +262,7 @@ jobs:
         run: bun run --filter @psi-opora/config build
 
       - name: Run Drizzle migrations
-        if: steps.migrations.outputs.changed == 'true'
+        if: false
         working-directory: packages/db
         env:
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
