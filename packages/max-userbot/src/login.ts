@@ -1,3 +1,4 @@
+import { env } from "@psi-opora/config";
 import { MaxProtocolClient } from "./protocol/client";
 import { OPCODE } from "./protocol/opcodes";
 
@@ -23,9 +24,6 @@ import { OPCODE } from "./protocol/opcodes";
  * этим занимается relay.ts (Фаза 2, воркер личного номера), а не логин-флоу.
  */
 
-const APP_VERSION = "26.8.1";
-const BUILD_NUMBER = 6606;
-
 /** Экспортируется для переиспользования в relay.ts (Фаза 2) — одна и та же
  * user-agent форма должна уходить что на разовых подключениях логина, что
  * на постоянном соединении воркера. */
@@ -34,9 +32,9 @@ export function userAgentPayload() {
   return {
     deviceType: "ANDROID",
     pushDeviceType: "GCM",
-    appVersion: APP_VERSION,
+    appVersion: env.MAX_USERBOT_APP_VERSION,
     arch: "arm64-v8a",
-    buildNumber: BUILD_NUMBER,
+    buildNumber: env.MAX_USERBOT_BUILD_NUMBER,
     osVersion: "34",
     locale: "ru",
     deviceLocale: "ru_RU",

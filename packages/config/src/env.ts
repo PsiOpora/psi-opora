@@ -79,6 +79,10 @@ export const env = createEnv({
 
     // Личный номер MAX через неофициальный reverse-engineered протокол.
     MAX_USERBOT_CONNECTOR_ID: z.string().default("psiopora_max_personal"),
+    // MAX отклоняет авторизацию устаревших Android-клиентов. Значения можно
+    // оперативно обновить без правки протокольного кода при следующем релизе.
+    MAX_USERBOT_APP_VERSION: z.string().default("26.25.0"),
+    MAX_USERBOT_BUILD_NUMBER: z.coerce.number().int().positive().default(6790),
 
     // WhatsApp userbot (личный номер как коннектор Открытых линий, WAHA).
     // Постоянное соединение держит контейнер WAHA (docker-compose, сервис
@@ -168,6 +172,8 @@ export const env = createEnv({
     TG_USERBOT_ENCRYPTION_KEY: process.env.TG_USERBOT_ENCRYPTION_KEY,
     TG_USERBOT_CONNECTOR_ID: process.env.TG_USERBOT_CONNECTOR_ID,
     MAX_USERBOT_CONNECTOR_ID: process.env.MAX_USERBOT_CONNECTOR_ID,
+    MAX_USERBOT_APP_VERSION: process.env.MAX_USERBOT_APP_VERSION,
+    MAX_USERBOT_BUILD_NUMBER: process.env.MAX_USERBOT_BUILD_NUMBER,
     WAHA_URL: process.env.WAHA_URL,
     WAHA_API_KEY: process.env.WAHA_API_KEY,
     WAHA_WEBHOOK_URL: process.env.WAHA_WEBHOOK_URL,
