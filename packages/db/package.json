@@ -40,7 +40,7 @@
     "studio": "bun --env-file=../../.env run drizzle-kit studio",
     "drop": "bun --env-file=../../.env run src/scripts/drop-schema.ts",
     "generate": "bun --env-file=../../.env run drizzle-kit generate",
-    "migrate": "bun --env-file=../../.env run src/scripts/migrate.ts",
+    "migrate": "bun --env-file=../../.env run drizzle-kit migrate",
     "test": "bun test",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
@@ -50,8 +50,8 @@
     "@vercel/postgres": "0.10.0",
     "drizzle-orm": "0.45.2",
     "drizzle-zod": "0.8.3",
-    "postgres": "^3.4.7",
-    "ws": "^8.21.1",
+    "postgres": "^3.4.9",
+    "ws": "^8.21.2",
     "zod": "4.4.3"
   },
   "devDependencies": {
