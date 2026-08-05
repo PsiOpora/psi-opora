@@ -58,6 +58,25 @@ describe("encodeFrame", () => {
 		);
 		expect(decode(body)).toEqual(payload);
 	});
+
+	test("кодирует clientSessionId как целое, а не float64", () => {
+		const clientSessionId = 1_700_000_000_000;
+		const frame = encodeFrame(
+			{ cmd: 0, seq: 1, opcode: 6 },
+			{ clientSessionId },
+		);
+		const header = decodeHeader(frame);
+		const body = frame.subarray(
+			HEADER_LENGTH,
+			HEADER_LENGTH + header.payloadLength,
+		);
+		const decoded = decode(body, { useBigInt64: true }) as {
+			clientSessionId: bigint;
+		};
+
+		expect(typeof decoded.clientSessionId).toBe("bigint");
+		expect(decoded.clientSessionId).toBe(BigInt(clientSessionId));
+	});
 });
 
 describe("decodePayload", () => {
