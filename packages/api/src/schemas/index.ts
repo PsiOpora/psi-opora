@@ -73,6 +73,12 @@ export {
   submitTelegramPasswordSchema,
 } from "./telegram-personal";
 export {
+  type EmailProviderInput,
+  emailProviderSchema,
+  type RusenderSettingsInput,
+  rusenderSettingsSchema,
+} from "./rusender";
+export {
   type UnisenderSettingsInput,
   unisenderSettingsSchema,
 } from "./unisender";

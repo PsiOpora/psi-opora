@@ -20,6 +20,7 @@ export async function createEmailCampaign(data: {
   subject: string;
   senderEmail: string;
   senderName?: string;
+  provider: "unisender" | "rusender";
   totalDeals?: number;
 }): Promise<void> {
   if (!db) return;
@@ -83,7 +84,7 @@ export async function insertEmailCampaignRecipients(
 
 export async function updateEmailCampaignRecipient(
   id: string,
-  data: { status: "imported" | "error"; error: string | null },
+  data: { status: "imported" | "sent" | "error"; error: string | null },
 ): Promise<void> {
   if (!db) return;
   await db

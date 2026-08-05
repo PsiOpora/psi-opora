@@ -30,6 +30,7 @@
     "@psi-opora/db": "workspace:*",
     "@psi-opora/jobs": "workspace:*",
     "@psi-opora/max-userbot": "workspace:*",
+    "@psi-opora/rusender-client": "workspace:*",
     "@psi-opora/tg-userbot": "workspace:*",
     "@psi-opora/unisender-client": "workspace:*",
     "@psi-opora/waha": "workspace:*",

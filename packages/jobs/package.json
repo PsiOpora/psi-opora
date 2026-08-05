@@ -27,6 +27,7 @@
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
+    "@psi-opora/rusender-client": "workspace:*",
     "@psi-opora/unisender-client": "workspace:*",
     "@hatchet-dev/typescript-sdk": "1.28.0"
   },

@@ -93,9 +93,11 @@ export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
 export * from "./broadcast";
 export type { ClientNote, NewClientNoteEntry } from "./client-notes";
 export * from "./email-campaign";
+export * from "./email-provider";
 export type { QuickReply } from "./quick-replies";
 export * from "./telegram-personal";
 export * from "./max-personal";
+export * from "./rusender";
 export * from "./unisender";
 export * from "./whatsapp-personal";
 

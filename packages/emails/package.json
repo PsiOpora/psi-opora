@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@psi-opora/config": "workspace:*",
+    "@psi-opora/db": "workspace:*",
     "@psi-opora/tsconfig": "workspace:*",
     "@radix-ui/colors": "3.0.0",
     "@react-email/components": "1.0.12",

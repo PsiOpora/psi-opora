@@ -35,6 +35,7 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
     const {
       finishEmailCampaign,
       getEmailCampaign,
+      getRusenderSettings,
       getUnisenderSettings,
       listEmailCampaignRecipients,
       setEmailCampaignUnisenderIds,
@@ -47,6 +48,86 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
     const campaign = await getEmailCampaign(payload.campaignId);
     if (!campaign) {
       throw new Error(`Email-кампания ${payload.campaignId} не найдена`);
+    }
+
+    if (campaign.provider === "rusender") {
+      // У Rusender нет API списков/кампаний — только поштучная отправка,
+      // поэтому рассылка выполняется циклом индивидуальных запросов, а не
+      // через createList/createCampaign, как у Unisender ниже.
+      const { createRusenderClient } = await import(
+        "@psi-opora/rusender-client"
+      );
+      try {
+        const settings = await getRusenderSettings();
+        if (!settings?.apiKey || !settings.keyId) {
+          throw new Error(
+            "Rusender не настроен — укажите API-ключ и key ID на странице /settings/email",
+          );
+        }
+        const unisenderSettings = await getUnisenderSettings();
+        if (!unisenderSettings?.apiKey) {
+          throw new Error(
+            "Unisender не настроен — шаблоны берутся оттуда, см. /settings/email",
+          );
+        }
+        const templateClient = createUnisenderClient(unisenderSettings.apiKey);
+        const template = await templateClient.getTemplate(campaign.templateId);
+
+        const rusenderClient = createRusenderClient(
+          settings.apiKey,
+          settings.keyId,
+        );
+
+        const recipients = (
+          await listEmailCampaignRecipients(payload.campaignId)
+        ).filter(
+          (r): r is typeof r & { email: string } =>
+            r.status === "pending" && !!r.email,
+        );
+        if (recipients.length === 0) {
+          throw new Error("Среди получателей некому отправлять");
+        }
+
+        let sent = 0;
+        for (const r of recipients) {
+          try {
+            await rusenderClient.sendEmail({
+              email: r.email,
+              senderName: campaign.senderName ?? settings.senderName ?? "",
+              senderEmail: campaign.senderEmail,
+              subject: campaign.subject,
+              body: template.body,
+            });
+            await updateEmailCampaignRecipient(r.id, {
+              status: "sent",
+              error: null,
+            });
+            sent++;
+          } catch (err) {
+            await updateEmailCampaignRecipient(r.id, {
+              status: "error",
+              error: (err as Error).message,
+            });
+          }
+        }
+
+        if (sent === 0) {
+          throw new Error("Ни одно письмо не удалось отправить через Rusender");
+        }
+
+        await finishEmailCampaign(campaign.id, {
+          status: "done",
+          sentCount: sent,
+        });
+
+        return { imported: sent, campaignId: null };
+      } catch (err) {
+        await finishEmailCampaign(campaign.id, {
+          status: "error",
+          error: (err as Error).message,
+        });
+        throw err;
+      }
     }
 
     try {

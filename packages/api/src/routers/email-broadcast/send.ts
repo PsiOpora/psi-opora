@@ -11,7 +11,7 @@ import {
   collectEmailRecipients,
 } from "../../email-campaign-collect";
 import { sendEmailCampaignSchema } from "../../schemas/broadcast";
-import { getUnisenderContext } from "./unisender-context";
+import { getActiveEmailSender } from "./active-sender";
 import type { EmailCampaignActionResult } from "./types";
 
 export const send = publicProcedure
@@ -25,13 +25,8 @@ export const send = publicProcedure
     const subject = input.subject.trim();
     if (!subject) return { error: "Не задана тема письма" };
 
-    const ctx = await getUnisenderContext();
-    if (!ctx) {
-      return { error: "Unisender не настроен — см. /settings/email" };
-    }
-    if (!ctx.settings.senderEmail) {
-      return { error: "Не задан email отправителя — см. /settings/email" };
-    }
+    const sender = await getActiveEmailSender();
+    if ("error" in sender) return { error: sender.error };
 
     try {
       const { totalDeals, recipients } = await collectEmailRecipients(
@@ -88,8 +83,9 @@ export const send = publicProcedure
         templateId: input.templateId,
         templateName: input.templateName,
         subject,
-        senderEmail: ctx.settings.senderEmail,
-        senderName: ctx.settings.senderName ?? undefined,
+        senderEmail: sender.senderEmail,
+        senderName: sender.senderName,
+        provider: sender.provider,
         totalDeals,
       });
       await insertEmailCampaignRecipients(

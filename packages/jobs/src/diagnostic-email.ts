@@ -1,4 +1,9 @@
-import { getUnisenderSettings } from "@psi-opora/db/queries";
+import {
+	getEmailProvider,
+	getRusenderSettings,
+	getUnisenderSettings,
+} from "@psi-opora/db/queries";
+import { createRusenderClient } from "@psi-opora/rusender-client";
 import { createUnisenderClient } from "@psi-opora/unisender-client";
 
 const DEFAULT_SENDER_NAME = 'Психологический центр "Опора"';
@@ -45,16 +50,33 @@ export async function sendDiagnosticEmail(params: {
 	subject: string;
 	text: string;
 }): Promise<void> {
-	const settings = await getUnisenderSettings();
-	if (!settings?.apiKey || !settings.senderEmail) {
-		throw new Error("Unisender или адрес отправителя не настроен");
+	const provider = await getEmailProvider();
+	const body = diagnosticEmailHtml(params.text);
+
+	if (provider === "unisender") {
+		const settings = await getUnisenderSettings();
+		if (!settings?.apiKey || !settings.senderEmail) {
+			throw new Error("Unisender или адрес отправителя не настроен");
+		}
+		await createUnisenderClient(settings.apiKey).sendEmail({
+			email: params.to,
+			senderName: settings.senderName?.trim() || DEFAULT_SENDER_NAME,
+			senderEmail: settings.senderEmail,
+			subject: params.subject,
+			body,
+		});
+		return;
 	}
 
-	await createUnisenderClient(settings.apiKey).sendEmail({
+	const settings = await getRusenderSettings();
+	if (!settings?.apiKey || !settings.keyId || !settings.senderEmail) {
+		throw new Error("Rusender или адрес отправителя не настроен");
+	}
+	await createRusenderClient(settings.apiKey, settings.keyId).sendEmail({
 		email: params.to,
 		senderName: settings.senderName?.trim() || DEFAULT_SENDER_NAME,
 		senderEmail: settings.senderEmail,
 		subject: params.subject,
-		body: diagnosticEmailHtml(params.text),
+		body,
 	});
 }

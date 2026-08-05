@@ -9,6 +9,7 @@ export const emailCampaigns = pgTable("email_campaigns", {
   subject: text("subject").notNull(),
   senderEmail: text("sender_email").notNull(),
   senderName: text("sender_name"),
+  provider: text("provider").notNull().default("unisender"), // unisender | rusender
   status: text("status").notNull(), // queued | running | done | error
   unisenderListId: text("unisender_list_id"),
   unisenderMessageId: text("unisender_message_id"),
