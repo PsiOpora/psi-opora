@@ -94,6 +94,11 @@ export function MaxPersonalConnectorClient({
 			)}
 			{step === "code" && (
 				<>
+					<p className="text-xs text-muted-foreground">
+						Проверьте чат «Коды подтверждения» (@verificationcodes_bot) на
+						основном устройстве MAX. Если код не появился там, SMS может прийти
+						примерно через 5 минут.
+					</p>
 					<Input
 						value={code}
 						onChange={(event) => setCode(event.target.value)}

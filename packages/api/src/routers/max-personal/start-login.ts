@@ -20,7 +20,7 @@ export const startLogin = publicProcedure
 					memberId: context.memberId,
 					lineId: input.lineId,
 					connectorId: input.connectorId,
-					phone: input.phone,
+					phone: result.phone,
 					pendingSession: result.pendingSession,
 				});
 				return { loginId, codeLength: result.codeLength };
