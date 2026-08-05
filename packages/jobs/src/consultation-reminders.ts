@@ -27,7 +27,7 @@ const REMINDER_WINDOW_MS = 65 * 60 * 1000;
 const STATE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 // Бесплатная консультация проходит по телефону, без видеозвонка.
-const CONSULTATION_DURATION_MS = 60 * 60 * 1000;
+const CONSULTATION_DURATION_MS = 30 * 60 * 1000;
 const CONSULTATION_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
   timeZone: "Europe/Moscow",
   dateStyle: "long",

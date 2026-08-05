@@ -94,7 +94,7 @@ describe("diagnostic scheduling messages", () => {
 });
 
 describe("handleDiagnosticDealUpdate", () => {
-	it("creates one two-hour event and updates it when the date changes", async () => {
+	it("creates one 90-minute event and updates it when the date changes", async () => {
 		process.env.DIAGNOSTIC_PAYMENT_URL = "https://pay.example/diagnostic";
 		process.env.BITRIX_DIAGNOSTIC_USER_ID = "17";
 
@@ -156,7 +156,7 @@ describe("handleDiagnosticDealUpdate", () => {
 		expect(add?.params.ownerId).toBe(17);
 		const from = new Date(String(add?.params.from)).getTime();
 		const to = new Date(String(add?.params.to)).getTime();
-		expect(to - from).toBe(2 * 60 * 60 * 1000);
+		expect(to - from).toBe(90 * 60 * 1000);
 		expect(add?.params.crm_fields).toEqual(["D_42", "C_9"]);
 	});
 });

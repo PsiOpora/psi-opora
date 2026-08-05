@@ -21,7 +21,7 @@ export const DIAGNOSTIC_STAGE_IDS = [
 export const DIAGNOSTIC_JOIN_URL = "https://psi-opora.ktalk.ru/smd1srvdssx9";
 export const DIAGNOSTIC_PAYMENT_URL = "https://psi-opora.ru/prices/";
 
-const DIAGNOSTIC_DURATION_MS = 2 * 60 * 60 * 1000;
+const DIAGNOSTIC_DURATION_MS = 90 * 60 * 1000;
 const STATE_TTL_SECONDS = 366 * 24 * 60 * 60;
 const LOCK_TTL_MS = 60_000;
 const DIAGNOSTIC_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
@@ -476,7 +476,7 @@ export async function handleDiagnosticDealUpdate(
 				api,
 				dealId,
 				[
-					`📅 Диагностика записана в календарь Андрея Клюева на ${formatDiagnosticDate(diagnosticAt)}, длительность 2 часа.`,
+					`📅 Диагностика записана в календарь Андрея Клюева на ${formatDiagnosticDate(diagnosticAt)}, длительность 1,5 часа.`,
 					delivery ? `Клиенту отправлено: ${delivery}.` : "",
 					deliveryProblems
 						? `Не отправлено по отдельным каналам: ${deliveryProblems}.`
