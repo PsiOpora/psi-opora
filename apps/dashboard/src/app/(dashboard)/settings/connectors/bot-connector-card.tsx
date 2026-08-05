@@ -2,7 +2,6 @@
 
 import { Text } from "@bitrix24/b24jssdk";
 import type { BotConnectorView } from "@psi-opora/api";
-import { env } from "@psi-opora/config";
 import { Loader2Icon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -31,6 +30,8 @@ const ICON_COLORS: Record<Messenger, string> = {
   telegram: "#2AABEE",
   max: "#8B00FF",
 };
+
+const BITRIX_WEBHOOK_APP_URL = process.env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL;
 
 // Bitrix24 отклоняет регистрацию коннектора без иконки (ICON_REQUIRED).
 // Base64 не содержит кавычек, которые ломают генерируемый Bitrix24 url('...').
@@ -130,10 +131,10 @@ export function BotConnectorCard({
         setRegistered(true);
         toast.success("Коннектор зарегистрирован", { id: toastId });
 
-        if (env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL) {
+        if (BITRIX_WEBHOOK_APP_URL) {
           const failures = await subscribeConnectorEvents(
             b24,
-            `${env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL}`,
+            BITRIX_WEBHOOK_APP_URL,
           );
           if (failures.length > 0) {
             toast.error(

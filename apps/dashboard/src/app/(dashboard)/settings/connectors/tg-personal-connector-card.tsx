@@ -2,7 +2,6 @@
 
 import { Text } from "@bitrix24/b24jssdk";
 import type { TelegramPersonalAccountView } from "@psi-opora/api";
-import { env } from "@psi-opora/config";
 import { Loader2Icon, PlusIcon, RefreshCwIcon } from "lucide-react";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -26,6 +25,7 @@ import { orpcClient } from "@/lib/orpc/client";
 // на одной линии может быть активно сразу несколько таких коннекторов.
 const CONNECTOR_PREFIX = "psiopora_tg_personal";
 const CONNECTOR_NAME = "Telegram (личный номер)";
+const BITRIX_WEBHOOK_APP_URL = process.env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL;
 
 // Telegram-иконка — Bitrix24 отклоняет регистрацию коннектора без неё
 // (ICON_REQUIRED). DATA_IMAGE принимает data URI без CSS-обёртки url(...).
@@ -139,10 +139,10 @@ export function TgPersonalConnectorCard() {
           { id: toastId, duration: 8000 },
         );
 
-        if (env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL) {
+        if (BITRIX_WEBHOOK_APP_URL) {
           const failures = await subscribeConnectorEvents(
             b24,
-            `${env.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL}`,
+            BITRIX_WEBHOOK_APP_URL,
           );
           if (failures.length > 0) {
             toast.error(
