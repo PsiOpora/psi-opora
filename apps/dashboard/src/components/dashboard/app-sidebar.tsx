@@ -77,7 +77,7 @@ const NAV_GROUPS = [
       },
       {
         href: "/settings/email",
-        label: "Настройки Unisender",
+        label: "Настройки Email",
         icon: KeyRoundIcon,
       },
     ],
