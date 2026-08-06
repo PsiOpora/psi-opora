@@ -1,24 +1,17 @@
 "use client";
 
-import type { UnisenderTemplate } from "@psi-opora/unisender-client";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { useBitrixData } from "@/hooks/use-bitrix-data";
+import { orpc } from "@/lib/orpc/client";
 import { EmailCampaignForm, type StageOption } from "./email-campaign-form";
 import { EmailCampaignHistory } from "./history";
 
 /** CATEGORY_ID из STAGE_ID: "C5:NEW" → "5", "NEW" (основная воронка) → "0". */
 function categoryOfStage(stageId: string): string {
   return stageId.match(/^C(\d+):/)?.[1] ?? "0";
-}
-
-interface TemplatesResponse {
-  configured: boolean;
-  senderConfigured: boolean;
-  templates: UnisenderTemplate[];
-  error: string | null;
 }
 
 export default function EmailBroadcastPage() {
@@ -34,15 +27,16 @@ function EmailBroadcastPageContent() {
     "stageNames",
     "categoryNames",
   ]);
-  const { data: templatesData, isLoading: templatesLoading } =
-    useQuery<TemplatesResponse>({
-      queryKey: ["dashboard-email-broadcast-templates"],
-      queryFn: async () => {
-        const res = await fetch("/api/dashboard/email-broadcast/templates");
-        if (!res.ok) throw new Error("Не удалось загрузить шаблоны Unisender");
-        return res.json();
-      },
-    });
+  const { data: templates = [], isLoading: templatesLoading } = useQuery(
+    orpc.emailTemplates.list.queryOptions(),
+  );
+  const { data: providerData } = useQuery(orpc.email.getProvider.queryOptions());
+  const { data: unisenderSettings } = useQuery(
+    orpc.email.getSettings.queryOptions(),
+  );
+  const { data: rusenderSettings } = useQuery(
+    orpc.email.getRusenderSettings.queryOptions(),
+  );
 
   if (isLoading || templatesLoading) {
     return <p className="text-sm text-muted-foreground">Загрузка…</p>;
@@ -79,40 +73,31 @@ function EmailBroadcastPageContent() {
         }) || a.sort - b.sort,
     );
 
-  const templates = templatesData?.templates ?? [];
-  const templatesError = templatesData?.error ?? null;
-  const configured = templatesData?.configured ?? false;
-  const senderConfigured = templatesData?.senderConfigured ?? false;
+  const senderConfigured = Boolean(
+    providerData?.provider === "rusender"
+      ? rusenderSettings?.senderEmail
+      : unisenderSettings?.senderEmail,
+  );
 
   return (
     <div className="flex w-full flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Email-рассылка</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Письмо по шаблону Unisender контактам сделок выбранной стадии.
-          Рассылку и unsubscribe-ссылку обрабатывает Unisender.
+          Письмо по собственному шаблону контактам сделок выбранной стадии.
         </p>
       </div>
 
-      {!configured ? (
+      {templates.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Unisender не настроен. Укажите API-ключ на странице{" "}
+          Шаблонов писем ещё нет — создайте первый на странице{" "}
           <Link
-            href="/settings/email"
+            href="/email-templates/new"
             className="underline underline-offset-2"
           >
-            Настройки → Unisender
+            Шаблоны писем
           </Link>
           .
-        </p>
-      ) : templatesError ? (
-        <p className="text-sm text-destructive">
-          Не удалось получить шаблоны Unisender: {templatesError}
-        </p>
-      ) : templates.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          В аккаунте Unisender ещё нет ни одного шаблона письма — создайте его
-          в личном кабинете Unisender.
         </p>
       ) : (
         <EmailCampaignForm

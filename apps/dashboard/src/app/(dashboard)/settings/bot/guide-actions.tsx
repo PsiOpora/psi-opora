@@ -28,13 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { orpc } from "@/lib/orpc/client";
 
-export function SendTestGuideButton({
-  id,
-  title,
-}: {
-  id: string;
-  title: string;
-}) {
+export function SendTestGuideButton() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const mutation = useMutation(
@@ -42,10 +36,10 @@ export function SendTestGuideButton({
       onSuccess: () => {
         setOpen(false);
         setEmail("");
-        toast.success("Тестовый гайд отправлен");
+        toast.success("Тестовое письмо отправлено");
       },
       onError: (error) => {
-        toast.error(error.message || "Не удалось отправить тестовый гайд");
+        toast.error(error.message || "Не удалось отправить тестовое письмо");
       },
     }),
   );
@@ -56,27 +50,28 @@ export function SendTestGuideButton({
       toast.error("Укажите email получателя");
       return;
     }
-    mutation.mutate({ id, email: recipient });
+    mutation.mutate({ email: recipient });
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size="sm">
-          Отправить тест
+          Отправить тест письма
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Отправить тестовый гайд</DialogTitle>
+          <DialogTitle>Отправить тестовое письмо</DialogTitle>
           <DialogDescription>
-            «{title}» будет отправлен выбранному получателю как вложение PDF.
+            Уйдёт ровно то же письмо, что и клиенту: активный гайд вложением,
+            текущие тема и текст письма из настроек ниже.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-2">
-          <Label htmlFor={`test-guide-email-${id}`}>Email получателя</Label>
+          <Label htmlFor="test-guide-email">Email получателя</Label>
           <Input
-            id={`test-guide-email-${id}`}
+            id="test-guide-email"
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}

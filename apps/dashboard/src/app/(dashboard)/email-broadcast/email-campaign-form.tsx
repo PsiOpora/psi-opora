@@ -1,6 +1,6 @@
 "use client";
 
-import type { UnisenderTemplate } from "@psi-opora/unisender-client";
+import type { EmailTemplate } from "@psi-opora/db/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -46,7 +46,7 @@ export function EmailCampaignForm({
   senderConfigured,
 }: {
   stages: StageOption[];
-  templates: UnisenderTemplate[];
+  templates: EmailTemplate[];
   senderConfigured: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -256,7 +256,7 @@ export function EmailCampaignForm({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs text-muted-foreground">
-                Шаблон Unisender
+                Шаблон письма
               </Label>
               <Select value={templateId} onValueChange={setTemplateId}>
                 <SelectTrigger className="w-full">
@@ -302,19 +302,6 @@ export function EmailCampaignForm({
                 }}
                 placeholder="Тема письма подтянется из шаблона — можно изменить"
               />
-              {selectedTemplate?.screenshot_url && (
-                <a
-                  href={
-                    selectedTemplate.fullsize_screenshot_url ??
-                    selectedTemplate.screenshot_url
-                  }
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-muted-foreground underline underline-offset-2 w-fit"
-                >
-                  Открыть миниатюру шаблона
-                </a>
-              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs text-muted-foreground">

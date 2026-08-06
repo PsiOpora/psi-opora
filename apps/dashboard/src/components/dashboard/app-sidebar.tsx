@@ -4,6 +4,7 @@ import {
   BarChart3Icon,
   BotIcon,
   DatabaseBackupIcon,
+  FileTextIcon,
   FilterIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
@@ -57,6 +58,11 @@ const NAV_GROUPS = [
     items: [
       { href: "/broadcast", label: "Рассылка", icon: SendIcon },
       { href: "/email-broadcast", label: "Email-рассылка", icon: MailIcon },
+      {
+        href: "/email-templates",
+        label: "Шаблоны писем",
+        icon: FileTextIcon,
+      },
     ],
   },
   {

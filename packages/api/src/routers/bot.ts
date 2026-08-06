@@ -4,6 +4,8 @@ import {
   GUIDE_FILE_SIZE_KEY,
   GUIDE_FILE_URL_KEY,
   SCENARIO_TEXT_DEFS,
+  getGuideFile,
+  getScenarioTexts,
   sendGuideEmail,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
@@ -61,7 +63,12 @@ export const botRouter = router({
       return { ok: true };
     }),
 
-  /** Отправляет выбранный PDF на один адрес для проверки письма и вложения. */
+  /**
+   * Отправляет на один адрес ровно то письмо, что уходит клиенту: активный
+   * гайд из bot_texts и реальные тексты email_subject/email_body сценария —
+   * а не выбранную в библиотеке запись со своим заголовком (иначе на
+   * проверку уходил не тот файл, что реально видит клиент).
+   */
   sendTestGuide: publicProcedure
     .input(sendTestGuideSchema)
     .handler(async ({ input }) => {
@@ -69,14 +76,15 @@ export const botRouter = router({
         throw new Error("Unisender не настроен: добавьте UNISENDER_API_KEY");
       }
 
-      const guide = await getBotGuide(input.id);
-      if (!guide) throw new Error("Гайд не найден");
+      const guide = await getGuideFile();
+      if (!guide) throw new Error("Активный гайд не выбран");
 
+      const texts = await getScenarioTexts();
       await sendGuideEmail(
         input.email,
-        { url: guide.fileUrl, name: guide.fileName },
-        `Тестовый гайд: ${guide.title}`,
-        `Во вложении — тестовая отправка гайда «${guide.title}».`,
+        guide,
+        texts.email_subject,
+        texts.email_body,
       );
       return { ok: true };
     }),

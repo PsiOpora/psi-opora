@@ -13,6 +13,7 @@ export * from "./client-notes";
 export * from "./quick-replies";
 export * from "./email-campaign";
 export * from "./email-provider";
+export * from "./email-templates";
 export * from "./telegram-personal";
 export * from "./max-personal";
 export * from "./rusender";

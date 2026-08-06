@@ -1,19 +1,16 @@
+import { getEmailTemplate } from "@psi-opora/db/queries";
+import { renderEmailTemplate } from "../../email-template-render";
 import { publicProcedure } from "../../orpc";
 import { sendTestEmailSchema } from "../../schemas/broadcast";
 import { getActiveEmailSender } from "./active-sender";
-import { getUnisenderContext } from "./unisender-context";
 
 /** Тестовая отправка письма шаблона на один адрес — минуя список/кампанию провайдера. */
 export const sendTest = publicProcedure
   .input(sendTestEmailSchema)
   .handler(async ({ input }) => {
-    const templateCtx = await getUnisenderContext();
-    if (!templateCtx) {
-      return {
-        ok: false,
-        error: "Unisender не настроен — шаблоны берутся оттуда, см. /settings/email",
-      };
-    }
+    const template = await getEmailTemplate(input.templateId);
+    if (!template) return { ok: false, error: "Шаблон не найден" };
+
     const sender = await getActiveEmailSender();
     if ("error" in sender) return { ok: false, error: sender.error };
 
@@ -22,11 +19,10 @@ export const sendTest = publicProcedure
     if (!input.email) return { ok: false, error: "У контакта нет email" };
 
     try {
-      const template = await templateCtx.client.getTemplate(input.templateId);
       await sender.sendEmail({
         email: input.email,
         subject,
-        body: template.body,
+        body: renderEmailTemplate(template.htmlBody, { email: input.email }),
       });
       return { ok: true };
     } catch (err) {

@@ -94,6 +94,7 @@ export * from "./broadcast";
 export type { ClientNote, NewClientNoteEntry } from "./client-notes";
 export * from "./email-campaign";
 export * from "./email-provider";
+export * from "./email-templates";
 export type { QuickReply } from "./quick-replies";
 export * from "./telegram-personal";
 export * from "./max-personal";

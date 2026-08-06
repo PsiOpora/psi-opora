@@ -7,6 +7,27 @@ export type DeliverEmailCampaignPayload = {
   campaignId: string;
 };
 
+/** Подставляет {{name}}/{{email}} значениями получателя — для поштучной отправки через Rusender. */
+function renderEmailTemplate(
+  html: string,
+  values: { name?: string | null; email?: string | null },
+): string {
+  return html
+    .replaceAll("{{name}}", values.name ?? "")
+    .replaceAll("{{email}}", values.email ?? "");
+}
+
+/**
+ * Заменяет {{name}}/{{email}} на теги подстановки Unisender (%Name%/%email%),
+ * совпадающие с field_names у importContacts ниже — для массовой рассылки по
+ * списку, где подстановку на каждого получателя делает сам Unisender.
+ */
+function toUnisenderTags(html: string): string {
+  return html
+    .replaceAll("{{name}}", "%Name%")
+    .replaceAll("{{email}}", "%email%");
+}
+
 // Ограничение размера пачки importContacts — держим запросы небольшими,
 // чтобы не упереться в лимит тела запроса Unisender (32 МБ) на крупных стадиях.
 const IMPORT_BATCH_SIZE = 500;
@@ -35,6 +56,7 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
     const {
       finishEmailCampaign,
       getEmailCampaign,
+      getEmailTemplate,
       getRusenderSettings,
       getUnisenderSettings,
       listEmailCampaignRecipients,
@@ -64,14 +86,10 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
             "Rusender не настроен — укажите API-ключ и key ID на странице /settings/email",
           );
         }
-        const unisenderSettings = await getUnisenderSettings();
-        if (!unisenderSettings?.apiKey) {
-          throw new Error(
-            "Unisender не настроен — шаблоны берутся оттуда, см. /settings/email",
-          );
+        const template = await getEmailTemplate(campaign.templateId);
+        if (!template) {
+          throw new Error("Шаблон письма не найден — возможно, был удалён");
         }
-        const templateClient = createUnisenderClient(unisenderSettings.apiKey);
-        const template = await templateClient.getTemplate(campaign.templateId);
 
         const rusenderClient = createRusenderClient(
           settings.apiKey,
@@ -96,7 +114,10 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
               senderName: campaign.senderName ?? settings.senderName ?? "",
               senderEmail: campaign.senderEmail,
               subject: campaign.subject,
-              body: template.body,
+              body: renderEmailTemplate(template.htmlBody, {
+                name: r.contactName,
+                email: r.email,
+              }),
             });
             await updateEmailCampaignRecipient(r.id, {
               status: "sent",
@@ -136,6 +157,10 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
         throw new Error(
           "Unisender не настроен — укажите API-ключ на странице /settings/email",
         );
+      }
+      const template = await getEmailTemplate(campaign.templateId);
+      if (!template) {
+        throw new Error("Шаблон письма не найден — возможно, был удалён");
       }
       const client = createUnisenderClient(settings.apiKey);
 
@@ -181,7 +206,7 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
         senderName: campaign.senderName ?? settings.senderName ?? "",
         senderEmail: campaign.senderEmail,
         subject: campaign.subject,
-        templateId: campaign.templateId,
+        body: toUnisenderTags(template.htmlBody),
         listId: list.id,
       });
 

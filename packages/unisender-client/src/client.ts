@@ -22,23 +22,6 @@ type UnisenderParams = Record<
   UnisenderParamValue | UnisenderParamValue[] | UnisenderParamValue[][]
 >;
 
-export interface UnisenderTemplate {
-  id: string;
-  title: string;
-  subject?: string;
-  screenshot_url?: string;
-  fullsize_screenshot_url?: string;
-  type?: string;
-  created?: string;
-  updated?: string;
-}
-
-export interface UnisenderTemplateDetails extends UnisenderTemplate {
-  body: string;
-  lang_code?: string;
-  message_format?: string;
-}
-
 export interface CreateListResult {
   id: number;
 }
@@ -78,8 +61,6 @@ export interface CampaignCommonStatsResult {
 export type ImportContactRow = string[];
 
 export interface UnisenderClient {
-  getTemplates(): Promise<UnisenderTemplate[]>;
-  getTemplate(templateId: string): Promise<UnisenderTemplateDetails>;
   createList(title: string): Promise<CreateListResult>;
   importContacts(params: {
     fieldNames: string[];
@@ -91,7 +72,8 @@ export interface UnisenderClient {
     senderName: string;
     senderEmail: string;
     subject: string;
-    templateId: string;
+    /** Сырой HTML письма — свой шаблон, а не шаблон из личного кабинета Unisender. */
+    body: string;
     listId: number;
     generateText?: boolean;
   }): Promise<CreateEmailMessageResult>;
@@ -154,19 +136,6 @@ export function createUnisenderClient(apiKey: string): UnisenderClient {
   }
 
   return {
-    async getTemplates() {
-      const result = await call<{ templates?: UnisenderTemplate[] } | UnisenderTemplate[]>(
-        "getTemplates",
-      );
-      return Array.isArray(result) ? result : (result.templates ?? []);
-    },
-
-    getTemplate(templateId) {
-      return call<UnisenderTemplateDetails>("getTemplate", {
-        template_id: templateId,
-      });
-    },
-
     createList(title) {
       return call<CreateListResult>("createList", { title });
     },
@@ -185,7 +154,7 @@ export function createUnisenderClient(apiKey: string): UnisenderClient {
       senderName,
       senderEmail,
       subject,
-      templateId,
+      body,
       listId,
       generateText = true,
     }) {
@@ -193,7 +162,7 @@ export function createUnisenderClient(apiKey: string): UnisenderClient {
         sender_name: senderName,
         sender_email: senderEmail,
         subject,
-        template_id: templateId,
+        body,
         list_id: listId,
         generate_text: generateText ? 1 : 0,
       });

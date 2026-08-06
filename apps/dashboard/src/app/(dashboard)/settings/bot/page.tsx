@@ -52,16 +52,19 @@ function GuidesLibraryCard({
 }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Гайды (PDF)</CardTitle>
-        <CardDescription>
-          Библиотека PDF-гайдов (лид-магнитов). Активный гайд бот шлёт после
-          того, как клиент оставил email в ветке гайда, — вложением на почту
-          (нужен UNISENDER_API_KEY) и, в MAX, дополнительно документом в чат
-          (в Telegram — только по email). Остальные загруженные гайды хранятся
-          про запас — под разные ветки сценария в будущем. Файлы — в S3
-          (настройки из раздела «Бэкап CRM»), до 10 МБ каждый.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div>
+          <CardTitle>Гайды (PDF)</CardTitle>
+          <CardDescription>
+            Библиотека PDF-гайдов (лид-магнитов). Активный гайд бот шлёт после
+            того, как клиент оставил email в ветке гайда, — вложением на почту
+            (нужен UNISENDER_API_KEY) и, в MAX, дополнительно документом в чат
+            (в Telegram — только по email). Остальные загруженные гайды
+            хранятся про запас — под разные ветки сценария в будущем. Файлы —
+            в S3 (настройки из раздела «Бэкап CRM»), до 10 МБ каждый.
+          </CardDescription>
+        </div>
+        <SendTestGuideButton />
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {guides.length === 0 ? (
@@ -96,7 +99,6 @@ function GuidesLibraryCard({
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <SendTestGuideButton id={guide.id} title={guide.title} />
                     {!isActive && (
                       <SetActiveGuideButton id={guide.id} title={guide.title} />
                     )}

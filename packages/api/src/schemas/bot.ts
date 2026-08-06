@@ -7,9 +7,8 @@ export type SaveBotTextsInput = z.infer<typeof saveBotTextsSchema>;
 
 export const guideIdSchema = z.object({ id: z.string() });
 
-/** Отправка выбранного гайда на адрес для проверки письма и вложения. */
+/** Тестовая отправка на адрес того же письма, что реально уйдёт клиенту (активный гайд). */
 export const sendTestGuideSchema = z.object({
-  id: z.string(),
   email: z.email("Укажите корректный email"),
 });
 

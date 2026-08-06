@@ -8,6 +8,4 @@ export {
   type ImportContactRow,
   type ImportContactsResult,
   type UnisenderClient,
-  type UnisenderTemplate,
-  type UnisenderTemplateDetails,
 } from "./client";
