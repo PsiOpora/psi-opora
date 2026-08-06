@@ -1,6 +1,7 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
 import { getScenarioTexts } from "@psi-opora/bot-core";
+import { findContactEmail } from "./diagnostic-scheduling";
 import {
   appendReminderSentComment,
   DEAL_CATEGORY_ID,
@@ -563,9 +564,6 @@ async function trySendOneHourReminder(
 
   const messengerValue = String(deal[MESSENGER_FIELD] ?? "");
   const connectorContains = MESSENGER_CONNECTOR_MAP[messengerValue];
-  if (!messengerValue || !connectorContains) {
-    return { action: "skip", reason: "messenger_not_set_or_unknown" };
-  }
 
   const clientContactId = extractClientContactId(deal);
   if (clientContactId <= 0)
@@ -575,10 +573,13 @@ async function trySendOneHourReminder(
   const template = texts.consultation_reminder_template?.trim();
   if (!template) return { action: "skip", reason: "empty_template_message" };
 
-  const contact = await api.call<Record<string, unknown> | false>(
-    "crm.contact.get",
-    { id: clientContactId },
-  );
+  const contact = await api.call<
+    | {
+        NAME?: string;
+        EMAIL?: Array<{ VALUE?: string }>;
+      }
+    | false
+  >("crm.contact.get", { id: clientContactId });
   const clientName = contact ? String(contact.NAME ?? "").trim() : "";
 
   const message = renderReminderMessage(template, {
@@ -586,27 +587,65 @@ async function trySendOneHourReminder(
     time: formatConsultationTime(dealConsultationAt),
   });
 
-  const chatId = await pickChatIdForConnector(
-    api,
-    clientContactId,
-    connectorContains,
-  );
-  if (chatId <= 0) return { action: "skip", reason: "no_openlines_chat" };
+  const delivered: string[] = [];
+  const reasons: string[] = [];
+  let hadError = false;
 
-  const sent = await api.call("imopenlines.bot.session.message.send", {
-    CHAT_ID: chatId,
-    NAME: "DEFAULT",
-    MESSAGE: message,
-  });
-  if (!sent) return { action: "error", reason: "send_failed" };
+  if (!messengerValue || !connectorContains) {
+    reasons.push("messenger_not_set_or_unknown");
+  } else {
+    const chatId = await pickChatIdForConnector(
+      api,
+      clientContactId,
+      connectorContains,
+    );
+    if (chatId <= 0) {
+      reasons.push("no_openlines_chat");
+    } else {
+      const sent = await api.call("imopenlines.bot.session.message.send", {
+        CHAT_ID: chatId,
+        NAME: "DEFAULT",
+        MESSAGE: message,
+      });
+      if (sent) {
+        delivered.push("чат");
+      } else {
+        reasons.push("chat_send_failed");
+        hadError = true;
+      }
+    }
+  }
+
+  const email = findContactEmail(contact);
+  if (!email) {
+    reasons.push("contact_email_empty");
+  } else {
+    try {
+      const { sendDiagnosticEmail } = await import("./diagnostic-email");
+      await sendDiagnosticEmail({
+        to: email,
+        subject: "Через час — бесплатная консультация",
+        text: message,
+      });
+      delivered.push(`email ${email}`);
+    } catch (error) {
+      reasons.push(`email_send_failed: ${(error as Error).message}`);
+      hadError = true;
+    }
+  }
+
+  if (delivered.length === 0) {
+    if (hadError) return { action: "error", reason: reasons.join(", ") };
+    return { action: "skip", reason: reasons.join(", ") || "nothing_to_send" };
+  }
 
   await appendReminderSentComment(
     api,
     dealId,
-    `🔔 Напоминание о консультации (${formatConsultationTime(dealConsultationAt)} МСК) отправлено клиенту в чат — ${formatMoscowDateTime()}`,
+    `🔔 Напоминание о консультации (${formatConsultationTime(dealConsultationAt)} МСК) отправлено: ${delivered.join(" и ")} — ${formatMoscowDateTime()}`,
   );
 
-  return { action: "sent" };
+  return { action: "sent", reason: reasons.join(", ") || undefined };
 }
 
 /**
