@@ -26,7 +26,8 @@ export async function saveEmailTemplate(entry: {
   id?: string;
   title: string;
   subject: string;
-  htmlBody: string;
+  templateKey: string;
+  fields: Record<string, string>;
 }): Promise<EmailTemplate | null> {
   if (!db) return null;
   const now = new Date();
@@ -36,7 +37,8 @@ export async function saveEmailTemplate(entry: {
       id: entry.id ?? crypto.randomUUID(),
       title: entry.title,
       subject: entry.subject,
-      htmlBody: entry.htmlBody,
+      templateKey: entry.templateKey,
+      fields: entry.fields,
       createdAt: now,
       updatedAt: now,
     })
@@ -45,7 +47,8 @@ export async function saveEmailTemplate(entry: {
       set: {
         title: entry.title,
         subject: entry.subject,
-        htmlBody: entry.htmlBody,
+        templateKey: entry.templateKey,
+        fields: entry.fields,
         updatedAt: now,
       },
     })

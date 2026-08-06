@@ -210,6 +210,20 @@
       "when": 1786020193548,
       "tag": "0029_brief_mariko_yashida",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1786025571264,
+      "tag": "0030_absent_iron_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786025633777,
+      "tag": "0031_windy_joseph",
+      "breakpoints": true
     }
   ]
 }

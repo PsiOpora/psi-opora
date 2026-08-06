@@ -55,6 +55,10 @@ export type {
   RecentEmailCampaignInfo,
 } from "./routers/email-broadcast";
 export type {
+  CampaignTemplateFieldDef,
+  CampaignTemplateSummary,
+} from "./routers/email-templates";
+export type {
   ClientListItem,
   ClientMessageItem,
   ClientNoteItem,

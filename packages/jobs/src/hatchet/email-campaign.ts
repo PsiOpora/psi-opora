@@ -47,6 +47,7 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
     const { createUnisenderClient } = await import(
       "@psi-opora/unisender-client"
     );
+    const { renderCampaignTemplate } = await import("@psi-opora/emails");
 
     const campaign = await getEmailCampaign(payload.campaignId);
     if (!campaign) {
@@ -70,6 +71,13 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
         const template = await getEmailTemplate(campaign.templateId);
         if (!template) {
           throw new Error("Шаблон письма не найден — возможно, был удалён");
+        }
+        const html = await renderCampaignTemplate(
+          template.templateKey,
+          template.fields,
+        );
+        if (!html) {
+          throw new Error(`Неизвестный тип шаблона: ${template.templateKey}`);
         }
 
         const rusenderClient = createRusenderClient(
@@ -95,7 +103,7 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
               senderName: campaign.senderName ?? settings.senderName ?? "",
               senderEmail: campaign.senderEmail,
               subject: campaign.subject,
-              body: renderEmailTemplate(template.htmlBody, {
+              body: renderEmailTemplate(html, {
                 name: r.contactName,
                 email: r.email,
               }),
@@ -143,6 +151,13 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
       if (!template) {
         throw new Error("Шаблон письма не найден — возможно, был удалён");
       }
+      const html = await renderCampaignTemplate(
+        template.templateKey,
+        template.fields,
+      );
+      if (!html) {
+        throw new Error(`Неизвестный тип шаблона: ${template.templateKey}`);
+      }
       const client = createUnisenderClient(settings.apiKey);
 
       const recipients = (
@@ -187,7 +202,7 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
         senderName: campaign.senderName ?? settings.senderName ?? "",
         senderEmail: campaign.senderEmail,
         subject: campaign.subject,
-        body: toUnisenderTags(template.htmlBody),
+        body: toUnisenderTags(html),
         listId: list.id,
       });
 

@@ -1,4 +1,5 @@
 import { getEmailTemplate, renderEmailTemplate } from "@psi-opora/db/queries";
+import { renderCampaignTemplate } from "@psi-opora/emails";
 import { publicProcedure } from "../../orpc";
 import { sendTestEmailSchema } from "../../schemas/broadcast";
 import { getActiveEmailSender } from "./active-sender";
@@ -17,11 +18,14 @@ export const sendTest = publicProcedure
     if (!subject) return { ok: false, error: "Тема письма пуста" };
     if (!input.email) return { ok: false, error: "У контакта нет email" };
 
+    const html = await renderCampaignTemplate(template.templateKey, template.fields);
+    if (!html) return { ok: false, error: "Неизвестный тип шаблона" };
+
     try {
       await sender.sendEmail({
         email: input.email,
         subject,
-        body: renderEmailTemplate(template.htmlBody, {
+        body: renderEmailTemplate(html, {
           name: "Иван Иванов",
           email: input.email,
         }),
