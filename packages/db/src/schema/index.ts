@@ -17,5 +17,7 @@ export * from "./email-templates";
 export * from "./telegram-personal";
 export * from "./max-personal";
 export * from "./rusender";
+export * from "./smtp-bz";
+export * from "./resend";
 export * from "./unisender";
 export * from "./whatsapp-personal";

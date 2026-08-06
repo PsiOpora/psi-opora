@@ -83,6 +83,14 @@ export {
   unisenderSettingsSchema,
 } from "./unisender";
 export {
+  type SmtpBzSettingsInput,
+  smtpBzSettingsSchema,
+} from "./smtp-bz";
+export {
+  type ResendSettingsInput,
+  resendSettingsSchema,
+} from "./resend";
+export {
   type DisconnectWhatsappPersonalInput,
   disconnectWhatsappPersonalSchema,
   type PollWhatsappStatusInput,

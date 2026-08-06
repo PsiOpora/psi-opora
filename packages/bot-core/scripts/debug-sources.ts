@@ -33,7 +33,8 @@ for (;;) {
 const byEntity: Record<string, Record<string, unknown>[]> = {};
 for (const row of allStatuses) {
   const entity = String(row.ENTITY_ID);
-  (byEntity[entity] ??= []).push(row);
+  if (!byEntity[entity]) byEntity[entity] = [];
+  byEntity[entity].push(row);
 }
 
 // 4. Пример реальных сделок — какие значения полей реально встречаются (последние 100)

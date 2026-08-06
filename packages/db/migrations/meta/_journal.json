@@ -224,6 +224,13 @@
       "when": 1786025633777,
       "tag": "0031_windy_joseph",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786030280048,
+      "tag": "0032_cloudy_madame_web",
+      "breakpoints": true
     }
   ]
 }

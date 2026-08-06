@@ -8,8 +8,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ProviderSwitch } from "./provider-switch";
+import { ResendSettingsForm } from "./resend-settings-form";
 import { RusenderSettingsForm } from "./rusender-settings-form";
 import { UnisenderSettingsForm } from "./settings-form";
+import { SmtpBzSettingsForm } from "./smtp-bz-settings-form";
 
 export default function EmailSettingsPage() {
   return (
@@ -39,11 +41,58 @@ export default function EmailSettingsPage() {
               Интеграции → API
             </a>
             . Провайдер по умолчанию. Адрес отправителя должен принадлежать
-            подтверждённому в Rusender домену — иначе письма отклоняются.
+            подтверждённому в Rusender домену — иначе письма отклоняются. Если
+            письмо не удаётся отправить через Rusender, платформа
+            автоматически пробует резервные провайдеры ниже — сначала SMTP.BZ,
+            затем Resend.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <RusenderSettingsForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>SMTP.BZ (резервный)</CardTitle>
+          <CardDescription>
+            API-ключ — в личном кабинете{" "}
+            <a
+              href="https://smtp.bz/"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              SMTP.BZ
+            </a>
+            . Используется автоматически, если отправка через Rusender не
+            удалась.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SmtpBzSettingsForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Resend (резервный)</CardTitle>
+          <CardDescription>
+            API-ключ — в личном кабинете{" "}
+            <a
+              href="https://resend.com/api-keys"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              Resend
+            </a>
+            . Используется автоматически, если отправка не удалась ни через
+            Rusender, ни через SMTP.BZ.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResendSettingsForm />
         </CardContent>
       </Card>
 

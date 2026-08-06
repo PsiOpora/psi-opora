@@ -1,12 +1,18 @@
 import { publicProcedure, router } from "../orpc";
 import { emailProviderSchema, rusenderSettingsSchema } from "../schemas/rusender";
 import { unisenderSettingsSchema } from "../schemas/unisender";
+import { smtpBzSettingsSchema } from "../schemas/smtp-bz";
+import { resendSettingsSchema } from "../schemas/resend";
 import {
   getEmailProvider,
+  getResendSettings,
   getRusenderSettings,
+  getSmtpBzSettings,
   getUnisenderSettings,
   setEmailProvider,
+  upsertResendSettings,
   upsertRusenderSettings,
+  upsertSmtpBzSettings,
   upsertUnisenderSettings,
 } from "@psi-opora/db/queries";
 
@@ -30,6 +36,28 @@ export const emailRouter = router({
     .input(rusenderSettingsSchema)
     .handler(async ({ input }) => {
       await upsertRusenderSettings(input);
+      return { ok: true };
+    }),
+
+  getSmtpBzSettings: publicProcedure.handler(async () => {
+    return getSmtpBzSettings();
+  }),
+
+  upsertSmtpBzSettings: publicProcedure
+    .input(smtpBzSettingsSchema)
+    .handler(async ({ input }) => {
+      await upsertSmtpBzSettings(input);
+      return { ok: true };
+    }),
+
+  getResendSettings: publicProcedure.handler(async () => {
+    return getResendSettings();
+  }),
+
+  upsertResendSettings: publicProcedure
+    .input(resendSettingsSchema)
+    .handler(async ({ input }) => {
+      await upsertResendSettings(input);
       return { ok: true };
     }),
 
