@@ -36,7 +36,7 @@ permissions:
 jobs:
   detect:
     name: Detect changed services
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.detect.outputs.services }}
     steps:
@@ -116,7 +116,7 @@ jobs:
   infrastructure:
     name: Apply k3s manifests
     needs: detect
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -219,7 +219,7 @@ jobs:
   migrate:
     name: Apply database migrations
     needs: detect
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -275,7 +275,7 @@ jobs:
       - infrastructure
       - migrate
     if: needs.detect.outputs.services != '[]'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       # Matrix запускается как очередь, чтобы важные сервисы из списка
