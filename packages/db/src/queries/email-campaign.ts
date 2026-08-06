@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "../client";
 import {
   emailCampaignRecipients,
@@ -128,6 +128,24 @@ export async function getLastEmailCampaignForStage(
     .orderBy(desc(emailCampaigns.startedAt))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/** Есть ли по шаблону незавершённая рассылка — используется, чтобы не дать удалить шаблон посреди отправки. */
+export async function hasActiveEmailCampaignForTemplate(
+  templateId: string,
+): Promise<boolean> {
+  if (!db) return false;
+  const rows = await db
+    .select({ id: emailCampaigns.id })
+    .from(emailCampaigns)
+    .where(
+      and(
+        eq(emailCampaigns.templateId, templateId),
+        inArray(emailCampaigns.status, ["queued", "running"]),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 export async function getEmailCampaign(

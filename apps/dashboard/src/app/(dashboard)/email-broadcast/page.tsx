@@ -30,15 +30,21 @@ function EmailBroadcastPageContent() {
   const { data: templates = [], isLoading: templatesLoading } = useQuery(
     orpc.emailTemplates.list.queryOptions(),
   );
-  const { data: providerData } = useQuery(orpc.email.getProvider.queryOptions());
-  const { data: unisenderSettings } = useQuery(
-    orpc.email.getSettings.queryOptions(),
+  const { data: providerData, isLoading: providerLoading } = useQuery(
+    orpc.email.getProvider.queryOptions(),
   );
-  const { data: rusenderSettings } = useQuery(
-    orpc.email.getRusenderSettings.queryOptions(),
-  );
+  const { data: unisenderSettings, isLoading: unisenderSettingsLoading } =
+    useQuery(orpc.email.getSettings.queryOptions());
+  const { data: rusenderSettings, isLoading: rusenderSettingsLoading } =
+    useQuery(orpc.email.getRusenderSettings.queryOptions());
 
-  if (isLoading || templatesLoading) {
+  if (
+    isLoading ||
+    templatesLoading ||
+    providerLoading ||
+    unisenderSettingsLoading ||
+    rusenderSettingsLoading
+  ) {
     return <p className="text-sm text-muted-foreground">Загрузка…</p>;
   }
   if (isError) {

@@ -7,27 +7,6 @@ export type DeliverEmailCampaignPayload = {
   campaignId: string;
 };
 
-/** Подставляет {{name}}/{{email}} значениями получателя — для поштучной отправки через Rusender. */
-function renderEmailTemplate(
-  html: string,
-  values: { name?: string | null; email?: string | null },
-): string {
-  return html
-    .replaceAll("{{name}}", values.name ?? "")
-    .replaceAll("{{email}}", values.email ?? "");
-}
-
-/**
- * Заменяет {{name}}/{{email}} на теги подстановки Unisender (%Name%/%email%),
- * совпадающие с field_names у importContacts ниже — для массовой рассылки по
- * списку, где подстановку на каждого получателя делает сам Unisender.
- */
-function toUnisenderTags(html: string): string {
-  return html
-    .replaceAll("{{name}}", "%Name%")
-    .replaceAll("{{email}}", "%email%");
-}
-
 // Ограничение размера пачки importContacts — держим запросы небольшими,
 // чтобы не упереться в лимит тела запроса Unisender (32 МБ) на крупных стадиях.
 const IMPORT_BATCH_SIZE = 500;
@@ -60,7 +39,9 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
       getRusenderSettings,
       getUnisenderSettings,
       listEmailCampaignRecipients,
+      renderEmailTemplate,
       setEmailCampaignUnisenderIds,
+      toUnisenderTags,
       updateEmailCampaignRecipient,
     } = await import("@psi-opora/db/queries");
     const { createUnisenderClient } = await import(

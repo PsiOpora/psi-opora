@@ -1,5 +1,4 @@
-import { getEmailTemplate } from "@psi-opora/db/queries";
-import { renderEmailTemplate } from "../../email-template-render";
+import { getEmailTemplate, renderEmailTemplate } from "@psi-opora/db/queries";
 import { publicProcedure } from "../../orpc";
 import { sendTestEmailSchema } from "../../schemas/broadcast";
 import { getActiveEmailSender } from "./active-sender";
@@ -22,7 +21,10 @@ export const sendTest = publicProcedure
       await sender.sendEmail({
         email: input.email,
         subject,
-        body: renderEmailTemplate(template.htmlBody, { email: input.email }),
+        body: renderEmailTemplate(template.htmlBody, {
+          name: "Иван Иванов",
+          email: input.email,
+        }),
       });
       return { ok: true };
     } catch (err) {

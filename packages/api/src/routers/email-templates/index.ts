@@ -1,6 +1,8 @@
+import { ORPCError } from "@orpc/server";
 import {
   deleteEmailTemplate,
   getEmailTemplate,
+  hasActiveEmailCampaignForTemplate,
   listEmailTemplates,
   saveEmailTemplate,
 } from "@psi-opora/db/queries";
@@ -31,6 +33,13 @@ export const emailTemplatesRouter = router({
   remove: publicProcedure
     .input(emailTemplateIdSchema)
     .handler(async ({ input }) => {
+      const inUse = await hasActiveEmailCampaignForTemplate(input.id);
+      if (inUse) {
+        throw new ORPCError("CONFLICT", {
+          message:
+            "Шаблон используется в незавершённой рассылке — дождитесь её завершения перед удалением",
+        });
+      }
       await deleteEmailTemplate(input.id);
       return { ok: true };
     }),

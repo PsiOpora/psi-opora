@@ -1,5 +1,4 @@
-import { getEmailTemplate } from "@psi-opora/db/queries";
-import { renderEmailTemplate } from "../../email-template-render";
+import { getEmailTemplate, renderEmailTemplate } from "@psi-opora/db/queries";
 import { publicProcedure } from "../../orpc";
 import { templatePreviewSchema } from "../../schemas/broadcast";
 
