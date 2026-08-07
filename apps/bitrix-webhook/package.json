@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1104.0",
+    "@aws-sdk/client-s3": "^3.1105.0",
     "@hono/node-server": "^2.1.0",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bitrix-webhook-api": "workspace:*",
