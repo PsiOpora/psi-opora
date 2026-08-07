@@ -58,7 +58,6 @@ jobs:
       - name: Detect affected services
         id: detect
         run: |
-          # Порядок здесь задаёт приоритет последовательного deploy matrix.
           ALL='["clients","dashboard","tg-bot","max-bot","tg-userbot-worker","hatchet-worker","bitrix-webhook"]'
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -278,9 +277,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # Matrix запускается как очередь, чтобы важные сервисы из списка
-      # needs.detect.outputs.services собирались и выкатывались первыми.
-      max-parallel: 1
       matrix:
         service: ${{ fromJson(needs.detect.outputs.services) }}
 
