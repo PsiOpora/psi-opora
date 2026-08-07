@@ -36,9 +36,13 @@ function isTokenError(error?: string): boolean {
 }
 
 function unwrap(json: RawResponse, method: string): unknown {
-  if (json.error) {
+  // Битрикс24 иногда отдаёт ошибку с пустой строкой в "error" (например,
+  // calendar.event.add на невалидные параметры: {"error":"","error_description":"..."}).
+  // Пустая строка — falsy в JS, поэтому проверяем ещё и error_description,
+  // иначе такая ошибка молча превращается в json.result === undefined.
+  if (json.error || json.error_description) {
     throw new Error(
-      `Bitrix24 [${method}]: ${json.error} — ${json.error_description ?? ""}`,
+      `Bitrix24 [${method}]: ${json.error || "error"} — ${json.error_description ?? ""}`,
     );
   }
   return json.result;

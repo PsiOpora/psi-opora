@@ -123,16 +123,16 @@ async function sendViaRusender(params: {
             from: { email: fromEmail, name: fromName },
             subject: params.subject,
             html: params.html,
-            // У Rusender attachments — не массив, а объект { имяФайла: base64 },
-            // в отличие от Unisender выше; массив [{name, content}] Rusender
-            // молча превращает в файл с буквальным именем "name" и пустым телом.
+            // У Rusender attachments — массив объектов { имяФайла: base64 },
+            // по одному ключу на объект; массив [{name, content}] с
+            // фиксированными ключами "name"/"content" Rusender молча
+            // превращает в файл с буквальным именем "name" и пустым телом,
+            // а единый объединённый объект { f1: b64, f2: b64 } API отклоняет
+            // как "must be an array".
             attachments: params.attachments?.length
-              ? Object.fromEntries(
-                  params.attachments.map((attachment) => [
-                    attachment.filename,
-                    attachment.content.toString("base64"),
-                  ]),
-                )
+              ? params.attachments.map((attachment) => ({
+                  [attachment.filename]: attachment.content.toString("base64"),
+                }))
               : undefined,
           },
         }),
