@@ -2,6 +2,7 @@ import type { BitrixApi } from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
 import {
 	appendReminderSentComment,
+	connectorFromContactIm,
 	DEAL_CATEGORY_ID,
 	extractClientContactId,
 	MESSENGER_CONNECTOR_MAP,
@@ -46,12 +47,18 @@ interface ContactPhone {
 	VALUE?: string;
 }
 
+interface ContactIm {
+	VALUE?: string;
+	VALUE_TYPE?: string;
+}
+
 interface DiagnosticContact {
 	ID?: string | number;
 	NAME?: string;
 	LAST_NAME?: string;
 	EMAIL?: ContactEmail[];
 	PHONE?: ContactPhone[];
+	IM?: ContactIm[];
 }
 
 export interface DiagnosticDealUpdateResult {
@@ -221,22 +228,27 @@ export function buildImmediateDiagnosticMessage(params: {
 async function sendChat(params: {
 	api: BitrixApi;
 	deal: Record<string, unknown>;
+	contact: DiagnosticContact | false;
 	contactId: number;
 	message: string;
 }): Promise<{ status: "sent" | "skipped" | "error"; reason?: string }> {
-	const messengerValue = String(params.deal[MESSENGER_FIELD] ?? "");
-	const connectorContains = MESSENGER_CONNECTOR_MAP[messengerValue];
-	if (!messengerValue || !connectorContains) {
-		return { status: "skipped", reason: "messenger_not_set_or_unknown" };
-	}
 	if (params.contactId <= 0) {
 		return { status: "skipped", reason: "no_client_contact" };
 	}
 
+	const messengerValue = String(params.deal[MESSENGER_FIELD] ?? "");
+	const connectorContains = MESSENGER_CONNECTOR_MAP[messengerValue];
+
+	// Поле "Мессенджер" в сделке — не единственный источник истины: оно могло
+	// не заполниться или содержать незнакомое значение. В этом случае сперва
+	// пробуем определить коннектор по IM-полю контакта (Открытые линии
+	// проставляют туда VALUE_TYPE="IMOL|TELEGRAM"/"IMOL|MAX" и т.п.), а если и
+	// там ничего нет — берём любой активный чат клиента, вместо того чтобы
+	// сразу сдаваться на email.
 	const chatId = await pickChatIdForConnector(
 		params.api,
 		params.contactId,
-		connectorContains,
+		connectorContains ?? connectorFromContactIm(params.contact) ?? "",
 	);
 	if (chatId <= 0) return { status: "skipped", reason: "no_openlines_chat" };
 
@@ -419,7 +431,7 @@ export async function handleDiagnosticDealUpdate(
 				chat = "error";
 				chatReason = "payment_url_not_configured";
 			} else {
-				const result = await sendChat({ api, deal, contactId, message });
+				const result = await sendChat({ api, deal, contact, contactId, message });
 				chat = result.status;
 				chatReason = result.reason;
 			}
@@ -451,7 +463,7 @@ export async function handleDiagnosticDealUpdate(
 						subject:
 							stageId === PAYMENT_PENDING_STAGE_ID
 								? "Диагностическая консультация: оплата и подключение"
-								: "Оплата получена: ссылка на диагностику",
+								: "Диагностическая консультация: ссылка для подключения",
 						text: message,
 					});
 					emailStatus = "sent";

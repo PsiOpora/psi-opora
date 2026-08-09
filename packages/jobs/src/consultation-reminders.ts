@@ -4,6 +4,7 @@ import { getScenarioTexts } from "@psi-opora/bot-core";
 import { findContactEmail } from "./diagnostic-scheduling";
 import {
   appendReminderSentComment,
+  connectorFromContactIm,
   DEAL_CATEGORY_ID,
   DEAL_STAGE_IDS,
   extractClientContactId,
@@ -647,15 +648,7 @@ async function trySendOneHourReminder(
     | false
   >("crm.contact.get", { id: clientContactId });
   const clientName = contact ? String(contact.NAME ?? "").trim() : "";
-
-  // Поле IM у контакта Bitrix24 синхронизируется Открытыми линиями: для
-  // клиента, писавшего через коннектор, там появляется запись вида
-  // VALUE_TYPE="IMOL|TELEGRAM" / "IMOL|MAX" — надёжнее поля "Мессенджер"
-  // в сделке, которое менеджер мог не проставить руками.
-  const connectorFromContactIm = (contact ? contact.IM ?? [] : [])
-    .map((entry) => String(entry.VALUE_TYPE ?? ""))
-    .filter((type) => type.startsWith("IMOL|"))
-    .map((type) => type.slice("IMOL|".length).toLowerCase())[0];
+  const connectorFromIm = connectorFromContactIm(contact);
 
   const message = renderReminderMessage(template, {
     name: clientName,
@@ -680,7 +673,7 @@ async function trySendOneHourReminder(
   const chatId = await pickChatIdForConnector(
     api,
     clientContactId,
-    connectorContains ?? connectorFromContactIm ?? "",
+    connectorContains ?? connectorFromIm ?? "",
   );
   if (chatId <= 0) {
     reasons.push("no_openlines_chat");

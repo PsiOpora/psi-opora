@@ -105,6 +105,21 @@ interface OpenLinesChat {
   CONNECTOR_ID?: string;
 }
 
+/**
+ * Поле IM у контакта Bitrix24 синхронизируется Открытыми линиями: для
+ * клиента, писавшего через коннектор, там появляется запись вида
+ * VALUE_TYPE="IMOL|TELEGRAM" / "IMOL|MAX" — надёжнее поля "Мессенджер" в
+ * сделке, которое менеджер мог не проставить руками.
+ */
+export function connectorFromContactIm(
+  contact: { IM?: Array<{ VALUE?: string; VALUE_TYPE?: string }> } | false,
+): string | undefined {
+  return (contact ? contact.IM ?? [] : [])
+    .map((entry) => String(entry.VALUE_TYPE ?? ""))
+    .filter((type) => type.startsWith("IMOL|"))
+    .map((type) => type.slice("IMOL|".length).toLowerCase())[0];
+}
+
 export async function pickChatIdForConnector(
   api: BitrixApi,
   clientContactId: number,
