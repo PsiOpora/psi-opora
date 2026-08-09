@@ -39,6 +39,28 @@ function dealStateKey(dealId: number): string {
   return `consult-reminder:deal:${dealId}`;
 }
 
+function dealLockKey(dealId: number): string {
+  return `consult-reminder:lock:${dealId}`;
+}
+
+// Вебхук ONCRMDEALUPDATE и периодический resyncFromRest (см. ниже) могут
+// одновременно обрабатывать одну и ту же сделку — без лока оба читают ещё
+// не обновлённое состояние в Redis и оба создают активность/событие
+// календаря, отсюда дублирующиеся записи.
+const LOCK_TTL_MS = 60_000;
+
+async function releaseLock(
+  redis: RedisClient,
+  key: string,
+  token: string,
+): Promise<void> {
+  await redis.eval(
+    "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+    [key],
+    [token],
+  );
+}
+
 const INDEX_KEY = "consult-reminder:index";
 
 interface ConsultationState {
@@ -339,6 +361,24 @@ export async function handleConsultationDealUpdate(
   redis: RedisClient,
   dealId: number,
 ): Promise<ConsultationDealUpdateResult> {
+  const key = dealLockKey(dealId);
+  const token = crypto.randomUUID();
+  const acquired = await redis.set(key, token, { px: LOCK_TTL_MS, nx: true });
+  if (!acquired) {
+    return { action: "skip", reason: "locked" };
+  }
+  try {
+    return await handleConsultationDealUpdateLocked(api, redis, dealId);
+  } finally {
+    await releaseLock(redis, key, token);
+  }
+}
+
+async function handleConsultationDealUpdateLocked(
+  api: BitrixApi,
+  redis: RedisClient,
+  dealId: number,
+): Promise<ConsultationDealUpdateResult> {
   const deal = await api.call<Record<string, unknown> | false>("crm.deal.get", {
     id: dealId,
   });
@@ -602,10 +642,20 @@ async function trySendOneHourReminder(
     | {
         NAME?: string;
         EMAIL?: Array<{ VALUE?: string }>;
+        IM?: Array<{ VALUE?: string; VALUE_TYPE?: string }>;
       }
     | false
   >("crm.contact.get", { id: clientContactId });
   const clientName = contact ? String(contact.NAME ?? "").trim() : "";
+
+  // Поле IM у контакта Bitrix24 синхронизируется Открытыми линиями: для
+  // клиента, писавшего через коннектор, там появляется запись вида
+  // VALUE_TYPE="IMOL|TELEGRAM" / "IMOL|MAX" — надёжнее поля "Мессенджер"
+  // в сделке, которое менеджер мог не проставить руками.
+  const connectorFromContactIm = (contact ? contact.IM ?? [] : [])
+    .map((entry) => String(entry.VALUE_TYPE ?? ""))
+    .filter((type) => type.startsWith("IMOL|"))
+    .map((type) => type.slice("IMOL|".length).toLowerCase())[0];
 
   const message = renderReminderMessage(template, {
     name: clientName,
@@ -616,28 +666,35 @@ async function trySendOneHourReminder(
   const reasons: string[] = [];
   let hadError = false;
 
-  if (!messengerValue || !connectorContains) {
-    reasons.push("messenger_not_set_or_unknown");
+  // Поле "Мессенджер" в сделке — не единственный источник истины: оно
+  // могло не заполниться или содержать незнакомое значение. В этом случае
+  // сперва пробуем определить коннектор по IM-полю контакта (см. выше), а
+  // если и там ничего нет — берём любой активный чат клиента, вместо того
+  // чтобы сразу сдаваться на email.
+  if (!messengerValue) {
+    reasons.push("messenger_not_set");
+  } else if (!connectorContains) {
+    reasons.push("messenger_unknown_value");
+  }
+
+  const chatId = await pickChatIdForConnector(
+    api,
+    clientContactId,
+    connectorContains ?? connectorFromContactIm ?? "",
+  );
+  if (chatId <= 0) {
+    reasons.push("no_openlines_chat");
   } else {
-    const chatId = await pickChatIdForConnector(
-      api,
-      clientContactId,
-      connectorContains,
-    );
-    if (chatId <= 0) {
-      reasons.push("no_openlines_chat");
+    const sent = await api.call("imopenlines.bot.session.message.send", {
+      CHAT_ID: chatId,
+      NAME: "DEFAULT",
+      MESSAGE: message,
+    });
+    if (sent) {
+      delivered.push("чат");
     } else {
-      const sent = await api.call("imopenlines.bot.session.message.send", {
-        CHAT_ID: chatId,
-        NAME: "DEFAULT",
-        MESSAGE: message,
-      });
-      if (sent) {
-        delivered.push("чат");
-      } else {
-        reasons.push("chat_send_failed");
-        hadError = true;
-      }
+      reasons.push("chat_send_failed");
+      hadError = true;
     }
   }
 

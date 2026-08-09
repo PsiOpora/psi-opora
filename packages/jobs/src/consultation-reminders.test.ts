@@ -10,13 +10,27 @@ class MemoryRedis {
     return (this.values.get(key) as T | undefined) ?? null;
   }
 
-  async set(key: string, value: unknown): Promise<"OK"> {
+  async set(
+    key: string,
+    value: unknown,
+    options?: { nx?: boolean },
+  ): Promise<"OK" | null> {
+    if (options?.nx && this.values.has(key)) return null;
     this.values.set(key, value);
     return "OK";
   }
 
   async sadd(): Promise<number> {
     return 1;
+  }
+
+  async eval(_script: string, keys: string[], args: unknown[]) {
+    const key = keys[0];
+    if (key && this.values.get(key) === args[0]) {
+      this.values.delete(key);
+      return 1;
+    }
+    return 0;
   }
 }
 
