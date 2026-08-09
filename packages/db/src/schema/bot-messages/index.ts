@@ -67,6 +67,10 @@ export const botMessages = pgTable(
 		 * вместо него отдаёт безопасную заглушку. */
 		deletedAt: timestamp("deleted_at"),
 		deletedByOperatorId: text("deleted_by_operator_id"),
+		/** Когда гайд-PDF из этого сообщения (message.guide) был продублирован
+		 * клиенту на email — см. dispatchScenarioOutput/sendGuideEmail. Null,
+		 * если письмо сценарием не предусмотрено или отправка не удалась. */
+		guideEmailSentAt: timestamp("guide_email_sent_at"),
 	},
 	(table) => [
 		index("bot_messages_user_idx").on(

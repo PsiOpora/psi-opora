@@ -7,6 +7,7 @@ import {
 	CheckIcon,
 	CircleAlertIcon,
 	HeadsetIcon,
+	MailCheckIcon,
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
@@ -38,6 +39,10 @@ export interface ThreadMessage {
 	/** Только для telegram-personal/whatsapp-personal — с какого из нескольких
 	 * личных номеров портала отправлено/получено сообщение. */
 	connectorId?: string | null;
+	/** Когда гайд-PDF из этого сообщения был продублирован клиенту на email
+	 * (см. bot_messages.guide_email_sent_at) — null/undefined, если письмо
+	 * сценарием не предусмотрено или не отправилось. */
+	guideEmailSentAt?: string | null;
 }
 
 /** Доставку/прочтение сейчас отдаёт только WAHA (WhatsApp) — для остальных
@@ -296,6 +301,18 @@ export function MessageList({
 									<>
 										<span>·</span>
 										<span>{phoneLabel}</span>
+									</>
+								)}
+								{item.guideEmailSentAt && (
+									<>
+										<span>·</span>
+										<span
+											className="flex items-center gap-0.5"
+											title={`Гайд продублирован на email: ${formatTime(item.guideEmailSentAt)}`}
+										>
+											<MailCheckIcon className="size-3" />
+											гайд отправлен на почту
+										</span>
 									</>
 								)}
 								{item.pending && <span>· отправляется…</span>}

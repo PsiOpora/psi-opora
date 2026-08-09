@@ -1,3 +1,4 @@
+import { markBotMessageGuideEmailSent } from "@psi-opora/db/queries";
 import type { RedisClient } from "../storage/redis";
 import { appendDealComment } from "../utils/bitrix";
 import {
@@ -43,7 +44,7 @@ export async function dispatchScenarioOutput(
 ): Promise<void> {
   for (const message of out.messages) {
     await deps.sendMessage(message);
-    await logBotMessage({
+    const messageId = await logBotMessage({
       messenger: deps.messenger,
       userId: deps.userId,
       direction: "out",
@@ -61,6 +62,7 @@ export async function dispatchScenarioOutput(
             deps.texts.email_subject,
             deps.texts.email_body,
           );
+          if (messageId) await markBotMessageGuideEmailSent(messageId);
         }
       } catch (err) {
         // Гайд уже ушёл в чат — без письма диалог не ломаем

@@ -165,6 +165,7 @@ export function ThreadPane({
 						kind: m.kind,
 						mediaUrl: m.mediaUrl,
 						connectorId: m.connectorId,
+						guideEmailSentAt: m.guideEmailSentAt,
 					})),
 				);
 				sinceRef.current = latestUpdatedAt(threadRes.messages);
@@ -234,6 +235,7 @@ export function ThreadPane({
 							kind: m.kind,
 							mediaUrl: m.mediaUrl,
 							connectorId: m.connectorId,
+							guideEmailSentAt: m.guideEmailSentAt,
 						})),
 					),
 				);

@@ -237,6 +237,21 @@ export async function setBotMessageBitrixExternalId(
 		.where(eq(botMessages.id, id));
 }
 
+/** Отмечает, что гайд-PDF из этого сообщения продублирован клиенту на email
+ * (см. dispatchScenarioOutput/sendGuideEmail) — инбокс «Клиенты» показывает
+ * это в треде. */
+export async function markBotMessageGuideEmailSent(
+	db: Database,
+	id: string,
+): Promise<void> {
+	if (!db) return;
+	const now = new Date();
+	await db
+		.update(botMessages)
+		.set({ guideEmailSentAt: now, updatedAt: now })
+		.where(eq(botMessages.id, id));
+}
+
 /** Последние сообщения диалога с клиентом (новые первыми). */
 export async function listBotMessages(
 	db: Database,

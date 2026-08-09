@@ -20,14 +20,18 @@ export interface BotMessageLogEntry {
 /**
  * Пишет сообщение в журнал bot_messages. Ошибки записи не должны
  * ломать диалог с клиентом — логируются и глотаются.
+ * Возвращает id записи (undefined при ошибке) — нужен, например, чтобы потом
+ * отметить на этом же сообщении отправку гайда на email.
  */
-export async function logBotMessage(entry: BotMessageLogEntry): Promise<void> {
-  if (entry.userId === undefined || entry.userId === null) return;
+export async function logBotMessage(
+  entry: BotMessageLogEntry,
+): Promise<string | undefined> {
+  if (entry.userId === undefined || entry.userId === null) return undefined;
   const text = entry.text.trim();
-  if (!text) return;
+  if (!text) return undefined;
 
   try {
-    await insertBotMessage({
+    return await insertBotMessage({
       messenger: entry.messenger,
       userId: String(entry.userId),
       direction: entry.direction,
@@ -45,5 +49,6 @@ export async function logBotMessage(entry: BotMessageLogEntry): Promise<void> {
       error.cause ?? "",
       error.stack ?? "",
     );
+    return undefined;
   }
 }

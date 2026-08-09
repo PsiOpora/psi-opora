@@ -35,6 +35,7 @@ import {
 	listBotMessagesSince as _listBotMessagesSince,
 	listClientsWithLastMessage as _listClientsWithLastMessage,
 	markBotMessageDeleted as _markBotMessageDeleted,
+	markBotMessageGuideEmailSent as _markBotMessageGuideEmailSent,
 	setBotMessageBitrixExternalId as _setBotMessageBitrixExternalId,
 	updateBotMessageExternalResult as _updateBotMessageExternalResult,
 	updateBotMessageStatus as _updateBotMessageStatus,
@@ -167,6 +168,10 @@ export async function setBotMessageBitrixExternalId(
 	bitrixExternalId: string,
 ): Promise<void> {
 	return _setBotMessageBitrixExternalId(db, id, bitrixExternalId);
+}
+
+export async function markBotMessageGuideEmailSent(id: string): Promise<void> {
+	return _markBotMessageGuideEmailSent(db, id);
 }
 
 export async function updateBotMessageStatus(

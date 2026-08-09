@@ -347,35 +347,46 @@ export async function handleDiagnosticDealUpdate(
 		let calendarEventId = previous?.calendarEventId ?? 0;
 		let action: DiagnosticDealUpdateResult["action"] = "unchanged";
 
-		if (!calendarEventId) {
-			calendarEventId = Number(
-				await api.call("calendar.event.add", {
-					...fields,
-					auto_detect_section: "Y",
-				}),
-			);
-			if (!calendarEventId) throw new Error("Bitrix24 не вернул ID события");
-			action = "created";
-		} else if (previous?.diagnosticAt !== diagnosticAt) {
-			try {
-				await api.call("calendar.event.update", {
-					id: calendarEventId,
-					...fields,
-				});
-				action = "updated";
-			} catch (error) {
-				console.warn(
-					`[diagnostic-schedule] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
-				);
+		// Ошибка календаря (например, "Доступ запрещен" из-за прав на чужой
+		// календарь в Bitrix24) не должна останавливать всю обработку — иначе
+		// сообщение клиенту об оплате/подключении к диагностике вообще не
+		// уйдёт, а каждый повторный ONCRMDEALUPDATE будет заново падать здесь.
+		try {
+			if (!calendarEventId) {
 				calendarEventId = Number(
 					await api.call("calendar.event.add", {
 						...fields,
 						auto_detect_section: "Y",
 					}),
 				);
-				if (!calendarEventId) throw error;
+				if (!calendarEventId) throw new Error("Bitrix24 не вернул ID события");
 				action = "created";
+			} else if (previous?.diagnosticAt !== diagnosticAt) {
+				try {
+					await api.call("calendar.event.update", {
+						id: calendarEventId,
+						...fields,
+					});
+					action = "updated";
+				} catch (error) {
+					console.warn(
+						`[diagnostic-schedule] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
+					);
+					calendarEventId = Number(
+						await api.call("calendar.event.add", {
+							...fields,
+							auto_detect_section: "Y",
+						}),
+					);
+					if (!calendarEventId) throw error;
+					action = "created";
+				}
 			}
+		} catch (error) {
+			console.error(
+				`[diagnostic-schedule] не удалось синхронизировать событие календаря для сделки ${dealId}: ${(error as Error).message}`,
+			);
+			calendarEventId = previous?.calendarEventId ?? 0;
 		}
 
 		let state: DiagnosticScheduleState = {

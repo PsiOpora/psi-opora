@@ -222,6 +222,27 @@ async function syncConsultationCalendarEvent(params: {
   return calendarEventId;
 }
 
+/**
+ * Обёртка над syncConsultationCalendarEvent: ошибка календаря (например,
+ * "Доступ запрещен" из-за прав на чужой календарь в Bitrix24) не должна
+ * блокировать сохранение состояния сделки — иначе Bitrix24 повторно шлёт
+ * ONCRMDEALUPDATE на каждое техническое сохранение поля, состояние в Redis
+ * никогда не обновляется, и код заново завершает/создаёт CRM-активность на
+ * каждый повтор, дублируя записи в сделке.
+ */
+async function safeSyncConsultationCalendarEvent(
+  params: Parameters<typeof syncConsultationCalendarEvent>[0],
+): Promise<number | undefined> {
+  try {
+    return await syncConsultationCalendarEvent(params);
+  } catch (error) {
+    console.error(
+      `[consultation-reminder] не удалось синхронизировать событие календаря для сделки ${params.dealId}: ${(error as Error).message}`,
+    );
+    return params.previousCalendarEventId;
+  }
+}
+
 async function readState(
   redis: RedisClient,
   dealId: number,
@@ -303,7 +324,7 @@ export type ConsultationDealUpdateResult =
       newConsultationAt: string;
       oldActivityId: number;
       newActivityId: number | null;
-      calendarEventId: number;
+      calendarEventId?: number;
       completedOld: boolean;
     };
 
@@ -345,7 +366,7 @@ export async function handleConsultationDealUpdate(
   const contactId = extractClientContactId(deal);
 
   if (!state?.lastConsultationAt) {
-    const calendarEventId = await syncConsultationCalendarEvent({
+    const calendarEventId = await safeSyncConsultationCalendarEvent({
       api,
       dealId,
       deal,
@@ -359,11 +380,13 @@ export async function handleConsultationDealUpdate(
       reminderSentAt: null,
       updatedAt: now,
     });
-    await appendReminderSentComment(
-      api,
-      dealId,
-      `📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${calendarEventId}.`,
-    );
+    if (calendarEventId) {
+      await appendReminderSentComment(
+        api,
+        dealId,
+        `📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${calendarEventId}.`,
+      );
+    }
     return {
       action: "init",
       lastConsultationAt: newConsultationAt,
@@ -383,7 +406,7 @@ export async function handleConsultationDealUpdate(
 
   const oldTs = toTimestamp(oldConsultationAt);
   if (oldTs > 0 && oldTs <= Date.now()) {
-    const calendarEventId = await syncConsultationCalendarEvent({
+    const calendarEventId = await safeSyncConsultationCalendarEvent({
       api,
       dealId,
       deal,
@@ -421,7 +444,7 @@ export async function handleConsultationDealUpdate(
     oldConsultationAt,
   );
   if (!oldActivity) {
-    const calendarEventId = await syncConsultationCalendarEvent({
+    const calendarEventId = await safeSyncConsultationCalendarEvent({
       api,
       dealId,
       deal,
@@ -480,7 +503,7 @@ export async function handleConsultationDealUpdate(
     );
   }
 
-  const calendarEventId = await syncConsultationCalendarEvent({
+  const calendarEventId = await safeSyncConsultationCalendarEvent({
     api,
     dealId,
     deal,
@@ -499,11 +522,13 @@ export async function handleConsultationDealUpdate(
     updatedAt: now,
   });
 
-  await appendReminderSentComment(
-    api,
-    dealId,
-    `📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${calendarEventId}.`,
-  );
+  if (calendarEventId) {
+    await appendReminderSentComment(
+      api,
+      dealId,
+      `📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${calendarEventId}.`,
+    );
+  }
 
   return {
     action: "recreate",

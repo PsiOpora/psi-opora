@@ -127,6 +127,9 @@ export interface ClientMessageItem {
 	 * личных номеров портала отправлено/получено сообщение (см.
 	 * bot_messages.connector_id). */
 	connectorId: string | null;
+	/** Когда гайд-PDF из этого сообщения был продублирован клиенту на email —
+	 * null, если письмо сценарием не предусмотрено или не отправилось. */
+	guideEmailSentAt: string | null;
 }
 
 /** Формирует публичный URL для аватара, который уже загружен в S3. */
@@ -198,6 +201,7 @@ export function toClientMessageItem(
 		mediaMimeType: row.mediaMimeType,
 		mediaDurationSec: row.mediaDurationSec,
 		connectorId: row.connectorId,
+		guideEmailSentAt: row.guideEmailSentAt?.toISOString() ?? null,
 	};
 }
 
