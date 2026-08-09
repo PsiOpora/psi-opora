@@ -68,14 +68,24 @@ const MERGE_PLAN: Record<string, MergePlanEntry> = {
 };
 
 type StatusEntry = { ID: string | number; STATUS_ID: string; NAME: string };
+type BitrixItem = { id: string | number; [key: string]: unknown };
+type BitrixResponse = {
+  result?: unknown;
+  error?: string;
+  error_description?: string;
+  next?: number;
+};
 
-async function call(method: string, params: Record<string, unknown> = {}): Promise<any> {
+async function call(
+  method: string,
+  params: Record<string, unknown> = {},
+): Promise<BitrixResponse> {
   const resp = await fetch(WEBHOOK + method, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
   });
-  const data = await resp.json();
+  const data = (await resp.json()) as BitrixResponse;
   if (data.error) {
     throw new Error(`${method} failed: ${data.error_description || data.error}`);
   }
@@ -110,8 +120,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function batchCall(cmd: Record<string, [string, Record<string, unknown>]>) {
   const entries = Object.entries(cmd);
-  const results: Record<string, any> = {};
-  const errors: Record<string, any> = {};
+  const results: Record<string, unknown> = {};
+  const errors: Record<string, unknown> = {};
   for (let i = 0; i < entries.length; i += 50) {
     const chunk = entries.slice(i, i + 50);
     const encoded: Record<string, string> = {};
@@ -120,8 +130,9 @@ async function batchCall(cmd: Record<string, [string, Record<string, unknown>]>)
       encoded[key] = `${method}?${qs}`;
     }
     const data = await call("batch", { halt: 0, cmd: encoded });
-    Object.assign(results, data.result.result);
-    Object.assign(errors, data.result.result_error || {});
+    const batchResult = data.result as { result?: Record<string, unknown>; result_error?: Record<string, unknown> };
+    Object.assign(results, batchResult.result);
+    Object.assign(errors, batchResult.result_error || {});
     await sleep(300);
   }
   return { results, errors };
@@ -150,10 +161,12 @@ const sourceFieldSupport = new Map<number, boolean>();
 async function entitySupportsSource(entityTypeId: number): Promise<boolean> {
   if (!sourceFieldSupport.has(entityTypeId)) {
     const data = await call("crm.item.fields", { entityTypeId });
-    const fields = data.result?.fields || {};
+    const fields = (data.result as { fields?: Record<string, unknown> } | undefined)?.fields || {};
     sourceFieldSupport.set(entityTypeId, "sourceId" in fields);
   }
-  return sourceFieldSupport.get(entityTypeId)!;
+  const supported = sourceFieldSupport.get(entityTypeId);
+  if (supported === undefined) throw new Error(`entitySupportsSource: missing cache entry for ${entityTypeId}`);
+  return supported;
 }
 
 // Returns null (not []) if this entity type has no sourceId field at all,
@@ -162,10 +175,10 @@ async function findItemsBySource(
   entityTypeId: number,
   sourceCodes: string[],
   select: string[] = ["id"],
-): Promise<any[] | null> {
+): Promise<BitrixItem[] | null> {
   if (!(await entitySupportsSource(entityTypeId))) return null;
 
-  const found: any[] = [];
+  const found: BitrixItem[] = [];
   let start = 0;
   const seenStarts = new Set<number>();
   while (true) {
@@ -175,7 +188,7 @@ async function findItemsBySource(
       filter: { "@sourceId": sourceCodes },
       start,
     });
-    const result = data.result || {};
+    const result = (data.result as { items?: BitrixItem[]; next?: number } | undefined) || {};
     const items = Array.isArray(result.items) ? result.items : [];
     found.push(...items);
     const nxt = data.next ?? result.next ?? null;
@@ -261,7 +274,7 @@ type WorkItem = {
   canonicalCode: string;
   entityName: string;
   entityTypeId: number;
-  items: any[];
+  items: BitrixItem[];
 };
 
 async function collectApplyPlan(byName: Map<string, StatusEntry[]>) {
@@ -273,7 +286,11 @@ async function collectApplyPlan(byName: Map<string, StatusEntry[]>) {
       skipped.push(`${canonical}: не найден исходник «${cfg.renameFrom}»`);
       continue;
     }
-    const canonicalEntry = byName.get(cfg.renameFrom)![0];
+    const canonicalEntry = byName.get(cfg.renameFrom)?.[0];
+    if (!canonicalEntry) {
+      skipped.push(`${canonical}: не найден исходник «${cfg.renameFrom}»`);
+      continue;
+    }
     const canonicalId = canonicalEntry.ID;
     const canonicalCode = canonicalEntry.STATUS_ID;
 
@@ -347,7 +364,8 @@ async function applyMerge() {
 
   for (const [canonical, cfg] of Object.entries(MERGE_PLAN)) {
     if (!byName.has(cfg.renameFrom)) continue;
-    const canonicalId = byName.get(cfg.renameFrom)![0].ID;
+    const canonicalId = byName.get(cfg.renameFrom)?.[0]?.ID;
+    if (canonicalId === undefined) continue;
     console.log(`Переименовываю directory ID=${canonicalId} «${cfg.renameFrom}» -> «${canonical}»`);
     try {
       await call("crm.status.update", { id: canonicalId, fields: { NAME: canonical } });

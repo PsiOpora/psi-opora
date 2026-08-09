@@ -134,14 +134,16 @@ function setNestedValue(
 ): void {
 	let cursor: Record<string, unknown> = target;
 	for (let i = 0; i < path.length - 1; i++) {
-		const key = path[i]!;
-		const nextIsIndex = /^\d+$/.test(path[i + 1]!);
+		const key = path[i];
+		if (key === undefined) continue;
+		const nextIsIndex = /^\d+$/.test(path[i + 1] ?? "");
 		if (typeof cursor[key] !== "object" || cursor[key] === null) {
 			cursor[key] = nextIsIndex ? [] : {};
 		}
 		cursor = cursor[key] as Record<string, unknown>;
 	}
-	cursor[path[path.length - 1]!] = coerceNumeric(value);
+	const lastKey = path[path.length - 1];
+	if (lastKey !== undefined) cursor[lastKey] = coerceNumeric(value);
 }
 
 /**

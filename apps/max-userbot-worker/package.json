@@ -1,24 +1,24 @@
 {
-	"name": "@psi-opora/max-userbot-worker",
-	"version": "0.0.1",
-	"private": true,
-	"type": "module",
-	"scripts": {
-		"build": "tsdown",
-		"start": "bun dist/index.mjs",
-		"dev": "bun --watch src/index.ts",
-		"typecheck": "tsc --noEmit"
-	},
-	"dependencies": {
-		"@psi-opora/bitrix-client": "workspace:*",
-		"@psi-opora/db": "workspace:*",
-		"@psi-opora/max-userbot": "workspace:*"
-	},
-	"devDependencies": {
-		"@psi-opora/tsconfig": "workspace:*",
-		"@types/bun": "1.3.14",
-		"@types/node": "26.1.2",
-		"tsdown": "^0.22.14",
-		"typescript": "6.0.3"
-	}
+  "name": "@psi-opora/max-userbot-worker",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "start": "bun dist/index.mjs",
+    "dev": "bun --watch src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@psi-opora/bitrix-client": "workspace:*",
+    "@psi-opora/db": "workspace:*",
+    "@psi-opora/max-userbot": "workspace:*"
+  },
+  "devDependencies": {
+    "@psi-opora/tsconfig": "workspace:*",
+    "@types/bun": "1.3.14",
+    "@types/node": "26.2.0",
+    "tsdown": "^0.22.14",
+    "typescript": "6.0.3"
+  }
 }
