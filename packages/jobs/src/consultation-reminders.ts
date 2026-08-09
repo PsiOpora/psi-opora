@@ -81,12 +81,18 @@ interface ConsultationContactPhone {
   VALUE?: string;
 }
 
+interface ConsultationContactIm {
+  VALUE?: string;
+  VALUE_TYPE?: string;
+}
+
 interface ConsultationContact {
   ID?: string | number;
   NAME?: string;
   LAST_NAME?: string;
   EMAIL?: ConsultationContactEmail[];
   PHONE?: ConsultationContactPhone[];
+  IM?: ConsultationContactIm[];
 }
 
 // Владелец события — Андрей Клюев (RESPONSIBLE_USER_ID). Переменная окружения
@@ -428,6 +434,13 @@ async function handleConsultationDealUpdateLocked(
         `📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${calendarEventId}.`,
       );
     }
+    await sendConsultationBookedNotification(
+      api,
+      dealId,
+      deal,
+      contactId,
+      newConsultationAt,
+    );
     return {
       action: "init",
       lastConsultationAt: newConsultationAt,
@@ -571,6 +584,14 @@ async function handleConsultationDealUpdateLocked(
     );
   }
 
+  await sendConsultationBookedNotification(
+    api,
+    dealId,
+    deal,
+    contactId,
+    newConsultationAt,
+  );
+
   return {
     action: "recreate",
     oldConsultationAt,
@@ -591,6 +612,138 @@ export interface SendConsultationRemindersResult {
     action: "sent" | "skip" | "error";
     reason?: string;
   }>;
+}
+
+/**
+ * Отправляет сообщение клиенту в чат Открытой линии и/или на email —
+ * общая доставка для уведомления о записи и напоминания за час. Поле
+ * "Мессенджер" в сделке — не единственный источник истины: если оно не
+ * заполнено/не распознано, сперва пробуем определить коннектор по
+ * IM-полю контакта (Открытые линии проставляют туда
+ * VALUE_TYPE="IMOL|TELEGRAM"/"IMOL|MAX" и т.п.), а если и там ничего
+ * нет — берём любой активный чат клиента, вместо того чтобы сразу
+ * сдаваться на email.
+ */
+async function deliverConsultationMessage(params: {
+  api: BitrixApi;
+  deal: Record<string, unknown>;
+  contactId: number;
+  contact: ConsultationContact | false;
+  message: string;
+  emailSubject: string;
+}): Promise<{ delivered: string[]; reasons: string[]; hadError: boolean }> {
+  const { api, deal, contactId, contact, message, emailSubject } = params;
+  const messengerValue = String(deal[MESSENGER_FIELD] ?? "");
+  const connectorContains = MESSENGER_CONNECTOR_MAP[messengerValue];
+  const connectorFromIm = connectorFromContactIm(contact);
+
+  const delivered: string[] = [];
+  const reasons: string[] = [];
+  let hadError = false;
+
+  if (!messengerValue) {
+    reasons.push("messenger_not_set");
+  } else if (!connectorContains) {
+    reasons.push("messenger_unknown_value");
+  }
+
+  const chatId = await pickChatIdForConnector(
+    api,
+    contactId,
+    connectorContains ?? connectorFromIm ?? "",
+  );
+  if (chatId <= 0) {
+    reasons.push("no_openlines_chat");
+  } else {
+    const sent = await api.call("imopenlines.bot.session.message.send", {
+      CHAT_ID: chatId,
+      NAME: "DEFAULT",
+      MESSAGE: message,
+    });
+    if (sent) {
+      delivered.push("чат");
+    } else {
+      reasons.push("chat_send_failed");
+      hadError = true;
+    }
+  }
+
+  const email = findContactEmail(contact);
+  if (!email) {
+    reasons.push("contact_email_empty");
+  } else {
+    try {
+      const { sendDiagnosticEmail } = await import("./diagnostic-email");
+      await sendDiagnosticEmail({ to: email, subject: emailSubject, text: message });
+      delivered.push(`email ${email}`);
+    } catch (error) {
+      reasons.push(`email_send_failed: ${(error as Error).message}`);
+      hadError = true;
+    }
+  }
+
+  return { delivered, reasons, hadError };
+}
+
+/**
+ * Уведомление клиенту сразу после записи (или переноса) — отдельно от
+ * напоминания за час: раньше при первой записи на консультацию клиент
+ * вообще не получал сообщения о том, на какое время он записан, только
+ * менеджер видел комментарий в таймлайне сделки.
+ */
+async function sendConsultationBookedNotification(
+  api: BitrixApi,
+  dealId: number,
+  deal: Record<string, unknown>,
+  contactId: number,
+  consultationAt: string,
+): Promise<void> {
+  if (contactId <= 0) {
+    console.error(
+      `[consultation-reminder] не удалось отправить уведомление о записи для сделки ${dealId}: нет контакта клиента`,
+    );
+    return;
+  }
+
+  const texts = await getScenarioTexts();
+  const template = texts.consultation_booked_template?.trim();
+  if (!template) {
+    console.error(
+      `[consultation-reminder] не удалось отправить уведомление о записи для сделки ${dealId}: пустой шаблон consultation_booked_template`,
+    );
+    return;
+  }
+
+  const contact = await api.call<ConsultationContact | false>("crm.contact.get", {
+    id: contactId,
+  });
+  const clientName = consultationContactName(contact);
+  const message = renderReminderMessage(template, {
+    name: clientName,
+    time: formatConsultationDate(consultationAt),
+  });
+
+  const { delivered, reasons } = await deliverConsultationMessage({
+    api,
+    deal,
+    contactId,
+    contact,
+    message,
+    emailSubject: "Вы записаны на бесплатную консультацию",
+  });
+
+  if (delivered.length === 0) {
+    console.error(
+      `[consultation-reminder] не удалось доставить уведомление о записи для сделки ${dealId}: ${reasons.join(", ")}`,
+    );
+    return;
+  }
+
+  await appendReminderSentComment(
+    api,
+    dealId,
+    `✅ Уведомление о записи на консультацию (${formatConsultationDate(consultationAt)} МСК) отправлено: ${delivered.join(" и ")} — ${formatMoscowDateTime()}`,
+  );
 }
 
 async function trySendOneHourReminder(
@@ -628,9 +781,6 @@ async function trySendOneHourReminder(
     return { action: "skip", reason: "deal_consultation_dt_empty" };
   }
 
-  const messengerValue = String(deal[MESSENGER_FIELD] ?? "");
-  const connectorContains = MESSENGER_CONNECTOR_MAP[messengerValue];
-
   const clientContactId = extractClientContactId(deal);
   if (clientContactId <= 0)
     return { action: "skip", reason: "no_client_contact" };
@@ -639,75 +789,24 @@ async function trySendOneHourReminder(
   const template = texts.consultation_reminder_template?.trim();
   if (!template) return { action: "skip", reason: "empty_template_message" };
 
-  const contact = await api.call<
-    | {
-        NAME?: string;
-        EMAIL?: Array<{ VALUE?: string }>;
-        IM?: Array<{ VALUE?: string; VALUE_TYPE?: string }>;
-      }
-    | false
-  >("crm.contact.get", { id: clientContactId });
-  const clientName = contact ? String(contact.NAME ?? "").trim() : "";
-  const connectorFromIm = connectorFromContactIm(contact);
+  const contact = await api.call<ConsultationContact | false>("crm.contact.get", {
+    id: clientContactId,
+  });
+  const clientName = consultationContactName(contact);
 
   const message = renderReminderMessage(template, {
     name: clientName,
     time: formatConsultationTime(dealConsultationAt),
   });
 
-  const delivered: string[] = [];
-  const reasons: string[] = [];
-  let hadError = false;
-
-  // Поле "Мессенджер" в сделке — не единственный источник истины: оно
-  // могло не заполниться или содержать незнакомое значение. В этом случае
-  // сперва пробуем определить коннектор по IM-полю контакта (см. выше), а
-  // если и там ничего нет — берём любой активный чат клиента, вместо того
-  // чтобы сразу сдаваться на email.
-  if (!messengerValue) {
-    reasons.push("messenger_not_set");
-  } else if (!connectorContains) {
-    reasons.push("messenger_unknown_value");
-  }
-
-  const chatId = await pickChatIdForConnector(
+  const { delivered, reasons, hadError } = await deliverConsultationMessage({
     api,
-    clientContactId,
-    connectorContains ?? connectorFromIm ?? "",
-  );
-  if (chatId <= 0) {
-    reasons.push("no_openlines_chat");
-  } else {
-    const sent = await api.call("imopenlines.bot.session.message.send", {
-      CHAT_ID: chatId,
-      NAME: "DEFAULT",
-      MESSAGE: message,
-    });
-    if (sent) {
-      delivered.push("чат");
-    } else {
-      reasons.push("chat_send_failed");
-      hadError = true;
-    }
-  }
-
-  const email = findContactEmail(contact);
-  if (!email) {
-    reasons.push("contact_email_empty");
-  } else {
-    try {
-      const { sendDiagnosticEmail } = await import("./diagnostic-email");
-      await sendDiagnosticEmail({
-        to: email,
-        subject: "Через час — бесплатная консультация",
-        text: message,
-      });
-      delivered.push(`email ${email}`);
-    } catch (error) {
-      reasons.push(`email_send_failed: ${(error as Error).message}`);
-      hadError = true;
-    }
-  }
+    deal,
+    contactId: clientContactId,
+    contact,
+    message,
+    emailSubject: "Через час — бесплатная консультация",
+  });
 
   if (delivered.length === 0) {
     if (hadError) return { action: "error", reason: reasons.join(", ") };
