@@ -229,7 +229,7 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 });
 
 /**
- * Опрос статуса запущенных email-кампаний раз в 5 минут: Unisender не шлёт
+ * Опрос статуса запущенных email-кампаний раз в 15 минут: Unisender не шлёт
  * вебхук о завершении рассылки, поэтому статистику (отправлено/открыто/
  * перешли/отписались) и финальный статус приходится подтягивать поллингом.
  *
@@ -239,7 +239,7 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
  */
 export const pollEmailCampaigns = CreateTaskWorkflow({
   name: "email-campaign-poll",
-  on: { cron: "*/5 * * * *" },
+  on: { cron: "*/15 * * * *" },
   retries: 0,
   executionTimeout: "5m",
   fn: async () => {
