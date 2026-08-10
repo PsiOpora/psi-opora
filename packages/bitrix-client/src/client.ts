@@ -193,6 +193,22 @@ function devWebhookUrl(): string | undefined {
 }
 
 /**
+ * Клиент Bitrix24 для записи в чужой календарь (calendar.event.add/update
+ * с ownerId != вызывающий) — постоянный админский вебхук, не зависящий от
+ * прав того, кто сейчас авторизовал OAuth-приложение "dashboard". Обычный
+ * resolveBitrixApi() для этого не подходит: calendar.event.add проверяет
+ * права именно вызывающего пользователя на календарь ownerId, а они
+ * пропадают при смене роли/увольнении сотрудника, установившего приложение,
+ * и рвут синк ошибкой "Доступ запрещен" независимо от прав ownerId.
+ * Не гейтится NODE_ENV (в отличие от devWebhookUrl) — используется только
+ * в фоновых заданиях (packages/jobs), никогда не отдаётся в браузер.
+ */
+export function resolveCalendarBitrixApi(): BitrixApi | null {
+  const webhookUrl = env.BITRIX_CALENDAR_WEBHOOK_URL;
+  return webhookUrl ? createWebhookApi(webhookUrl) : null;
+}
+
+/**
  * Клиент Bitrix24 без привязки к HTTP-запросу (для фоновых заданий):
  * по memberId — OAuth-токены портала, иначе — dev-вебхук из env.
  */

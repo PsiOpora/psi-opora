@@ -1,4 +1,4 @@
-import type { BitrixApi } from "@psi-opora/bitrix-client";
+import { type BitrixApi, resolveCalendarBitrixApi } from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
 import {
 	appendReminderSentComment,
@@ -359,6 +359,13 @@ export async function handleDiagnosticDealUpdate(
 		let calendarEventId = previous?.calendarEventId ?? 0;
 		let action: DiagnosticDealUpdateResult["action"] = "unchanged";
 
+		// calendar.event.add/update в чужой календарь (ownerId != вызывающий)
+		// проверяет права именно вызывающего OAuth-пользователя — если он их
+		// не имеет (сменились права/уволен), Bitrix24 отдаёт "Доступ запрещен"
+		// независимо от прав ownerId. Админский вебхук от этого не зависит,
+		// поэтому используем его здесь, если настроен, а не переданный `api`.
+		const calendarApi = resolveCalendarBitrixApi() ?? api;
+
 		// Ошибка календаря (например, "Доступ запрещен" из-за прав на чужой
 		// календарь в Bitrix24) не должна останавливать всю обработку — иначе
 		// сообщение клиенту об оплате/подключении к диагностике вообще не
@@ -366,7 +373,7 @@ export async function handleDiagnosticDealUpdate(
 		try {
 			if (!calendarEventId) {
 				calendarEventId = Number(
-					await api.call("calendar.event.add", {
+					await calendarApi.call("calendar.event.add", {
 						...fields,
 						auto_detect_section: "Y",
 					}),
@@ -375,7 +382,7 @@ export async function handleDiagnosticDealUpdate(
 				action = "created";
 			} else if (previous?.diagnosticAt !== diagnosticAt) {
 				try {
-					await api.call("calendar.event.update", {
+					await calendarApi.call("calendar.event.update", {
 						id: calendarEventId,
 						...fields,
 					});
@@ -385,7 +392,7 @@ export async function handleDiagnosticDealUpdate(
 						`[diagnostic-schedule] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
 					);
 					calendarEventId = Number(
-						await api.call("calendar.event.add", {
+						await calendarApi.call("calendar.event.add", {
 							...fields,
 							auto_detect_section: "Y",
 						}),

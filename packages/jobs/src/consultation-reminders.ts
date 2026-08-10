@@ -1,4 +1,4 @@
-import type { BitrixApi } from "@psi-opora/bitrix-client";
+import { type BitrixApi, resolveCalendarBitrixApi } from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
 import { getScenarioTexts } from "@psi-opora/bot-core";
 import { findContactEmail } from "./diagnostic-scheduling";
@@ -202,6 +202,13 @@ async function syncConsultationCalendarEvent(params: {
     return calendarEventId;
   }
 
+  // calendar.event.add/update в чужой календарь (ownerId != вызывающий)
+  // проверяет права именно вызывающего OAuth-пользователя — если он их не
+  // имеет (сменились права/уволен), Bitrix24 отдаёт "Доступ запрещен"
+  // независимо от прав ownerId. Админский вебхук от этого не зависит,
+  // поэтому используем его здесь, если настроен, а не переданный `api`.
+  const calendarApi = resolveCalendarBitrixApi() ?? api;
+
   const contact =
     contactId > 0
       ? await api.call<ConsultationContact | false>("crm.contact.get", {
@@ -223,7 +230,7 @@ async function syncConsultationCalendarEvent(params: {
 
   if (!calendarEventId) {
     calendarEventId = Number(
-      await api.call("calendar.event.add", {
+      await calendarApi.call("calendar.event.add", {
         ...fields,
         auto_detect_section: "Y",
       }),
@@ -235,13 +242,16 @@ async function syncConsultationCalendarEvent(params: {
   }
 
   try {
-    await api.call("calendar.event.update", { id: calendarEventId, ...fields });
+    await calendarApi.call("calendar.event.update", {
+      id: calendarEventId,
+      ...fields,
+    });
   } catch (error) {
     console.warn(
       `[consultation-reminder] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
     );
     calendarEventId = Number(
-      await api.call("calendar.event.add", {
+      await calendarApi.call("calendar.event.add", {
         ...fields,
         auto_detect_section: "Y",
       }),

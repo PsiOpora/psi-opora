@@ -65,6 +65,15 @@ export const env = createEnv({
     // нужен, чтобы резолвить OAuth-клиент (resolveBitrixApi) для дублирования
     // переписки в Открытые линии. Не мультитенантно — один деплой, один портал.
     BITRIX_MEMBER_ID: z.string().optional(),
+    // Входящий вебхук с постоянными правами (создаётся под админом портала,
+    // Разработчикам → Другое → Исходящий вебхук, права: calendar) — для
+    // calendar.event.add/update в чужой календарь (см. consultation-reminders.ts,
+    // diagnostic-scheduling.ts). OAuth-приложение "dashboard" вызывает эти
+    // методы от имени того, кто его авторизовал на портале, а calendar.event.add
+    // в чужой календарь требует именно у ЭТОГО пользователя прав на запись —
+    // они пропадают при смене прав/увольнении сотрудника и ломают синк с
+    // "Доступ запрещен". Админский вебхук от этого не зависит.
+    BITRIX_CALENDAR_WEBHOOK_URL: z.string().optional(),
 
     // Telegram userbot (личный номер как коннектор Открытых линий, mtcute).
     // api_id/api_hash приложения НЕ здесь — их вводит администратор в
@@ -169,6 +178,7 @@ export const env = createEnv({
     CLIENTS_BITRIX_CLIENT_ID: process.env.CLIENTS_BITRIX_CLIENT_ID,
     CLIENTS_BITRIX_CLIENT_SECRET: process.env.CLIENTS_BITRIX_CLIENT_SECRET,
     BITRIX_MEMBER_ID: process.env.BITRIX_MEMBER_ID,
+    BITRIX_CALENDAR_WEBHOOK_URL: process.env.BITRIX_CALENDAR_WEBHOOK_URL,
     TG_USERBOT_ENCRYPTION_KEY: process.env.TG_USERBOT_ENCRYPTION_KEY,
     TG_USERBOT_CONNECTOR_ID: process.env.TG_USERBOT_CONNECTOR_ID,
     MAX_USERBOT_CONNECTOR_ID: process.env.MAX_USERBOT_CONNECTOR_ID,

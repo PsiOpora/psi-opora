@@ -6,6 +6,7 @@ export {
   MEMBER_ID_COOKIE,
   resolveBitrixApi,
   resolveBitrixApiForRequest,
+  resolveCalendarBitrixApi,
 } from "./client";
 export {
   forceRefreshPortalTokens,
