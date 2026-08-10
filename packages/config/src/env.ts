@@ -94,10 +94,10 @@ export const env = createEnv({
     MAX_USERBOT_BUILD_NUMBER: z.coerce.number().int().positive().default(6790),
 
     // WhatsApp userbot (личный номер как коннектор Открытых линий, WAHA).
-    // Постоянное соединение держит контейнер WAHA (docker-compose, сервис
-    // `waha`) — WAHA_URL должен быть доступен и с Vercel (oRPC-роутеры,
-    // apps/bitrix-webhook), поэтому это публичный адрес сервера, а не
-    // docker-имя. WAHA_WEBHOOK_SECRET — HMAC-ключ вебхука входящих
+    // Постоянное соединение держит контейнер WAHA. В Docker Compose и k3s
+    // приложения обращаются к нему по внутреннему адресу
+    // `http://waha:3000`; вне кластера нужен публичный URL/NodePort.
+    // WAHA_WEBHOOK_SECRET — HMAC-ключ вебхука входящих
     // (WAHA → apps/bitrix-webhook/api/waha-webhook) и он же задаётся при
     // создании сессии; WAHA_WEBHOOK_URL — публичный адрес этого роута.
     WAHA_URL: z.string().optional(),

@@ -214,7 +214,9 @@ line/connector ID и никакого ручного запуска скрипт
    ```bash
    docker compose up -d waha
    ```
-2. Заполните в `.env`: `WAHA_URL` (публичный адрес контейнера),
+2. Заполните в `.env`: `WAHA_URL` (для запуска вне Docker/k3s —
+   доступный публичный адрес; внутри сети манифесты используют
+   `http://waha:3000`),
    `WAHA_API_KEY`, `WAHA_WEBHOOK_URL` (адрес `apps/bitrix-webhook` +
    `/api/waha-webhook`), `WAHA_WEBHOOK_SECRET`.
 3. В дашборде → «Каналы ботов» → «WhatsApp — личный номер» → «Зарегистрировать канал».

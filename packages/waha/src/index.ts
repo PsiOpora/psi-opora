@@ -13,6 +13,8 @@ import { env } from "@psi-opora/config";
 
 export class WahaError extends Error {}
 
+const WAHA_REQUEST_TIMEOUT_MS = 15_000;
+
 function wahaUrl(path: string): string {
 	const base = env.WAHA_URL;
 	if (!base)
@@ -24,23 +26,37 @@ async function wahaFetch<T>(
 	path: string,
 	init?: { method?: string; body?: unknown },
 ): Promise<T> {
-	const res = await fetch(wahaUrl(path), {
-		method: init?.method ?? "GET",
-		headers: {
-			"Content-Type": "application/json",
-			...(env.WAHA_API_KEY ? { "X-Api-Key": env.WAHA_API_KEY } : {}),
-		},
-		...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
-	});
-	if (!res.ok) {
-		const text = await res.text().catch(() => "");
+	const method = init?.method ?? "GET";
+	try {
+		const res = await fetch(wahaUrl(path), {
+			method,
+			headers: {
+				"Content-Type": "application/json",
+				...(env.WAHA_API_KEY ? { "X-Api-Key": env.WAHA_API_KEY } : {}),
+			},
+			...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+			signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
+		});
+		if (!res.ok) {
+			const text = await res.text().catch(() => "");
+			throw new WahaError(
+				`WAHA ${method} ${path} → ${res.status}: ${text.slice(0, 300)}`,
+			);
+		}
+		// Некоторые эндпоинты (logout/delete) отвечают пустым телом.
+		const text = await res.text();
+		return (text ? JSON.parse(text) : undefined) as T;
+	} catch (err) {
+		if (err instanceof WahaError) throw err;
+		if (err instanceof Error && err.name === "TimeoutError") {
+			throw new WahaError(
+				`WAHA ${method} ${path} не ответила за ${WAHA_REQUEST_TIMEOUT_MS / 1000} с`,
+			);
+		}
 		throw new WahaError(
-			`WAHA ${init?.method ?? "GET"} ${path} → ${res.status}: ${text.slice(0, 300)}`,
+			`WAHA ${method} ${path}: ${err instanceof Error ? err.message : String(err)}`,
 		);
 	}
-	// Некоторые эндпоинты (logout/delete) отвечают пустым телом.
-	const text = await res.text();
-	return (text ? JSON.parse(text) : undefined) as T;
 }
 
 /**

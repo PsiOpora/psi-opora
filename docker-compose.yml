@@ -29,6 +29,8 @@ services:
       - "${BITRIX_WEBHOOK_PORT:-3020}:3000"
     env_file:
       - .env
+    environment:
+      WAHA_URL: http://waha:3000
 
   # Bitrix24 Local App — CRM/маркетинговая аналитика (apps/dashboard).
   dashboard:
@@ -40,6 +42,8 @@ services:
       - "${DASHBOARD_PORT:-3010}:3000"
     env_file:
       - .env
+    environment:
+      WAHA_URL: http://waha:3000
 
   # Инбокс для операторов Открытых линий (apps/clients).
   clients:
@@ -51,6 +55,8 @@ services:
       - "${CLIENTS_PORT:-3005}:3000"
     env_file:
       - .env
+    environment:
+      WAHA_URL: http://waha:3000
 
   # Always-on процесс для личных Telegram-номеров (packages/tg-userbot,
   # apps/tg-userbot-worker) — держит постоянное MTProto-соединение,
