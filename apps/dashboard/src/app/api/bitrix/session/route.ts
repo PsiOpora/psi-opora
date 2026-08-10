@@ -76,25 +76,33 @@ export async function POST(request: Request) {
 		console.error(`[dashboard/session] verification failed: ${message}`);
 		const serverConfiguration =
 			message.includes("не задан") || message.includes("некорректный домен");
+		// fetch() кидает "fetch failed" при сетевых сбоях (DNS/таймаут/ECONNREFUSED
+		// и т.п.), а не HTTP-ошибку — такие сбои не имеют отношения к валидности
+		// токена, поэтому их нельзя классифицировать как oauth_rejected/401.
+		const networkError =
+			error instanceof TypeError && message.includes("fetch failed");
 		const code = serverConfiguration
 			? "server_configuration"
-			: message.includes("неизвестный портал")
-				? "portal_mismatch"
-				: message.includes("домен портала не совпадает")
-					? "domain_mismatch"
-					: message.includes("app.info")
-						? "app_rejected"
-						: message.includes("profile")
-							? "token_rejected"
-							: "oauth_rejected";
+			: networkError
+				? "network_error"
+				: message.includes("неизвестный портал")
+					? "portal_mismatch"
+					: message.includes("домен портала не совпадает")
+						? "domain_mismatch"
+						: message.includes("app.info")
+							? "app_rejected"
+							: message.includes("profile")
+								? "token_rejected"
+								: "oauth_rejected";
 		return NextResponse.json(
 			{
-				error: serverConfiguration
-					? "bitrix server configuration is incomplete"
-					: "invalid bitrix session",
+				error:
+					serverConfiguration || networkError
+						? "bitrix server is unreachable"
+						: "invalid bitrix session",
 				code,
 			},
-			{ status: serverConfiguration ? 503 : 401 },
+			{ status: serverConfiguration || networkError ? 503 : 401 },
 		);
 	}
 }
