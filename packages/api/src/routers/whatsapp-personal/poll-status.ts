@@ -28,7 +28,11 @@ export const pollStatus = publicProcedure
         };
       }
 
-      const session = waSessionName(memberId, input.connectorId);
+      const session = waSessionName(
+        memberId,
+        input.lineId,
+        input.connectorId,
+      );
       try {
         const state = await wahaGetSession(session);
         if (!state) {

@@ -86,7 +86,7 @@ services:
   # готовый контейнер вместо нашего кода. Версию пиним сознательно:
   # протокол WhatsApp неофициальный, обновлять стоит вручную и осознанно.
   waha:
-    image: devlikeapro/waha:2026.7
+    image: devlikeapro/waha:dev
     restart: unless-stopped
     ports:
       - "${WAHA_PORT:-3050}:3000"

@@ -65,14 +65,19 @@ async function wahaFetch<T>(
  * состояния в Redis: виджет логина и вебхук входящих находят друг друга по
  * одному и тому же имени. WAHA ограничивает имя сессии 54 символами, а
  * memberId (Bitrix) и connectorId вместе могут быть длиннее — поэтому имя
- * строится из хэша пары, а не из конкатенации сырых значений.
+ * строится из хэша тройки, а не из конкатенации сырых значений.
  */
-/** connectorId уже уникален на номер (в отличие от lineId, где на одной
- * линии теперь может быть несколько номеров) — включаем его в имя сессии,
- * иначе два номера на одной линии получили бы одну и ту же WAHA-сессию. */
-export function waSessionName(memberId: string, connectorId: string): string {
+/** connectorId на практике не всегда уникален на номер (встречаются слоты
+ * со статическим connectorId без случайного суффикса) — openLineId в хэше
+ * обязателен, иначе два номера на разных линиях с одинаковым connectorId
+ * получат одну и ту же WAHA-сессию и упрутся в unique(session_name) в БД. */
+export function waSessionName(
+	memberId: string,
+	openLineId: string,
+	connectorId: string,
+): string {
 	const hash = createHash("sha256")
-		.update(`${memberId}:${connectorId}`)
+		.update(`${memberId}:${openLineId}:${connectorId}`)
 		.digest("hex")
 		.slice(0, 40);
 	return `wa_${hash}`;

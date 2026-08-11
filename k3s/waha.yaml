@@ -35,9 +35,11 @@ spec:
       containers:
         - name: waha
           # Версию пиним сознательно: протокол WhatsApp неофициальный,
-          # обновлять стоит вручную и осознанно (см. docker-compose.yml).
-          image: devlikeapro/waha:latest
-          imagePullPolicy: IfNotPresent
+          # обновлять стоит вручную и осознанно (см. docker-compose.yml,
+          # где запинена та же версия). Always — иначе при :latest нода
+          # держит закэшированный образ и не видит новых сборок.
+          image: devlikeapro/waha:dev
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           env:
