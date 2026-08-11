@@ -9,6 +9,7 @@
  * Сессия WAHA = один подключённый номер. Имя сессии детерминировано
  * (waSessionName) — по нему же входящий вебхук WAHA находит аккаунт в БД.
  */
+import { createHash } from "node:crypto";
 import { env } from "@psi-opora/config";
 
 export class WahaError extends Error {}
@@ -62,14 +63,19 @@ async function wahaFetch<T>(
 /**
  * Детерминированное имя сессии WAHA для линии портала — без промежуточного
  * состояния в Redis: виджет логина и вебхук входящих находят друг друга по
- * одному и тому же имени. Символы за пределами [a-zA-Z0-9_] заменяются,
- * чтобы имя было безопасно и в URL, и в файловом сторадже WAHA.
+ * одному и тому же имени. WAHA ограничивает имя сессии 54 символами, а
+ * memberId (Bitrix) и connectorId вместе могут быть длиннее — поэтому имя
+ * строится из хэша пары, а не из конкатенации сырых значений.
  */
 /** connectorId уже уникален на номер (в отличие от lineId, где на одной
  * линии теперь может быть несколько номеров) — включаем его в имя сессии,
  * иначе два номера на одной линии получили бы одну и ту же WAHA-сессию. */
 export function waSessionName(memberId: string, connectorId: string): string {
-	return `wa_${memberId}_${connectorId}`.replace(/[^a-zA-Z0-9_]/g, "_");
+	const hash = createHash("sha256")
+		.update(`${memberId}:${connectorId}`)
+		.digest("hex")
+		.slice(0, 40);
+	return `wa_${hash}`;
 }
 
 export type WahaSessionStatus =
