@@ -22,6 +22,7 @@ import {
 	insertBotMessage,
 	type MessageDeliveryStatus,
 	removeBotConnector,
+	removeWhatsappPersonalAccount,
 	updateBotMessageStatus,
 	upsertBotUser,
 	upsertBotUserPresence,
@@ -32,11 +33,12 @@ import {
 	type Messenger,
 	sendMessengerMessage,
 } from "@psi-opora/jobs";
-import { pushOutboundMessage } from "@psi-opora/tg-userbot";
 import { pushMaxOutboundMessage } from "@psi-opora/max-userbot";
+import { pushOutboundMessage } from "@psi-opora/tg-userbot";
 import {
 	phoneFromJid,
 	wahaAckToStatus,
+	wahaDeleteSession,
 	wahaGetChatPresence,
 	wahaSendText,
 } from "@psi-opora/waha";
@@ -345,12 +347,45 @@ async function relayOperatorReply(reply: OperatorReplyMessage): Promise<void> {
  * Канал отключили от линии (или линию удалили) прямо в Bitrix, в обход
  * кнопки «Отключить» в дашборде — запись в bot_connectors подчищаем сами,
  * иначе бот продолжит слать сообщения в уже неактивную линию.
- * Личные номера (packages/tg-userbot) не трогаем — у них своя таблица
- * и свой процесс отключения.
+ * Для личного WhatsApp это также основной обработчик нативной кнопки
+ * «Отключить» в настройках канала Bitrix24: сам Bitrix деактивирует слот,
+ * а мы по OnImConnectorStatusDelete удаляем WAHA-сессию и запись аккаунта.
  */
 async function handleConnectorDisabled(
 	info: ConnectorDisabledInfo,
 ): Promise<void> {
+	if (
+		info.connector?.startsWith(env.WA_PERSONAL_CONNECTOR_ID) &&
+		info.lineId != null
+	) {
+		const lineId = String(info.lineId);
+		const account = await getWhatsappPersonalAccountByConnector(
+			info.connector,
+			lineId,
+		);
+		if (!account) return;
+
+		try {
+			await wahaDeleteSession(account.sessionName);
+		} catch (err) {
+			// Даже если WAHA временно недоступна, удаляем привязку из БД:
+			// отключённый в Bitrix номер больше не должен принимать/слать сообщения.
+			console.error(
+				`[bitrix-webhook] не удалось удалить WAHA-сессию ${account.sessionName}: ${(err as Error).message}`,
+			);
+		}
+
+		await removeWhatsappPersonalAccount(
+			account.memberId,
+			lineId,
+			info.connector,
+		);
+		console.log(
+			`[bitrix-webhook] личный WhatsApp ${info.connector} отключён на линии ${lineId}`,
+		);
+		return;
+	}
+
 	const messenger = messengerByConnector(info.connector);
 	if (!messenger) return;
 	try {
