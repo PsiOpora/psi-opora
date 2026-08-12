@@ -172,6 +172,25 @@ export async function wahaRequestPairingCode(
 	return code;
 }
 
+/**
+ * QR-код для входа без pairing code — WAHA генерирует его автоматически
+ * параллельно с pairing code, пока сессия не в статусе WORKING, так что оба
+ * способа можно предлагать одновременно. `data` — base64 PNG.
+ */
+export async function wahaGetQrCode(
+	session: string,
+): Promise<{ mimetype: string; data: string } | null> {
+	try {
+		return await wahaFetch<{ mimetype: string; data: string }>(
+			`/api/${session}/auth/qr`,
+		);
+	} catch {
+		// QR мог ещё не сгенерироваться или сессия уже перешла в другой режим —
+		// не фатально, виджет просто останется на pairing code.
+		return null;
+	}
+}
+
 /** Разлогин + полное удаление сессии (конфигурация и данные авторизации). */
 export async function wahaDeleteSession(session: string): Promise<void> {
 	await wahaFetch<void>(`/api/sessions/${session}`, { method: "DELETE" });
