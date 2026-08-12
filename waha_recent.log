@@ -1,0 +1,554 @@
+[10:29:12.761] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Unpairing the device from account...[39m [90m{"reqId":273,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:12.763] [33mWARN[39m (SessionManager/7): [36mError while unpairing from device: Error: Connection Closed[39m [90m{"reqId":273}[39m
+[10:29:13.763] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Stopping session...[39m [90m{"reqId":273,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:13.765] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Session has been stopped.[39m [90m{"reqId":273,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:14.765] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Logging out session...[39m [90m{"reqId":273,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:14.771] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Session has been logged out.[39m [90m{"reqId":273,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:14.772] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Deleting session...[39m [90m{"reqId":273,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:14.777] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Session deleted.[39m [90m{"reqId":273,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:14.778] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":273,"req":{"id":273,"method":"DELETE","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2026}[39m
+[10:29:14.789] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Saving session...[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:14.796] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Session saved.[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:14.799] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Starting session...[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:14.802] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - The session ignores the following chat ids[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","ignore":{"status":true,"groups":false,"channels":false,"broadcast":false}}[39m
+[10:29:14.806] [32mINFO[39m (7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Session has been started.[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:14.807] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":274,"req":{"id":274,"method":"POST","url":"/api/sessions","query":{},"params":{"path":["api","sessions"]}},"res":{"statusCode":201},"responseTime":27}[39m
+[10:29:14.830] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Connecting using wa.version = 2.3000.1043857760[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:14.842] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":275,"req":{"id":275,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:29:14.940] [32mINFO[39m (NOWEBEngine/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - connected to WA[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","browser":["Ubuntu","Chrome","22.04.4"],"helloMsg":{"clientHello":{"ephemeral":"B3LkA2Emc9SV7pUnbhIfcnUQrCYzH6WXmlzoVdyipww="}}}[39m
+[10:29:15.044] [32mINFO[39m (NOWEBEngine/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - not logged in, attempting registration...[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","node":{"passive":false,"userAgent":{"platform":"WEB","appVersion":{"primary":2,"secondary":3000,"tertiary":1043857760},"mcc":"000","mnc":"000","osVersion":"0.1","device":"Desktop","osBuildNumber":"0.1","releaseChannel":"RELEASE","localeLanguageIso6391":"en","localeCountryIso31661Alpha2":"US"},"webInfo":{"webSubPlatform":"WEB_BROWSER"},"connectType":"WIFI_UNKNOWN","connectReason":"USER_ACTIVATED","devicePairingData":{"eRegid":"AAAAbQ==","eKeytype":"BQ==","eIdent":"9kDC7hFIxM8jTXzK4QEZNec4K6BsILkA7yR+PMUXmlI=","eSkeyId":"AAAB","eSkeyVal":"qGLhPgLP7PwDsaqvfUm1gwfRZvciRnE0Eo6fm5iTnCs=","eSkeySig":"+rGvV2L4B2kRblK88fjSAJOlVteohiqxBinBO8BvTCzEHZ4jPOfjUfrUaiV6CwmOTdacGCEDglRmhc90dJ3QDw==","buildHash":"9vZcBgehzf/YdSsFH8le3w==","deviceProps":"CgZVYnVudHUSBggKEA8YBxgBIAAqFxiAUCABMAA4AUABSAFQAVgBYAFwAXgA"},"pull":false}}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄█▄▄ ▄▀▀▀▄▀██▀ █▄ █▄▀   ▀██▀▀▀████ ▀ ▀▄ ██ ▄▄▄▄▄ █
+█ █   █ █  ▀ ▀▀▄██  ▄█ ▄█▄▀▀ ██  ██▀  ▀▀███▄ ▄▀▄ ██ █   █ █
+█ █▄▄▄█ █▄▀ ▄ ▀█▀▀█▄ ▀ ▄ ██ ▄▄▄ ▀█▄▀▀█ ▄▄█▀▀█▄ ▀▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀▄█▄█▄█▄█ ▀▄█ █ █ █▄█ █▄▀▄▀▄█▄█▄▀▄█▄█ █ █▄▄▄▄▄▄▄█
+█▄   ██▄█▄█▀ ▄▄▀▄▄▄▀▀▄  ▀▀█     █▀▄▄▄▀▀█▄ ▀ ▀█▄█ ▀ █▀▄▄▄▀▄█
+█▀ ▀▀ █▄▄▄▀▀█  ▀▄█ █▀█▄ ▄ ▄▄▀  ▀█▀▀▀▄ █▀ ▄█ ▀ ▀▄▀▄ ▄▄█ █▄▄█
+█ ▄█  ▀▄▀  ▄█ ▄ ▀██▄▀  ▀ █▄ ▀▀█▄ ▀ ▄▄▄▀  █▄▄ █▀███▀▀▄▀▄█▄▀█
+██▀▄█ ▀▄▀ ██ █  ▀ █ ▀█▀▄▄▀▀▄███▀ ▄▀▀█▄▄▄█▀▀   ▀▀▀▄  ▀▀ ▀█▀█
+█▀▄ ▀▄▄▄▄█▄ ▀ ▄▄█ █▀█▄ ▀█▄▀  █▄█ ▄▀ ▀███▄▀▀▄▀▄ ▀ ▄▀▄▀▀█ █▀█
+█▄ ▄ █▀▄▀▄█▄▀▀▀▀█▀███ ▀▄█ ▀ ▀█▄▀▀█ ▄▀ █▀█▀▄█ █▄███ ▄▀ ▄█ ██
+█ █ ▀▀█▄▄█▀▀▀▄ ██ ▄███▀ ▄ ▄█ ▄▀  ▀█▄▄▀ ▄ ▄▀ ██▄▄█ █▄▄▄▄▄█ █
+█  ▄▀▀ ▄█▀█▀ ▄ █▀▄ ▄ ▄ ▀█▀█▄▄▀ ▀█▄███▀█▀▄▄█▀ ▄  █▀▀█ ▄ █▄▄█
+█ ▄▄███▄ ▀█▄ █▄█▀▄ ▄▀▀█▀▄▄█▀▀█ ▄▄▀ █▄   ▄▀█▄▄█ ▄▄█ ▀▀▀██▀▀█
+███   ▄▄▄ ▀▀█▀▀ ▄█▄▄ ▄█▄ ▀▀ ▄▄▄ ▄█▀  ██▀█▄ ▄█▀█▄▄ ▄▄▄ ▀▀▀██
+█▄ ▀▀ █▄█ █▀▀▄▀█ ▀█▄███▀▀██ █▄█    ▀▄█▄█ ▀ ▄▀▄▄▀█ █▄█ █  ██
+█▄ █ ▄ ▄  ▄ ▄█ ▄▀█▄▀▄ ▄▄▄▄    ▄  ▀ ▄▄▀█▄ ▄▀▀██▄ █▄ ▄ ▄▀▄ ██
+███▄ ▀█▄▄▀ ▄█▄▀███ █▀█▄▄▀▀█▀▀█▄▀█▀ ▄▀▀▀▄  ▀▀▀████ ▀█ █▄▄███
+█▀▄▀█  ▄█▄▄▀ █▄▀███▀  ▄ ▀█▄█ ▀██▀ █ ▄▀▀▀██▄ █▀▄▀  ▄▄▄  █ ▄█
+█ ▄ █▄█▄▀█▀▄ ▄▄███▄▄▀██▀█▄▄██▄  ▀██▄▄ ▀ ▀▀██ ▀▀▄▀▄███▄█▀█▀█
+█▄▄█▀ ▄▄██▀█▄█   ▄▄   █ █ █▀   ▀ █▄█▄▄▀█▄▀▀▀▀▀▄█▄▄█▀   ▀ ██
+█▀█▄▄ █▄█  █▄▄▄ ▄ █▀ █▀█ █▀▀ ▀█▄▄ ▄▀▀▀▄█ █ █ ▄█▀▄█▄▀▀  ▄▀▄█
+█  ▄  ▄▄▀▄▄█▄█▀▄███▄▄▄█  ▄▄ ▄   ▄▀█▄▀   ███▄▀▄  ██ ██ █▄▄▀█
+█ ▄▀█▀ ▄▄█ █▀▄█  █▀▀▀▄ █▄ ▄ █▄█ ██▄█▀▀▀█▄▄   █▄██▀▀███   ██
+█ ▀ ▀▀▄▄ █  ██ ██ ▀▀▄▄██▄ █▀▄██▀██▀▄▀▄██▀ ▀▄▀    ▀█ ▀ ▀▄  █
+███████▄▄▀▀▀▄ ▀█ █▄ ▀ ▀▀▄▄█ ▄▄▄ ▄██▄▄▄▀▀█▀▀▄ ▀ ██ ▄▄▄ ▀█▀▄█
+█ ▄▄▄▄▄ ██  █ ▀▀ ███▄ ▄ ▄ ▄ █▄█ ▀▀▄█▀▀█ ▀   ▄▀ █  █▄█   ███
+█ █   █ █▀█  ▄▀ ▀█▀█ ▄▀█ ▄ ▄   ▄▄▄  ██ ▄▀█ █▄ ▀▀▄▄ ▄ ▄ ▀▀▄█
+█ █▄▄▄█ █  ▀ ▄██  █▀▄▀██ ▄▄▀█▀██ █ ▄ ▄▄ ▄█▄ ▀██  ▄▀▀███▄█▀█
+█▄▄▄▄▄▄▄█▄█▄██▄▄█▄▄█▄█▄▄▄█████▄█▄███▄█▄▄▄▄▄█▄█▄█▄██▄█▄█████
+
+[10:29:15.308] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:15.846] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":276,"req":{"id":276,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:29:15.848] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Requesting pairing code for '79857257397'...[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:15.875] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Your code: AB5G-GCX5[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:29:15.875] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":277,"req":{"id":277,"method":"POST","url":"/api/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491/auth/request-code","query":{},"params":{"path":["api","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","auth","request-code"]}},"res":{"statusCode":201},"responseTime":28}[39m
+[10:29:15.905] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":278,"req":{"id":278,"method":"GET","url":"/api/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491/auth/qr","query":{},"params":{"path":["api","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","auth","qr"]}},"res":{"statusCode":200},"responseTime":28}[39m
+[10:29:19.108] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":279,"req":{"id":279,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:29:22.117] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":280,"req":{"id":280,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:29:25.117] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":281,"req":{"id":281,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:29:28.115] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":282,"req":{"id":282,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:29:31.110] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":283,"req":{"id":283,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:29:34.088] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":284,"req":{"id":284,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:29:37.118] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":285,"req":{"id":285,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:29:40.106] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":286,"req":{"id":286,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:29:43.098] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":287,"req":{"id":287,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:29:46.789] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":288,"req":{"id":288,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:29:49.782] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":289,"req":{"id":289,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:29:53.051] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":290,"req":{"id":290,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:29:56.063] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":291,"req":{"id":291,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:29:58.932] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":292,"req":{"id":292,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:30:02.028] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":293,"req":{"id":293,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:30:04.976] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":294,"req":{"id":294,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:30:08.058] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":295,"req":{"id":295,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:30:10.909] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":296,"req":{"id":296,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:30:13.913] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":297,"req":{"id":297,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █ ▄▄ ▄▀ ▄▀ ▄█▄ ▀▄▄█▄█▀ ▄▀█▄▀▀▀▀ ▀▄▄▄▀  ▄ ██ ▄▄▄▄▄ █
+█ █   █ █ ▀███ ▄█ █▄██▀ ▀▀ ▀▄▀ ▄▀█▄██▄ ▀▄▀  ▀▄ ▄ ██ █   █ █
+█ █▄▄▄█ █▀█ █▄ ▀▀█▄▀▀█  ▀ ▄ ▄▄▄  ▀▄█  ▀ ▄▀ ▄▄  ▀▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀▄█ █ ▀ █ ▀ ▀▄█ █ █▄█ █ █ ▀▄█ ▀ ▀▄█ ▀▄█ █▄▄▄▄▄▄▄█
+█▄▄██ ▄▄▀▀█ █▄ ▄ █▄ █▀▄▀▀ ▀     ▀▄ █▄ █  ▀▀▀█  ▄▀▀█▀ █▄▄▄ █
+█▀▄ ▄▀▀▄█▀ █ ▀▄ ▀▄▄██▄▀▀   ▄  ▄▀▀ ▄   ▀ ██▀ █▀▄█▄▄█▄ ▄▄█ ██
+█▄▀ ▀ █▄▄▀▀ ▀▄▀▀ █▀ ▄▀▀▀▄▀▄ ▄█▀ █ ▀▄  ▄▀▀█  █▄ █▀▀▄ █▀ ▀▀ █
+█  █ ▄▄▄▀▀▄▀█▀▀  ▄▀▀ █▄▄▀█ ▄█  ██  ▀ ▄█▄▄█  ▀▄▄▀▄ ▀  ███▄▀█
+█ ▀▄  █▄█▀▄▄ ██ ▀▄▄ ▀▀ █▀▀▀▄ ▀▀    █▄▄█ ▄▀  ▀▄ █▀▀  ▀█▄▄ ▀█
+█▀▄▀  ▄▄▀ ▀▀  ▀█▀▄▄▄▀██▀█▄▀▄█ ▀█▀ ▄▀▀▀█▄ ▄▄█▀   ▄▄  ███▄ ▀█
+██ ██▄█▄  █ █ ▄ ▀▀▄▄▀ █▀▄▀  ▄█▀▀▄▄▀█▄ ▄▀▄█▀▀▀  ██▀▀▀ █▄█ ▄█
+█ ▄█▄▄▀▄█ ▄▄▀ ▄▀▄█▄▄▄██ ▀▀▀██▄▄▀▀█ ▄▀▀▀ ▀█▀▀▄██▀▀▀█ ▀▀▄█ ██
+█▄▀█▄ █▄▄ ▀▀█▀▀▀ ▄▄ ▄ ▄▀  ▄▄ ▀▄ ▀ ▀█ ▄█▀█▀▀ ▀▄▀▄▄▀▄▀▄▀▀▀▄ █
+█▀▄ ▀ ▄▄▄  █▀  ▄█▀▀ ▀▄▄ ███ ▄▄▄ ██ ▄█▀▄▀▄ █ ▄▀▄ ▀ ▄▄▄ ▄█ ██
+█▀▀▀▄ █▄█ ▄█ ▀▄▀ █▄▀▄▀██  ▄ █▄█ ▀▄ ██ █▀ █▀▀  ▄██ █▄█  ▀▀▀█
+█   ▀▄▄▄▄  ██▄  █ █▄▄▄ ▀▀▀█   ▄  ▀ ▀▀ ▀  █▄ ██ ▀▄▄   ▄█▄ ▀█
+██▀▀█ █▄▄ ▄████ ▄▄▄▄▄▀▄▀ ▀▀  ▄▄  ▄ █▄▄▀  █▀ ▀ █▄█▀█ ▄▄▄██▄█
+█ ▄██▀▄▄ ▀▀ ▄█  ▄ ▀▀▀█▀▀██ ▄▀ ▀██     █  █▀▀  ▀▀▄  █▀▀▄████
+██ ▀▄▄▀▄▄▄ ▄█ ▀▄▄█  ▄▄▄▀▀ ▀▄▄▄▀▄▄▄▄▄ ▄▄▀ ▀▀▀█  ▄█  ▄▄▄▀█  █
+█ ██ ▄▀▄▄█▄▀█▀█▀▀ ▀▄▀ ▄▄ ▄▄▀▀▄▀█▀██▀▀  ███▄█ ▀█▀▀ ▄▀▀▄██▀██
+█▄▄ ▄ ▄▄▄▄█▄█ ██▄▄▄▄▀▀▀▀▀  █ █▀▀█▄▄█ ▄█▀ ▀▀ ▀ ███ ██▀▄▀▀  █
+█▀  ▄██▄▀ ▄█▀ ▄▀▀ ▄█▄ ▀█▀█ ▄ █▄▀▄█▀▀ ▀ ▄▀ ▄█▀ ▄█▄▀ ▀▀█▄█▄██
+█▀ ▄▀ ▄▄▀▀▄▄▀█▄█▄▄▀ █▀▄▄▀▀  ▀██▀▀  ▄▀ █  █ ▀▄  ▄█ ▄▄▀▄▄█▄ █
+█ ▀ ▀▀▄▄ ▄█▀▀█▄▄ ▀ ▄ █ ▀▀█▀▄█ ▀▀█▄ ██▄▀ ▄██▄█▀▀▀█▀▄█▄ ▀█▄▀█
+███████▄▄▀ ▀ ▄▄▄ █▄▄█▀▄▀▄▀▄ ▄▄▄ █▄▄█▄▄█▀▄█  █ ▀█▀ ▄▄▄ ▄▀▄██
+█ ▄▄▄▄▄ █▀▀▄ ▄ ▀▀▄ ▀  █▄▄ ▄ █▄█ ▀▀█▀▄▄█ ▀█▄▄▄▀▀ █ █▄█ █▄███
+█ █   █ █▄█▄▄  ▄▀▀  ▀ ▀▀▀▀▀▄    █  ▄▄ ▀ ▀▀▀ █▄▀██     ▀▄▀ █
+█ █▄▄▄█ █▀▀▄▀▄▀▄▄█▄ ▄█▀ ▀█▄█▀ ▄▄ ▀▄▀▀█▄▄  █▀▀▀▀█▀█▀█▀ ▄████
+█▄▄▄▄▄▄▄█▄█▄▄█████▄▄▄▄▄█▄▄█▄▄█▄▄▄▄█▄▄▄▄█▄█▄▄▄▄▄▄▄▄█████▄█▄█
+
+[10:30:15.313] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:30:16.320] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":298,"req":{"id":298,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:30:19.107] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":299,"req":{"id":299,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:30:22.109] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":300,"req":{"id":300,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:30:25.107] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":301,"req":{"id":301,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:30:28.108] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":302,"req":{"id":302,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:30:31.109] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":303,"req":{"id":303,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:30:34.116] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":304,"req":{"id":304,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄█▄▄ ▄  █▄▀▀█ ▀ ▄ █▄▀█  █ ▀▄▄ ▀▀  ▄▄█▀▄ ██ ▄▄▄▄▄ █
+█ █   █ █  ▀ ▀▀▄▄▄  ▄█ ▄▄▄▀▀ ██  ██▀  ▀▀███▄ ▄▀▄ ██ █   █ █
+█ █▄▄▄█ █▄▀ ▀▀▀█▀▀█▄ ▀ ▄ ██ ▄▄▄ ▀█▄▀▀█ ▄▄█▀▀█▄ ▀▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀▄▀▄█▄█▄█ ▀▄█ █ █ █▄█ █▄▀▄▀▄█▄█▄▀▄█▄█ █ █▄▄▄▄▄▄▄█
+█▄   ▀▀▄▀▄▄▄▄▄▄▀▄▄▄▀▀▄  ▀▀█▄▄   █▀▄▄▄▀▀█▄ ▀ ▀█▄█▀▀▄█▀ ▄▄▀▄█
+█▀ ▀▀ █▄█ ▀▀▀▄ ▀▄█ █▀█▄ ▄  █ █ ▀█▀▀▀▄ █▀ ▄█ ▀ ▀▄ █▀█▄█ █▄▄█
+█ ▄█▀ ▀▄█▄  █ ▄ ▀██▄▀  ▀ █▄ ▀██▄ ▀ ▄▄▄▀  █▄▄ █▀███▀▀▄▀ █▄▀█
+█ █ ▄ ▀▄▀ ██ █  ▀ ▄▀▀█▄█▄▀▀██▄█▀▄▄▀▀█▄ ▄▀█▀▄▄ ▀▀▀▄  ▀▀▀▀█▀█
+██  █▄▄▄▄█▄ ▀ ▄▄▄  ▀▄▄▄█ ▄▀▀ █ █▄ ▀▀█▀▀▄▄█▀▄▄▄   ▄▀▄▀▀▄▀█▀█
+█ ▄█▄▀█▄▀▄█▄▀▀▀▀ ███▀▀▀▄▄▄▀ ▀█▀█▀█▀▄▀▀▄ █ ██▀▄▄▄██ ▄▀ ▄█▀██
+█ ▄ ▀▄ ▄▄█▀▀ █ ██ ▄███▀ ▄ ▄█ ▄█  ▀█▄▄▀ ▄ ▄▀ ██▄▄█ █▄▄▄▄▄█ █
+█  ▄▀▀ ▄███▄ ██ ▀▄ ▄ ▄ ▀█▀█▄ █▀ █▄███▀█▀▄▄█▀ ▄  █▀▀▀   █▄▄█
+█ ▄▄█▀▄▄█ ▄▄▀▄ ▀▀▄ ▄▀▀█▀▄▄█▀▄█ ▄▄▀ █▄   ▄▀█▄▄█ ▄██▄ ▀███▀▀█
+███   ▄▄▄  ▄▄ ▀▄▄█▄▄ ▄█▄ ▀█ ▄▄▄ ▄█▀  ██▀█▄ ▄█▀█▄  ▄▄▄ ▀▀▀██
+█▄ █▄ █▄█ ▀▄▀▄▄▄ ▀█▄███▀ ██ █▄█    ▀▄█▄█ ▀ ▄▀▄▄▀  █▄█ ▀  ██
+█▀▄ ▄▄ ▄▄▄▄ ▄█ ▄▀█▀ ▄   ▀█  ▄ ▄  █ ▄ █▀ ▄ ██▀▀▄▄█▄ ▄ ▄ ▄ ██
+█ ▄ ▄▀█▄▀█ ▄█▄▀███▀█ ▄    █ ██▄▀▀▀▀█▄▀ █ ▄ ▀██▄██ ▀█ █▄▄█▀█
+█  █▄  ▄█ ▄▀ █▄▀▄██▀██▄ ▀▄██████ ▀▄ █▀▀ ▄█▄▀█ █▀  ▄▄▄  █▄ █
+█ ▀ █▄█▄▀█▀▄██▄███▄▄▀██▀█▄▄██▄ ▀▀██▄▄ ▀ ▀▀██ ▀▀▄▀▄███▄█▀█▀█
+█▄▄█▀ ▄▄██   █   ▄▄   █ █ █▀   █ █▄█▄▄▀█▄▀▀▀▀▀▄█▄▄█▀   ▀ ██
+█▀█▄▄ ▄▄█ ▄██▄ ▀▄ █▀ █▀█ █▀▀ ▀▄▄▄ ▄▀▀▀▄█ █ █ ▄█▀▄█▄▀▀  ▄▀▄█
+█  ▄  █▄▀▄ ▀█▄█▀███▄▄▄█  ▄▄ ▄ ▄ ▄▀█▄▀   ███▄▀▄  █▄ ██ █▄▄▀█
+█ ▄▀█ █▄▀  ▄▀▄ █ █▀▀▀▄ █  ▄ ███ ██▄█▀▀▀█▄▄   █▄█▀ ▄███   ██
+█ ▀ ▀▀▄▄▄▀  ██ ██ ▀▀▄▄ █▀ ▀██ █▀▀██ ▀ ▀█▀▄▀ █    ▀█ ▀▀ █  █
+███████▄▄▀▀▀▄ ▀█▀█▄ ▄  ▀█▄▄ ▄▄▄  ▀ ▄ ▄▀ ██▄███ ▄█ ▄▄▄ ▀█▀▄█
+█ ▄▄▄▄▄ ██  █ ▀▀  ██▀█▄ █▄█ █▄█  ▀██ ▀▄▀▀▀▀▀▄▀ ▄  █▄█   ▄██
+█ █   █ █▀█ ▄▀▀ ▀█▀█ ▄▀█ ▄▀ ▄  ▄▄▄  ██ ▄▀█ █▄ ▀▀▄▄ ▄ ▄ ▀▀▄█
+█ █▄▄▄█ █   ▀▄█▄  █▀▄▀██ ▄▄▀████ █ ▄ ▄▄ ▄█▄ ▀██  ▄▀▀███▄█▀█
+█▄▄▄▄▄▄▄█▄██▄▄███▄▄█▄█▄▄▄█████▄█▄███▄█▄▄▄▄▄█▄█▄█▄██▄█▄█████
+
+[10:30:35.319] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:30:37.117] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":305,"req":{"id":305,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:30:40.122] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":306,"req":{"id":306,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:30:43.126] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":307,"req":{"id":307,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:30:46.108] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":308,"req":{"id":308,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:30:49.099] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":309,"req":{"id":309,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:30:52.109] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":310,"req":{"id":310,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:30:55.117] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":311,"req":{"id":311,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▀▀▄ ▄▄██▀▀▄ ██ █  ▀ ▀▄ █ ▀▀█▀▀▀▄█ ▄█▀█▄ ██ ▄▄▄▄▄ █
+█ █   █ █▀▀ ▄  ▄█▄ ▀█▄▀█▄█ ▀█▄█▀▀█▄  ▀ ▀▄▄██▀▄ ▄ ██ █   █ █
+█ █▄▄▄█ █▀▄ ▀▀█▄▄█▄▀▄ █ ▀ ▀ ▄▄▄ █▄▀█  ▄█▀▀ ▄▀██▀▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄█ █ █ ▀▄▀▄▀ ▀ ▀▄█ █▄█ █ █▄█ █ ▀▄█ █ ▀ ▀▄█▄▄▄▄▄▄▄█
+█▄   ▄▀▄  ▀ █▀█▀██▄  ▄▀▀▀  ▄▄▄  ▄▀██▄  ██▀▀▀ ██▄▀ ▄█▄▀▄█ ██
+█▄▄ ▄█▄▄▀▀▀▄▄█▄ ▀▀▀ █▄▀▄██▀▄▀█▀▄▀ ▄███▀ █ ▄██▀▄ ▄ █▄ ▀▀  ██
+█▄▄▄▄ █▄▄▀▀█▀▄▄▄██▀ ▀▄▄▀▄▀ ██▀▀  █▄▄  ▀▄▄█   ▀██▀▀▀█ ▀▄▀▄██
+██▄▄▄▀▀▄▀▀▄▄ ▄▀  ▀█▄ █▄▀▄  ██▄█ █▄  ▀█▀▄  ▀▀█▄  ▀█▀   ▀ ▄▀█
+█▀▄▄▀ █▄ ▄▀▄ █ █ ▄▄▄ ▄▀█▀ █▀█▀▀  ▀▄█▀ ▀▄▀█ ▀▄▀█▄▀▀██▄███▀ █
+█▄  ██▀▄▀ ▀▄██▀██▄▀▀▄▀█▄▄▀▀▄██▄  ▀█▄█▄▄█▀ ▀▀▀ ▀█▀▀  █  ▀▄██
+█ █  ██▄██   █▀█▄▀▄▄▄█ ▀▄▀██▀█  ▀▀▄█▄ ▀▄▀█▀▀▄████▀▄▄██▄█▄▀█
+██▄█▄██▄█▄█▄  ▄█▄ ▀▀▄███▄▄▀██▀▀▄▀█ ▀▄▄▀ ▀ ▄▄▄██▄▄▄▀ ▀ ▀  ██
+█▄▄ ▀▀█▄▀ ▀▀██ ▀█▄▄ ▀█▀▀  ██ ▀▄ ▄█▄█ ▄ ▄ ▀▀ ▄▀▄▄▀▀ ▄█▀▀▀▀██
+█▄▄ ▀ ▄▄▄ ▄  █ ▀█▄▄█▀▄▄█  ▀ ▄▄▄ ██ ▀ ▄▄▀▄█ █▄▀▄█▄ ▄▄▄ ▀  ██
+█▀▄█▄ █▄█ █  ▀▄ ██▄▀▀▄ █  ▀ █▄█ ▄▀███  ▄██▀▀██▀█▄ █▄█ ▄█▄▄█
+█▄▄▀▀▄▄▄     ▀  ██ ▄▄▄████ ▄ ▄ ▄▄▀  ▄██  ▄▀██▀ ▄▀    ▄ ▀ ▀█
+█ █▄▀ █▄██▀███ █▄▄▄ ▀█▀█  █▄▄▄▄ ▄█▄█▄  █▀▀  ▄▀▄▄█▀ █▀▄█▄▄██
+█▄▄▀▀▄▀▄▀▀▀█▀   ██▄▄█ ▀▄ ▀  ▀▄▄ ▄▀▀▄▄▄▄  ▀██▀▀▀█▀█ █▀▄▀ ▄▀█
+██▀▄▀▄▀▄▀▀█▄▀█▄▀▀█  ▀▀▀▀▀ ▄▀▀▄▀▀▀▀▀▄ ▄▀▄█▀▀▀ ██▄█ █▀▀▄▀████
+████ ▀▄▄▄█▄▄▀▀▀ ▀█▄▀▀ ▄▀█▀▄▀▀▀▀▄▀██▄▄█ ██ ▀  ▀█▄▄█▄▀▀▀  ▀██
+█▄▀█▀▄▄▄▀▀█▄▀▄█▄▀▄▄▄▄▄▄▀▀ █ ██▄▄ ▀▀█ ▄ ▄█▀▀ ▄█ ██   ▄▄▀▀███
+█▄  ▄█▄▄▀ █▄▄▄█▀▀█▀ ▄ ▀ ▄ ▄▄    ▄█▀▄█▄ ▄▀█▀ ▀ ▄ ▀▀ ▀▀ ▀ ▄██
+█▀██▀▀▄▄▀██▀▀██ ▀▄▀  ▄▀▄ ▀█▄▄▄█▀▄██▄▀  ███ ▀▀██▄▀▀▀▀▄▄▄▀▀██
+█ ▀ ▀▀▄▄▄▀█▄▄ ▄▄ ▄ ▄ █▄ █ ▄ ▀▄▄▄█  ▄ ██ ▄  █▀▀▀▄▀▄▄▀▀▀▀▀▄▀█
+███████▄█▀█▀ ▄▀▀█▄▄▄▀█▀█▀▀▀ ▄▄▄ ▄█▀██▄▀█▄▀█ ▀██▄▀ ▄▄▄ █ █ █
+█ ▄▄▄▄▄ █▄▀▀█▀ ▀ ▀█▄ ▄█▀▄▀█ █▄█ ▀ █▄▀▀▄▀▀▀ ▀▄  █  █▄█  ▀ ██
+█ █   █ █  ▄█▀█▀▄▀  ▄█▄▀▀▀ ▄▄▄   ██▄▄ ▄█▄▀▀  ▀▄██ ▄▄▄ ▀▄▄██
+█ █▄▄▄█ █ ▄█ ▀▀▀▄ ▀█▄█▀█▄ ▄█▀▀▀▀ ▀▄▄▄ ▄▄ █ ▄▀▀▀ ▄ ▀█▀█▀ ███
+█▄▄▄▄▄▄▄█▄██▄▄▄▄▄█▄▄████▄▄▄█▄█▄▄██▄▄▄▄█▄██▄▄███▄▄▄▄▄▄██▄▄██
+
+[10:30:55.326] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:30:58.108] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":312,"req":{"id":312,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:31:01.117] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":313,"req":{"id":313,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:31:04.117] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":314,"req":{"id":314,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:31:07.155] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":315,"req":{"id":315,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:31:11.358] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":316,"req":{"id":316,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:31:13.838] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":317,"req":{"id":317,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄█▄▄ ▄ ▀▀█ ▄█  ▀▄ █▄▀▀ ▀▀▀▀  ▄█ ██ ▀ ▀▄ ██ ▄▄▄▄▄ █
+█ █   █ █  ▀ ▀▀▄█▄  ▄█ ▄█▄▀▀▄▄█  ██▀  ▀▀███▄ ▄▀▄ ██ █   █ █
+█ █▄▄▄█ █▄▀▄██▀█▀▀█▄ ▀ ▄ ██ ▄▄▄ ▀█▄▀▀█ ▄▄█▀▀█▄ ▀▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄█▄█▄█▄█▄█ ▀▄█ █ █ █▄█ █▄▀▄▀▄█▄█▄▀▄█▄█ █ █▄▄▄▄▄▄▄█
+█▄   ▀█▄█ ▀▀▄▄▄▀▄▄▄▀▀▄  ▀▀▀  ▄  █▀▄▄▄▀▀█▄ ▀ ▀█▄█   █▀ ▄▄▀▄█
+█▀ ▀▀▀▄▄▄▀ ▀   ▀▄█ █▀█▄ ▄ ▄▄█▀ ▀█▀▀▀▄ █▀ ▄█ ▀ ▀▄▀▀▀▄██ █▄▄█
+█ ▄ █ ▀▄▀▄ ██ ▄ ▀██▄▀  ▀ █  █▀█▄ ▀ ▄▄▄▀  █▄▄ █▀███▀▀▄▀ ▀▄▀█
+███ █ ▀▄▀▀██ █  ▀ █ ▀█▄▀▄▀ ▄█▄█▀▄ ██▀▄▄▄▀██▄  ▀█▀▄  ▀▀ ▀█▀█
+█▄ ▄▀▄▄▄▄█▄ ▀ ▄▄  ▀▀▄▄ ▀ ▄▀▀ █ █▄ ▀▀▀▀ ▄▄█ ██  ▀ ▄▀▄▀▀█ ▀██
+█▀█ █▀▀▄▀▄█▄▀▀▀▀████▀ ▀▄▄ ▀ ▀██  █▀█  ▄ █ ▄▄ ██▄██ ▄▀ ▄█▄██
+██▄ ▀▀▄▄▄█▀▀ █ ██ ▄███▀ ▄ ▄█ ▄▄  ▀█▄▄▀ ▄ ▄▀ ██▄▄█ █▄▄▄▄▄▄▀█
+█  ▄▀▀▄▄▀▀ ▀▄█▄█▀▄ ▄ ▄ ▀█▀█▄ ▀▀ █▄███▀█▀▄▄█▀ ▄  █▀██▄▄ █▄▄█
+█ ▄▄█▀█▄▄▀▀    ▄▀▄ ▄▀▀█▀▄▄█▀█▀ ▄▄▀ █▄   ▄▀█▄▄█ ▄██  ▀███▀▀█
+███   ▄▄▄  █▄█ ▄▄█▄▄ ▄█▄ ▀█ ▄▄▄ ▄█▀  ██▀█▄ ▄█▀█▄  ▄▄▄ ▀▀▀██
+█▄  █ █▄█ █▄▀▄█▀ ▀█▄███▀▀██ █▄█    ▀▄█▄█ ▀ ▄▀▄▄▀▀ █▄█ █▄ ██
+██▀ ▀  ▄ ▄▄ ▄█ ▄▀█▄ ▄ ▀▀▀ █ ▄▄▄  ▀▄▄ ██ ▄▄██▀█▄▄█▄▄    ▄ ██
+█▄█▄▄▀█▄█  ▄█▄▀█ █ ██▄▄ ▀▀▄▀▄█▄▀█▀▀█ ▀▀█▄ ▀ ▄▀▄▄█ ▀█ █▄▄▀▀█
+█ ▀█▄  ▄█▀▄▀ █▄▀█▄█▀▄▄▄ ▀█▄▀▄███  ▄ █▀▀▀██▄▀█ █▀  ▄▄▄  █  █
+█ ▄ █▄█▄▀█▀▄█▄▄███▄▄▀██▀█▄▄██▄██▀██▄▄ ▀ ▀▀██ ▀▀▄▀▄███▄█▀▄▀█
+█▄▄█▀ ▄▄██  ▄ █▄ ▄▄   █ █ █▀   ▀ █▄█▄▄▀█▄▀▀▀▀▀▄█▄▄█▀   ▀ ██
+█▀█▄▄▀▄▄█ ▄ █ ▄ ▄ █▀ █▀█ █▀▀ ▀█▀▄ ▄▀▀▀▄█ █ █ ▄█▀▄█▄▀▀  ▄▀▄█
+█  ▄   ▄▀▄▄▄ ▀▄▄███▄▄▄█  ▄  ▄ ▄ ▄▀█▄▀   ███▄▀▄  █  ██ █▄▄▀█
+█ ▄▀▄  ▄▀▀▄▄▀▄▄▄ █▀▀▀▄ █▀ █▀▄▄█ ██▄█▀▀▀█▄▄   █▄█▀█▄ █▄   ██
+█ ▀ ▀▀▄▄▀   ██ ██ ▄▀▄▄ ▀██ ██ █▀█▀▀ █▄▀██ ▀ █  ▄▀▀ ▄  ▀█  █
+███████▄▄ ▀▀▄ ▀█▀▄ ▄▀ █▀██▀ ▄▄▄ ██ █▄ ▀ █▀█▄▀██▄█ ▄▄▄  ▄▀▄█
+█ ▄▄▄▄▄ ██  █ ▀▀ ▄██▀█▄  ▀▄ █▄█ ▀▀██ ▀▄ ▀▀▀▀▄ ▀█  █▄█   █▀█
+█ █   █ █▀█ ██▀ ▀█▀█ ▄▀█ ▄▄    ▄▄▄  ██ ▄▀█ █▄ ▀▀▄▄ ▄ ▄ ▀ ▄█
+█ █▄▄▄█ █  ▄ ▀▄█  █▀▄▀██ ▄▄▀█▀██ █ ▄ ▄▄ ▄█▄ ▀██  ▄▀▀███▄█▀█
+█▄▄▄▄▄▄▄█▄█▄█████▄▄█▄█▄▄▄███▄▄▄█▄███▄█▄▄▄▄▄█▄█▄█▄██▄█▄█████
+
+[10:31:15.333] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:31:16.819] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":318,"req":{"id":318,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:31:19.991] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":319,"req":{"id":319,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:31:22.778] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":320,"req":{"id":320,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:31:25.783] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":321,"req":{"id":321,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:31:29.503] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":322,"req":{"id":322,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:31:31.901] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":323,"req":{"id":323,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:31:34.950] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":324,"req":{"id":324,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▀ ▀▄ ▄██ ▄▀▄ ██    ▀▄▄ █▄ ▄    ██▄  ▀▄▄ ██ ▄▄▄▄▄ █
+█ █   █ █▄ ▀▀▄▄▄█▄██ █ ▄▀▀▄▀█▄ ████▀██▄▀██ ▀█▄▀▄ ██ █   █ █
+█ █▄▄▄█ █ ▀▄▀▄ ▀██▄█▀█▄ ▀▄▄ ▄▄▄  ▀ █ ▄▀  ▀  ▄ ▄▀▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█ ▀▄█ █ ▀ █ ▀ ▀▄█ █ █▄█ █ █ ▀▄█ ▀ ▀▄█ ▀▄█ █▄▄▄▄▄▄▄█
+█ ▄▀ ▀█▄ ██▀█▄▀▀▄▄▀▄▄▄  ▄▄  ▄ ▄▄ ▀▄▄▀▄▄█▄ ▄█▄█▄█▄██▄▄ ▀ ▄██
+█ ▀██▄▄▄▀▀▄█▀ ▀█ ▀▀▄ ▀ ▄█▀▄ ▀█▀ ▄████▀▄█▄ ▄▀ ▄█  █ ▀ ▀▀▄█ █
+█ ▄███▀▄▄█▀▀█ ▄█▄ █▄▀██▄ ██ ▄ █▄ ▄█▀▄▄▀██ ▄▄  ▄ ██▀▄▀▄ ▀▄▄█
+█▄█▄▀ ▄▄▄▀███ █ ▀ ▄ ▄██▄▀▄▄▄██ ▄█▄▀█▄▀█▄▀▀▄█▀ ▀▀▄▀█ ▀▀█▄ ▀█
+█▄█ ▄ █▄█▀ ▄ ▀█ ▄▄▀ ▄▀ ▀▀▄▀█▄▀▀▄█ ▄▄    ▄▀▄▄█ ██▀█  ██▄▀ ▀█
+█▄▀▄█ █▄▀▀ ▀▀▀▀▄▄▄██ ▀▄▀▄▀▀█▄ ▀█  █ ▀ ▄█▀▄▄█  ▀▀██ ▀▄█▄█▄▄█
+█▀█ ▀█▀▄▀█▀▀ ▀███ ▀  █▀ ▀█▀█ ▄███▀█▄▀▄█▄ ▄▄█ █▄▄ █ ▄▄▄▀▀▀ █
+█▀▀ █ ▄▄▄▀▀▄ ▀█ █ ▀█▀ ▄█▄ ▄ ▄▀▀ ▄ ▀▀▄ ▄█  ▄ ▀ ▄▄▄ ▄▀ ▄▀▄█ █
+█ ▄▀ ▀█▄ ▄▄██▄▄ ▄▀ ▄▀▄ ▄▄▄▀  ▄ ▄▄▄█ ▄  █▀▄█▄▄ █▀ █▀▄▄ ██▀▄█
+█     ▄▄▄ ▀█ ▀▀▀▄█▀▀█▄█▄█▄  ▄▄▄ ▀█▀ █  ▀█▄█▀ ▀█▄█ ▄▄▄ ▄▄▄██
+██▀██ █▄█ ▄▀ █ █▄█▄█▄▀▀█▀▄  █▄█ ▀▄▄██▄█▀▄█▀█   █▀ █▄█  █▀▀█
+█ ▄██ ▄▄ ▄▀█▄█ ▀▄ ▀▄▄█▄█▀█    ▄   ▀█▄▀█▀██▀█▀▄▀▀█▄   ▄ ▄  █
+█ █ █▀ ▄▀▄ ▄ ▀▄███▀▄▀▄▄▄ █ █▄▄▀▄▄█▄██ ██  ▄▄▄███ █▄█ █ ▀ ██
+█▄▀█▀▄▀▄ ▀ █▀▄███▄▄ █  ▄█ █▄▀▀▄▄ █▀██  ▄▀▀█▀▄▄▀█▀▀█  ▄▀▄█ █
+█▀ █ ▀█▄▀ ▄▀▄█▄   ▄▄▀  ▄█▄▄  ▀█ ▀  ▀▄ ▀█▄▄██ ▄▄▀▀▄█  ▀█▀█▄█
+█▀▀█▀ ▀▄ █▀█  █  ▄▀██ █  █ ▀  █ ██▄█▀▀▄█▄▀▄▄▄▀▄█▀▀ ▀  █▄███
+█ ▄  █ ▄▄▄▀  ▀▀▄ ▄▄ ▀▀█▀▀▄ █▄█▀▀█▄ █  █▀▄▀▀▄▀ ▀██▄███▄▀█  █
+█  ▀███▄▀▀▄▄▄▄    █▄▄▀ █ ▄ █▀██ ▄▄ ▀▀  █  █▄▀▀███▄   ██▄▄▄█
+██▀█▀▄▀▄▄▀██▄▀▀█ █▄▄▄▄ █▄█▀█▄█ █ █▄█▄▄▄█▄▄████▄█▄▄█▀██▀▀███
+█ ▀ ▀▀▄▄▀█▄▄▄▄▀▀▀▄▄▀█ ▀ ▄█ ▀▀▄▄ ▄▀▀  ▀▄██  ▀ ▄▄ ▀ ▀ ▄█ █▀▄█
+███████▄▄▀▄▄▄ ▀  ▀▄▄▀██▄██▄ ▄▄▄ ▄▄▄ ▀ ▀▄ ▄▄▄ ▄  █ ▄▄▄  ▄▀██
+█ ▄▄▄▄▄ █▄   █▄▀ █  ▄▄▄   ▀ █▄█ █ ▄█▄▄▀ ▀▀▄█▀▀ ██ █▄█ ██▄██
+█ █   █ █▀▀▄█▄ ▄█▀ ▄▀ █▀▀█▀▄▄  ▄█ ▄▄▄▄▀ █▀▀▄█▄███▄  ▄ ▀ ▀ █
+█ █▄▄▄█ █▀▀▄▄█▄▀███▀▄▄   ▄▄▄▀ ██  █▀ ▄▄█▀ ▄ ▀  █ ▄▀▄  █▄█▄█
+█▄▄▄▄▄▄▄█▄████▄▄█▄█▄██▄▄█▄▄██▄█▄█████▄█▄▄▄█▄██▄██▄▄▄█▄▄▄▄██
+
+[10:31:35.340] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:31:37.983] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":325,"req":{"id":325,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:31:40.961] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":326,"req":{"id":326,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:31:43.887] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":327,"req":{"id":327,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:31:46.982] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":328,"req":{"id":328,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:31:50.049] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":329,"req":{"id":329,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:31:53.017] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":330,"req":{"id":330,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:31:55.346] [32mINFO[39m (NOWEBEngine/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - connection errored[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","trace":"Error: QR refs attempts ended\n    at Timeout.genPairQR [as _onTimeout] (file:///app/node_modules/@adiwajshing/baileys/lib/Socket/socket.js:727:26)\n    at listOnTimeout (node:internal/timers:605:17)\n    at process.processTimers (node:internal/timers:541:7)"}[39m
+[10:31:55.599] [33mWARN[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - QR code has not been scanned yet, force stopping the session.[39m [90m{"reqId":274,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:31:55.854] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":331,"req":{"id":331,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:36:38.470] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Unpairing the device from account...[39m [90m{"reqId":332,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:38.472] [33mWARN[39m (SessionManager/7): [36mError while unpairing from device: Error: Connection Closed[39m [90m{"reqId":332}[39m
+[10:36:39.474] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Stopping session...[39m [90m{"reqId":332,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:39.475] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Session has been stopped.[39m [90m{"reqId":332,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:40.475] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Logging out session...[39m [90m{"reqId":332,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:40.480] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Session has been logged out.[39m [90m{"reqId":332,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:40.480] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Deleting session...[39m [90m{"reqId":332,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:40.484] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Session deleted.[39m [90m{"reqId":332,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:40.485] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":332,"req":{"id":332,"method":"DELETE","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2026}[39m
+[10:36:40.496] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Saving session...[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:40.501] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Session saved.[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:40.504] [32mINFO[39m (SessionManager/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Starting session...[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:40.507] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - The session ignores the following chat ids[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","ignore":{"status":true,"groups":false,"channels":false,"broadcast":false}}[39m
+[10:36:40.510] [32mINFO[39m (7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Session has been started.[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:40.511] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":333,"req":{"id":333,"method":"POST","url":"/api/sessions","query":{},"params":{"path":["api","sessions"]}},"res":{"statusCode":201},"responseTime":24}[39m
+[10:36:40.533] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Connecting using wa.version = 2.3000.1043857760[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:40.543] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":334,"req":{"id":334,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:36:40.721] [32mINFO[39m (NOWEBEngine/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - connected to WA[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","browser":["Ubuntu","Chrome","22.04.4"],"helloMsg":{"clientHello":{"ephemeral":"Ilm2y5R3Qrky5wZFbwUJ3ClwXsazbfxMlL8DFNnoMz8="}}}[39m
+[10:36:40.845] [32mINFO[39m (NOWEBEngine/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - not logged in, attempting registration...[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","node":{"passive":false,"userAgent":{"platform":"WEB","appVersion":{"primary":2,"secondary":3000,"tertiary":1043857760},"mcc":"000","mnc":"000","osVersion":"0.1","device":"Desktop","osBuildNumber":"0.1","releaseChannel":"RELEASE","localeLanguageIso6391":"en","localeCountryIso31661Alpha2":"US"},"webInfo":{"webSubPlatform":"WEB_BROWSER"},"connectType":"WIFI_UNKNOWN","connectReason":"USER_ACTIVATED","devicePairingData":{"eRegid":"AAAAdg==","eKeytype":"BQ==","eIdent":"9Qe3MeAoYM6/U3u0X6N29RPD9AAAak4IGwaYXUvthnI=","eSkeyId":"AAAB","eSkeyVal":"o9Hjy/ouB5yRhSF/aYSRuJRHkT/WKxRxjqArdKb5RF0=","eSkeySig":"wQllwvCHBENy6CCUpnbaYmsrp9dtJ5P0apX/BaXU4uRlSJCD5wfR1qa6fgohgwBpq7wZFZZ8gGJcAxH/eWY1gg==","buildHash":"9vZcBgehzf/YdSsFH8le3w==","deviceProps":"CgZVYnVudHUSBggKEA8YBxgBIAAqFxiAUCABMAA4AUABSAFQAVgBYAFwAXgA"},"pull":false}}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄▄▀▄ ▀██ ▀▀▄██▀█▄▀ ▀▀ ▄▀▀████▄██▄█  ▀█▀█▀▄█  █ ▄▄▄▄▄ █
+█ █   █ █   ▄█▄█▄█▄▀██ ▄▀█ █▄▄▄█▀▄█▄▀▀██▀▄▀▀█▄█ ▀   ▄ █ █   █ █
+█ █▄▄▄█ █▄▀▄▄ ▄▀ ██▄   ▄▀██ ▄ ▄▄▄ ▀▀█▀  ▄▀ ▀▄▄ ▀▄ ▄ ▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄█ █▄█ ▀▄█▄▀ ▀▄█▄█▄█ █▄█ ▀▄█ ▀ ▀ █▄█▄▀▄█ ▀ █ █▄▄▄▄▄▄▄█
+█  ▄ ▀█▄▀  ▀ ██▀█▄▀▀ ▀▄▄▀ █▄█▄▄▄ ▄▄█▀▀▄▄█▄ ▀▀▀▀█ ▀████▄▀▀   ▀▄█
+█▄▄▄█▀ ▄█▀▄ █ ▀▄▀ █▄█▀▄██▄▀▄▄▀▀██▄▄ █▄█▀ ▄▄ ▀▀▄▄  ▀█  ▄ ▄█ ▀███
+█ █ ▀▀█▄ ▀▄  █ ▀ ▄▄▄▀ ▀▀▄▄▄▀███ ▀█▀█ ▀▀▄ ▀ ▄ ▀▀▄▄ ▄▀█▄▄▄ ▀▄▄███
+█  █▀▄█▄  ▀ █▄ █ ▀ ▀ ▀ ▀ ▄   █▀▄▄██  ▄ █▀ ▄ █ ██▄▄█▄▄ ▀ █▀██▄██
+█ ▀█▀██▄▄▄ █▄██▄▄▀█▀▄█▄  ▀ ▄▄▄ ▀  █ ▄█▄▄ ▀▀▄▄▄  ▀█ █▀ ▀█ ▄▄▄ ██
+█ ▀██▄▀▄█ █▀▄   ███ ▀▀ ██▀▀ ▀▄██▄█▀ █▀    █▄▀██▄▀█▄ ▀▀██▀▄ ▄  █
+█▀  ▄ █▄ ▄▄▀▄▄█▄██▄▀█▄   ▀████▀ ▄▄█▀▄█ ▄▀▄   █▄█ █▀█▄▄█ ▄█▄█  █
+█  █▀▀▄▄ ▀  ▀ ▄▄▄██ ▄█▀ ▄▀█▄ ▀▀▄▄ ▀▀█▄▄ ▄ ▀▄▀ █▀  ▄ █ ▀ ▀▀▀▀█▀█
+█ ▄ ▄▄█▄██▀▀▀▄▄██▄ █▄▀ ▀▄█▀▀▀  ▄█▀▀▄ ▄  ▀██▄▄█ ▄▀▄  █▄▄███▀   █
+█ ▀█ █▀▄ █▀▀   ▀▄█ ███ ▄▀ █▄█  ▀█ ▄▀ ▀████ ▀█▄ ▀█▀█▄▀▀▄▄  ▄█ ▀█
+█▄▀▀  ▄▄▄ █ ▀▄▄▄▀ ▀█▀█▄█▄▄ ▄▀ ▄▄▄  ▀ █ ▄▄█ █▄▄▀▀▀██▄▀ ▄▄▄ █ ▀██
+█▄ ██ █▄█ ██▄█▀▄█▄▀█ █ ██▀▀▄▀ █▄█ ███▄▄▀█▀▄ ▀ ▄█  ███ █▄█ █▄▄ █
+█ ▀██▄ ▄▄▄ █ █ ██  ▀ ██▄▄▀▀▀█ ▄   ▀█▄▀█▄   ▀▀█ █▄▀▀██▄▄▄▄▄ ▀▄▀█
+█▀█▄ ▄█▄▀█ ▄██  ▀▄▀█▀█ ▀██▄ █  ██▄▄ ▄█▀▀▄█▄▄▀▀▀▄█▀█▄▀█ ▀ ▀▀▀▀██
+█▀▄██  ▄██ ▄▄▀▄▄█▄▄▄▄ ▀█▄▄ █ ▀█▄█▀██   ▀ █▀█ ▀ ▄ ▄▀▀ ▀ ▄ ▀ ▄▀██
+█  ▀▀ ▀▄█▄ ▄ ▄▀▄▄▀▀▀ ▄█ ▄██ █▀▄█▀█  ▄▄▀█▄█ ▄█▀██▀▄▄▄ ▀ ▀█▄█▄▄▀█
+██  ██ ▄ ██ ▀██▄▄  ██  ▀▀▄ █▀▀▀▀█▄▀▀██ ▄ █▀▄▄▄▄ █▀▄███ ▀▄▄▄▄ ██
+█▀▀ ▄▀ ▄  ▀▀▀ █▄ ███▀▄▄▄█ ▀▄  █▄  ▀█▀▄ ▄▀ ███ █ █ █      ▀▄▄█▄█
+█▀▀█  ▄▄▄ █▄▀▄▀█▄█ ▀█▄  ▀ ▀█▀█████▄█▄▄  ▀ ▀▀▀█ ▄ ▀▀▄▀▄ ██▄▄█▀██
+█▀ █▀█▄▄█▄▀  ▀██ ▀ █  ▄▄▀▄█ █  █ ▄█▄▀ ▀▄▀█ █▄▀▀▄  ██▄▄█▀ █▀▀ ██
+█▀▄█  █▄▀▄▄  ▄  ██▀ ▀ █▄█ ▀█ ▀ ▄▄▀▀██▄▄ ▀█▄▄█▀▀▄ ▄█  ▄  ▀▀  █▄█
+█▀▀ ▄ ▄▄█▀▀▄ █▀█ ▄▀ ▀█▀▀▀▄▀▀▀█▄▄▀█▄ ▄██ ▄ █▀█▄█▀ ██▄▄▄▄▀█▀▄▄ ██
+█▄▄▄▄██▄▄▀▀  █▀ ▀ █▀ █ █▀█  █ ▄▄▄ ▀▄▀█▄▄▀█ ▄▄▄ ▀▄▀▄▄▀ ▄▄▄ ▄▀ ▄█
+█ ▄▄▄▄▄ ██ ▄▀  ▄   ▀ ▀ █ ▄▀▀  █▄█  █▀▄█▀█ ███▄▀ ▀█▀▀▄ █▄█  █▄▄█
+█ █   █ █▀ ▄█▀▀ ██▄ ██▄ █  ██  ▄▄ ▄▄▄█▀▄▄▄▀▀██ ▄ ▀▀█▀ ▄▄▄▄ ▀█ █
+█ █▄▄▄█ █ ▄ ▀  ▀ ▄▀█ ▄▄▄▀▀▀▀█▄▄▀▀▄█▀ █ ███▄▄ ██▄ █ ▀▄█ ▄▄▄▀▀▄██
+█▄▄▄▄▄▄▄█▄█▄█▄▄▄█▄█▄████▄███████▄██▄█▄▄█████▄██▄▄▄▄▄▄██▄▄█▄▄▄▄█
+
+[10:36:41.079] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:41.552] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":335,"req":{"id":335,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:36:41.554] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Requesting pairing code for '79857257397'...[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:41.582] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - Your code: FTDA-XC8H[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:36:41.583] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":336,"req":{"id":336,"method":"POST","url":"/api/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491/auth/request-code","query":{},"params":{"path":["api","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","auth","request-code"]}},"res":{"statusCode":201},"responseTime":30}[39m
+[10:36:41.612] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":337,"req":{"id":337,"method":"GET","url":"/api/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491/auth/qr","query":{},"params":{"path":["api","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","auth","qr"]}},"res":{"statusCode":200},"responseTime":24}[39m
+[10:36:44.855] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":338,"req":{"id":338,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:36:47.841] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":339,"req":{"id":339,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:36:50.838] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":340,"req":{"id":340,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:36:53.871] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":341,"req":{"id":341,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:36:56.908] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":342,"req":{"id":342,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:36:59.851] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":343,"req":{"id":343,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:37:03.010] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":344,"req":{"id":344,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:37:05.838] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":345,"req":{"id":345,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:37:09.788] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":346,"req":{"id":346,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:37:11.851] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":347,"req":{"id":347,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:37:14.858] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":348,"req":{"id":348,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:37:17.836] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":349,"req":{"id":349,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:37:20.836] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":350,"req":{"id":350,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:37:23.838] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":351,"req":{"id":351,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:37:26.839] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":352,"req":{"id":352,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:37:29.849] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":353,"req":{"id":353,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:37:32.846] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":354,"req":{"id":354,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:37:35.838] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":355,"req":{"id":355,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:37:38.836] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":356,"req":{"id":356,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █ █▀▄▄  ▄ ██▀▄▄█▀ ▄▀ ▀▀▀▄▀▄█▀▀▀▄▄▄▀▄█ ▄▀▀█▀█  █ ▄▄▄▄▄ █
+█ █   █ █ ▀▄▄█▀▄█▀▀█▄▀▄▀▄▀▀█▀█▀███▄ █▄▄▀  ▄█▀██ ▄▄▀ ▄ █ █   █ █
+█ █▄▄▄█ █▀▀ ██▄▄ ▀▄▀▀     ▄▄▄ ▄▄▄ ▀█▀█▀▄▄█▀▄ █▀▀███ ▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀▄█ █▄█ █▄█ █ █▄█ █ █▄█ █ ▀▄▀▄█▄█▄█ █ █ ▀▄▀▄█▄▄▄▄▄▄▄█
+█▄▄██ ▄▄██▄  ▄▀▄▀█▀ ▄▄ █▀▀▀▀▀▄▄▄▄  ▄ ▄ ▀▀█  █▄█▄  ▀ ▀▄█▀▄█▄▄ ▄█
+█▄ ▄  ▄▄▀ ▀▄▀ ██▄▀▀█▀ ▀▄▀▄▄ ▀ ██▀██ ▀█▀ █▀  █ ▀█▄ █ █▀ ▄ ▄▄ ▀██
+█▄ ██▀▀▄▀▄▄▀▄▀█ ▀▄ ▄▄▀ ▀▄▀█▄▄█▀▄▄▄ ▄▄█▄█ ▀▀▀█  ▄ ▄▀  █ ▀█ ██▀▀█
+█▄▀ ▀▄▄▄████  ▀██▄██▀▀▀█▀▄▄█▀▀▄ ██▄▄█ ▀█▀█▀█▄ ▄▀  ▄▄█ ██▄▀▄▀▀▀█
+██ ▀▀█▄▄  ▄ █ ▄ ▄█▄▄█▀▄▄▀▄▀▄▄ █ █ █▄█ █  █ ▀█  ▄  ▀▀▀▄  ▀ ▄ ▀ █
+█▀ ▀▀▄▀▄▄█▀▄ ▄▄▄▀ ▄▀▀█▀ ▄ ▀▄ ▀█▄ ▀██  ▄▄▄█▄██▀▀▀ ▄▄▄█▄▄▄▀ ▄▀▀▀█
+█  █  ▀▄▄▀  ▀▀▄ ▀▄▄ ▄▀ ▀  ▀  ▄ █▄▄▀ ▄▄ ▀██ ▀█▄▀▄ ▄█  ██▀ ▄ ▄ ▀█
+█ ▄▄▄▀▀▄▄ █▀ █▄▀▀▄▀ █▄▄▀ ▀▀█▄▀██ █▄     ▀▀█▄█▀▀ ▄  ▀ ▀█ █▀▄ ███
+██ ▀█▄▀▄ ▄ ▀█ ▄▀▄▄▄▀▀ ▀▀ ▀▄   ▄▀  ▄█▄▄█▀ █▀ ▀▄▀▄█ █▀▄▄ ▀ ▄▄ ▄██
+█▄ ▀▀▀▄▄▀▀▄▄█▄▀▀█▀▀▀▄█▀ ▄▄█▀▄▄██▄ ████▄█ █▀█▄▄▀█ █▄▄ ██▄▀ █▀███
+█▀ ██ ▄▄▄ ▀▄ ▀█ ▀█▀▄ ▀▄▀ ▀▀ ▀ ▄▄▄ ▀█▀ ▀ ██▀ █ ▀█  █ ▄ ▄▄▄ ██  █
+██ █  █▄█  ██▄▀ ▄  ▄ ▀▄ █▄ ▀█ █▄█   ▄█▄█ █▄ ▀▄  ▀▀▄ ▀ █▄█ ▀▀█▀█
+█▀█ ▀▄ ▄  ██▀▀▄ ▀▀  ▄ ▀█▄ ▄▄▀ ▄ ▄▄█▄▄ ▀▀▄▀  █ ▄▄▄ █ ▀ ▄▄  ▄ ▄ █
+█▀ ███▀▄ ███▀▀▀█▄████▄▀▄▀█ ▀ ▀▄█▀█▀▀▄▀█ ▀▄ ▄█ ▄▀▀▀▀█▄▄█▀▄ ▄ ███
+█▄▄▄▄▄▄▄██▀▄  ▄▀▄▄  █▀▄█  █▄▀ ▀   ▄█  ▀ ▀██▀█  ▄▄ ▄ ▀▀▄ █ ▀▄███
+█▄▄▀   ▄▀ ▀ ▄ ▄▀██▄█ ▄▄▄▀▀▄  ▄██ ▄▀ ██ ▄█▀█ ▄▀▄▀▄ █▄▀███▄▄▄ ▀██
+█▀▀██ █▄▀▀█▄  ▄▀▄▄▀ ▄▄ █ ▀▀▀ ▀█▄▀▀▀▄▄ ▀  ▀ ▀█ ▄▄▄▄█▀█▀▀▄▄▀▄▄▀▀█
+█ ▀▀▄█▀▄ ▄▀█ ▀█ ▄ ▀█▀  ▀▄▀ ▄ ▀▄▄ ▄██ █  ▀▀▄ █▄▀█ ▀█▄▄█▀▀▀▀█▀▄██
+█ █▄▀▀▄▄ █▀▀▀██ ▀█▄ ▀▀▄▀  █▄▄▄▀▄▄ ▀▄▄█▄█ █ ▀█ ▄█▄ ▄ ██ ▄▀▀▀█▀▄█
+█▀▄▀ ▄ ▄▀█▄▄▄▀▀▄▀▀▄█▄▀▀█▀ ██ ▀▄█▄█▀██ ██▄███  ▄█▄▀ ██▄▀▀▄▄▄ ▄██
+██▀▄▀ ▀▄▄▀ ▀▄▄█▀▄██▄▄▀▄▄▀▄▄▄▀▀▄ ▀  █▀ ▀▀ █     ▄▄  ▀█ ▀ ▄ ▀ ▀ █
+█▀▀ ▄ ▄▄▄   ▄█▄█▀ ▄▄ █▀▀▄  ▀ ▀▀  ██▄██▄ █▄ █ ▄ ▀█▀▄▄▄ ██▄▀█ █▀█
+█▄▄▄▄██▄▄ ▀▄▀  ▀▀▄▄▄█  ▀  ▀▄█ ▄▄▄ ▀  ▄▄ ▀▀▀▀█  ██▄█ ▀ ▄▄▄ ▄████
+█ ▄▄▄▄▄ █▀▄▀▄ █▀▄█▀ ██▄ ▀█▀█▄ █▄█ ▄ ▀███▀█▄▄▄▀▄▄ ▄▀█  █▄█ ▄ ▀▀█
+█ █   █ █▄▄██ ▄█▀▄▄▀▀  ▀█▀▄ ▀  ▄ ▄▀▄▄▄█▀ █▀ ▀ ▄█  █ █ ▄▄  ▄ ▄▀█
+█ █▄▄▄█ █▀█▀█ ▄ ██ ▀▄█▀██▀▀█  ▄▀▀▀▀█▄█▄▄▄  ▄▄▄ █▄▀ ▄▀▄▄▄ █▄▀ ██
+█▄▄▄▄▄▄▄█▄▄██▄██▄█▄▄▄▄▄████▄▄█▄██▄▄██▄█▄▄██▄█▄▄▄▄▄▄▄███▄█▄██▄▄█
+
+[10:37:41.088] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:37:41.852] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":357,"req":{"id":357,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:37:44.835] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":358,"req":{"id":358,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:37:47.835] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":359,"req":{"id":359,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:37:50.881] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":360,"req":{"id":360,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:37:53.864] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":361,"req":{"id":361,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:37:56.846] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":362,"req":{"id":362,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:37:59.862] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":363,"req":{"id":363,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▀ ▀ ▀▀█▀ ██▄▀▀▀▀ ▀█▀█▀ ▀▄▀█▀▀▄▀▀▄▀▄ █▀▀▀█▄█  █ ▄▄▄▄▄ █
+█ █   █ █▀▀▀█▄▀██▄▄  ▀▀▄▀▄▀██ ▄  █▄█  █  █▀ ▀██▀▀▀▀ ▄ █ █   █ █
+█ █▄▄▄█ █▀▄  █  █▀▄▀ ██   ▀▀▀ ▄▄▄ ▄█▄█▄▀▀█▀▄ ▄▀███  ▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀ █ █▄█▄▀ ▀ █▄▀ █ █ █▄█ ▀ █▄▀▄█ ▀ █ █▄▀▄▀▄▀ █▄▄▄▄▄▄▄█
+█▄▄   █▄  ▀  ▄▄▀▄█▀ ▀▀██▀▀▄▄▄▄▄▄ ▄▄█▄▄█▄▄█   ▀ ▄  ▄█▄▄▄▀ ▀▄█ ██
+█▀   █▀▄▀ █▄▄███▄▄▀▄▀ ▀▀▄▀▄▀▀█  ▀█ ▄█ ▀ ▀▄▀▀█ ▀ ▀█▀▄█▄██ ▄▄▄▄ █
+█▄█ ▄▀▀▄█ ▀█▄▀ █▄▄▄ ▀▄█▀▀ ▀▀▀█▀▄▀▀▄█▄█▀ ▀██  ██▄▀▄ ██▄ ▀ █ █▀▀█
+█▀▀▀▀▀█▄ █▀███▀█▀█  ▀▀▀ █▄ ▀▀▄▀████▀ █▀█  ▄▀▄ ▄▄█▄██ █▀ ▄▀▄▄▄▄█
+███▄▄█▄▄█ ▀ ▄▀▀█▀█▄▄ ▄▀▄▀▄▄█▀ ▀ ▄█ ▄█  ███ ▀ ██▄  ▄▄▄▄  ▄█▀ ▀ █
+█▀▄▀▀█ ▄██▀▀▄██▄▀█▀▄▀██▀▀█▀▄▄█▀▀ ▀█ ██ ▄▄ ▀ ▀█▀ █▀▄▄█▀▀▀█ ▄▄▄▄█
+██  █ ▀▄▀▄█ ▄██▄▄▄▄ ▀▄▀▀  ▄███▄  ▀▄ ▄  ▄ █ ▀▄█▄█ ▄ ████▀ ██▄ ██
+██ ▄▄▄▄▄▄ █▄ ▄▀▄▀▀▄█▄ ▄▄█▄▀█▄█▀▀ ▀ ▀█▀▀▀▀▄ ▀█▀▀▄▀█ ▀ ▄ ██ ▄█▀▄█
+█ ▄██▄▀▄█▀█▀█ ▀ ▀▄▄▀▄█▄▀ ▀▀█ ▀▄▀█▄▄█   ▄██▀ ▄▀▄▄█  ▄▀▄ ▀█▀▀▄▄▄█
+█▀ ▀█▄▀▄██▀▀ ▀▀▀█▄▄▄▄█▀█▀▀▀█▄▀  ▄ ██  ▄█▄ ▄ ▄▄▀ ▀▄▄▄   █▀ ▄▄  █
+█▀█ █ ▄▄▄ ▄  ▀ █▄▄▀▄█▄▀▀▀ ▀▀▄ ▄▄▄ ██▀ ▄█ █   █▄█▀▄▀▄█ ▄▄▄  █  █
+█  ▀▄ █▄█ ▀▄ ▀▀ ▄▄█▀ ▀▄█▀ ▀▄█ █▄█  █▀ ▄█▀▀▀█▀▄ ██▄█   █▄█ ▀▄ ▄█
+█▀ █▄▄ ▄  ▀▀▄█▀█▄▀  ▀█▄█▄ ▀▀▄ ▄    ▄▄ ▄▄▀▀   █▀▄▄  ██▄ ▄▄▄▀ ▄ █
+██▀██ ▄▄▀▄█  ▀█ ▄   █▄▄▄▄  ▀ ▄▀ ▀█▀▄█ █ ▀▀█▀▀ ▄▄▄▄▀█▄▀▄ ▄ ▄█  █
+█▄▀▀▀▀ ▄ ▄▄▄▄▄  ▀▄  ▀█▀▀   ▀▄▀▀ ██▀█▄▄▄▄▄██▀█▀▀█▄ ▀█▄▀▄  █▄▄▀▀█
+█▀▄▀ █▀▄▄█▀██▀ ██ ▀ █▄▄▀▄▄▄ ▄▄▀▀ ▄▀█▄▄ ▄█▄ ██▀█▄▀██▄▀   ▄▄▄█ ▄█
+█▀▄█▄▀▄▄▄▄ ▄  ▀ ▀▄▀ ▀▀██ ▀▄▄      █▄▄ ▄██▀ ▀ █▀▄▄▄ ▄ ▀▀▄▀█▀  ▀█
+██▀ ▀██▄ ▄ ▀█▄█ ▄█ ▄▀  ▄▀▄▀▄  ▄▄▀▄ ██   ▀▄█▀█▄▀ ▀▄▀ ▄ ▄▄█▀▄▄▀ █
+█  ▄▄▀▄▄█  █▀█ ██▄ ▄▄▄▀▀  ▀▀ ▄▀▄▀███▄█▀ █▀▄  █▀█▀▄ ▄ █ ▄▄▄▄█▀▄█
+█▄▄██▀█▄▀█ ▀▀▄▀▄  ▀ ▄▀▀ ▀▀██ ▄▀ ▄█▀  ███▄  ▀  ▄ ▀█▀██▀▄▄▄▄▄█▀ █
+██▄▀▄ ▀▄ ▀ ▄█▀ ▄▀██▄▀▄▀▄▀▄▀▀▄▀▄ ▄███▀ ▄▄██  ███▄▄ █▄ ▄▀ ▀█▄ ▀ █
+█▀▀ ▄ ▄▄ ▀ █▄▄▄▄▀█▀▀ █▄ ▀█ ▀ ▄▄█ ██▀▄▄▄ █▀█ ▄    ▄▄▄██▄ ▄▀██ ▄█
+█▄▄▄▄██▄▄ ▄▄▄ ▄▀▄▄▄▄ ▄██  ▄▀▄ ▄▄▄ ▄ ▄ ██▄▀▀▀ ▀███▄ █▄ ▄▄▄ ▀████
+█ ▄▄▄▄▄ █▄▄▄ ▀▀▀▄ ▄██▄▄█▄ ▀█▀ █▄█ ▄▀█▀▄▄▀ ▀▀█▀▄▀█▀▀█  █▄█ ▄█  █
+█ █   █ █ ▀██ ▀█▄▄▄▀▄██▀█▀▀█ ▄ ▄▄ ▄▄▄▄ ▄██▀ ▄█▀█   █  ▄▄▄▄█ ▄ █
+█ █▄▄▄█ █ ▀█ █▄ █   ▄█▀  ▄▀▄▄▄█ █▀▄█▀ ▄▄ ███▄▄  █▄▄▄▀▀▀▀ █▄▄█ █
+█▄▄▄▄▄▄▄█▄▄▄█▄▄▄██▄▄█████▄▄███▄▄██▄██▄▄████▄▄██▄█▄█▄▄██▄▄█▄█▄▄█
+
+[10:38:01.095] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:38:03.090] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":364,"req":{"id":364,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:05.937] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":365,"req":{"id":365,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:38:08.838] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":366,"req":{"id":366,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:11.856] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":367,"req":{"id":367,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:14.847] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":368,"req":{"id":368,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:38:17.888] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":369,"req":{"id":369,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄▄▀███▀█ ▀▀▄████▄▀▀▀▀▀ ▄ ████▄██▄█  ▀█▀█▀▄█  █ ▄▄▄▄▄ █
+█ █   █ █   ▀▀▀█▄█▄▀█▀▀█▀█ █▀▀▀█▀▀█▄▀ ▀▀▀▄▀▀▀▄▄ ▀   ▄ █ █   █ █
+█ █▄▄▄█ █▄▀▄█▄█▀ ██▄ ▄ ▄▀██ ▄ ▄▄▄ ▀▀██ ▄▄▀ ▀█▀▀█▄ ▄ ▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄█ ▀▄█ ▀▄█▄▀▄▀▄█▄█▄▀ █▄█ █ ▀ ▀ ▀ █▄█▄▀▄█ ▀ █ █▄▄▄▄▄▄▄█
+█▄▄ ▄▀█▄▀  ▀ ██▀█▄▀▀ ▀▄▄▀ █▄█ ▄▄ ▄██▄▀▄▄█▄ ▀▀▀▀█ ▀████▄▀▀  ▄▀▄█
+█▄▄█ ▀ ▄▀▀▄██ ▀▄▀ ▀▄█▀▄██▄█▀▄▀▀██▄▀█▄██▀▄▄ ▄▀▀▄▄▄ ██  ▄▄▄█▀▀███
+█ █▄▄▀█▄  ██ █ ▀▀█▄ ▀ ▀▀▄█▀████ ▀█▀█ ▀▀▄█▀██ ▀▀▄  ▀  ███ ▀█▄███
+█  ▄▄ █▄▀▄▄▄█▄ ██▄ ▀ ▀ ▀▀ ▀▄ █▀▄▄█▄  ▄ █  ▄▀█ ██▄█▄█ ▄▀ █▀██▄██
+█ ▀█▀█ ▄ ▀▄█▀▀█▄▄▀█▀▄█▄  ▀▄ ▄▄▄▀▄ █ ▄█▄▄ ▀▀▄▄▄  ▀█ █▀ ▀█ ▄▄▄ ██
+█▀ ██▄ ▄█▀█▀ ▄▀▄███ ▀▀▄▄█▀▀  ▄▄▄▀▀▀ █▀ ▄  █▄█▀█ ▀█▄ ▀▀███▄ ▄  █
+█ ▀ ▄▀▄▄ ▄▄▀▀█ ▀██▄▀ ▄▄▄ ▀██▀ █ ███▀ █▀█▀▄  ▀██▄ █▀█▄▄█ ▀█▄█ ▄█
+█▀▄█▀ █▄ ▀  ▄██ ▄██ █▄▀ ▄▀█▄▀ ▀█▄ ▀█ ██▀▄ ▀▄  █▀  ▄ █ ▀ ▀▀▀▀ ▀█
+█   ▄▄█▄██▀▀▀▄█▄█▄ █▄▀ ▀▄█▀▀  ▀█▄▀▀█ ▄  ▀██▄▄█ ▄▀▄  █▄▄████▄▀ █
+█ ▀▀ █▀▄▄██▀   ▀▄█▀ ██ ▄▀ ▄██  ▀█ ▀█▀ ████ ▀█▄ ▀▀██ ▀▀ ▄  ██ ▀█
+█▄▀ █ ▄▄▄ ▀ ▀▄▄▄ ▀▀▀▀█▄█ █▄▄▀ ▄▄▄  ▀ █ ▄ █▀█▄▄▀▀█████ ▄▄▄ ▄ ▀██
+█▄ █▀ █▄█ ██▄█▀▄█▀▀█ █ ███▀█▀ █▄█ ▄▄█▄▄▀█▀▄ ▀ ▄█  ▄▄█ █▄█ █▄▄ █
+█ ▀██▄ ▄▄ ▄ █  ██  ▀ ██▄▄▀▀██ ▄   ▀█▄▀█▄   ▀▀█ █▄▀▀█  ▄▄▄▄ ▀▄▀█
+█  ▄ ▄█▄█▀ ▄▀ ██▀▄▀█▀█▀ ██▄ █  ██▄▄  ▀▀█▄█▄▄██▀ █▀█▄▀███ ▀▀▀▀██
+█ ███▄ ▄▀▀ ▄▄█▀▀█▄▄▄▀ ██▄▄ █ ▀█▄█▀██▄  ▀ █▀█▄▀ █ ▄▀▀ ▀ ▄ ▀ ▄▀██
+███▀▀▄ ▄▀█ ▄ ███▄▀▀▀▀▄█ ▄██ █▀▀ ▀▄     ▄▄█ ▄█▀█▄▀▄▄▄ ▀ ▀█▄█▄ ██
+█ ▀▄   ▄ ██ ▀██▀▄  ██  ▀▀▄ █ ████ █ ██ ▄ █▀▄▄▄▄ █▀▄███ ▀ █   ▄█
+█▀▀▀▀█▄▄  ▀ ▀ █▄ ███▀▄▄▄█ █▄ ███▀▀▀ ▀▄ ▄▀ ███ █ █ █▄    █████▄█
+█▀▀▀█ ▄▄▄ ▄▄▀▄▀███▄▀█▄  ▀ ▀█ █ ▀▀▀█▄▄▄  ▀▄  ▀█ ▄▀▀▀█▀▄ ██▄▄█▀██
+█▀ ▄▀█▄▄█▄▄▄ ▀██▄  █  ▄▄▀▀███  █ ▄██▀ ▀▄ █ █▄▀▀▄▀ ▄█▄██▀ █▀▀ ██
+█▀▄█  █▄▄ ██▀   ██▀ ▀ █▄█ ▀█ ▀ ▄▄▀▀██▄▄ ▀█▄▄█▀▀▄ ▄█  ▄▀▀▀▀  █▄█
+█▀▀ ▄ ▄▄ ▄▀▄▀█ ▄ ▄▀ ▀█ ▄▀▄▀▀▀█▄▄▀█▄ ▄█▀▄▄ █▀▀ ██ ██▄█▄ ██▀▄▄ ██
+█▄▄▄▄██▄▄ ▀ ▄▀█ ▀ █▀ █ ▀▀█  █ ▄▄▄ ▀▄█▀█▄▀█ ▄▄   ▄▀▄▄▀ ▄▄▄ ▄▀▄▄█
+█ ▄▄▄▄▄ ██ ▄█ ▀    ▀█▀ █ ▄▀▀  █▄█ ▄█▀▄▄▀█ ████  ▀█▀▀▄ █▄█  █▄ █
+█ █   █ █▀ ▄█▀█ ██▄ ██▄ █  ██▄ ▄▄ ██▄█▀▄▄▄▀▀██ ▄ ▀▀█▀ ▄▄▄▄ █▄▀█
+█ █▄▄▄█ █ ██▀  ▀ ▄ ▀ ▄▄▄▀▀▀▄▀▀ █▀▄██ █ █▀▀   ██▄▄▀▄█▄█ ▄▄▄▀▀▄██
+█▄▄▄▄▄▄▄█▄▄▄█▄▄▄▄█▄▄█████▄▄█████▄█▄▄█▄▄███▄█▄██▄▄▄▄█▄██▄▄███▄▄█
+
+[10:38:20.828] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":370,"req":{"id":370,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:38:21.103] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:38:23.836] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":371,"req":{"id":371,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:27.088] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":372,"req":{"id":372,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:29.885] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":373,"req":{"id":373,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:32.835] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":374,"req":{"id":374,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:35.951] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":375,"req":{"id":375,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:39.092] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":376,"req":{"id":376,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄█▀▀▄▀▀█ ▀▀▄██▀█▄▀ ▄█▄▀  ████▄██▄█  ▀█▀█▀▄█  █ ▄▄▄▄▄ █
+█ █   █ █   ▄▄▀█▄█▄▀▀▀▄▄▀█ █▄ ▀█ ▄█▄  █ ▀▄▀▀ ▄ ▀▀   ▄ █ █   █ █
+█ █▄▄▄█ █▄▀▄ ██▀ ██▄█ ▀▄▀██ █ ▄▄▄ ▀▀█ ▄▄▄▀ ▀ ▄ █▄ ▄ ▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄█ ▀▄█ ▀▄█▄█▄▀▄█▄█▄█ █▄█ █▄█ ▀ ▀ █▄█▄▀▄█ ▀ █ █▄▄▄▄▄▄▄█
+█▄  ▄▀█▄▀  ▀ ██▀█▄▀▀ ▀▄▄▀ █▄ ▄▄▄ ▄███▀▄▄█▄ ▀▀▀▀█ ▀████▄▀▀   ▀▄█
+█▄▄▄ ▀ ▄█▀█▄█ ▀▄▀ █▀█▀▄██▄██▄▀▀██▄█▀▄▄█▀▄▄▄▄▀▀▄▄▄ ▀▀  ▄ ▄█ ▀███
+█ █ ▄▀█▄██▀█ █ ▀▀▄  ▀ ▀▀▄▄▀████ ▀█ ▄ ▀▀▄▀▀▄█ ▀▀▄ ▄ ▀▀███ ▀▄▄███
+█  █▀▄▀▄██▄▀█▄ █▀  ▀ ▀ ▀▀▄   █▀▄▄█▄▀ ▄ █  █▀█ ███▄▄▄▀▄  █▀██▄██
+█ ▀█▀▄▄▄▀   █▄█▄▄▀█▀▄█▄  ▀  ▄▄ █ ▄█ ▄█▄▄ ▀▀▄▄▄  ▀█ █▀ ▀█ ▄▄▄ ██
+██▀██ ▄▄█ █▀▄▀▄▄███ ▀▀█ █▀▀ █▄▄▄ █▀ ▀▀▄   █▄▀▀▀▄▀█▄ ▀▀███  ▄  █
+█▀▄ ▄ ▄▄ ▄▄▀█▀▀ ██▄▀ ▄▄  ▀██ ▄█▄▀██▀ ███▀▄  ▀██▄ █▀█▄▄█ ▀▀▄█ ▄█
+█▄▀█▀ █▄ ▀  █▀▄▄▄██ ▄█▀ ▄▀█▄▀▀ █  █▀  ▄▀▄ ▀▄▀▀▄   ▄ █ ▀ ▀ ▀▀▀▀█
+███ █▄█▄██▀▀▀▄▄▀█▄ █▄▀ ▀▄█▀▀▀█▀█▄▀█▄▄   ▀██▄▄█ ▄▀▄  █▄▄████▄▀ █
+█ ▀█▄█▀▄▄█▀    ▀▄█  ██ ▄▀ ▀▀█  ▀█  █  ███▀ ▀█▄ ▀▀▀█▄▀▀▄▄  ▄█ ▀█
+█▄▀ ▄ ▄▄▄  █▀▄▄▄▀  ▀▀█▄█ █ ▄▀ ▄▄▄ ▄▀ █ ▄▀▀ █▄▄▀▀█▀▀█▄ ▄▄▄ █▀▀██
+█▄  ▀ █▄█ ▀█▄█▀▄█▀▀█ █ ██▄██▀ █▄█ █▄█▄▄▀█▀▄▀▀ ▄█▀▀▄▄█ █▄█ █▄▄ █
+█ ▀██▄ ▄  ▄▀█  ██  ▀ ██▄▄▀ ▀█ ▄   ▀█▄▀█▄   ▀▀█ █▄▀▀██ ▄ ▄▄ ▀▄▀█
+█▀ ▄ ▄█▄▀█ ▄█▀  ▀▄▀█▀██ ██▄ █  ██▄▄ ▄█▀█▄█▄▄▀█▀ █▀█▄▀█ ▀ ▀▀▀▀██
+█▄████▀▄█  ▄██▀▀█▄▄▄▀▀▀▀▄▄ █ ▄█▄█▀██  ▀  █▀█▄▀ ▄ ▄▀▀ ▀ ▄ ▀ ▄███
+█ ▄▀▀▄▀▄██ ▄▀ ▄█▄▀▀▀▀▀█ ▄██ ▀▀▀ ▀▄  ██▀█▄█ ▄▄ ▄▄▀▄▄▄ ▀ ▀█▄█▄ ▀█
+███ █  ▄ ██ ▀█▄█▄  ██  ▀▀▄ █▄▄▀█▀▄▀▀▄█ ▄ █▀▄▄▄▄ █▀▄███ ▀ █ ▄ ▄█
+█▀▀▄█▀▄▄  ▄▄▀ █▄ █  ▀▄▄▄█ ▄▀▄ ▀█ ▀ █▀▄ ▄▀ ▀██ █ ▀ █▄    ▄▀ ██▄█
+█▀▀▀█ ▄▄▄ █ ▀▄▀█▄▄ ██▄     ▀ █▀█▀███▄▄  █ █ ▀█ ▄▄▀ █▀▄ ██▄█▄▀██
+█▀ ▀██▄▄█▄█  ▀██▄  █  ▄▄▀█▀▄█  █ ▄█▄▀ ▀▄▀█ ▄▄▀▀▄  ██ ▄█▀ █▀▀ ██
+█▀▄█  █▄▄█  ▀   ██▀ ▀ █▄█ ▀█ ▀ ▄▄▀▀██▄▄ ▀█▄▄█▀▀▄ ▄█  █▄▄▀▀  █▄█
+█▀▀ ▄ ▄▄▀█▀▄█ ▀  ▄▀ ▀█  ▀▄▀▀▀█▄▄▀█▄ ▄█▀▄▄ █▀▀ ▀█ ██▄█▄ ▀█▀▄▄ ██
+█▄▄▄▄██▄█▀▀    ▀▀ █▀█▄ ▀▀█  █ ▄▄▄ ▀▄█▀██▀█ ▄  ▀▀▄▀▄▄▀ ▄▄▄ ▄▀  █
+█ ▄▄▄▄▄ ██ ▄▄ █▄   ▀█▄ █ ▄▀▀▀ █▄█  █▀▄▄ █ ██▄█ ▀▀█▀▀▄ █▄█  █  █
+█ █   █ █▀ ▄█▀ ▄██▄ ██▄ █  ██▄ ▄▄ ▄█▄█▀▄▄▄▀▀██ ▄ ▀▀█▀ ▄▄▄▄▄██ █
+█ █▄▄▄█ █ █▄▀  ▀ ▄ ▀ ▄▄▄▀▀█ █▀▄▀█▄▀  █ ██▀   ██▄ █▄▀▄█ ▄▄▄▀ ▄██
+█▄▄▄▄▄▄▄█▄███▄▄▄█▄█▄██████▄█████▄██▄█▄▄███▄█▄██▄▄▄█▄▄██▄▄██▄▄▄█
+
+[10:38:41.112] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:38:42.109] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":377,"req":{"id":377,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:38:45.077] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":378,"req":{"id":378,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:47.844] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":379,"req":{"id":379,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:38:51.045] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":380,"req":{"id":380,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:54.095] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":381,"req":{"id":381,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:56.913] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":382,"req":{"id":382,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:38:59.842] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":383,"req":{"id":383,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █ █ ▀█  ▄ ██▀▄▄█▀ █▀█▀▄ █▀▄█▀▀▀▄▄▄▀▄█ ▄▀▀█▀█  █ ▄▄▄▄▄ █
+█ █   █ █ ▀▄ ▄█▄█▀▀█ ▀▄▀▄▀▀██ ▀██▀▄ ██▄▀  ▄█▀█▀▄▄▄▀ ▄ █ █   █ █
+█ █▄▄▄█ █▀▀ ████ ▀▄▀  ▀   ▄▄▄ ▄▄▄ ▀█ █▀▄▄█▀▄ ▄█▀███ ▄██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀▄▀▄█▄█ █▄▀▄█ █▄█ ▀ █▄█ ▀ █ ▀▄█▄█▄█ █ █ ▀▄▀▄█▄▄▄▄▄▄▄█
+█▄▄▀█ ▄▄██▄  ▄▀▄▀█▀ ▄▄ █▀▀▀▀▄ ▄▄▄ ▀▄▀▄ ▀▀█  █▄█▄  ▀ ▀▄█▀▄█▄▄ ▄█
+█▄    ▄▄▀ ▄▀▀ ██▄▀▄█▀ ▀▄▀▄▀▀▀ ██▀█   █▀ ▀▀▄▄█ ▀█▄ █▄█▀   ▄▄▀▀██
+█▄ ▀█▀▀▄ ▄▄▄▄▀█ ▄▄▄ ▄▀ ▀  ▀ ▄█▀▄▄▄ ▄▄█▄█▄▀▀ █  ▄█▄▀▀▀▄▀▀█ ██▀▀█
+█▄▀▄▀▄▄▄▄▄▀▄  ▀██▀██▀▀▀█▀ █▄▀▀▄ ██▄▄█ ▀█▀▄ █▄ ▄▀▀ ▄▄ ▄▄▄▄▀▄▀▀▀█
+██ ▀▀▀█▄▄▄ ▀▀▄▄ ▄█▄▄█▀▄▄▀▄▀ ▄ █ █ █▄█ █  █ ▀█  ▄  ▀▀▀▄  ▀ ▄ ▀ █
+█  ▀▀█▄▄██▀▄▀ ▄▄▀ ▄▀▀███▄ ▀▄▄ █▄▄▀██ ▄ ▄▄█▄█▀▀██ ▄▄▄█▄▄▄▀ ▄▀▀▀█
+█ ██  ▀▄▄▀  █▀▄█▀▄▄ █▀▄█  ▀ █▀█ ▄▄▀ ▄ ▄ ██ ▀█▄ ▄ ▄█  ██▀█▄ ▄ ██
+█▀▀▄▄ ▀▄▄ █▀▀ ▄█▀▄▀  █▄▀ ▀▀██ ██ ▀▄▄▄█ ▀▀▀█▄▄▀  ▄  ▀ ▀█ ▄▀▄ ▄▀█
+██▄  ▄▀▄ ▄ ▀█  █▄▄▄▀▀ ▀▀ ▀▄ ▄ ▄    █▄▄█▀ █▀ ▀▄▀▄█ █▀▄▄ ▀ ▄▄ ▄██
+█▄  █▀▄▄█▀ ██▄▀▀█▀ ▀▄█▀ ▄▄▀ ▄▄██▄   ▄▄▄█▄███▄▄▀█ █▄▄ █▀▄▀ ▄ ███
+█▀ ▀  ▄▄▄ ▄▀ ▀█ ▀▄▄  ▀▄▀▀ █ ▀ ▄▄▄  █▀ ▀ ▀█ ▀█ ▀█ ▄▄▀  ▄▄▄ █▄  █
+██ █▀ █▄█ █▀█▄▀  ▀ ▄ ▀▄  ▀▄▄█ █▄█   ▄█▄█▀▄█ ▀▄  ▀ █▀▀ █▄█ ▀▀█▀█
+█▀█ ▀▄ ▄  ▄ ▄▀▄ ▀▀  ▄ ▀█▄ ▀ ▀ ▄ ▄▄█▄▄ ▀▀▄▀  █ ▄▄▄ █ █▄▄▄  ▄ ▄ █
+██▀███▀▄  ███  ▀▄████▄▄▀▀█ ▀ ▀▄█▀█▀▀▄▀▀▄▀▄ ▄█▄▄█▀▀▀█▄▄█▀▄ ▄ ███
+██▄▄▄▀█▄█▀▀▄█▄▀▄▄▄  █ ▀▀  █▄▀▄▀   ▄█▀ ▄▀▀██▀▀▄█▄▄ ▄ ▀▀▄ █ ▀▄█▀█
+█  ▀ ▀ ▄▀▀▀ █   ██▄███▄▄▀▀▄ ▄██▀ ▄█▄ ▀▀██▀█ ▄▀█▀▄ █▄▀███▄▄▄ █▀█
+█▄▀ █▀█▄▀▀█▄  ▄▄▄▄▀ ▄▄ █ ▀▀▀▄▀ ▄▄  █▄ ▀  ▀ ▀█ ▄▄▄▄█▀█▀▀▄▄ ▄ ▀▀█
+█ ▀ █ ▄▄ ▄▄▄ ▀█ ▄ █▄▀  ▀▄▀ ▀ ▄ █ ▄ █ █  █▀  █▄▀█ ██ ▄█▀▀▄██ ▄██
+█ █ ▀▀▄▄ ██▀▀██ ▀█▄▄▀▀▄▀▀▀▀ █▄▄  ▀▀▄▄█▄█▄▀▀▀█ ▄█▄▄▄ ██ ▄▀▀▀▄▀▄█
+█▀▄▀▄▄ ▄▀█▀▄▄▀▀▄▄▀▄█▄▀▀█ ▀ █ ▀▄█▄█ ██ ██▄▄▄█  ▄█▄▀▀█▀█▀▀▄▄▄ ▄██
+██▀▄▀ ▀▄▄▀▀████▀▄██▄▄▀▄▄▀▄▄▄▀▀▄ ▀  █▀ ▀▀ █     ▄▄  ▀█▄▀ ▄ ▀ ▀ █
+█▀▀ ▄ ▄▄ ▄  ▄█ █▀ ▄▄ █ ▄▄  ▀ ▀▀  ██▄██  █▄ █  ▄▀█▀▄▄▄ ▀▀▄▀█ █▀█
+█▄▄▄▄██▄▄▀▀▄▄▄▀▄▀▄▄▄█▀ ▀  ▀▄█ ▄▄▄ ▀ ▄▄▄ ▀▀▀▀ ▄ ▄█▄█ ▀ ▄▄▄ ▄████
+█ ▄▄▄▄▄ █▀▄▀▄▀▄▀▄█▀ █ ▄ ▀█▀██ █▄█ ▄ ▀█▄█▀█▄▄█ ██ ▄▀█  █▄█ ▄ ███
+█ █   █ █▄▄██ █▄▀▄▄▀▀  ▀█▀▄ ▀▄ ▄ ▄ ▄▄▄█▀ █▀ ▀ ▄█  █ █ ▄▄   ▄█▀█
+█ █▄▄▄█ █▀█ █ ▄ ██▀▄▄█▀██▀█ ▀█▄██▀█ ▄█▄▄  ▄ ▄▄ █ ▀ ▄▀▄▄▄ █▄▀ ██
+█▄▄▄▄▄▄▄█▄███▄██▄▄▄▄▄▄▄████▄▄█▄██▄█▄█▄█▄▄█▄▄█▄▄▄▄▄█████▄█▄██▄▄█
+
+[10:39:01.119] [32mINFO[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - You can disable QR in console by setting 'WAHA_PRINT_QR=false' in your environment variables.[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:39:02.852] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":384,"req":{"id":384,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:39:06.770] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":385,"req":{"id":385,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:39:09.789] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":386,"req":{"id":386,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:39:12.794] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":387,"req":{"id":387,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:39:15.785] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":388,"req":{"id":388,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m
+[10:39:18.855] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":389,"req":{"id":389,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":1}[39m
+[10:39:21.126] [32mINFO[39m (NOWEBEngine/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - connection errored[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","trace":"Error: QR refs attempts ended\n    at Timeout.genPairQR [as _onTimeout] (file:///app/node_modules/@adiwajshing/baileys/lib/Socket/socket.js:727:26)\n    at listOnTimeout (node:internal/timers:605:17)\n    at process.processTimers (node:internal/timers:541:7)"}[39m
+[10:39:21.340] [33mWARN[39m (WhatsappSession/7): [36msession:wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491 - QR code has not been scanned yet, force stopping the session.[39m [90m{"reqId":333,"session":"wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"}[39m
+[10:39:21.951] [32mINFO[39m (7): [36mrequest completed[39m [90m{"reqId":390,"req":{"id":390,"method":"GET","url":"/api/sessions/wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491","query":{},"params":{"path":["api","sessions","wa_7f42fbb232b1eac3faa690bcca2caf9e9e93b491"]}},"res":{"statusCode":200},"responseTime":2}[39m

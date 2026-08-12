@@ -93,6 +93,10 @@ export function WaPersonalConnectorClient({
 				} else if (res.status === "failed") {
 					setError(res.error ?? "Подключение не удалось");
 					setStep("failed");
+				} else if (res.qr) {
+					// WAHA перегенерирует QR каждые ~20с — держим показанную картинку
+					// свежей, иначе к моменту сканирования она уже недействительна.
+					setQr(res.qr);
 				}
 			} catch {
 				// сетевые сбои поллинга не показываем — следующий тик повторит
