@@ -4,13 +4,16 @@ import {
 	listBotMessages,
 	listTelegramPersonalAccounts,
 	listWhatsappPersonalAccounts,
+	setWhatsappPersonalAccountStateBySession,
 	upsertBotUserPresence,
 } from "@psi-opora/db/queries";
 import { getSendResult, pushOutboundMessage } from "@psi-opora/tg-userbot";
 import {
 	jidFromPhone,
 	wahaGetChatPresence,
+	wahaGetSession,
 	wahaSendText,
+	wahaSessionHealth,
 } from "@psi-opora/waha";
 import {
 	discoverMessengerFields,
@@ -134,6 +137,16 @@ export async function sendViaWhatsappPersonal(params: {
 		);
 		return { ok: true, externalId: id };
 	} catch (err) {
+		const health = wahaSessionHealth(
+			await wahaGetSession(account.sessionName).catch(() => null),
+		);
+		if (health.status !== "connected") {
+			await setWhatsappPersonalAccountStateBySession(
+				account.sessionName,
+				health.status,
+				health.error,
+			).catch(() => {});
+		}
 		return { error: `Не отправлено: ${(err as Error).message}` };
 	}
 }

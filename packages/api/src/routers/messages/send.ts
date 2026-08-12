@@ -13,6 +13,7 @@ import {
 	listTelegramPersonalAccounts,
 	listWhatsappPersonalAccounts,
 	setBotMessageBitrixExternalId,
+	setWhatsappPersonalAccountStateBySession,
 	upsertBitrixCrmLink,
 } from "@psi-opora/db/queries";
 import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
@@ -20,7 +21,11 @@ import {
 	getMaxSendResult,
 	pushMaxOutboundMessage,
 } from "@psi-opora/max-userbot";
-import { wahaSendText } from "@psi-opora/waha";
+import {
+	wahaGetSession,
+	wahaSendText,
+	wahaSessionHealth,
+} from "@psi-opora/waha";
 import { bitrixProcedure } from "../../orpc";
 import { sendClientMessageSchema } from "../../schemas/messages";
 import {
@@ -225,6 +230,16 @@ async function sendWhatsappPersonal(
 			},
 		};
 	} catch (err) {
+		const health = wahaSessionHealth(
+			await wahaGetSession(account.sessionName).catch(() => null),
+		);
+		if (health.status !== "connected") {
+			await setWhatsappPersonalAccountStateBySession(
+				account.sessionName,
+				health.status,
+				health.error,
+			).catch(() => {});
+		}
 		return { error: `Не отправлено: ${(err as Error).message}` };
 	}
 }

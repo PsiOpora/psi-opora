@@ -39,6 +39,15 @@ export const startLogin = publicProcedure
 
 			const session = waSessionName(memberId, input.lineId, input.connectorId);
 			try {
+				// Не сносим живое подключение повторным нажатием «Получить код».
+				// Раньше это позволяло случайно заменить рабочий номер номером клиента.
+				const existing = await wahaGetSession(session);
+				if (existing?.status === "WORKING") {
+					return {
+						error:
+							"Этот канал уже подключён. Сначала явно отключите его в настройках, если хотите заменить номер",
+					};
+				}
 				await wahaCreateSession(session, sessionWebhook());
 
 				for (let attempt = 0; attempt < SESSION_READY_ATTEMPTS; attempt++) {

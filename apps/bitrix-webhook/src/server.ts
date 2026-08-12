@@ -23,6 +23,7 @@ import {
 	type MessageDeliveryStatus,
 	removeBotConnector,
 	removeWhatsappPersonalAccount,
+	setWhatsappPersonalAccountStateBySession,
 	updateBotMessageStatus,
 	upsertBotUser,
 	upsertBotUserPresence,
@@ -40,7 +41,9 @@ import {
 	wahaAckToStatus,
 	wahaDeleteSession,
 	wahaGetChatPresence,
+	wahaGetSession,
 	wahaSendText,
+	wahaSessionHealth,
 } from "@psi-opora/waha";
 import { Hono } from "hono";
 import { uploadWahaMedia } from "./media-storage.js";
@@ -269,6 +272,16 @@ async function relayToWhatsAppPersonal(
 		);
 	} catch (err) {
 		status = "failed";
+		const health = wahaSessionHealth(
+			await wahaGetSession(account.sessionName).catch(() => null),
+		);
+		if (health.status !== "connected") {
+			await setWhatsappPersonalAccountStateBySession(
+				account.sessionName,
+				health.status,
+				health.error,
+			).catch(() => {});
+		}
 		console.error(
 			`[bitrix-webhook] не удалось отправить ответ оператора в WhatsApp: ${(err as Error).message}`,
 		);
@@ -445,6 +458,15 @@ interface WahaMessageEvent {
 			mimetype?: string;
 			filename?: string;
 		};
+		/** Только для event === "session.status". */
+		status?: string;
+		data?: {
+			reachoutTimelock?: {
+				enforcementType?: string;
+				isActive?: boolean;
+				timeEnforcementEnds?: number;
+			};
+		};
 	};
 }
 
@@ -472,6 +494,52 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 		event = JSON.parse(rawBody) as WahaMessageEvent;
 	} catch {
 		return new Response("Invalid JSON", { status: 400 });
+	}
+
+	if (event.event === "session.status") {
+		const session = event.session;
+		if (!session) return Response.json({ ok: true });
+		const status = event.payload?.status;
+		const lock = event.payload?.data?.reachoutTimelock;
+		const lockActive =
+			Boolean(lock?.isActive) &&
+			(lock?.timeEnforcementEnds ?? 0) > Math.floor(Date.now() / 1000);
+
+		if (status === "WORKING" && !lockActive) {
+			await setWhatsappPersonalAccountStateBySession(
+				session,
+				"connected",
+				null,
+			).catch((err) =>
+				console.error(
+					`[waha-webhook] не удалось сохранить WORKING для ${session}: ${(err as Error).message}`,
+				),
+			);
+		} else if (status === "WORKING" && lockActive) {
+			const until = new Date(
+				(lock?.timeEnforcementEnds ?? 0) * 1000,
+			).toISOString();
+			await setWhatsappPersonalAccountStateBySession(
+				session,
+				"limited",
+				`WhatsApp временно ограничил исходящие сообщения до ${until}`,
+			).catch((err) =>
+				console.error(
+					`[waha-webhook] не удалось сохранить ограничение ${session}: ${(err as Error).message}`,
+				),
+			);
+		} else if (status === "FAILED" || status === "STOPPED") {
+			await setWhatsappPersonalAccountStateBySession(
+				session,
+				"error",
+				`WhatsApp-сессия отключена (WAHA: ${status}) — переподключите номер`,
+			).catch((err) =>
+				console.error(
+					`[waha-webhook] не удалось сохранить ошибку ${session}: ${(err as Error).message}`,
+				),
+			);
+		}
+		return Response.json({ ok: true });
 	}
 
 	if (event.event === "message.ack") {

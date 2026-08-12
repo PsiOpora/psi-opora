@@ -99,7 +99,11 @@ export type WahaSessionStatus =
 export interface WahaSession {
 	name: string;
 	status: WahaSessionStatus;
-	me?: { id?: string; pushName?: string } | null;
+	me?: {
+		id?: string;
+		pushName?: string;
+		reachoutTimelock?: WahaReachoutTimelock | null;
+	} | null;
 	config?: Record<string, unknown> & {
 		webhooks?: Array<{
 			url?: string;
@@ -107,6 +111,51 @@ export interface WahaSession {
 			[key: string]: unknown;
 		}>;
 	};
+}
+
+export interface WahaReachoutTimelock {
+	enforcementType?: string;
+	isActive?: boolean;
+	/** Unix timestamp в секундах. */
+	timeEnforcementEnds?: number;
+}
+
+export type WahaAccountHealth = "connected" | "limited" | "error";
+
+export interface WahaSessionHealth {
+	status: WahaAccountHealth;
+	error: string | null;
+}
+
+/**
+ * Приводит техническое состояние WAHA к состоянию, которое можно безопасно
+ * показывать оператору и использовать перед отправкой. Reachout Timelock
+ * WhatsApp блокирует обращения к новым контактам; сознательно блокируем на
+ * это время всю исходящую отправку, чтобы не усугублять антиспам-ограничение.
+ */
+export function wahaSessionHealth(
+	session: Pick<WahaSession, "status" | "me"> | null,
+	nowSeconds = Math.floor(Date.now() / 1000),
+): WahaSessionHealth {
+	if (!session) {
+		return { status: "error", error: "Сессия WAHA не найдена" };
+	}
+	if (session.status !== "WORKING") {
+		return {
+			status: "error",
+			error: `Сессия WhatsApp отключена (WAHA: ${session.status}) — переподключите номер`,
+		};
+	}
+
+	const lock = session.me?.reachoutTimelock;
+	const lockEnds = lock?.timeEnforcementEnds ?? 0;
+	if (lock?.isActive && lockEnds > nowSeconds) {
+		return {
+			status: "limited",
+			error: `WhatsApp временно ограничил исходящие сообщения до ${new Date(lockEnds * 1000).toISOString()}`,
+		};
+	}
+	return { status: "connected", error: null };
 }
 
 /**
@@ -133,7 +182,12 @@ export async function wahaCreateSession(
 							webhooks: [
 								{
 									url: webhook.url,
-									events: ["message", "message.ack", "presence.update"],
+									events: [
+										"message",
+										"message.ack",
+										"presence.update",
+										"session.status",
+									],
 									...(webhook.hmacKey
 										? { hmac: { key: webhook.hmacKey } }
 										: {}),
@@ -217,11 +271,47 @@ export async function wahaSendText(
 	chatId: string,
 	text: string,
 ): Promise<{ id?: string }> {
+	const before = wahaSessionHealth(await wahaGetSession(session));
+	if (before.status !== "connected") {
+		throw new WahaError(before.error ?? "Сессия WhatsApp не готова к отправке");
+	}
+	await wahaSimulateTyping(session, chatId, text.length).catch(() => {});
 	const res = await wahaFetch<{ id?: string } | undefined>("/api/sendText", {
 		method: "POST",
 		body: { session, chatId, text },
 	});
+
+	// WAHA отвечает 201, когда приняла команду, но WhatsApp может сразу после
+	// этого отозвать связанное устройство (401 device_removed). Короткая
+	// проверка не является повторной отправкой и защищает UI от ложного «ушло».
+	await new Promise((resolve) => setTimeout(resolve, 3_000));
+	const after = wahaSessionHealth(await wahaGetSession(session));
+	if (after.status !== "connected") {
+		throw new WahaError(
+			after.error ?? "WhatsApp отключил сессию сразу после отправки",
+		);
+	}
 	return { id: res?.id };
+}
+
+/** Имитирует обычный ответ оператора: коротко показывает набор текста. */
+export async function wahaSimulateTyping(
+	session: string,
+	chatId: string,
+	textLength: number,
+): Promise<void> {
+	await wahaFetch<void>("/api/startTyping", {
+		method: "POST",
+		body: { session, chatId },
+	});
+	// Ограниченный джиттер: снижает «машинный» паттерн, но не подвешивает UI.
+	const baseDelay = Math.min(2_500, Math.max(700, textLength * 20));
+	const jitter = Math.floor(Math.random() * 500);
+	await new Promise((resolve) => setTimeout(resolve, baseDelay + jitter));
+	await wahaFetch<void>("/api/stopTyping", {
+		method: "POST",
+		body: { session, chatId },
+	});
 }
 
 /** Удаляет сообщение из WhatsApp-диалога для обеих сторон. */
@@ -271,7 +361,13 @@ async function wahaEnsurePresenceWebhook(session: string): Promise<void> {
 		(webhook) => webhook.url === env.WAHA_WEBHOOK_URL,
 	);
 	const existing = index >= 0 ? webhooks[index] : undefined;
-	if (existing?.events?.includes("presence.update")) {
+	const requiredEvents = [
+		"message",
+		"message.ack",
+		"presence.update",
+		"session.status",
+	];
+	if (requiredEvents.every((event) => existing?.events?.includes(event))) {
 		presenceWebhookConfigured.add(session);
 		return;
 	}
@@ -280,10 +376,7 @@ async function wahaEnsurePresenceWebhook(session: string): Promise<void> {
 		...existing,
 		url: env.WAHA_WEBHOOK_URL,
 		events: Array.from(
-			new Set([
-				...(existing?.events ?? ["message", "message.ack"]),
-				"presence.update",
-			]),
+			new Set([...(existing?.events ?? []), ...requiredEvents]),
 		),
 		...(env.WAHA_WEBHOOK_SECRET
 			? { hmac: { key: env.WAHA_WEBHOOK_SECRET } }
@@ -348,4 +441,14 @@ export function phoneFromJid(jid: string): string | null {
 /** "+7 999 123-45-67" → "79991234567@c.us" — первое сообщение по номеру из CRM. */
 export function jidFromPhone(phone: string): string {
 	return `${phone.replace(/\D/g, "")}@c.us`;
+}
+
+/** Номер текущей WAHA-сессии совпадает с номером, который ввёл оператор. */
+export function wahaSessionPhoneMatches(
+	session: Pick<WahaSession, "me">,
+	phone: string,
+): boolean {
+	const expected = phone.replace(/\D/g, "").replace(/^8(?=\d{10}$)/, "7");
+	const actual = session.me?.id?.replace(/@c\.us$/, "").replace(/\D/g, "");
+	return Boolean(actual && actual === expected);
 }

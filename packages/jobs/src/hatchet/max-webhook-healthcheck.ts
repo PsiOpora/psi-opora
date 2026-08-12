@@ -15,12 +15,12 @@ interface MaxSubscriptionsResponse {
 
 /**
  * MAX может сам сбросить активную webhook-подписку (например, при сетевых
- * проблемах на прод-URL). Раз в 10 минут проверяем, что подписка жива,
+ * проблемах на прод-URL). Раз в 2 часа проверяем, что подписка жива,
  * и восстанавливаем её, если платформа её сбросила.
  */
 export const maxWebhookHealthcheck = CreateTaskWorkflow({
   name: "max-webhook-healthcheck",
-  on: { cron: "*/30 * * * *" },
+  on: { cron: "0 */2 * * *" },
   retries: 0,
   executionTimeout: "5m",
   fn: async () => {

@@ -1,4 +1,9 @@
-import { wahaGetQrCode, wahaGetSession, waSessionName } from "@psi-opora/waha";
+import {
+	wahaGetQrCode,
+	wahaGetSession,
+	wahaSessionPhoneMatches,
+	waSessionName,
+} from "@psi-opora/waha";
 import { publicProcedure } from "../../orpc";
 import { pollWhatsappStatusSchema } from "../../schemas/whatsapp-personal";
 import { finalizeConnectedLogin } from "./helpers";
@@ -50,6 +55,32 @@ export const pollStatus = publicProcedure
 					// иначе виджет молча показывает уже недействительную картинку.
 					const qr = await wahaGetQrCode(session);
 					return { status: "pending", qr: qr ?? undefined };
+				}
+				if (!wahaSessionPhoneMatches(state, input.phone)) {
+					return {
+						status: "failed",
+						error:
+							"К WhatsApp привязан другой номер. Отключите его и повторите подключение с правильным номером",
+					};
+				}
+
+				// Не фиксируем кратковременный WORKING как успешный логин: некоторые
+				// отклонённые WhatsApp привязки переходят в device_removed через секунды.
+				await new Promise((resolve) => setTimeout(resolve, 5_000));
+				const stableState = await wahaGetSession(session);
+				if (stableState?.status !== "WORKING") {
+					return {
+						status: "failed",
+						error:
+							"WhatsApp отозвал привязку устройства. Обновите WhatsApp на телефоне и подключите номер заново",
+					};
+				}
+				if (!wahaSessionPhoneMatches(stableState, input.phone)) {
+					return {
+						status: "failed",
+						error:
+							"К WhatsApp привязан другой номер. Отключите его и повторите подключение с правильным номером",
+					};
 				}
 
 				const { activationError } = await finalizeConnectedLogin({
