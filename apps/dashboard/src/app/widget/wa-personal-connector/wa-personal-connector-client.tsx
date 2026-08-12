@@ -244,7 +244,12 @@ export function WaPersonalConnectorClient({
 						size="sm"
 						variant={codeExpired ? "default" : "outline"}
 						onClick={requestCode}
-						disabled={busy}
+						disabled={busy || !codeExpired}
+						title={
+							codeExpired
+								? undefined
+								: "Повторный запрос аннулирует текущий код — дождитесь истечения"
+						}
 					>
 						{busy && <Loader2Icon className="size-3.5 animate-spin" />}
 						{method === "qr" ? "Запросить новый QR" : "Запросить новый код"}
