@@ -33,6 +33,11 @@ async function wahaFetch<T>(
 			method,
 			headers: {
 				"Content-Type": "application/json",
+				// WAHA отдаёт бинарник (например PNG для /auth/qr) вместо JSON,
+				// если Accept не равен ровно "application/json" (см.
+				// BufferResponseInterceptor в самой WAHA) — без этого QR-эндпоинт
+				// молча возвращает не то тело, и его не распарсить как JSON.
+				Accept: "application/json",
 				...(env.WAHA_API_KEY ? { "X-Api-Key": env.WAHA_API_KEY } : {}),
 			},
 			...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
