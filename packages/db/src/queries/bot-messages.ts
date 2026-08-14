@@ -270,6 +270,24 @@ export async function listBotMessages(
 		.limit(limit);
 }
 
+/** Полная история диалога с клиентом (новые первыми), без ограничения числа
+ * сообщений. Используется единым инбоксом, где оператору должна быть доступна
+ * вся переписка; компактные виджеты продолжают использовать listBotMessages. */
+export async function listAllBotMessages(
+	db: Database,
+	messenger: string,
+	userId: string,
+): Promise<BotMessage[]> {
+	if (!db) return [];
+	return db
+		.select()
+		.from(botMessages)
+		.where(
+			and(eq(botMessages.messenger, messenger), eq(botMessages.userId, userId)),
+		)
+		.orderBy(desc(botMessages.createdAt));
+}
+
 /** Сообщения диалога, появившиеся или изменившиеся (сменился status) после
  * `since` — для поллинга инбокса. Курсор по updatedAt, а не createdAt: иначе
  * статусный апдейт уже показанного сообщения (sent → delivered → read)

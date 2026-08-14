@@ -31,6 +31,7 @@ import {
 	getDeletableBotMessage as _getDeletableBotMessage,
 	getEditableBotMessage as _getEditableBotMessage,
 	insertBotMessage as _insertBotMessage,
+	listAllBotMessages as _listAllBotMessages,
 	listBotMessages as _listBotMessages,
 	listBotMessagesSince as _listBotMessagesSince,
 	listClientsWithLastMessage as _listClientsWithLastMessage,
@@ -195,6 +196,10 @@ export async function listBotMessages(
 	limit?: number,
 ) {
 	return _listBotMessages(db, messenger, userId, limit);
+}
+
+export async function listAllBotMessages(messenger: string, userId: string) {
+	return _listAllBotMessages(db, messenger, userId);
 }
 
 export async function listBotMessagesSince(
