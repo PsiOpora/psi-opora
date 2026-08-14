@@ -11,13 +11,13 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1108.0",
-    "@hono/node-server": "^2.1.0",
+    "@hono/node-server": "^2.1.1",
     "@maxhub/max-bot-api": "0.2.5",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
-    "hono": "^4.13.1"
+    "hono": "^4.13.2"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
