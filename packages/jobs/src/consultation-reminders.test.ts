@@ -50,7 +50,7 @@ describe("handleConsultationDealUpdate", () => {
             ID: "42",
             TITLE: "Бесплатная консультация Анны",
             CATEGORY_ID: "0",
-            STAGE_ID: "EXECUTING",
+            STAGE_ID: "UC_WWIO8W",
             CONTACT_ID: "9",
             UF_CRM_1779802779513: "2026-08-05T10:00:00+03:00",
           } as T;

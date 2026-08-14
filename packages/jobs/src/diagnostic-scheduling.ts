@@ -2,14 +2,13 @@ import { type BitrixApi, resolveCalendarBitrixApi } from "@psi-opora/bitrix-clie
 import type { RedisClient } from "@psi-opora/bot-core";
 import {
 	appendReminderSentComment,
-	connectorFromContactIm,
+	botDeliveryLabel,
 	DEAL_CATEGORY_ID,
 	extractClientContactId,
-	MESSENGER_CONNECTOR_MAP,
-	MESSENGER_FIELD,
 	normalizeConsultationDt,
-	pickChatIdForConnector,
+	sendReminderBotMessage,
 } from "./reminders/shared";
+import type { Messenger } from "./messenger";
 
 export const DIAGNOSTIC_DT_FIELD = "UF_CRM_1779871551489";
 export const PAYMENT_PENDING_STAGE_ID = "UC_PV8XUM";
@@ -225,39 +224,16 @@ export function buildImmediateDiagnosticMessage(params: {
 	].join("\n\n");
 }
 
-async function sendChat(params: {
-	api: BitrixApi;
+async function sendBot(params: {
 	deal: Record<string, unknown>;
 	contact: DiagnosticContact | false;
-	contactId: number;
 	message: string;
-}): Promise<{ status: "sent" | "skipped" | "error"; reason?: string }> {
-	if (params.contactId <= 0) {
-		return { status: "skipped", reason: "no_client_contact" };
-	}
-
-	const messengerValue = String(params.deal[MESSENGER_FIELD] ?? "");
-	const connectorContains = MESSENGER_CONNECTOR_MAP[messengerValue];
-
-	// Поле "Мессенджер" в сделке — не единственный источник истины: оно могло
-	// не заполниться или содержать незнакомое значение. В этом случае сперва
-	// пробуем определить коннектор по IM-полю контакта (Открытые линии
-	// проставляют туда VALUE_TYPE="IMOL|TELEGRAM"/"IMOL|MAX" и т.п.), а если и
-	// там ничего нет — берём любой активный чат клиента, вместо того чтобы
-	// сразу сдаваться на email.
-	const chatId = await pickChatIdForConnector(
-		params.api,
-		params.contactId,
-		connectorContains ?? connectorFromContactIm(params.contact) ?? "",
-	);
-	if (chatId <= 0) return { status: "skipped", reason: "no_openlines_chat" };
-
-	const sent = await params.api.call("imopenlines.bot.session.message.send", {
-		CHAT_ID: chatId,
-		NAME: "DEFAULT",
-		MESSAGE: params.message,
-	});
-	return sent ? { status: "sent" } : { status: "error", reason: "send_failed" };
+}): Promise<{
+	status: "sent" | "skipped" | "error";
+	reason?: string;
+	messenger?: Messenger;
+}> {
+	return sendReminderBotMessage(params.deal, params.contact, params.message);
 }
 
 async function releaseLock(
@@ -432,15 +408,17 @@ export async function handleDiagnosticDealUpdate(
 
 		let chat: DiagnosticDealUpdateResult["chat"] = "already_sent";
 		let chatReason: string | undefined;
+		let botMessenger: Messenger | undefined;
 		const chatDeliveryNeeded = state.lastChatStageId !== stageId;
 		if (chatDeliveryNeeded) {
 			if (stageId === PAYMENT_PENDING_STAGE_ID && !paymentUrl) {
 				chat = "error";
 				chatReason = "payment_url_not_configured";
 			} else {
-				const result = await sendChat({ api, deal, contact, contactId, message });
+				const result = await sendBot({ deal, contact, message });
 				chat = result.status;
 				chatReason = result.reason;
+				botMessenger = result.messenger;
 			}
 			// Ошибка фиксируется как завершённая попытка для этой стадии. Иначе
 			// timeline-комментарий сам вызывает OnCrmDealUpdate и создаёт цикл.
@@ -488,13 +466,13 @@ export async function handleDiagnosticDealUpdate(
 		}
 
 		const delivery = [
-			chat === "sent" ? "чат" : "",
+			chat === "sent" && botMessenger ? botDeliveryLabel(botMessenger) : "",
 			emailStatus === "sent" ? `email ${email}` : "",
 		]
 			.filter(Boolean)
 			.join(" и ");
 		const deliveryProblems = [
-			chatDeliveryNeeded && chat !== "sent" ? `чат: ${chatReason ?? chat}` : "",
+			chatDeliveryNeeded && chat !== "sent" ? `бот: ${chatReason ?? chat}` : "",
 			emailDeliveryNeeded && emailStatus !== "sent"
 				? `email: ${emailReason ?? emailStatus}`
 				: "",

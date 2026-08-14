@@ -1,4 +1,8 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
+import {
+  sendMessengerMessage,
+  type Messenger,
+} from "../messenger";
 
 /**
  * Общие константы и хелперы для напоминаний о консультации и диагностике
@@ -8,16 +12,12 @@ import type { BitrixApi } from "@psi-opora/bitrix-client";
  * calls_consultation_reminders/config/app_config.php).
  */
 export const DEAL_CATEGORY_ID = 0;
-export const DEAL_STAGE_IDS = ["EXECUTING", "UC_WWIO8W"];
+export const DEAL_STAGE_IDS = ["UC_WWIO8W"];
 export const MESSENGER_FIELD = "UF_CRM_1779643796551";
 
-// Значения поля "Мессенджер" → подстрока CONNECTOR_ID чата Открытой линии.
-// "326" (MAX) подтверждён реальным ответом imopenlines.crm.chat.get
-// (CONNECTOR_ID: "max", без префикса "wz_" — старое значение никогда не
-// совпадало). "328" (Telegram) пока не перепроверен вживую — если
-// напоминания в Telegram не долетают, см. no_openlines_chat в логах и
-// свериться с реальным CONNECTOR_ID через imopenlines.crm.chat.get.
-export const MESSENGER_CONNECTOR_MAP: Record<string, string> = {
+// Значения поля сделки "Мессенджер" → наш бот, через которого отправляем
+// сообщение напрямую. Открытые линии Bitrix24 для доставки не используются.
+export const MESSENGER_BOT_MAP: Record<string, Messenger> = {
   "326": "max",
   "328": "telegram",
 };
@@ -64,7 +64,7 @@ export function formatMoscowDateTime(date: Date = new Date()): string {
 
 /**
  * Отмечает в таймлайне сделки, что напоминание реально ушло клиенту —
- * иначе по одной сделке не видно, сработал ли крон, до какого чата
+ * иначе по одной сделке не видно, сработал ли крон, до какого канала
  * достучался и когда. Ошибки не пробрасываются: отсутствие комментария
  * не должно считаться сбоем отправки самого напоминания.
  */
@@ -100,47 +100,73 @@ export function extractClientContactId(deal: Record<string, unknown>): number {
   return 0;
 }
 
-interface OpenLinesChat {
-  CHAT_ID?: string | number;
-  CONNECTOR_ID?: string;
+interface ContactIm {
+  VALUE?: string;
+  VALUE_TYPE?: string;
+}
+
+export interface DirectBotTarget {
+  messenger: Messenger;
+  userId: string;
+}
+
+export type BotDeliveryResult =
+  | { status: "sent"; messenger: Messenger; userId: string }
+  | { status: "skipped" | "error"; reason: string };
+
+function messengerFromImType(raw: unknown): Messenger | null {
+  const type = String(raw ?? "").trim().toLowerCase();
+  if (type.includes("telegram")) return "telegram";
+  if (type === "max" || type.endsWith("|max") || type.includes("max.ru")) {
+    return "max";
+  }
+  return null;
 }
 
 /**
- * Поле IM у контакта Bitrix24 синхронизируется Открытыми линиями: для
- * клиента, писавшего через коннектор, там появляется запись вида
- * VALUE_TYPE="IMOL|TELEGRAM" / "IMOL|MAX" — надёжнее поля "Мессенджер" в
- * сделке, которое менеджер мог не проставить руками.
+ * Находит ID пользователя нашего бота в IM-поле контакта. Сначала учитывает
+ * выбранный в сделке мессенджер, затем использует любой валидный Telegram/MAX
+ * ID контакта. VALUE должен быть числовым ID пользователя, а не ID чата
+ * Открытой линии.
  */
-export function connectorFromContactIm(
-  contact: { IM?: Array<{ VALUE?: string; VALUE_TYPE?: string }> } | false,
-): string | undefined {
-  return (contact ? contact.IM ?? [] : [])
-    .map((entry) => String(entry.VALUE_TYPE ?? ""))
-    .filter((type) => type.startsWith("IMOL|"))
-    .map((type) => type.slice("IMOL|".length).toLowerCase())[0];
+export function resolveDirectBotTarget(
+  deal: Record<string, unknown>,
+  contact: { IM?: ContactIm[] } | false,
+): DirectBotTarget | null {
+  const preferred = MESSENGER_BOT_MAP[String(deal[MESSENGER_FIELD] ?? "")];
+  const targets = (contact ? contact.IM ?? [] : [])
+    .map((entry): DirectBotTarget | null => {
+      const messenger = messengerFromImType(entry.VALUE_TYPE);
+      const userId = String(entry.VALUE ?? "").trim();
+      return messenger && /^\d+$/.test(userId) ? { messenger, userId } : null;
+    })
+    .filter((target): target is DirectBotTarget => target !== null);
+
+  return targets.find((target) => target.messenger === preferred) ?? targets[0] ?? null;
 }
 
-export async function pickChatIdForConnector(
-  api: BitrixApi,
-  clientContactId: number,
-  connectorContains: string,
-): Promise<number> {
-  const chats = await api.call<OpenLinesChat[]>("imopenlines.crm.chat.get", {
-    CRM_ENTITY_TYPE: "contact",
-    CRM_ENTITY: clientContactId,
-    ACTIVE_ONLY: "N",
-  });
-  const list = chats ?? [];
+export function botDeliveryLabel(messenger: Messenger): string {
+  return messenger === "telegram" ? "Telegram-бот" : "MAX-бот";
+}
 
-  if (!connectorContains) {
-    return Number(list[0]?.CHAT_ID ?? 0);
+/** Отправляет уведомление напрямую через нашего Telegram/MAX-бота. */
+export async function sendReminderBotMessage(
+  deal: Record<string, unknown>,
+  contact: { IM?: ContactIm[] } | false,
+  message: string,
+): Promise<BotDeliveryResult> {
+  const target = resolveDirectBotTarget(deal, contact);
+  if (!target) {
+    return { status: "skipped", reason: "bot_target_not_found" };
   }
 
-  for (const chat of list) {
-    const connectorId = String(chat.CONNECTOR_ID ?? "");
-    if (connectorId?.includes(connectorContains)) {
-      return Number(chat.CHAT_ID ?? 0);
-    }
+  try {
+    await sendMessengerMessage(target.messenger, target.userId, message);
+    return { status: "sent", ...target };
+  } catch (error) {
+    return {
+      status: "error",
+      reason: `bot_send_failed: ${(error as Error).message}`,
+    };
   }
-  return 0;
 }

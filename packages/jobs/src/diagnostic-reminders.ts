@@ -12,11 +12,10 @@ import {
   extractClientContactId,
   formatConsultationTime,
   formatMoscowDateTime,
-  MESSENGER_CONNECTOR_MAP,
-  MESSENGER_FIELD,
+  botDeliveryLabel,
   normalizeConsultationDt,
-  pickChatIdForConnector,
   renderReminderMessage,
+  sendReminderBotMessage,
   toTimestamp,
 } from "./reminders/shared";
 
@@ -99,6 +98,7 @@ async function trySendReminder(
     | {
         NAME?: string;
         EMAIL?: Array<{ VALUE?: string }>;
+        IM?: Array<{ VALUE?: string; VALUE_TYPE?: string }>;
       }
     | false
   >("crm.contact.get", { id: clientContactId });
@@ -118,32 +118,13 @@ async function trySendReminder(
   if ((await redis.get(chatKey)) || (await redis.get(legacyChatKey))) {
     reasons.push("chat_already_sent");
   } else {
-    const messengerValue = String(deal[MESSENGER_FIELD] ?? "");
-    const connectorContains = MESSENGER_CONNECTOR_MAP[messengerValue];
-    if (!messengerValue || !connectorContains) {
-      reasons.push("messenger_not_set_or_unknown");
+    const botDelivery = await sendReminderBotMessage(deal, contact, message);
+    if (botDelivery.status === "sent") {
+      await redis.set(chatKey, "1", { ex: SENT_TTL_SECONDS });
+      delivered.push(botDeliveryLabel(botDelivery.messenger));
     } else {
-      const chatId = await pickChatIdForConnector(
-        api,
-        clientContactId,
-        connectorContains,
-      );
-      if (chatId <= 0) {
-        reasons.push("no_openlines_chat");
-      } else {
-        const sent = await api.call("imopenlines.bot.session.message.send", {
-          CHAT_ID: chatId,
-          NAME: "DEFAULT",
-          MESSAGE: message,
-        });
-        if (sent) {
-          await redis.set(chatKey, "1", { ex: SENT_TTL_SECONDS });
-          delivered.push("чат");
-        } else {
-          reasons.push("chat_send_failed");
-          hadError = true;
-        }
-      }
+      reasons.push(botDelivery.reason);
+      hadError ||= botDelivery.status === "error";
     }
   }
 
@@ -183,7 +164,7 @@ async function trySendReminder(
 
 /**
  * Проход по сделкам, где диагностика попадает в ближайший час: шлём
- * автосообщение в Открытую линию. В отличие от sendConsultationReminders,
+ * автосообщение напрямую через нашего бота. В отличие от sendConsultationReminders,
  * без вебхука ONCRMDEALUPDATE — на каждый прогон крона просто вычитывает
  * подходящие сделки через REST (см. findUpcomingDealIds) и дедуплицирует
  * отправку по ключу Redis, завязанному на ISO-дату диагностики.

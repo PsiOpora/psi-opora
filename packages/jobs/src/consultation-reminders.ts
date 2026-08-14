@@ -4,17 +4,15 @@ import { getScenarioTexts } from "@psi-opora/bot-core";
 import { findContactEmail } from "./diagnostic-scheduling";
 import {
   appendReminderSentComment,
-  connectorFromContactIm,
+  botDeliveryLabel,
   DEAL_CATEGORY_ID,
   DEAL_STAGE_IDS,
   extractClientContactId,
   formatConsultationTime,
   formatMoscowDateTime,
-  MESSENGER_CONNECTOR_MAP,
-  MESSENGER_FIELD,
   normalizeConsultationDt,
-  pickChatIdForConnector,
   renderReminderMessage,
+  sendReminderBotMessage,
   toTimestamp,
 } from "./reminders/shared";
 
@@ -625,14 +623,11 @@ export interface SendConsultationRemindersResult {
 }
 
 /**
- * Отправляет сообщение клиенту в чат Открытой линии и/или на email —
+ * Отправляет сообщение клиенту напрямую через нашего бота и/или на email —
  * общая доставка для уведомления о записи и напоминания за час. Поле
  * "Мессенджер" в сделке — не единственный источник истины: если оно не
- * заполнено/не распознано, сперва пробуем определить коннектор по
- * IM-полю контакта (Открытые линии проставляют туда
- * VALUE_TYPE="IMOL|TELEGRAM"/"IMOL|MAX" и т.п.), а если и там ничего
- * нет — берём любой активный чат клиента, вместо того чтобы сразу
- * сдаваться на email.
+ * заполнено/не распознано, определяем нашего бота по IM-полю контакта.
+ * Email отправляется независимо от результата доставки ботом.
  */
 async function deliverConsultationMessage(params: {
   api: BitrixApi;
@@ -642,40 +637,18 @@ async function deliverConsultationMessage(params: {
   message: string;
   emailSubject: string;
 }): Promise<{ delivered: string[]; reasons: string[]; hadError: boolean }> {
-  const { api, deal, contactId, contact, message, emailSubject } = params;
-  const messengerValue = String(deal[MESSENGER_FIELD] ?? "");
-  const connectorContains = MESSENGER_CONNECTOR_MAP[messengerValue];
-  const connectorFromIm = connectorFromContactIm(contact);
+  const { deal, contact, message, emailSubject } = params;
 
   const delivered: string[] = [];
   const reasons: string[] = [];
   let hadError = false;
 
-  if (!messengerValue) {
-    reasons.push("messenger_not_set");
-  } else if (!connectorContains) {
-    reasons.push("messenger_unknown_value");
-  }
-
-  const chatId = await pickChatIdForConnector(
-    api,
-    contactId,
-    connectorContains ?? connectorFromIm ?? "",
-  );
-  if (chatId <= 0) {
-    reasons.push("no_openlines_chat");
+  const botDelivery = await sendReminderBotMessage(deal, contact, message);
+  if (botDelivery.status === "sent") {
+    delivered.push(botDeliveryLabel(botDelivery.messenger));
   } else {
-    const sent = await api.call("imopenlines.bot.session.message.send", {
-      CHAT_ID: chatId,
-      NAME: "DEFAULT",
-      MESSAGE: message,
-    });
-    if (sent) {
-      delivered.push("чат");
-    } else {
-      reasons.push("chat_send_failed");
-      hadError = true;
-    }
+    reasons.push(botDelivery.reason);
+    hadError ||= botDelivery.status === "error";
   }
 
   const email = findContactEmail(contact);
