@@ -1,10 +1,11 @@
 import { connect, type TLSSocket } from "node:tls";
+import { SocksClient } from "socks";
 import {
-	decodeHeader,
-	decodePayload,
-	encodeFrame,
-	type FrameHeader,
-	HEADER_LENGTH,
+  decodeHeader,
+  decodePayload,
+  encodeFrame,
+  type FrameHeader,
+  HEADER_LENGTH,
 } from "./frame";
 import { decompressLz4Block } from "./lz4";
 
@@ -17,33 +18,62 @@ export const MAX_API_PORT = 443;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
+/** Разбирает SOCKS5 proxy URL (socks5://user:pass@host:port) в параметры
+ * для библиотеки `socks`. */
+function parseSocksProxy(url: string): {
+  host: string;
+  port: number;
+  type: 5;
+  userId?: string;
+  password?: string;
+} {
+  const parsed = new URL(url);
+  const result: {
+    host: string;
+    port: number;
+    type: 5;
+    userId?: string;
+    password?: string;
+  } = {
+    host: parsed.hostname,
+    port: Number(parsed.port) || 1080,
+    type: 5,
+  };
+  if (parsed.username) result.userId = decodeURIComponent(parsed.username);
+  if (parsed.password) result.password = decodeURIComponent(parsed.password);
+  return result;
+}
+
 export interface MaxProtocolClientOptions {
-	host?: string;
-	port?: number;
-	/** Входящие пуш-сообщения сервера (cmd=0 без ожидающего запроса с таким же
-	 * seq) — понадобится Фазе 2 для приёма сообщений в реальном времени. */
-	onPush?: (opcode: number, payload: Record<string, unknown>) => void;
-	/** Неожиданный обрыв постоянного соединения. Не вызывается при close(). */
-	onClose?: (error: Error) => void;
-	requestTimeoutMs?: number;
+  host?: string;
+  port?: number;
+  /** SOCKS5 proxy URL (socks5://user:pass@host:port) — для подключения к
+   * MAX через российский IP (сервер блокирует коды с зарубежных/VPN адресов). */
+  proxy?: string;
+  /** Входящие пуш-сообщения сервера (cmd=0 без ожидающего запроса с таким же
+   * seq) — понадобится Фазе 2 для приёма сообщений в реальном времени. */
+  onPush?: (opcode: number, payload: Record<string, unknown>) => void;
+  /** Неожиданный обрыв постоянного соединения. Не вызывается при close(). */
+  onClose?: (error: Error) => void;
+  requestTimeoutMs?: number;
 }
 
 interface PendingRequest {
-	opcode: number;
-	resolve: (payload: Record<string, unknown>) => void;
-	reject: (err: Error) => void;
+  opcode: number;
+  resolve: (payload: Record<string, unknown>) => void;
+  reject: (err: Error) => void;
 }
 
 export function nextFrameSequence(
-	current: number,
-	isPending: (seq: number) => boolean = () => false,
+  current: number,
+  isPending: (seq: number) => boolean = () => false,
 ): number {
-	let candidate = current;
-	for (let attempts = 0; attempts < 65_535; attempts++) {
-		candidate = candidate >= 65_535 ? 1 : candidate + 1;
-		if (!isPending(candidate)) return candidate;
-	}
-	throw new Error("Все sequence-номера MAX заняты ожидающими запросами");
+  let candidate = current;
+  for (let attempts = 0; attempts < 65_535; attempts++) {
+    candidate = candidate >= 65_535 ? 1 : candidate + 1;
+    if (!isPending(candidate)) return candidate;
+  }
+  throw new Error("Все sequence-номера MAX заняты ожидающими запросами");
 }
 
 /**
@@ -53,169 +83,193 @@ export function nextFrameSequence(
  * сценарии — это делает src/login.ts.
  */
 export class MaxProtocolClient {
-	private socket: TLSSocket | null = null;
-	private seq = 0;
-	private recvBuffer = Buffer.alloc(0);
-	private readonly pending = new Map<number, PendingRequest>();
-	private readonly requestTimeoutMs: number;
-	private closing = false;
-	private fatalErrorHandled = false;
+  private socket: TLSSocket | null = null;
+  private seq = 0;
+  private recvBuffer = Buffer.alloc(0);
+  private readonly pending = new Map<number, PendingRequest>();
+  private readonly requestTimeoutMs: number;
+  private closing = false;
+  private fatalErrorHandled = false;
 
-	constructor(private readonly options: MaxProtocolClientOptions = {}) {
-		this.requestTimeoutMs =
-			options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-	}
+  constructor(private readonly options: MaxProtocolClientOptions = {}) {
+    this.requestTimeoutMs =
+      options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  }
 
-	async connect(): Promise<void> {
-		this.closing = false;
-		this.fatalErrorHandled = false;
-		await new Promise<void>((resolve, reject) => {
-			let settled = false;
-			const socket = connect(
-				{
-					host: this.options.host ?? MAX_API_HOST,
-					port: this.options.port ?? MAX_API_PORT,
-				},
-				() => {
-					settled = true;
-					resolve();
-				},
-			);
-			socket.once("error", (err) => {
-				if (!settled) reject(err);
-			});
-			socket.on("data", (chunk: Buffer) => this.onData(chunk));
-			socket.on("error", (err) => this.onFatalError(err));
-			socket.on("close", () =>
-				this.onFatalError(new Error("Соединение с MAX закрыто сервером")),
-			);
-			this.socket = socket;
-		});
-	}
+  async connect(): Promise<void> {
+    this.closing = false;
+    this.fatalErrorHandled = false;
+    const host = this.options.host ?? MAX_API_HOST;
+    const port = this.options.port ?? MAX_API_PORT;
 
-	close(): void {
-		this.closing = true;
-		this.socket?.destroy();
-		this.socket = null;
-	}
+    if (this.options.proxy) {
+      // Подключаемся через SOCKS5-прокси: сначала устанавливаем TCP-туннель,
+      // затем поверх него — TLS (для SNI и шифрования).
+      const proxyOpts = parseSocksProxy(this.options.proxy);
+      console.log(
+        `[max-userbot] подключение к ${host}:${port} через SOCKS5 прокси ${proxyOpts.host}:${proxyOpts.port}`,
+      );
+      const { socket: rawSocket } = await SocksClient.createConnection({
+        proxy: proxyOpts,
+        command: "connect",
+        destination: { host, port },
+      });
+      await new Promise<void>((resolve, reject) => {
+        const tlsSocket = connect(
+          { host, port, socket: rawSocket, servername: host },
+          () => resolve(),
+        );
+        tlsSocket.once("error", (err) => reject(err));
+        tlsSocket.on("data", (chunk: Buffer) => this.onData(chunk));
+        tlsSocket.on("error", (err) => this.onFatalError(err));
+        tlsSocket.on("close", () =>
+          this.onFatalError(new Error("Соединение с MAX закрыто сервером")),
+        );
+        this.socket = tlsSocket;
+      });
+    } else {
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const socket = connect({ host, port }, () => {
+          settled = true;
+          resolve();
+        });
+        socket.once("error", (err) => {
+          if (!settled) reject(err);
+        });
+        socket.on("data", (chunk: Buffer) => this.onData(chunk));
+        socket.on("error", (err) => this.onFatalError(err));
+        socket.on("close", () =>
+          this.onFatalError(new Error("Соединение с MAX закрыто сервером")),
+        );
+        this.socket = socket;
+      });
+    }
+  }
 
-	/** Отправляет запрос по opcode и ждёт ответ с тем же seq (RPC поверх TCP). */
-	async request(
-		opcode: number,
-		payload: Record<string, unknown>,
-	): Promise<Record<string, unknown>> {
-		const socket = this.socket;
-		if (!socket)
-			throw new Error("Клиент MAX не подключён — вызовите connect()");
+  close(): void {
+    this.closing = true;
+    this.socket?.destroy();
+    this.socket = null;
+  }
 
-		const seq = nextFrameSequence(this.seq, (value) => this.pending.has(value));
-		this.seq = seq;
-		const frame = encodeFrame({ cmd: 0, seq, opcode }, payload);
+  /** Отправляет запрос по opcode и ждёт ответ с тем же seq (RPC поверх TCP). */
+  async request(
+    opcode: number,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const socket = this.socket;
+    if (!socket)
+      throw new Error("Клиент MAX не подключён — вызовите connect()");
 
-		return new Promise<Record<string, unknown>>((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				this.pending.delete(seq);
-				reject(
-					new Error(
-						`MAX не ответил на opcode ${opcode} за ${this.requestTimeoutMs}мс`,
-					),
-				);
-			}, this.requestTimeoutMs);
+    const seq = nextFrameSequence(this.seq, (value) => this.pending.has(value));
+    this.seq = seq;
+    const frame = encodeFrame({ cmd: 0, seq, opcode }, payload);
 
-			this.pending.set(seq, {
-				opcode,
-				resolve: (value) => {
-					clearTimeout(timeout);
-					resolve(value);
-				},
-				reject: (err) => {
-					clearTimeout(timeout);
-					reject(err);
-				},
-			});
+    return new Promise<Record<string, unknown>>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pending.delete(seq);
+        reject(
+          new Error(
+            `MAX не ответил на opcode ${opcode} за ${this.requestTimeoutMs}мс`,
+          ),
+        );
+      }, this.requestTimeoutMs);
 
-			socket.write(frame, (err) => {
-				if (err) {
-					clearTimeout(timeout);
-					this.pending.delete(seq);
-					reject(err);
-				}
-			});
-		});
-	}
+      this.pending.set(seq, {
+        opcode,
+        resolve: (value) => {
+          clearTimeout(timeout);
+          resolve(value);
+        },
+        reject: (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        },
+      });
 
-	private onData(chunk: Buffer): void {
-		this.recvBuffer = Buffer.concat([this.recvBuffer, chunk]);
+      socket.write(frame, (err) => {
+        if (err) {
+          clearTimeout(timeout);
+          this.pending.delete(seq);
+          reject(err);
+        }
+      });
+    });
+  }
 
-		for (;;) {
-			if (this.recvBuffer.length < HEADER_LENGTH) return;
+  private onData(chunk: Buffer): void {
+    this.recvBuffer = Buffer.concat([this.recvBuffer, chunk]);
 
-			let header: FrameHeader;
-			try {
-				header = decodeHeader(this.recvBuffer);
-			} catch (err) {
-				this.onFatalError(err as Error);
-				return;
-			}
+    for (;;) {
+      if (this.recvBuffer.length < HEADER_LENGTH) return;
 
-			const frameLength = HEADER_LENGTH + header.payloadLength;
-			if (this.recvBuffer.length < frameLength) return;
+      let header: FrameHeader;
+      try {
+        header = decodeHeader(this.recvBuffer);
+      } catch (err) {
+        this.onFatalError(err as Error);
+        return;
+      }
 
-			const payloadBuf = this.recvBuffer.subarray(HEADER_LENGTH, frameLength);
-			this.recvBuffer = this.recvBuffer.subarray(frameLength);
-			this.handleFrame(header, payloadBuf);
-		}
-	}
+      const frameLength = HEADER_LENGTH + header.payloadLength;
+      if (this.recvBuffer.length < frameLength) return;
 
-	private handleFrame(header: FrameHeader, payloadBuf: Buffer): void {
-		let payload: Record<string, unknown>;
-		try {
-			payload = decodePayload(
-				header.compressed ? decompressLz4Block(payloadBuf) : payloadBuf,
-			);
-		} catch (err) {
-			console.error(
-				`[max-userbot] не удалось разобрать MessagePack-пейлоад (opcode ${header.opcode}): ${(err as Error).message}`,
-			);
-			this.pending.get(header.seq)?.reject(err as Error);
-			this.pending.delete(header.seq);
-			return;
-		}
+      const payloadBuf = this.recvBuffer.subarray(HEADER_LENGTH, frameLength);
+      this.recvBuffer = this.recvBuffer.subarray(frameLength);
+      this.handleFrame(header, payloadBuf);
+    }
+  }
 
-		const pending = this.pending.get(header.seq);
-		if (pending && header.cmd !== 0) {
-			this.pending.delete(header.seq);
-			if (header.cmd === 3) {
-				console.error(
-					`[max-userbot] MAX вернул ошибку на opcode ${pending.opcode} (seq ${header.seq}): ${JSON.stringify(payload)}`,
-				);
-				pending.reject(
-					new Error(
-						`MAX вернул ошибку на opcode ${pending.opcode}: ${JSON.stringify(payload)}`,
-					),
-				);
-			} else {
-				pending.resolve(payload);
-			}
-			return;
-		}
+  private handleFrame(header: FrameHeader, payloadBuf: Buffer): void {
+    let payload: Record<string, unknown>;
+    try {
+      payload = decodePayload(
+        header.compressed ? decompressLz4Block(payloadBuf) : payloadBuf,
+      );
+    } catch (err) {
+      console.error(
+        `[max-userbot] не удалось разобрать MessagePack-пейлоад (opcode ${header.opcode}): ${(err as Error).message}`,
+      );
+      this.pending.get(header.seq)?.reject(err as Error);
+      this.pending.delete(header.seq);
+      return;
+    }
 
-		this.options.onPush?.(header.opcode, payload);
-	}
+    const pending = this.pending.get(header.seq);
+    if (pending && header.cmd !== 0) {
+      this.pending.delete(header.seq);
+      if (header.cmd === 3) {
+        console.error(
+          `[max-userbot] MAX вернул ошибку на opcode ${pending.opcode} (seq ${header.seq}): ${JSON.stringify(payload)}`,
+        );
+        pending.reject(
+          new Error(
+            `MAX вернул ошибку на opcode ${pending.opcode}: ${JSON.stringify(payload)}`,
+          ),
+        );
+      } else {
+        pending.resolve(payload);
+      }
+      return;
+    }
 
-	private onFatalError(err: Error): void {
-		if (this.fatalErrorHandled) return;
-		this.fatalErrorHandled = true;
-		if (!this.closing) {
-			console.error(`[max-userbot] соединение с MAX прервано: ${err.message}`);
-		}
-		const socket = this.socket;
-		this.socket = null;
-		if (socket && !socket.destroyed) socket.destroy();
-		for (const [seq, pending] of this.pending) {
-			pending.reject(err);
-			this.pending.delete(seq);
-		}
-		if (!this.closing) this.options.onClose?.(err);
-	}
+    this.options.onPush?.(header.opcode, payload);
+  }
+
+  private onFatalError(err: Error): void {
+    if (this.fatalErrorHandled) return;
+    this.fatalErrorHandled = true;
+    if (!this.closing) {
+      console.error(`[max-userbot] соединение с MAX прервано: ${err.message}`);
+    }
+    const socket = this.socket;
+    this.socket = null;
+    if (socket && !socket.destroyed) socket.destroy();
+    for (const [seq, pending] of this.pending) {
+      pending.reject(err);
+      this.pending.delete(seq);
+    }
+    if (!this.closing) this.options.onClose?.(err);
+  }
 }

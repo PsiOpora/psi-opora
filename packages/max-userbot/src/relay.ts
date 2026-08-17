@@ -1,3 +1,4 @@
+import { env } from "@psi-opora/config";
 import { type MaxUserbotSession, sessionInit } from "./login";
 import { MaxProtocolClient } from "./protocol/client";
 import { OPCODE } from "./protocol/opcodes";
@@ -129,6 +130,7 @@ export async function createUserbotClient(
   const session: MaxUserbotSession = JSON.parse(sessionJson);
 
   const client = new MaxProtocolClient({
+    proxy: env.MAX_USERBOT_PROXY,
     onPush: (opcode, payload) => dispatchPush(opcode, payload, handlers),
     onClose: handlers.onDisconnect,
   });

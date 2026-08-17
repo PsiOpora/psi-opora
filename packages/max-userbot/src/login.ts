@@ -138,7 +138,9 @@ function chatCacheFingerprint(callsSeed: number, deviceId: string): Uint8Array {
 async function connectAndInit(
   deviceId: string,
 ): Promise<{ client: MaxProtocolClient; callsSeed: number | undefined }> {
-  const client = new MaxProtocolClient();
+  const client = new MaxProtocolClient({
+    proxy: env.MAX_USERBOT_PROXY,
+  });
   await client.connect();
   const { callsSeed } = await sessionInit(client, deviceId);
   return { client, callsSeed };
