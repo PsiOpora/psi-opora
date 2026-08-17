@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const FOCUS_REFRESH_DELAY = 30 * 1000; // 30 секунд после возвращения фокуса
 
@@ -31,22 +32,23 @@ export function useDataRefresh(
 ): UseDataRefreshReturn {
   const { minInterval = FOCUS_REFRESH_DELAY, refreshOnFocus = true } = options;
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [nextRefreshIn, setNextRefreshIn] = useState<number | null>(null);
 
   const lastRefreshRef = useRef<number>(Date.now());
-  const _intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Функция обновления
   const refresh = useCallback(() => {
-    setIsRefreshing(true);
-    router.refresh();
-    lastRefreshRef.current = Date.now();
+    if (isRefreshing) return;
 
-    // Снимаем флаг после небольшой задержки (чтобы данные успели загрузиться)
-    setTimeout(() => setIsRefreshing(false), 500);
-  }, [router]);
+    setIsRefreshing(true);
+    lastRefreshRef.current = Date.now();
+    router.refresh();
+    void queryClient
+      .invalidateQueries({ queryKey: ["dashboard-bitrix"] })
+      .finally(() => setIsRefreshing(false));
+  }, [isRefreshing, queryClient, router]);
 
   // Обновление при фокусе окна
   useEffect(() => {

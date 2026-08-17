@@ -47,6 +47,7 @@ const NAV_GROUPS = [
       { href: "/bot-funnel", label: "Бот-воронка", icon: BotIcon },
       { href: "/costs", label: "Расходы", icon: WalletIcon },
       { href: "/ads", label: "Реклама", icon: MegaphoneIcon },
+      { href: "/builder", label: "Конструктор", icon: SlidersHorizontalIcon },
     ],
   },
   {
@@ -68,7 +69,6 @@ const NAV_GROUPS = [
   {
     label: "Настройки",
     items: [
-      { href: "/builder", label: "Конструктор", icon: SlidersHorizontalIcon },
       {
         href: "/settings/bot",
         label: "Тексты бота",
