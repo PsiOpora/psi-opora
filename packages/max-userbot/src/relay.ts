@@ -1096,7 +1096,7 @@ export async function getVideoUrl(
     videoId,
   );
   const values = Object.values(sources);
-  return values.length > 0 ? values[0] : null;
+  return values.length > 0 ? (values[0] ?? null) : null;
 }
 
 /**
