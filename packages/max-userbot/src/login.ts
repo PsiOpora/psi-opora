@@ -86,6 +86,9 @@ export async function sessionInit(
     deviceId,
     clientSessionId: Date.now(),
   });
+  console.log(
+    `[max-personal-login] SESSION_INIT response: ${JSON.stringify(response)}`,
+  );
   const callsSeed =
     typeof response.callsSeed === "number" ? response.callsSeed : undefined;
   return { callsSeed };
@@ -207,6 +210,9 @@ export async function sendLoginCode(
       OPCODE.AUTH_REQUEST,
       authRequestPayload,
     );
+    console.log(
+      `[max-personal-login] AUTH_REQUEST response: ${JSON.stringify(response, (_k, v) => (v instanceof Uint8Array ? `<Uint8Array(${v.length})>` : v))}`,
+    );
 
     const verifyToken = readToken(response);
     if (!verifyToken) {
@@ -268,6 +274,9 @@ export async function confirmLoginCode(params: {
       verifyCode: params.code,
       authTokenType: "CHECK_CODE",
     });
+    console.log(
+      `[max-personal-login] AUTH (confirm code) response: ${JSON.stringify(authResponse, (_k, v) => (v instanceof Uint8Array ? `<Uint8Array(${v.length})>` : v))}`,
+    );
 
     const sessionToken = readLoginToken(authResponse);
     if (!sessionToken) {
