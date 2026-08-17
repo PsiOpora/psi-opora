@@ -28,12 +28,15 @@ import {
 import {
 	getBotMessageMedia as _getBotMessageMedia,
 	getClientMessageStats as _getClientMessageStats,
+	getClientMessageStatsForGroup as _getClientMessageStatsForGroup,
 	getDeletableBotMessage as _getDeletableBotMessage,
 	getEditableBotMessage as _getEditableBotMessage,
 	insertBotMessage as _insertBotMessage,
 	listAllBotMessages as _listAllBotMessages,
+	listAllBotMessagesForGroup as _listAllBotMessagesForGroup,
 	listBotMessages as _listBotMessages,
 	listBotMessagesSince as _listBotMessagesSince,
+	listBotMessagesSinceForGroup as _listBotMessagesSinceForGroup,
 	listClientsWithLastMessage as _listClientsWithLastMessage,
 	markBotMessageDeleted as _markBotMessageDeleted,
 	markBotMessageGuideEmailSent as _markBotMessageGuideEmailSent,
@@ -43,6 +46,7 @@ import {
 	updateBotMessageText as _updateBotMessageText,
 	type BotMessageEntry,
 	type BotMessageMedia,
+	type ClientIdentityRef,
 	type ClientListItem,
 	type ClientMessageStats,
 	type MessageDeliveryStatus,
@@ -60,9 +64,20 @@ import {
 	type BotUserProfileEntry,
 } from "./bot-users";
 import {
+	listAllIdentityLinks as _listAllIdentityLinks,
+	listGroupIdentities as _listGroupIdentities,
+	mergeClientIdentities as _mergeClientIdentities,
+	resolveCanonicalIdentity as _resolveCanonicalIdentity,
+	unmergeClientIdentity as _unmergeClientIdentity,
+	type ClientIdentity,
+	type ClientIdentityLink,
+	type MergeClientIdentitiesEntry,
+} from "./client-identity-links";
+import {
 	addClientNote as _addClientNote,
 	deleteClientNote as _deleteClientNote,
 	listClientNotes as _listClientNotes,
+	listClientNotesForGroup as _listClientNotesForGroup,
 	type NewClientNoteEntry,
 } from "./client-notes";
 import {
@@ -85,6 +100,7 @@ export type {
 	BotMessage,
 	BotMessageEntry,
 	BotMessageMedia,
+	ClientIdentityRef,
 	ClientListItem,
 	ClientMessageStats,
 	MessageDeliveryStatus,
@@ -93,6 +109,11 @@ export type {
 export type { BotText } from "./bot-texts";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
 export * from "./broadcast";
+export type {
+	ClientIdentity,
+	ClientIdentityLink,
+	MergeClientIdentitiesEntry,
+} from "./client-identity-links";
 export type { ClientNote, NewClientNoteEntry } from "./client-notes";
 export * from "./email-campaign";
 export * from "./email-provider";
@@ -202,6 +223,12 @@ export async function listAllBotMessages(messenger: string, userId: string) {
 	return _listAllBotMessages(db, messenger, userId);
 }
 
+export async function listAllBotMessagesForGroup(
+	identities: ClientIdentityRef[],
+) {
+	return _listAllBotMessagesForGroup(db, identities);
+}
+
 export async function listBotMessagesSince(
 	messenger: string,
 	userId: string,
@@ -209,6 +236,14 @@ export async function listBotMessagesSince(
 	limit?: number,
 ) {
 	return _listBotMessagesSince(db, messenger, userId, since, limit);
+}
+
+export async function listBotMessagesSinceForGroup(
+	identities: ClientIdentityRef[],
+	since: Date,
+	limit?: number,
+) {
+	return _listBotMessagesSinceForGroup(db, identities, since, limit);
 }
 
 export async function getBotTextsRecord(): Promise<Record<string, string>> {
@@ -265,6 +300,12 @@ export async function getClientMessageStats(
 	return _getClientMessageStats(db, messenger, userId);
 }
 
+export async function getClientMessageStatsForGroup(
+	identities: ClientIdentityRef[],
+): Promise<ClientMessageStats> {
+	return _getClientMessageStatsForGroup(db, identities);
+}
+
 export async function listClientsWithLastMessage(
 	options?: Parameters<typeof _listClientsWithLastMessage>[1],
 ): Promise<ClientListItem[]> {
@@ -314,12 +355,47 @@ export async function listClientNotes(messenger: string, userId: string) {
 	return _listClientNotes(db, messenger, userId);
 }
 
+export async function listClientNotesForGroup(identities: ClientIdentityRef[]) {
+	return _listClientNotesForGroup(db, identities);
+}
+
 export async function addClientNote(entry: NewClientNoteEntry) {
 	return _addClientNote(db, entry);
 }
 
 export async function deleteClientNote(noteId: string): Promise<void> {
 	return _deleteClientNote(db, noteId);
+}
+
+export async function resolveCanonicalIdentity(
+	messenger: string,
+	userId: string,
+): Promise<ClientIdentity> {
+	return _resolveCanonicalIdentity(db, messenger, userId);
+}
+
+export async function listGroupIdentities(
+	messenger: string,
+	userId: string,
+): Promise<ClientIdentity[]> {
+	return _listGroupIdentities(db, messenger, userId);
+}
+
+export async function mergeClientIdentities(
+	entry: MergeClientIdentitiesEntry,
+): Promise<ClientIdentity> {
+	return _mergeClientIdentities(db, entry);
+}
+
+export async function unmergeClientIdentity(
+	messenger: string,
+	userId: string,
+): Promise<void> {
+	return _unmergeClientIdentity(db, messenger, userId);
+}
+
+export async function listAllIdentityLinks(): Promise<ClientIdentityLink[]> {
+	return _listAllIdentityLinks(db);
 }
 
 export async function listQuickReplies() {

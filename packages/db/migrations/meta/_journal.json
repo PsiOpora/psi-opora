@@ -238,6 +238,13 @@
       "when": 1786219535076,
       "tag": "0033_add_guide_email_sent_at",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786945827863,
+      "tag": "0034_sharp_sleepwalker",
+      "breakpoints": true
     }
   ]
 }

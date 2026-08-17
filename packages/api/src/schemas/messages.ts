@@ -63,6 +63,16 @@ export type DeleteClientMessageInput = z.infer<
 	typeof deleteClientMessageSchema
 >;
 
+export const mergeClientsSchema = z.object({
+	messenger: inboxMessengerSchema,
+	userId: z.string(),
+	intoMessenger: inboxMessengerSchema,
+	intoUserId: z.string(),
+	operatorId: z.string().optional(),
+	operatorName: z.string().optional(),
+});
+export type MergeClientsInput = z.infer<typeof mergeClientsSchema>;
+
 export const assignConversationSchema = z.object({
 	messenger: inboxMessengerSchema,
 	userId: z.string(),

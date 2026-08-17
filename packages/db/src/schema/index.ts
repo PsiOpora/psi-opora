@@ -9,6 +9,7 @@ export * from "./bot-messages";
 export * from "./bot-users";
 export * from "./bot-texts";
 export * from "./broadcast";
+export * from "./client-identity-links";
 export * from "./client-notes";
 export * from "./quick-replies";
 export * from "./email-campaign";

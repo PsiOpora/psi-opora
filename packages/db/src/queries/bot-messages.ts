@@ -13,6 +13,25 @@ import type { Database } from "../client.types";
 import { botConversations } from "../schema/bot-conversations";
 import { botMessages } from "../schema/bot-messages";
 import { botUsers } from "../schema/bot-users";
+import { listAllIdentityLinks } from "./client-identity-links";
+
+export interface ClientIdentityRef {
+	messenger: string;
+	userId: string;
+}
+
+/** `or(and(messenger=..,userId=..), ...)` по списку identity — общий фильтр
+ * для *ForGroup-запросов (слияние клиентов, см. client-identity-links.ts). */
+function identitiesFilter(identities: ClientIdentityRef[]) {
+	return or(
+		...identities.map((identity) =>
+			and(
+				eq(botMessages.messenger, identity.messenger),
+				eq(botMessages.userId, identity.userId),
+			),
+		),
+	);
+}
 
 export type BotMessage = typeof botMessages.$inferSelect;
 export type NewBotMessage = typeof botMessages.$inferInsert;
@@ -288,6 +307,21 @@ export async function listAllBotMessages(
 		.orderBy(desc(botMessages.createdAt));
 }
 
+/** Как listAllBotMessages, но по группе identity сразу (слитые каналы одного
+ * клиента, см. client-identity-links.ts) — тред показывает переписку из всех
+ * каналов вперемешку по времени. */
+export async function listAllBotMessagesForGroup(
+	db: Database,
+	identities: ClientIdentityRef[],
+): Promise<BotMessage[]> {
+	if (!db || identities.length === 0) return [];
+	return db
+		.select()
+		.from(botMessages)
+		.where(identitiesFilter(identities))
+		.orderBy(desc(botMessages.createdAt));
+}
+
 /** Сообщения диалога, появившиеся или изменившиеся (сменился status) после
  * `since` — для поллинга инбокса. Курсор по updatedAt, а не createdAt: иначе
  * статусный апдейт уже показанного сообщения (sent → delivered → read)
@@ -310,6 +344,23 @@ export async function listBotMessagesSince(
 				gt(botMessages.updatedAt, since),
 			),
 		)
+		.orderBy(asc(botMessages.updatedAt))
+		.limit(limit);
+}
+
+/** Как listBotMessagesSince, но по группе identity сразу — поллинг открытого
+ * треда слитого клиента должен ловить новые сообщения из любого его канала. */
+export async function listBotMessagesSinceForGroup(
+	db: Database,
+	identities: ClientIdentityRef[],
+	since: Date,
+	limit = 50,
+): Promise<BotMessage[]> {
+	if (!db || identities.length === 0) return [];
+	return db
+		.select()
+		.from(botMessages)
+		.where(and(identitiesFilter(identities), gt(botMessages.updatedAt, since)))
 		.orderBy(asc(botMessages.updatedAt))
 		.limit(limit);
 }
@@ -351,6 +402,33 @@ export async function getClientMessageStats(
 	return row ?? empty;
 }
 
+/** Как getClientMessageStats, но агрегирует по группе identity сразу —
+ * карточка профиля слитого клиента показывает сводку по всем его каналам. */
+export async function getClientMessageStatsForGroup(
+	db: Database,
+	identities: ClientIdentityRef[],
+): Promise<ClientMessageStats> {
+	const empty: ClientMessageStats = {
+		totalCount: 0,
+		inCount: 0,
+		outCount: 0,
+		firstMessageAt: null,
+		lastMessageAt: null,
+	};
+	if (!db || identities.length === 0) return empty;
+	const [row] = await db
+		.select({
+			totalCount: sql<number>`count(*)::int`,
+			inCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'in')::int`,
+			outCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'out')::int`,
+			firstMessageAt: sql<Date | null>`min(${botMessages.createdAt})`,
+			lastMessageAt: sql<Date | null>`max(${botMessages.createdAt})`,
+		})
+		.from(botMessages)
+		.where(identitiesFilter(identities));
+	return row ?? empty;
+}
+
 export interface ClientListItem {
 	messenger: string;
 	userId: string;
@@ -366,6 +444,9 @@ export interface ClientListItem {
 	assignedOperatorId: string | null;
 	assignedOperatorName: string | null;
 	tags: string[];
+	/** Остальные каналы, схлопнутые в этого клиента слиянием (см.
+	 * client-identity-links.ts) — пусто, если клиент не объединён ни с кем. */
+	linkedChannels: string[];
 }
 
 /**
@@ -441,23 +522,71 @@ export async function listClientsWithLastMessage(
 			),
 		)
 		.where(searchFilter)
-		.orderBy(desc(lastMessage.createdAt))
-		.limit(limit)
-		.offset(offset);
+		.orderBy(desc(lastMessage.createdAt));
 
-	return rows.map((row) => ({
-		messenger: row.messenger,
-		userId: row.userId,
-		name: row.name,
-		username: row.username,
-		hasAvatar: row.hasAvatar,
-		lastMessageText: row.lastMessageText,
-		lastMessageDirection: row.lastMessageDirection as "in" | "out",
-		lastMessageAt: row.lastMessageAt,
-		unread: row.unreadCount > 0,
-		unreadCount: row.unreadCount,
-		assignedOperatorId: row.assignedOperatorId,
-		assignedOperatorName: row.assignedOperatorName,
-		tags: row.tags ?? [],
-	}));
+	// Схлопываем строки слитых identity (см. client-identity-links.ts) в одну
+	// карточку клиента. Связей всегда единицы, поэтому дешевле собрать их одним
+	// запросом и объединить в приложении, чем городить самосоединение в SQL —
+	// limit/offset поэтому тоже применяются после схлопывания, а не до.
+	const links = await listAllIdentityLinks(db);
+	const primaryOf = new Map<string, ClientIdentityRef>();
+	for (const link of links) {
+		primaryOf.set(`${link.messenger}:${link.userId}`, {
+			messenger: link.primaryMessenger,
+			userId: link.primaryUserId,
+		});
+	}
+
+	type Row = (typeof rows)[number];
+	const groups = new Map<string, { canonical: ClientIdentityRef; rows: Row[] }>();
+	for (const row of rows) {
+		const canonical = primaryOf.get(`${row.messenger}:${row.userId}`) ?? {
+			messenger: row.messenger,
+			userId: row.userId,
+		};
+		const key = `${canonical.messenger}:${canonical.userId}`;
+		const group = groups.get(key);
+		if (group) group.rows.push(row);
+		else groups.set(key, { canonical, rows: [row] });
+	}
+
+	const items: ClientListItem[] = [];
+	for (const { canonical, rows: groupRows } of groups.values()) {
+		const sorted = [...groupRows].sort(
+			(a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime(),
+		);
+		const latest = sorted[0];
+		const primaryRow =
+			sorted.find(
+				(r) => r.messenger === canonical.messenger && r.userId === canonical.userId,
+			) ?? latest;
+		const nameRow =
+			sorted.find((r) => r.name) ?? sorted.find((r) => r.username) ?? primaryRow;
+
+		items.push({
+			messenger: canonical.messenger,
+			userId: canonical.userId,
+			name: primaryRow.name ?? nameRow.name,
+			username: primaryRow.username ?? nameRow.username,
+			hasAvatar: sorted.some((r) => r.hasAvatar),
+			lastMessageText: latest.lastMessageText,
+			lastMessageDirection: latest.lastMessageDirection as "in" | "out",
+			lastMessageAt: latest.lastMessageAt,
+			unread: sorted.some((r) => r.unreadCount > 0),
+			unreadCount: sorted.reduce((sum, r) => sum + r.unreadCount, 0),
+			assignedOperatorId: primaryRow.assignedOperatorId,
+			assignedOperatorName: primaryRow.assignedOperatorName,
+			tags: primaryRow.tags ?? [],
+			linkedChannels: [
+				...new Set(
+					sorted
+						.filter((r) => r.messenger !== canonical.messenger || r.userId !== canonical.userId)
+						.map((r) => r.messenger),
+				),
+			],
+		});
+	}
+
+	items.sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
+	return items.slice(offset, offset + limit);
 }

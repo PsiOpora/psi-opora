@@ -38,7 +38,7 @@ spec:
           # обновлять стоит вручную и осознанно (см. docker-compose.yml,
           # где запинена та же версия). Always — иначе при :latest нода
           # держит закэшированный образ и не видит новых сборок.
-          image: devlikeapro/waha:latest-2026.7.2
+          image: devlikeapro/waha:latest-2026.8.1
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import type { Database } from "../client.types";
 import { clientNotes } from "../schema/client-notes";
 
@@ -24,6 +24,29 @@ export async function listClientNotes(
     .from(clientNotes)
     .where(
       and(eq(clientNotes.messenger, messenger), eq(clientNotes.userId, userId)),
+    )
+    .orderBy(desc(clientNotes.createdAt));
+}
+
+/** Как listClientNotes, но по группе identity сразу — заметки, оставленные
+ * до слияния каналов (см. client-identity-links.ts), не должны потеряться. */
+export async function listClientNotesForGroup(
+  db: Database,
+  identities: { messenger: string; userId: string }[],
+): Promise<ClientNote[]> {
+  if (!db || identities.length === 0) return [];
+  return db
+    .select()
+    .from(clientNotes)
+    .where(
+      or(
+        ...identities.map((identity) =>
+          and(
+            eq(clientNotes.messenger, identity.messenger),
+            eq(clientNotes.userId, identity.userId),
+          ),
+        ),
+      ),
     )
     .orderBy(desc(clientNotes.createdAt));
 }
