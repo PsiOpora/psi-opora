@@ -42,6 +42,7 @@ export const FUNNEL_STEPS = [
   "start",
   "consult_click",
   "consent",
+  "marketing_consent",
   "name",
   "guide_click",
   "category",

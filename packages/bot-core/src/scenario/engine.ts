@@ -8,6 +8,7 @@ import {
   emailQuestion,
   entryQuestion,
   issueQuestion,
+  marketingConsentQuestion,
   phoneQuestion,
   stepQuestion,
   subscribeQuestion,
@@ -131,6 +132,7 @@ function submitGuidePhone(
     email: state.email,
     audience: state.audience ?? "self",
     issue: state.issue ?? "other",
+    marketingConsent: state.marketingConsent,
   };
 
   if (state.audience === "self") {
@@ -175,6 +177,7 @@ function submitConsultLead(
     phone: state.phone ?? "",
     email,
     name: state.name,
+    marketingConsent: state.marketingConsent,
   };
   return output(
     { ...state, email, step: "done" },
@@ -207,13 +210,9 @@ export function applyScenarioAction(
 
     case "consent": {
       if (action === "consent_agree") {
-        const isGuide = state.flow === "guide";
         return output(
-          { ...fresh(state), step: isGuide ? "category" : "name" },
-          [
-            { text: t.consent_agreed },
-            isGuide ? categoryQuestion(t) : { text: t.name_question },
-          ],
+          { ...fresh(state), step: "marketing_consent" },
+          [{ text: t.consent_agreed }, marketingConsentQuestion(t)],
           { track: ["consent"] },
         );
       }
@@ -223,6 +222,33 @@ export function applyScenarioAction(
         ]);
       }
       return null;
+    }
+
+    case "marketing_consent": {
+      if (
+        action !== "marketing_consent_agree" &&
+        action !== "marketing_consent_decline"
+      ) {
+        return null;
+      }
+      const marketingConsent = action === "marketing_consent_agree";
+      const isGuide = state.flow === "guide";
+      return output(
+        {
+          ...fresh(state),
+          step: isGuide ? "category" : "name",
+          marketingConsent,
+        },
+        [
+          {
+            text: marketingConsent
+              ? t.marketing_consent_agreed
+              : t.marketing_consent_declined,
+          },
+          isGuide ? categoryQuestion(t) : { text: t.name_question },
+        ],
+        { track: ["marketing_consent"] },
+      );
     }
 
     case "category": {
@@ -422,6 +448,7 @@ export async function applyScenarioText(
     // не встреваем в чужой диалог
     case "entry":
     case "consent":
+    case "marketing_consent":
     case "category":
     case "issue":
     case "subscribe": {
@@ -454,6 +481,8 @@ export function actionLabel(action: ScenarioAction, t: ScenarioTexts): string {
     sc_guide: t.btn_guide,
     consent_agree: t.btn_consent_agree,
     consent_decline: t.btn_consent_decline,
+    marketing_consent_agree: t.btn_marketing_consent_agree,
+    marketing_consent_decline: t.btn_marketing_consent_decline,
     sc_child: t.btn_child,
     sc_self: t.btn_self,
     sc_eating: t.btn_issue_eating,
@@ -469,8 +498,9 @@ export function actionLabel(action: ScenarioAction, t: ScenarioTexts): string {
 
 /** Комментарий к сделке для менеджера — что выбрал пользователь. */
 export function describeLead(lead: ScenarioLead, t: ScenarioTexts): string {
+  const marketingConsentLine = `Согласие на рекламную рассылку: ${lead.marketingConsent ? "да" : "нет"}`;
   if (lead.flow === "consult") {
-    return `Заявка: ${t.btn_consult}`;
+    return `Заявка: ${t.btn_consult}\n${marketingConsentLine}`;
   }
   const audience = lead.audience === "child" ? t.btn_child : t.btn_self;
   const issue =
@@ -479,5 +509,5 @@ export function describeLead(lead: ScenarioLead, t: ScenarioTexts): string {
       : lead.issue === "ocd"
         ? t.btn_issue_ocd
         : t.btn_issue_other;
-  return `Заявка: ${t.btn_guide}\nКатегория: ${audience}\nТема: ${issue}`;
+  return `Заявка: ${t.btn_guide}\nКатегория: ${audience}\nТема: ${issue}\n${marketingConsentLine}`;
 }

@@ -7,6 +7,8 @@ export const SCENARIO_ACTIONS = [
   // сообщениях продолжают работать
   "consent_agree",
   "consent_decline",
+  "marketing_consent_agree",
+  "marketing_consent_decline",
   "sc_child",
   "sc_self",
   "sc_eating",
@@ -26,6 +28,7 @@ export function isScenarioAction(value: string): value is ScenarioAction {
 export type ScenarioStep =
   | "entry"
   | "consent"
+  | "marketing_consent"
   | "name"
   | "category"
   | "issue"
@@ -59,6 +62,8 @@ export interface ScenarioState {
   nudged?: boolean;
   /** ID созданной сделки Bitrix — для комментария об ответе на рассылку. */
   dealId?: number;
+  /** Явное согласие на рекламную рассылку (отдельное от согласия на обработку ПДн). */
+  marketingConsent?: boolean;
 }
 
 export interface ScenarioButton {
@@ -82,6 +87,8 @@ export interface ScenarioLead {
   name?: string;
   audience?: ScenarioAudience;
   issue?: ScenarioIssue;
+  /** Явное согласие на рекламную рассылку. */
+  marketingConsent?: boolean;
 }
 
 /** Контакт, который нужно сохранить в CRM без создания сделки. */

@@ -25,6 +25,7 @@ export const STEP_LABELS: Record<FunnelStep, string> = {
   start: "Запустили бота (/start)",
   consult_click: "Нажали «Записаться»",
   consent: "Дали согласие на ПДн",
+  marketing_consent: "Ответили на согласие на рекламу",
   name: "Оставили имя",
   guide_click: "Нажали «Получить гайд»",
   category: "Выбрали категорию",
