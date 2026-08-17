@@ -245,6 +245,13 @@
       "when": 1786945827863,
       "tag": "0034_sharp_sleepwalker",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786963535551,
+      "tag": "0035_sturdy_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }

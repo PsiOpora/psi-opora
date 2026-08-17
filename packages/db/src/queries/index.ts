@@ -26,6 +26,22 @@ import {
 	upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
 import {
+	createBotGuideCampaign as _createBotGuideCampaign,
+	deleteBotGuideCampaign as _deleteBotGuideCampaign,
+	getBotGuideCampaign as _getBotGuideCampaign,
+	getBotGuideCampaignByKeyword as _getBotGuideCampaignByKeyword,
+	listBotGuideCampaigns as _listBotGuideCampaigns,
+	updateBotGuideCampaign as _updateBotGuideCampaign,
+} from "./bot-guide-campaigns";
+import {
+	getBotGuideDelivery as _getBotGuideDelivery,
+	listDueGuideFollowUps as _listDueGuideFollowUps,
+	markGuideDiagnosticRequested as _markGuideDiagnosticRequested,
+	markGuideFollowUpSent as _markGuideFollowUpSent,
+	upsertBotGuideDelivery as _upsertBotGuideDelivery,
+	type NewBotGuideDeliveryEntry,
+} from "./bot-guide-deliveries";
+import {
 	getBotMessageMedia as _getBotMessageMedia,
 	getClientMessageStats as _getClientMessageStats,
 	getClientMessageStatsForGroup as _getClientMessageStatsForGroup,
@@ -95,6 +111,15 @@ export type {
 	ConversationAssignment,
 } from "./bot-conversations";
 export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
+export type {
+	BotGuideCampaign,
+	NewBotGuideCampaign,
+} from "./bot-guide-campaigns";
+export type {
+	BotGuideDelivery,
+	DueGuideFollowUp,
+	NewBotGuideDeliveryEntry,
+} from "./bot-guide-deliveries";
 export * from "./bot-guides";
 export type {
 	BotMessage,
@@ -412,4 +437,62 @@ export async function saveQuickReply(entry: {
 
 export async function deleteQuickReply(id: string): Promise<void> {
 	return _deleteQuickReply(db, id);
+}
+
+export async function listBotGuideCampaigns() {
+	return _listBotGuideCampaigns(db);
+}
+
+export async function getBotGuideCampaign(id: string) {
+	return _getBotGuideCampaign(db, id);
+}
+
+export async function getBotGuideCampaignByKeyword(keyword: string) {
+	return _getBotGuideCampaignByKeyword(db, keyword);
+}
+
+export async function createBotGuideCampaign(
+	campaign: Parameters<typeof _createBotGuideCampaign>[1],
+): Promise<void> {
+	return _createBotGuideCampaign(db, campaign);
+}
+
+export async function updateBotGuideCampaign(
+	id: string,
+	patch: Parameters<typeof _updateBotGuideCampaign>[2],
+): Promise<void> {
+	return _updateBotGuideCampaign(db, id, patch);
+}
+
+export async function deleteBotGuideCampaign(id: string): Promise<void> {
+	return _deleteBotGuideCampaign(db, id);
+}
+
+export async function upsertBotGuideDelivery(
+	entry: NewBotGuideDeliveryEntry,
+): Promise<void> {
+	return _upsertBotGuideDelivery(db, entry);
+}
+
+export async function getBotGuideDelivery(
+	messenger: string,
+	userId: string,
+	campaignId: string,
+) {
+	return _getBotGuideDelivery(db, messenger, userId, campaignId);
+}
+
+export async function listDueGuideFollowUps() {
+	return _listDueGuideFollowUps(db);
+}
+
+export async function markGuideFollowUpSent(id: string): Promise<void> {
+	return _markGuideFollowUpSent(db, id);
+}
+
+export async function markGuideDiagnosticRequested(
+	id: string,
+	dealId?: number,
+): Promise<void> {
+	return _markGuideDiagnosticRequested(db, id, dealId);
 }
