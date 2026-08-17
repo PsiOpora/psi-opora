@@ -3,6 +3,7 @@
 import type { ScenarioTextDef } from "@psi-opora/bot-core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, RotateCcw, Save } from "lucide-react";
+import { useRef } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +53,9 @@ export function BotTextsForm({
 	initialOverrides: Record<string, string>;
 }) {
 	const queryClient = useQueryClient();
+	const fieldRefs = useRef(
+		new Map<string, HTMLInputElement | HTMLTextAreaElement>(),
+	);
 
 	const defaultValues = Object.fromEntries(
 		groups.flatMap(({ defs }) =>
@@ -64,6 +68,29 @@ export function BotTextsForm({
 
 	const form = useForm<Record<string, string>>({ defaultValues });
 	const isDirty = form.formState.isDirty;
+
+	const insertPlaceholder = (fieldKey: string, placeholder: string) => {
+		const element = fieldRefs.current.get(fieldKey);
+		const currentValue = form.getValues(fieldKey) ?? "";
+		const selectionStart = element?.selectionStart ?? currentValue.length;
+		const selectionEnd = element?.selectionEnd ?? currentValue.length;
+		const nextValue =
+			currentValue.slice(0, selectionStart) +
+			placeholder +
+			currentValue.slice(selectionEnd);
+
+		form.setValue(fieldKey, nextValue, {
+			shouldDirty: true,
+			shouldTouch: true,
+		});
+
+		requestAnimationFrame(() => {
+			if (!element) return;
+			const caretPosition = selectionStart + placeholder.length;
+			element.focus();
+			element.setSelectionRange(caretPosition, caretPosition);
+		});
+	};
 
 	const changedCounts = Object.fromEntries(
 		groups.map(({ group, defs }) => [
@@ -120,15 +147,45 @@ export function BotTextsForm({
 										name={def.key}
 										render={({ field }) => (
 											<FormItem>
-												<div className="flex items-center gap-2">
-													<Label htmlFor={def.key} className="font-medium">
-														{def.label}
-													</Label>
-													{initialOverrides[def.key]?.trim() && (
-														<Badge variant="secondary" className="text-[10px]">
-															изменено
-														</Badge>
-													)}
+												<div className="flex flex-wrap items-center justify-between gap-2">
+													<div className="flex items-center gap-2">
+														<Label htmlFor={def.key} className="font-medium">
+															{def.label}
+														</Label>
+														{initialOverrides[def.key]?.trim() && (
+															<Badge
+																variant="secondary"
+																className="text-[10px]"
+															>
+																изменено
+															</Badge>
+														)}
+													</div>
+													{def.placeholders?.length ? (
+														<div className="flex flex-wrap items-center gap-1">
+															<span className="mr-1 text-xs text-muted-foreground">
+																Вставить:
+															</span>
+															{def.placeholders.map((placeholder) => (
+																<Button
+																	key={placeholder}
+																	type="button"
+																	variant="outline"
+																	size="sm"
+																	className="h-7 px-2 font-mono text-xs"
+																	aria-label={`Вставить ${placeholder} в поле «${def.label}»`}
+																	onMouseDown={(event) =>
+																		event.preventDefault()
+																	}
+																	onClick={() =>
+																		insertPlaceholder(def.key, placeholder)
+																	}
+																>
+																	{placeholder}
+																</Button>
+															))}
+														</div>
+													) : null}
 												</div>
 												<FormControl>
 													{def.multiline ? (
@@ -137,6 +194,14 @@ export function BotTextsForm({
 															placeholder={def.defaultValue}
 															className="min-h-28 resize-y text-sm leading-relaxed"
 															{...field}
+															ref={(element) => {
+																field.ref(element);
+																if (element) {
+																	fieldRefs.current.set(def.key, element);
+																} else {
+																	fieldRefs.current.delete(def.key);
+																}
+															}}
 														/>
 													) : (
 														<Input
@@ -144,6 +209,14 @@ export function BotTextsForm({
 															placeholder={def.defaultValue}
 															className="text-sm"
 															{...field}
+															ref={(element) => {
+																field.ref(element);
+																if (element) {
+																	fieldRefs.current.set(def.key, element);
+																} else {
+																	fieldRefs.current.delete(def.key);
+																}
+															}}
 														/>
 													)}
 												</FormControl>

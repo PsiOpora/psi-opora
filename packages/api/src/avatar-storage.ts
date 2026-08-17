@@ -1,5 +1,4 @@
-import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { createS3 } from "./s3-client";
+import { createS3Client, getObjectStream } from "@psi-opora/storage";
 
 /**
  * Раздача аватара клиента, перезалитого в наше S3-хранилище — заливается
@@ -12,14 +11,6 @@ export async function getAvatarStream(key: string): Promise<{
   contentLength?: number;
   contentType?: string;
 }> {
-  const { client, bucket } = await createS3();
-  const result = await client.send(
-    new GetObjectCommand({ Bucket: bucket, Key: key }),
-  );
-  if (!result.Body) throw new Error("Пустой ответ S3");
-  return {
-    stream: result.Body.transformToWebStream(),
-    contentLength: result.ContentLength,
-    contentType: result.ContentType,
-  };
+  const { client, bucket } = await createS3Client();
+  return getObjectStream({ client, bucket, key });
 }

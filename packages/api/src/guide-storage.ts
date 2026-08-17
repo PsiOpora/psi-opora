@@ -1,16 +1,20 @@
 import {
-  DeleteObjectCommand,
-  GetObjectCommand,
-  PutObjectCommand,
-} from "@aws-sdk/client-s3";
+  createS3Client,
+  deleteObject,
+  getObjectStream,
+  uploadObject,
+} from "@psi-opora/storage";
 import {
   GUIDE_FILE_NAME_KEY,
   GUIDE_FILE_S3_KEY,
   GUIDE_FILE_SIZE_KEY,
   GUIDE_FILE_URL_KEY,
 } from "@psi-opora/bot-core";
-import { createBotGuide, listBotGuides, saveBotTexts } from "@psi-opora/db/queries";
-import { createS3 } from "./s3-client";
+import {
+  createBotGuide,
+  listBotGuides,
+  saveBotTexts,
+} from "@psi-opora/db/queries";
 
 /**
  * Хранилище PDF-гайда (лид-магнита) в S3.
@@ -28,19 +32,18 @@ export async function uploadGuidePdf(
   bytes: Uint8Array,
   fileName: string,
 ): Promise<string> {
-  const { client, bucket } = await createS3();
+  const { client, bucket } = await createS3Client();
   const safeName = fileName.replace(/[^\p{L}\p{N}._-]+/gu, "_");
   const key = `${GUIDE_PREFIX}${Date.now()}-${safeName}`;
 
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: bytes,
-      ContentType: "application/pdf",
-      ContentDisposition: `inline; filename="${encodeURIComponent(safeName)}"`,
-    }),
-  );
+  await uploadObject({
+    client,
+    bucket,
+    key,
+    body: bytes,
+    contentType: "application/pdf",
+    contentDisposition: `inline; filename="${encodeURIComponent(safeName)}"`,
+  });
 
   return key;
 }
@@ -49,27 +52,19 @@ export async function uploadGuidePdf(
 export async function getGuidePdfStream(
   key: string,
 ): Promise<{ stream: ReadableStream; contentLength?: number }> {
-  const { client, bucket } = await createS3();
-  const result = await client.send(
-    new GetObjectCommand({ Bucket: bucket, Key: key }),
-  );
-  if (!result.Body) throw new Error("Пустой ответ S3");
-  return {
-    stream: result.Body.transformToWebStream(),
-    contentLength: result.ContentLength,
-  };
+  const { client, bucket } = await createS3Client();
+  const { stream, contentLength } = await getObjectStream({
+    client,
+    bucket,
+    key,
+  });
+  return { stream, contentLength };
 }
 
 /** Удаляет PDF из S3; ошибки не пробрасывает (файл мог быть удалён руками). */
 export async function deleteGuidePdf(key: string): Promise<void> {
-  try {
-    const { client, bucket } = await createS3();
-    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
-  } catch (err) {
-    console.error(
-      `[guide] не удалось удалить объект ${key}: ${(err as Error).message}`,
-    );
-  }
+  const { client, bucket } = await createS3Client();
+  await deleteObject({ client, bucket, key });
 }
 
 export interface GuideUploadResult {

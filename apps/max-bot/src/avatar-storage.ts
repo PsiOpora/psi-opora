@@ -1,5 +1,4 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { getBackupCredentials } from "@psi-opora/db/queries";
+import { createS3Client, uploadObject } from "@psi-opora/storage";
 
 /**
  * Перезаливка аватара клиента MAX в S3: max-bot работает как обычный
@@ -16,32 +15,6 @@ const AVATAR_PREFIX = "bot/avatar/";
 /** Аватары профиля обычно в пределах пары МБ — с запасом. */
 export const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
 
-async function createS3(): Promise<{ client: S3Client; bucket: string }> {
-  const creds = await getBackupCredentials();
-  if (
-    !creds?.s3Endpoint ||
-    !creds.s3Bucket ||
-    !creds.s3AccessKeyId ||
-    !creds.s3SecretAccessKey
-  ) {
-    throw new Error("S3-хранилище не настроено — заполните раздел «Бэкап CRM» в настройках");
-  }
-
-  const isLocalEndpoint = /localhost|127\.0\.0\.1|minio/i.test(creds.s3Endpoint);
-
-  const client = new S3Client({
-    endpoint: creds.s3Endpoint,
-    region: creds.s3Region || "ru-central1",
-    credentials: {
-      accessKeyId: creds.s3AccessKeyId,
-      secretAccessKey: creds.s3SecretAccessKey,
-    },
-    forcePathStyle: isLocalEndpoint,
-  });
-
-  return { client, bucket: creds.s3Bucket };
-}
-
 function extensionFor(contentType: string): string {
   if (contentType.includes("png")) return "png";
   if (contentType.includes("webp")) return "webp";
@@ -54,21 +27,25 @@ export async function uploadMaxAvatar(params: {
   contentType: string;
   userId: number;
 }): Promise<{ avatarS3Key: string }> {
-  if (params.bytes.byteLength === 0 || params.bytes.byteLength > MAX_AVATAR_SIZE) {
-    throw new Error(`некорректный размер аватара: ${params.bytes.byteLength} байт`);
+  if (
+    params.bytes.byteLength === 0 ||
+    params.bytes.byteLength > MAX_AVATAR_SIZE
+  ) {
+    throw new Error(
+      `некорректный размер аватара: ${params.bytes.byteLength} байт`,
+    );
   }
 
-  const { client, bucket } = await createS3();
+  const { client, bucket } = await createS3Client();
   const key = `${AVATAR_PREFIX}max/${params.userId}.${extensionFor(params.contentType)}`;
 
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: params.bytes,
-      ContentType: params.contentType,
-    }),
-  );
+  await uploadObject({
+    client,
+    bucket,
+    key,
+    body: params.bytes,
+    contentType: params.contentType,
+  });
 
   return { avatarS3Key: key };
 }
@@ -85,21 +62,25 @@ export async function uploadMaxMedia(params: {
   contentType: string;
   attachmentId: string;
 }): Promise<{ mediaS3Key: string }> {
-  if (params.bytes.byteLength === 0 || params.bytes.byteLength > MAX_MEDIA_SIZE) {
-    throw new Error(`некорректный размер вложения: ${params.bytes.byteLength} байт`);
+  if (
+    params.bytes.byteLength === 0 ||
+    params.bytes.byteLength > MAX_MEDIA_SIZE
+  ) {
+    throw new Error(
+      `некорректный размер вложения: ${params.bytes.byteLength} байт`,
+    );
   }
 
-  const { client, bucket } = await createS3();
+  const { client, bucket } = await createS3Client();
   const key = `${MEDIA_PREFIX}max/${params.attachmentId}.m4a`;
 
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: params.bytes,
-      ContentType: params.contentType,
-    }),
-  );
+  await uploadObject({
+    client,
+    bucket,
+    key,
+    body: params.bytes,
+    contentType: params.contentType,
+  });
 
   return { mediaS3Key: key };
 }

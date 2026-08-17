@@ -1,15 +1,15 @@
 import { gzipSync } from "node:zlib";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import type { S3Client } from "@aws-sdk/client-s3";
 import type { BitrixApi } from "@psi-opora/bitrix-client";
+import {
+  createS3ClientFromCredentials,
+  type S3Credentials,
+  uploadObject,
+} from "@psi-opora/storage";
 
-/** Настройки S3 из таблицы backup_credentials (см. @psi-opora/db). */
-export interface BackupS3Credentials {
-  s3Endpoint: string | null;
-  s3Region: string | null;
-  s3Bucket: string | null;
-  s3AccessKeyId: string | null;
-  s3SecretAccessKey: string | null;
-}
+/** Настройки S3 из таблицы backup_credentials (см. @psi-opora/db).
+ * Псевдоним для S3Credentials из @psi-opora/storage — оставлен для обратной совместимости. */
+export type BackupS3Credentials = S3Credentials;
 
 /** Извлекает массив элементов из ответа list-метода, если сам ответ — не массив. */
 type EntityExtractor = (result: unknown) => unknown[];
@@ -222,39 +222,6 @@ async function buildEntityConfigs(api: BitrixApi): Promise<EntityConfig[]> {
   return entities;
 }
 
-/** Клиент S3 по настройкам хранилища (совместим с Yandex Object Storage и MinIO). */
-function createS3(creds: BackupS3Credentials): {
-  client: S3Client;
-  bucket: string;
-} {
-  if (
-    !creds.s3Endpoint ||
-    !creds.s3Bucket ||
-    !creds.s3AccessKeyId ||
-    !creds.s3SecretAccessKey
-  ) {
-    throw new Error("Не заданы настройки S3-хранилища для бэкапа");
-  }
-
-  // MinIO (локальная разработка) не резолвит поддомены вида bucket.host,
-  // поэтому для локальных эндпоинтов используем path-style обращение к бакету.
-  const isLocalEndpoint = /localhost|127\.0\.0\.1|minio/i.test(
-    creds.s3Endpoint,
-  );
-
-  const client = new S3Client({
-    endpoint: creds.s3Endpoint,
-    region: creds.s3Region || "ru-central1",
-    credentials: {
-      accessKeyId: creds.s3AccessKeyId,
-      secretAccessKey: creds.s3SecretAccessKey,
-    },
-    forcePathStyle: isLocalEndpoint,
-  });
-
-  return { client, bucket: creds.s3Bucket };
-}
-
 /** Записывает одну сущность в S3 как сжатый JSONL. */
 async function backupEntity(
   api: BitrixApi,
@@ -275,16 +242,15 @@ async function backupEntity(
     const gzipped = gzipSync(Buffer.from(lines, "utf-8"));
 
     const key = `${prefix}${entity.file}`;
-    await client.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Body: gzipped,
-        ContentType: "application/json",
-        ContentEncoding: "gzip",
-        ContentDisposition: `inline; filename="${entity.file}"`,
-      }),
-    );
+    await uploadObject({
+      client,
+      bucket,
+      key,
+      body: gzipped,
+      contentType: "application/json",
+      contentEncoding: "gzip",
+      contentDisposition: `inline; filename="${entity.file}"`,
+    });
 
     return {
       name: entity.name,
@@ -328,7 +294,7 @@ export async function runCrmBackup(
   creds: BackupS3Credentials,
   onProgress?: BackupProgressCallback,
 ): Promise<CrmBackupResult> {
-  const { client, bucket } = createS3(creds);
+  const { client, bucket } = createS3ClientFromCredentials(creds);
   const prefix = backupPrefix();
 
   const entities = await buildEntityConfigs(api);
@@ -362,14 +328,13 @@ export async function runCrmBackup(
   };
 
   const manifestKey = `${prefix}manifest.json`;
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: manifestKey,
-      Body: JSON.stringify(manifest, null, 2),
-      ContentType: "application/json",
-    }),
-  );
+  await uploadObject({
+    client,
+    bucket,
+    key: manifestKey,
+    body: JSON.stringify(manifest, null, 2),
+    contentType: "application/json",
+  });
 
   return { prefix, manifestKey, totalBytes, entities: results, errors };
 }
@@ -402,12 +367,15 @@ export async function executeCrmBackup(
   if (!existingRunId) await createBackupRun(runId);
 
   try {
-    const result = await runCrmBackup(api, creds, (done, total, currentEntity) =>
-      updateBackupRunProgress(runId, {
-        entitiesDone: done,
-        entitiesTotal: total,
-        currentEntity,
-      }),
+    const result = await runCrmBackup(
+      api,
+      creds,
+      (done, total, currentEntity) =>
+        updateBackupRunProgress(runId, {
+          entitiesDone: done,
+          entitiesTotal: total,
+          currentEntity,
+        }),
     );
     await finishBackupRun(runId, {
       status: "success",

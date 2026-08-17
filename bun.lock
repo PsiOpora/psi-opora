@@ -18,7 +18,6 @@
       "name": "@psi-opora/bitrix-webhook",
       "version": "0.0.1",
       "dependencies": {
-        "@aws-sdk/client-s3": "^3.1111.0",
         "@hono/node-server": "^2.1.1",
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bitrix-webhook-api": "workspace:*",
@@ -27,6 +26,7 @@
         "@psi-opora/db": "workspace:*",
         "@psi-opora/jobs": "workspace:*",
         "@psi-opora/max-userbot": "workspace:*",
+        "@psi-opora/storage": "workspace:*",
         "@psi-opora/tg-userbot": "workspace:*",
         "@psi-opora/waha": "workspace:*",
         "hono": "^4.13.2",
@@ -75,7 +75,6 @@
       "name": "@psi-opora/dashboard",
       "version": "0.0.1",
       "dependencies": {
-        "@aws-sdk/client-s3": "^3.1111.0",
         "@bitrix24/b24jssdk": "2.0.0",
         "@hookform/resolvers": "^5.9.0",
         "@orpc/client": "^1.15.0",
@@ -142,13 +141,13 @@
       "name": "@psi-opora/max-bot",
       "version": "0.0.2",
       "dependencies": {
-        "@aws-sdk/client-s3": "^3.1111.0",
         "@hono/node-server": "^2.1.1",
         "@maxhub/max-bot-api": "0.2.5",
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
+        "@psi-opora/storage": "workspace:*",
         "hono": "^4.13.2",
       },
       "devDependencies": {
@@ -177,12 +176,12 @@
       "name": "@psi-opora/tg-bot",
       "version": "0.0.1",
       "dependencies": {
-        "@aws-sdk/client-s3": "^3.1111.0",
         "@hono/node-server": "^2.1.1",
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
+        "@psi-opora/storage": "workspace:*",
         "grammy": "1.45.1",
         "hono": "^4.13.2",
       },
@@ -209,7 +208,6 @@
     "packages/api": {
       "name": "@psi-opora/api",
       "dependencies": {
-        "@aws-sdk/client-s3": "^3.1111.0",
         "@orpc/contract": "^1.15.0",
         "@orpc/server": "^1.15.0",
         "@psi-opora/bitrix-client": "workspace:*",
@@ -220,6 +218,7 @@
         "@psi-opora/jobs": "workspace:*",
         "@psi-opora/max-userbot": "workspace:*",
         "@psi-opora/rusender-client": "workspace:*",
+        "@psi-opora/storage": "workspace:*",
         "@psi-opora/tg-userbot": "workspace:*",
         "@psi-opora/unisender-client": "workspace:*",
         "@psi-opora/validators": "workspace:*",
@@ -348,7 +347,6 @@
       "name": "@psi-opora/jobs",
       "version": "0.0.1",
       "dependencies": {
-        "@aws-sdk/client-s3": "^3.1111.0",
         "@hatchet-dev/typescript-sdk": "1.28.2",
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
@@ -356,6 +354,7 @@
         "@psi-opora/db": "workspace:*",
         "@psi-opora/emails": "workspace:*",
         "@psi-opora/rusender-client": "workspace:*",
+        "@psi-opora/storage": "workspace:*",
         "@psi-opora/unisender-client": "workspace:*",
       },
       "devDependencies": {
@@ -390,6 +389,18 @@
         "@psi-opora/tsconfig": "workspace:*",
         "@types/node": "26.2.0",
         "tsdown": "^0.22.14",
+        "typescript": "6.0.3",
+      },
+    },
+    "packages/storage": {
+      "name": "@psi-opora/storage",
+      "dependencies": {
+        "@aws-sdk/client-s3": "^3.1111.0",
+        "@psi-opora/db": "workspace:*",
+      },
+      "devDependencies": {
+        "@psi-opora/tsconfig": "workspace:*",
+        "@types/node": "26.2.0",
         "typescript": "6.0.3",
       },
     },
@@ -905,6 +916,8 @@
     "@psi-opora/max-userbot-worker": ["@psi-opora/max-userbot-worker@workspace:apps/max-userbot-worker"],
 
     "@psi-opora/rusender-client": ["@psi-opora/rusender-client@workspace:packages/rusender-client"],
+
+    "@psi-opora/storage": ["@psi-opora/storage@workspace:packages/storage"],
 
     "@psi-opora/tailwind-config": ["@psi-opora/tailwind-config@workspace:tooling/tailwind"],
 

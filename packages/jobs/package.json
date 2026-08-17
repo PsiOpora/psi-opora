@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1111.0",
+    "@psi-opora/storage": "workspace:*",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
