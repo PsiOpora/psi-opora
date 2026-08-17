@@ -493,7 +493,7 @@ export async function sendVideoMessage(
 export async function sendFileMessage(
   client: MaxProtocolClient,
   chatId: string,
-  fileId: number,
+  _fileId: number,
   token: string,
   options: SendMessageOptions = {},
 ): Promise<boolean> {
@@ -1065,10 +1065,10 @@ export async function getVideoSources(
 
     if (Object.keys(sources).length === 0) {
       const hls = data.HLS;
-      if (typeof hls === "string" && hls) sources["Авто"] = hls;
+      if (typeof hls === "string" && hls) sources.Авто = hls;
       const external = data.EXTERNAL;
       if (typeof external === "string" && external) {
-        sources["Источник"] = external;
+        sources.Источник = external;
       }
     }
 

@@ -1,13 +1,13 @@
 import {
-	and,
-	asc,
-	desc,
-	eq,
-	gt,
-	isNotNull,
-	isNull,
-	or,
-	sql,
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  isNotNull,
+  isNull,
+  or,
+  sql,
 } from "drizzle-orm";
 import type { Database } from "../client.types";
 import { botConversations } from "../schema/bot-conversations";
@@ -16,21 +16,21 @@ import { botUsers } from "../schema/bot-users";
 import { listAllIdentityLinks } from "./client-identity-links";
 
 export interface ClientIdentityRef {
-	messenger: string;
-	userId: string;
+  messenger: string;
+  userId: string;
 }
 
 /** `or(and(messenger=..,userId=..), ...)` по списку identity — общий фильтр
  * для *ForGroup-запросов (слияние клиентов, см. client-identity-links.ts). */
 function identitiesFilter(identities: ClientIdentityRef[]) {
-	return or(
-		...identities.map((identity) =>
-			and(
-				eq(botMessages.messenger, identity.messenger),
-				eq(botMessages.userId, identity.userId),
-			),
-		),
-	);
+  return or(
+    ...identities.map((identity) =>
+      and(
+        eq(botMessages.messenger, identity.messenger),
+        eq(botMessages.userId, identity.userId),
+      ),
+    ),
+  );
 }
 
 export type BotMessage = typeof botMessages.$inferSelect;
@@ -41,285 +41,285 @@ export type NewBotMessage = typeof botMessages.$inferInsert;
 export type MessageDeliveryStatus = "sent" | "delivered" | "read" | "failed";
 
 export interface BotMessageEntry {
-	id?: string;
-	messenger: string;
-	userId: string;
-	direction: "in" | "out";
-	source: "scenario" | "reminder" | "widget" | "broadcast" | "operator";
-	text: string;
-	/** Bitrix-ID/имя оператора, реально написавшего сообщение — для
-	 * source="operator" и source="widget" (см. bot-messages/index.ts). */
-	operatorId?: string;
-	operatorName?: string;
-	/** По умолчанию "sent". */
-	status?: MessageDeliveryStatus;
-	/** ID сообщения во внешней системе: ack WAHA / редактирование TG и MAX. */
-	externalId?: string;
-	externalChatId?: string;
-	/** Внутренний ID исходного ответа оператора в Bitrix. */
-	bitrixMessageId?: number;
-	/** ID зеркала, переданный в imconnector.send.messages. */
-	bitrixExternalId?: string;
-	/** Только для telegram-personal/whatsapp-personal — какой из нескольких
-	 * личных номеров портала отправил/принял сообщение. */
-	connectorId?: string;
-	/** По умолчанию "text". "voice" — заливаем mediaS3Key в раздающий роут
-	 * (apps/dashboard/src/app/api/message-media). */
-	kind?: "text" | "voice";
-	mediaS3Key?: string;
-	mediaMimeType?: string;
-	mediaDurationSec?: number;
+  id?: string;
+  messenger: string;
+  userId: string;
+  direction: "in" | "out";
+  source: "scenario" | "reminder" | "widget" | "broadcast" | "operator";
+  text: string;
+  /** Bitrix-ID/имя оператора, реально написавшего сообщение — для
+   * source="operator" и source="widget" (см. bot-messages/index.ts). */
+  operatorId?: string;
+  operatorName?: string;
+  /** По умолчанию "sent". */
+  status?: MessageDeliveryStatus;
+  /** ID сообщения во внешней системе: ack WAHA / редактирование TG и MAX. */
+  externalId?: string;
+  externalChatId?: string;
+  /** Внутренний ID исходного ответа оператора в Bitrix. */
+  bitrixMessageId?: number;
+  /** ID зеркала, переданный в imconnector.send.messages. */
+  bitrixExternalId?: string;
+  /** Только для telegram-personal/whatsapp-personal — какой из нескольких
+   * личных номеров портала отправил/принял сообщение. */
+  connectorId?: string;
+  /** По умолчанию "text". "voice" — заливаем mediaS3Key в раздающий роут
+   * (apps/dashboard/src/app/api/message-media). */
+  kind?: "text" | "voice";
+  mediaS3Key?: string;
+  mediaMimeType?: string;
+  mediaDurationSec?: number;
 }
 
 export async function insertBotMessage(
-	db: Database,
-	entry: BotMessageEntry,
+  db: Database,
+  entry: BotMessageEntry,
 ): Promise<string | undefined> {
-	if (!db) return undefined;
-	const now = new Date();
-	const id = entry.id ?? crypto.randomUUID();
-	await db.insert(botMessages).values({
-		id,
-		messenger: entry.messenger,
-		userId: entry.userId,
-		direction: entry.direction,
-		source: entry.source,
-		text: entry.text,
-		operatorId: entry.operatorId,
-		operatorName: entry.operatorName,
-		status: entry.status ?? "sent",
-		externalId: entry.externalId,
-		externalChatId: entry.externalChatId,
-		bitrixMessageId: entry.bitrixMessageId,
-		bitrixExternalId: entry.bitrixExternalId,
-		connectorId: entry.connectorId,
-		kind: entry.kind ?? "text",
-		mediaS3Key: entry.mediaS3Key,
-		mediaMimeType: entry.mediaMimeType,
-		mediaDurationSec: entry.mediaDurationSec,
-		createdAt: now,
-		updatedAt: now,
-	});
-	return id;
+  if (!db) return undefined;
+  const now = new Date();
+  const id = entry.id ?? crypto.randomUUID();
+  await db.insert(botMessages).values({
+    id,
+    messenger: entry.messenger,
+    userId: entry.userId,
+    direction: entry.direction,
+    source: entry.source,
+    text: entry.text,
+    operatorId: entry.operatorId,
+    operatorName: entry.operatorName,
+    status: entry.status ?? "sent",
+    externalId: entry.externalId,
+    externalChatId: entry.externalChatId,
+    bitrixMessageId: entry.bitrixMessageId,
+    bitrixExternalId: entry.bitrixExternalId,
+    connectorId: entry.connectorId,
+    kind: entry.kind ?? "text",
+    mediaS3Key: entry.mediaS3Key,
+    mediaMimeType: entry.mediaMimeType,
+    mediaDurationSec: entry.mediaDurationSec,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return id;
 }
 
 export interface BotMessageMedia {
-	mediaS3Key: string;
-	mediaMimeType: string | null;
+  mediaS3Key: string;
+  mediaMimeType: string | null;
 }
 
 /** Ключ и mime-type голосового вложения по id сообщения — для раздающего
  * роута apps/dashboard/src/app/api/message-media/[id]. */
 export async function getBotMessageMedia(
-	db: Database,
-	id: string,
+  db: Database,
+  id: string,
 ): Promise<BotMessageMedia | null> {
-	if (!db) return null;
-	const [row] = await db
-		.select({
-			mediaS3Key: botMessages.mediaS3Key,
-			mediaMimeType: botMessages.mediaMimeType,
-		})
-		.from(botMessages)
-		.where(and(eq(botMessages.id, id), isNull(botMessages.deletedAt)))
-		.limit(1);
-	if (!row?.mediaS3Key) return null;
-	return { mediaS3Key: row.mediaS3Key, mediaMimeType: row.mediaMimeType };
+  if (!db) return null;
+  const [row] = await db
+    .select({
+      mediaS3Key: botMessages.mediaS3Key,
+      mediaMimeType: botMessages.mediaMimeType,
+    })
+    .from(botMessages)
+    .where(and(eq(botMessages.id, id), isNull(botMessages.deletedAt)))
+    .limit(1);
+  if (!row?.mediaS3Key) return null;
+  return { mediaS3Key: row.mediaS3Key, mediaMimeType: row.mediaMimeType };
 }
 
 /** Обновляет статус доставки по внешнему id сообщения (сейчас — только
  * WAHA-вебхук `message.ack`). */
 export async function updateBotMessageStatus(
-	db: Database,
-	externalId: string,
-	status: MessageDeliveryStatus,
+  db: Database,
+  externalId: string,
+  status: MessageDeliveryStatus,
 ): Promise<void> {
-	if (!db) return;
-	await db
-		.update(botMessages)
-		.set({ status, updatedAt: new Date() })
-		.where(eq(botMessages.externalId, externalId));
+  if (!db) return;
+  await db
+    .update(botMessages)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(botMessages.externalId, externalId));
 }
 
 /** Возвращает текстовое сообщение, которое текущий оператор вправе изменить. */
 export async function getEditableBotMessage(
-	db: Database,
-	id: string,
-	operatorId: string,
+  db: Database,
+  id: string,
+  operatorId: string,
 ): Promise<BotMessage | null> {
-	if (!db) return null;
-	const [row] = await db
-		.select()
-		.from(botMessages)
-		.where(
-			and(
-				eq(botMessages.id, id),
-				eq(botMessages.direction, "out"),
-				eq(botMessages.kind, "text"),
-				or(
-					eq(botMessages.operatorId, operatorId),
-					and(isNull(botMessages.operatorId), eq(botMessages.source, "widget")),
-				),
-				isNotNull(botMessages.externalId),
-				isNull(botMessages.deletedAt),
-			),
-		)
-		.limit(1);
-	return row ?? null;
+  if (!db) return null;
+  const [row] = await db
+    .select()
+    .from(botMessages)
+    .where(
+      and(
+        eq(botMessages.id, id),
+        eq(botMessages.direction, "out"),
+        eq(botMessages.kind, "text"),
+        or(
+          eq(botMessages.operatorId, operatorId),
+          and(isNull(botMessages.operatorId), eq(botMessages.source, "widget")),
+        ),
+        isNotNull(botMessages.externalId),
+        isNull(botMessages.deletedAt),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
 }
 
 /** Дописывает внешний ID после асинхронной отправки личным Telegram-worker. */
 export async function updateBotMessageExternalResult(
-	db: Database,
-	id: string,
-	externalId: string | undefined,
-	status: MessageDeliveryStatus,
+  db: Database,
+  id: string,
+  externalId: string | undefined,
+  status: MessageDeliveryStatus,
 ): Promise<void> {
-	if (!db) return;
-	await db
-		.update(botMessages)
-		.set({ externalId, status, updatedAt: new Date() })
-		.where(eq(botMessages.id, id));
+  if (!db) return;
+  await db
+    .update(botMessages)
+    .set({ externalId, status, updatedAt: new Date() })
+    .where(eq(botMessages.id, id));
 }
 
 /** Возвращает исходящее сообщение, которое текущий оператор вправе удалить. */
 export async function getDeletableBotMessage(
-	db: Database,
-	id: string,
-	operatorId: string,
+  db: Database,
+  id: string,
+  operatorId: string,
 ): Promise<BotMessage | null> {
-	if (!db) return null;
-	const [row] = await db
-		.select()
-		.from(botMessages)
-		.where(
-			and(
-				eq(botMessages.id, id),
-				eq(botMessages.direction, "out"),
-				or(
-					eq(botMessages.operatorId, operatorId),
-					and(isNull(botMessages.operatorId), eq(botMessages.source, "widget")),
-				),
-				isNotNull(botMessages.externalId),
-				isNull(botMessages.deletedAt),
-			),
-		)
-		.limit(1);
-	return row ?? null;
+  if (!db) return null;
+  const [row] = await db
+    .select()
+    .from(botMessages)
+    .where(
+      and(
+        eq(botMessages.id, id),
+        eq(botMessages.direction, "out"),
+        or(
+          eq(botMessages.operatorId, operatorId),
+          and(isNull(botMessages.operatorId), eq(botMessages.source, "widget")),
+        ),
+        isNotNull(botMessages.externalId),
+        isNull(botMessages.deletedAt),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
 }
 
 /** Фиксирует текст после успешного редактирования во внешнем мессенджере. */
 export async function updateBotMessageText(
-	db: Database,
-	id: string,
-	text: string,
+  db: Database,
+  id: string,
+  text: string,
 ): Promise<BotMessage | null> {
-	if (!db) return null;
-	const now = new Date();
-	const [row] = await db
-		.update(botMessages)
-		.set({ text, editedAt: now, updatedAt: now })
-		.where(eq(botMessages.id, id))
-		.returning();
-	return row ?? null;
+  if (!db) return null;
+  const now = new Date();
+  const [row] = await db
+    .update(botMessages)
+    .set({ text, editedAt: now, updatedAt: now })
+    .where(eq(botMessages.id, id))
+    .returning();
+  return row ?? null;
 }
 
 /** Отмечает сообщение удалённым, сохраняя исходный текст в БД для аудита. */
 export async function markBotMessageDeleted(
-	db: Database,
-	id: string,
-	operatorId: string,
+  db: Database,
+  id: string,
+  operatorId: string,
 ): Promise<BotMessage | null> {
-	if (!db) return null;
-	const now = new Date();
-	const [row] = await db
-		.update(botMessages)
-		.set({
-			deletedAt: now,
-			deletedByOperatorId: operatorId,
-			updatedAt: now,
-		})
-		.where(and(eq(botMessages.id, id), isNull(botMessages.deletedAt)))
-		.returning();
-	return row ?? null;
+  if (!db) return null;
+  const now = new Date();
+  const [row] = await db
+    .update(botMessages)
+    .set({
+      deletedAt: now,
+      deletedByOperatorId: operatorId,
+      updatedAt: now,
+    })
+    .where(and(eq(botMessages.id, id), isNull(botMessages.deletedAt)))
+    .returning();
+  return row ?? null;
 }
 
 export async function setBotMessageBitrixExternalId(
-	db: Database,
-	id: string,
-	bitrixExternalId: string,
+  db: Database,
+  id: string,
+  bitrixExternalId: string,
 ): Promise<void> {
-	if (!db) return;
-	await db
-		.update(botMessages)
-		.set({ bitrixExternalId, updatedAt: new Date() })
-		.where(eq(botMessages.id, id));
+  if (!db) return;
+  await db
+    .update(botMessages)
+    .set({ bitrixExternalId, updatedAt: new Date() })
+    .where(eq(botMessages.id, id));
 }
 
 /** Отмечает, что гайд-PDF из этого сообщения продублирован клиенту на email
  * (см. dispatchScenarioOutput/sendGuideEmail) — инбокс «Клиенты» показывает
  * это в треде. */
 export async function markBotMessageGuideEmailSent(
-	db: Database,
-	id: string,
+  db: Database,
+  id: string,
 ): Promise<void> {
-	if (!db) return;
-	const now = new Date();
-	await db
-		.update(botMessages)
-		.set({ guideEmailSentAt: now, updatedAt: now })
-		.where(eq(botMessages.id, id));
+  if (!db) return;
+  const now = new Date();
+  await db
+    .update(botMessages)
+    .set({ guideEmailSentAt: now, updatedAt: now })
+    .where(eq(botMessages.id, id));
 }
 
 /** Последние сообщения диалога с клиентом (новые первыми). */
 export async function listBotMessages(
-	db: Database,
-	messenger: string,
-	userId: string,
-	limit = 50,
+  db: Database,
+  messenger: string,
+  userId: string,
+  limit = 50,
 ): Promise<BotMessage[]> {
-	if (!db) return [];
-	return db
-		.select()
-		.from(botMessages)
-		.where(
-			and(eq(botMessages.messenger, messenger), eq(botMessages.userId, userId)),
-		)
-		.orderBy(desc(botMessages.createdAt))
-		.limit(limit);
+  if (!db) return [];
+  return db
+    .select()
+    .from(botMessages)
+    .where(
+      and(eq(botMessages.messenger, messenger), eq(botMessages.userId, userId)),
+    )
+    .orderBy(desc(botMessages.createdAt))
+    .limit(limit);
 }
 
 /** Полная история диалога с клиентом (новые первыми), без ограничения числа
  * сообщений. Используется единым инбоксом, где оператору должна быть доступна
  * вся переписка; компактные виджеты продолжают использовать listBotMessages. */
 export async function listAllBotMessages(
-	db: Database,
-	messenger: string,
-	userId: string,
+  db: Database,
+  messenger: string,
+  userId: string,
 ): Promise<BotMessage[]> {
-	if (!db) return [];
-	return db
-		.select()
-		.from(botMessages)
-		.where(
-			and(eq(botMessages.messenger, messenger), eq(botMessages.userId, userId)),
-		)
-		.orderBy(desc(botMessages.createdAt));
+  if (!db) return [];
+  return db
+    .select()
+    .from(botMessages)
+    .where(
+      and(eq(botMessages.messenger, messenger), eq(botMessages.userId, userId)),
+    )
+    .orderBy(desc(botMessages.createdAt));
 }
 
 /** Как listAllBotMessages, но по группе identity сразу (слитые каналы одного
  * клиента, см. client-identity-links.ts) — тред показывает переписку из всех
  * каналов вперемешку по времени. */
 export async function listAllBotMessagesForGroup(
-	db: Database,
-	identities: ClientIdentityRef[],
+  db: Database,
+  identities: ClientIdentityRef[],
 ): Promise<BotMessage[]> {
-	if (!db || identities.length === 0) return [];
-	return db
-		.select()
-		.from(botMessages)
-		.where(identitiesFilter(identities))
-		.orderBy(desc(botMessages.createdAt));
+  if (!db || identities.length === 0) return [];
+  return db
+    .select()
+    .from(botMessages)
+    .where(identitiesFilter(identities))
+    .orderBy(desc(botMessages.createdAt));
 }
 
 /** Сообщения диалога, появившиеся или изменившиеся (сменился status) после
@@ -327,126 +327,126 @@ export async function listAllBotMessagesForGroup(
  * статусный апдейт уже показанного сообщения (sent → delivered → read)
  * никогда не попадёт в открытый тред. */
 export async function listBotMessagesSince(
-	db: Database,
-	messenger: string,
-	userId: string,
-	since: Date,
-	limit = 50,
+  db: Database,
+  messenger: string,
+  userId: string,
+  since: Date,
+  limit = 50,
 ): Promise<BotMessage[]> {
-	if (!db) return [];
-	return db
-		.select()
-		.from(botMessages)
-		.where(
-			and(
-				eq(botMessages.messenger, messenger),
-				eq(botMessages.userId, userId),
-				gt(botMessages.updatedAt, since),
-			),
-		)
-		.orderBy(asc(botMessages.updatedAt))
-		.limit(limit);
+  if (!db) return [];
+  return db
+    .select()
+    .from(botMessages)
+    .where(
+      and(
+        eq(botMessages.messenger, messenger),
+        eq(botMessages.userId, userId),
+        gt(botMessages.updatedAt, since),
+      ),
+    )
+    .orderBy(asc(botMessages.updatedAt))
+    .limit(limit);
 }
 
 /** Как listBotMessagesSince, но по группе identity сразу — поллинг открытого
  * треда слитого клиента должен ловить новые сообщения из любого его канала. */
 export async function listBotMessagesSinceForGroup(
-	db: Database,
-	identities: ClientIdentityRef[],
-	since: Date,
-	limit = 50,
+  db: Database,
+  identities: ClientIdentityRef[],
+  since: Date,
+  limit = 50,
 ): Promise<BotMessage[]> {
-	if (!db || identities.length === 0) return [];
-	return db
-		.select()
-		.from(botMessages)
-		.where(and(identitiesFilter(identities), gt(botMessages.updatedAt, since)))
-		.orderBy(asc(botMessages.updatedAt))
-		.limit(limit);
+  if (!db || identities.length === 0) return [];
+  return db
+    .select()
+    .from(botMessages)
+    .where(and(identitiesFilter(identities), gt(botMessages.updatedAt, since)))
+    .orderBy(asc(botMessages.updatedAt))
+    .limit(limit);
 }
 
 export interface ClientMessageStats {
-	totalCount: number;
-	inCount: number;
-	outCount: number;
-	firstMessageAt: Date | null;
-	lastMessageAt: Date | null;
+  totalCount: number;
+  inCount: number;
+  outCount: number;
+  firstMessageAt: Date | null;
+  lastMessageAt: Date | null;
 }
 
 /** Сводка переписки с клиентом — для карточки профиля в инбоксе «Клиенты». */
 export async function getClientMessageStats(
-	db: Database,
-	messenger: string,
-	userId: string,
+  db: Database,
+  messenger: string,
+  userId: string,
 ): Promise<ClientMessageStats> {
-	const empty: ClientMessageStats = {
-		totalCount: 0,
-		inCount: 0,
-		outCount: 0,
-		firstMessageAt: null,
-		lastMessageAt: null,
-	};
-	if (!db) return empty;
-	const [row] = await db
-		.select({
-			totalCount: sql<number>`count(*)::int`,
-			inCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'in')::int`,
-			outCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'out')::int`,
-			firstMessageAt: sql<Date | null>`min(${botMessages.createdAt})`,
-			lastMessageAt: sql<Date | null>`max(${botMessages.createdAt})`,
-		})
-		.from(botMessages)
-		.where(
-			and(eq(botMessages.messenger, messenger), eq(botMessages.userId, userId)),
-		);
-	return row ?? empty;
+  const empty: ClientMessageStats = {
+    totalCount: 0,
+    inCount: 0,
+    outCount: 0,
+    firstMessageAt: null,
+    lastMessageAt: null,
+  };
+  if (!db) return empty;
+  const [row] = await db
+    .select({
+      totalCount: sql<number>`count(*)::int`,
+      inCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'in')::int`,
+      outCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'out')::int`,
+      firstMessageAt: sql<Date | null>`min(${botMessages.createdAt})`,
+      lastMessageAt: sql<Date | null>`max(${botMessages.createdAt})`,
+    })
+    .from(botMessages)
+    .where(
+      and(eq(botMessages.messenger, messenger), eq(botMessages.userId, userId)),
+    );
+  return row ?? empty;
 }
 
 /** Как getClientMessageStats, но агрегирует по группе identity сразу —
  * карточка профиля слитого клиента показывает сводку по всем его каналам. */
 export async function getClientMessageStatsForGroup(
-	db: Database,
-	identities: ClientIdentityRef[],
+  db: Database,
+  identities: ClientIdentityRef[],
 ): Promise<ClientMessageStats> {
-	const empty: ClientMessageStats = {
-		totalCount: 0,
-		inCount: 0,
-		outCount: 0,
-		firstMessageAt: null,
-		lastMessageAt: null,
-	};
-	if (!db || identities.length === 0) return empty;
-	const [row] = await db
-		.select({
-			totalCount: sql<number>`count(*)::int`,
-			inCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'in')::int`,
-			outCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'out')::int`,
-			firstMessageAt: sql<Date | null>`min(${botMessages.createdAt})`,
-			lastMessageAt: sql<Date | null>`max(${botMessages.createdAt})`,
-		})
-		.from(botMessages)
-		.where(identitiesFilter(identities));
-	return row ?? empty;
+  const empty: ClientMessageStats = {
+    totalCount: 0,
+    inCount: 0,
+    outCount: 0,
+    firstMessageAt: null,
+    lastMessageAt: null,
+  };
+  if (!db || identities.length === 0) return empty;
+  const [row] = await db
+    .select({
+      totalCount: sql<number>`count(*)::int`,
+      inCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'in')::int`,
+      outCount: sql<number>`count(*) filter (where ${botMessages.direction} = 'out')::int`,
+      firstMessageAt: sql<Date | null>`min(${botMessages.createdAt})`,
+      lastMessageAt: sql<Date | null>`max(${botMessages.createdAt})`,
+    })
+    .from(botMessages)
+    .where(identitiesFilter(identities));
+  return row ?? empty;
 }
 
 export interface ClientListItem {
-	messenger: string;
-	userId: string;
-	name: string | null;
-	username: string | null;
-	hasAvatar: boolean;
-	lastMessageText: string;
-	lastMessageDirection: "in" | "out";
-	lastMessageAt: Date;
-	unread: boolean;
-	/** Число входящих сообщений после lastReadAt — бейдж-кружок в списке, как в Wazzup. */
-	unreadCount: number;
-	assignedOperatorId: string | null;
-	assignedOperatorName: string | null;
-	tags: string[];
-	/** Остальные каналы, схлопнутые в этого клиента слиянием (см.
-	 * client-identity-links.ts) — пусто, если клиент не объединён ни с кем. */
-	linkedChannels: string[];
+  messenger: string;
+  userId: string;
+  name: string | null;
+  username: string | null;
+  hasAvatar: boolean;
+  lastMessageText: string;
+  lastMessageDirection: "in" | "out";
+  lastMessageAt: Date;
+  unread: boolean;
+  /** Число входящих сообщений после lastReadAt — бейдж-кружок в списке, как в Wazzup. */
+  unreadCount: number;
+  assignedOperatorId: string | null;
+  assignedOperatorName: string | null;
+  tags: string[];
+  /** Остальные каналы, схлопнутые в этого клиента слиянием (см.
+   * client-identity-links.ts) — пусто, если клиент не объединён ни с кем. */
+  linkedChannels: string[];
 }
 
 /**
@@ -455,138 +455,149 @@ export interface ClientListItem {
  * Сортировка — по свежести последнего сообщения.
  */
 export async function listClientsWithLastMessage(
-	db: Database,
-	options: { limit?: number; offset?: number; search?: string } = {},
+  db: Database,
+  options: { limit?: number; offset?: number; search?: string } = {},
 ): Promise<ClientListItem[]> {
-	if (!db) return [];
-	const { limit = 50, offset = 0, search } = options;
+  if (!db) return [];
+  const { limit = 50, offset = 0, search } = options;
 
-	const lastMessage = db
-		.selectDistinctOn([botMessages.messenger, botMessages.userId], {
-			messenger: botMessages.messenger,
-			userId: botMessages.userId,
-			text: sql<string>`case when ${botMessages.deletedAt} is not null then 'Сообщение удалено' else ${botMessages.text} end`.as(
-				"text",
-			),
-			direction: botMessages.direction,
-			createdAt: botMessages.createdAt,
-		})
-		.from(botMessages)
-		.orderBy(
-			botMessages.messenger,
-			botMessages.userId,
-			desc(botMessages.createdAt),
-		)
-		.as("last_message");
+  const lastMessage = db
+    .selectDistinctOn([botMessages.messenger, botMessages.userId], {
+      messenger: botMessages.messenger,
+      userId: botMessages.userId,
+      text: sql<string>`case when ${botMessages.deletedAt} is not null then 'Сообщение удалено' else ${botMessages.text} end`.as(
+        "text",
+      ),
+      direction: botMessages.direction,
+      createdAt: botMessages.createdAt,
+    })
+    .from(botMessages)
+    .orderBy(
+      botMessages.messenger,
+      botMessages.userId,
+      desc(botMessages.createdAt),
+    )
+    .as("last_message");
 
-	const searchFilter = search?.trim()
-		? sql`(${botUsers.name} ilike ${`%${search.trim()}%`} or ${botUsers.username} ilike ${`%${search.trim()}%`})`
-		: undefined;
+  const searchFilter = search?.trim()
+    ? sql`(${botUsers.name} ilike ${`%${search.trim()}%`} or ${botUsers.username} ilike ${`%${search.trim()}%`})`
+    : undefined;
 
-	const rows = await db
-		.select({
-			messenger: lastMessage.messenger,
-			userId: lastMessage.userId,
-			name: botUsers.name,
-			username: botUsers.username,
-			hasAvatar: sql<boolean>`${botUsers.avatarS3Key} is not null`,
-			lastMessageText: lastMessage.text,
-			lastMessageDirection: lastMessage.direction,
-			lastMessageAt: lastMessage.createdAt,
-			assignedOperatorId: botConversations.assignedOperatorId,
-			assignedOperatorName: botConversations.assignedOperatorName,
-			tags: botConversations.tags,
-			// Точное число непрочитанных, а не только флаг «есть ли» — бейдж в
-			// списке (как в Wazzup) показывает именно счётчик, а не точку.
-			unreadCount: sql<number>`(
+  const rows = await db
+    .select({
+      messenger: lastMessage.messenger,
+      userId: lastMessage.userId,
+      name: botUsers.name,
+      username: botUsers.username,
+      hasAvatar: sql<boolean>`${botUsers.avatarS3Key} is not null`,
+      lastMessageText: lastMessage.text,
+      lastMessageDirection: lastMessage.direction,
+      lastMessageAt: lastMessage.createdAt,
+      assignedOperatorId: botConversations.assignedOperatorId,
+      assignedOperatorName: botConversations.assignedOperatorName,
+      tags: botConversations.tags,
+      // Точное число непрочитанных, а не только флаг «есть ли» — бейдж в
+      // списке (как в Wazzup) показывает именно счётчик, а не точку.
+      unreadCount: sql<number>`(
         select count(*)::int from bot_messages
         where bot_messages.messenger = ${lastMessage.messenger}
           and bot_messages.user_id = ${lastMessage.userId}
           and bot_messages.direction = 'in'
           and bot_messages.created_at > coalesce(${botConversations.lastReadAt}, to_timestamp(0))
       )`,
-		})
-		.from(lastMessage)
-		.leftJoin(
-			botUsers,
-			and(
-				eq(botUsers.messenger, lastMessage.messenger),
-				eq(botUsers.userId, lastMessage.userId),
-			),
-		)
-		.leftJoin(
-			botConversations,
-			and(
-				eq(botConversations.messenger, lastMessage.messenger),
-				eq(botConversations.userId, lastMessage.userId),
-			),
-		)
-		.where(searchFilter)
-		.orderBy(desc(lastMessage.createdAt));
+    })
+    .from(lastMessage)
+    .leftJoin(
+      botUsers,
+      and(
+        eq(botUsers.messenger, lastMessage.messenger),
+        eq(botUsers.userId, lastMessage.userId),
+      ),
+    )
+    .leftJoin(
+      botConversations,
+      and(
+        eq(botConversations.messenger, lastMessage.messenger),
+        eq(botConversations.userId, lastMessage.userId),
+      ),
+    )
+    .where(searchFilter)
+    .orderBy(desc(lastMessage.createdAt));
 
-	// Схлопываем строки слитых identity (см. client-identity-links.ts) в одну
-	// карточку клиента. Связей всегда единицы, поэтому дешевле собрать их одним
-	// запросом и объединить в приложении, чем городить самосоединение в SQL —
-	// limit/offset поэтому тоже применяются после схлопывания, а не до.
-	const links = await listAllIdentityLinks(db);
-	const primaryOf = new Map<string, ClientIdentityRef>();
-	for (const link of links) {
-		primaryOf.set(`${link.messenger}:${link.userId}`, {
-			messenger: link.primaryMessenger,
-			userId: link.primaryUserId,
-		});
-	}
+  // Схлопываем строки слитых identity (см. client-identity-links.ts) в одну
+  // карточку клиента. Связей всегда единицы, поэтому дешевле собрать их одним
+  // запросом и объединить в приложении, чем городить самосоединение в SQL —
+  // limit/offset поэтому тоже применяются после схлопывания, а не до.
+  const links = await listAllIdentityLinks(db);
+  const primaryOf = new Map<string, ClientIdentityRef>();
+  for (const link of links) {
+    primaryOf.set(`${link.messenger}:${link.userId}`, {
+      messenger: link.primaryMessenger,
+      userId: link.primaryUserId,
+    });
+  }
 
-	type Row = (typeof rows)[number];
-	const groups = new Map<string, { canonical: ClientIdentityRef; rows: Row[] }>();
-	for (const row of rows) {
-		const canonical = primaryOf.get(`${row.messenger}:${row.userId}`) ?? {
-			messenger: row.messenger,
-			userId: row.userId,
-		};
-		const key = `${canonical.messenger}:${canonical.userId}`;
-		const group = groups.get(key);
-		if (group) group.rows.push(row);
-		else groups.set(key, { canonical, rows: [row] });
-	}
+  type Row = (typeof rows)[number];
+  const groups = new Map<
+    string,
+    { canonical: ClientIdentityRef; rows: Row[] }
+  >();
+  for (const row of rows) {
+    const canonical = primaryOf.get(`${row.messenger}:${row.userId}`) ?? {
+      messenger: row.messenger,
+      userId: row.userId,
+    };
+    const key = `${canonical.messenger}:${canonical.userId}`;
+    const group = groups.get(key);
+    if (group) group.rows.push(row);
+    else groups.set(key, { canonical, rows: [row] });
+  }
 
-	const items: ClientListItem[] = [];
-	for (const { canonical, rows: groupRows } of groups.values()) {
-		const sorted = [...groupRows].sort(
-			(a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime(),
-		);
-		const latest = sorted[0];
-		const primaryRow =
-			sorted.find(
-				(r) => r.messenger === canonical.messenger && r.userId === canonical.userId,
-			) ?? latest;
-		const nameRow =
-			sorted.find((r) => r.name) ?? sorted.find((r) => r.username) ?? primaryRow;
+  const items: ClientListItem[] = [];
+  for (const { canonical, rows: groupRows } of groups.values()) {
+    const sorted = [...groupRows].sort(
+      (a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime(),
+    );
+    const latest = sorted[0];
+    if (!latest) continue;
+    const primaryRow =
+      sorted.find(
+        (r) =>
+          r.messenger === canonical.messenger && r.userId === canonical.userId,
+      ) ?? latest;
+    const nameRow =
+      sorted.find((r) => r.name) ??
+      sorted.find((r) => r.username) ??
+      primaryRow;
 
-		items.push({
-			messenger: canonical.messenger,
-			userId: canonical.userId,
-			name: primaryRow.name ?? nameRow.name,
-			username: primaryRow.username ?? nameRow.username,
-			hasAvatar: sorted.some((r) => r.hasAvatar),
-			lastMessageText: latest.lastMessageText,
-			lastMessageDirection: latest.lastMessageDirection as "in" | "out",
-			lastMessageAt: latest.lastMessageAt,
-			unread: sorted.some((r) => r.unreadCount > 0),
-			unreadCount: sorted.reduce((sum, r) => sum + r.unreadCount, 0),
-			assignedOperatorId: primaryRow.assignedOperatorId,
-			assignedOperatorName: primaryRow.assignedOperatorName,
-			tags: primaryRow.tags ?? [],
-			linkedChannels: [
-				...new Set(
-					sorted
-						.filter((r) => r.messenger !== canonical.messenger || r.userId !== canonical.userId)
-						.map((r) => r.messenger),
-				),
-			],
-		});
-	}
+    items.push({
+      messenger: canonical.messenger,
+      userId: canonical.userId,
+      name: primaryRow.name ?? nameRow.name,
+      username: primaryRow.username ?? nameRow.username,
+      hasAvatar: sorted.some((r) => r.hasAvatar),
+      lastMessageText: latest.lastMessageText,
+      lastMessageDirection: latest.lastMessageDirection as "in" | "out",
+      lastMessageAt: latest.lastMessageAt,
+      unread: sorted.some((r) => r.unreadCount > 0),
+      unreadCount: sorted.reduce((sum, r) => sum + r.unreadCount, 0),
+      assignedOperatorId: primaryRow.assignedOperatorId,
+      assignedOperatorName: primaryRow.assignedOperatorName,
+      tags: primaryRow.tags ?? [],
+      linkedChannels: [
+        ...new Set(
+          sorted
+            .filter(
+              (r) =>
+                r.messenger !== canonical.messenger ||
+                r.userId !== canonical.userId,
+            )
+            .map((r) => r.messenger),
+        ),
+      ],
+    });
+  }
 
-	items.sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
-	return items.slice(offset, offset + limit);
+  items.sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
+  return items.slice(offset, offset + limit);
 }
