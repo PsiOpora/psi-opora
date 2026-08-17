@@ -51,6 +51,24 @@ export function MaxPersonalConnectorClient({
 		});
 	};
 
+	const resendCode = () => {
+		setError(null);
+		startTransition(async () => {
+			const result = await orpcClient.maxPersonal.startLogin({
+				lineId,
+				connectorId,
+				phone: phone.trim(),
+			});
+			if (result.error || !result.loginId) {
+				setError(result.error ?? "Не удалось отправить код");
+				return;
+			}
+			setLoginId(result.loginId);
+			setCodeLength(result.codeLength ?? 6);
+			setCode("");
+		});
+	};
+
 	const submitCode = () => {
 		if (!loginId || !code.trim()) return;
 		setError(null);
@@ -115,6 +133,14 @@ export function MaxPersonalConnectorClient({
 					>
 						{busy && <Loader2Icon className="size-3.5 animate-spin" />}{" "}
 						Подтвердить
+					</Button>
+					<Button
+						size="sm"
+						variant="ghost"
+						onClick={resendCode}
+						disabled={busy}
+					>
+						Отправить код повторно
 					</Button>
 				</>
 			)}
