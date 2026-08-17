@@ -23,7 +23,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1108.0",
+    "@aws-sdk/client-s3": "^3.1111.0",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
@@ -38,7 +38,7 @@
     "@psi-opora/validators": "workspace:*",
     "@orpc/contract": "^1.15.0",
     "@orpc/server": "^1.15.0",
-    "better-auth": "1.6.27",
+    "better-auth": "1.6.29",
     "superjson": "2.2.6",
     "zod": "4.4.3"
   },
