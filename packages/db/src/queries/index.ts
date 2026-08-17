@@ -144,12 +144,12 @@ export type { ClientNote, NewClientNoteEntry } from "./client-notes";
 export * from "./email-campaign";
 export * from "./email-provider";
 export * from "./email-templates";
-export type { QuickReply } from "./quick-replies";
-export * from "./telegram-personal";
 export * from "./max-personal";
+export type { QuickReply } from "./quick-replies";
+export * from "./resend";
 export * from "./rusender";
 export * from "./smtp-bz";
-export * from "./resend";
+export * from "./telegram-personal";
 export * from "./unisender";
 export * from "./whatsapp-personal";
 

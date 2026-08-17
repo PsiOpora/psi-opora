@@ -25,43 +25,46 @@ import { costsRouter } from "./costs";
 import { emailRouter } from "./email";
 import { emailBroadcastRouter } from "./email-broadcast";
 import { emailTemplatesRouter } from "./email-templates";
-import { messagesRouter } from "./messages";
+import { guideCampaignsRouter } from "./guide-campaigns";
 import { maxPersonalRouter } from "./max-personal";
+import { messagesRouter } from "./messages";
 import { telegramPersonalRouter } from "./telegram-personal";
 import { whatsappPersonalRouter } from "./whatsapp-personal";
 import { widgetMessageRouter } from "./widget-message";
 
 export {
-  adsRouter,
-  backupRouter,
-  botRouter,
-  botConnectorRouter,
-  broadcastRouter,
-  costsRouter,
-  emailRouter,
-  emailBroadcastRouter,
-  emailTemplatesRouter,
-  messagesRouter,
-  maxPersonalRouter,
-  telegramPersonalRouter,
-  whatsappPersonalRouter,
-  widgetMessageRouter,
+	adsRouter,
+	backupRouter,
+	botConnectorRouter,
+	botRouter,
+	broadcastRouter,
+	costsRouter,
+	emailBroadcastRouter,
+	emailRouter,
+	emailTemplatesRouter,
+	guideCampaignsRouter,
+	maxPersonalRouter,
+	messagesRouter,
+	telegramPersonalRouter,
+	whatsappPersonalRouter,
+	widgetMessageRouter,
 };
 export const appRouter = {
-  ads: adsRouter,
-  backup: backupRouter,
-  bot: botRouter,
-  botConnector: botConnectorRouter,
-  broadcast: broadcastRouter,
-  costs: costsRouter,
-  email: emailRouter,
-  emailBroadcast: emailBroadcastRouter,
-  emailTemplates: emailTemplatesRouter,
-  messages: messagesRouter,
-  maxPersonal: maxPersonalRouter,
-  telegramPersonal: telegramPersonalRouter,
-  whatsappPersonal: whatsappPersonalRouter,
-  widgetMessage: widgetMessageRouter,
+	ads: adsRouter,
+	backup: backupRouter,
+	bot: botRouter,
+	botConnector: botConnectorRouter,
+	broadcast: broadcastRouter,
+	costs: costsRouter,
+	email: emailRouter,
+	emailBroadcast: emailBroadcastRouter,
+	emailTemplates: emailTemplatesRouter,
+	guideCampaigns: guideCampaignsRouter,
+	messages: messagesRouter,
+	maxPersonal: maxPersonalRouter,
+	telegramPersonal: telegramPersonalRouter,
+	whatsappPersonal: whatsappPersonalRouter,
+	widgetMessage: widgetMessageRouter,
 };
 
 export type AppRouter = typeof appRouter;

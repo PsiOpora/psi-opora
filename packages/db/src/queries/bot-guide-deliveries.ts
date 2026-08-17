@@ -6,18 +6,22 @@ import { botGuideDeliveries } from "../schema/bot-guide-deliveries";
 export type BotGuideDelivery = typeof botGuideDeliveries.$inferSelect;
 
 export interface NewBotGuideDeliveryEntry {
-  campaignId: string;
-  messenger: string;
-  userId: string;
-  chatId?: string;
-  dealId?: number;
-  name?: string;
-  phone?: string;
-  email?: string;
+	campaignId: string;
+	messenger: string;
+	userId: string;
+	chatId?: string;
+	dealId?: number;
+	name?: string;
+	phone?: string;
+	email?: string;
 }
 
-function deliveryId(messenger: string, userId: string, campaignId: string): string {
-  return `${messenger}:${userId}:${campaignId}`;
+function deliveryId(
+	messenger: string,
+	userId: string,
+	campaignId: string,
+): string {
+	return `${messenger}:${userId}:${campaignId}`;
 }
 
 /**
@@ -26,37 +30,37 @@ function deliveryId(messenger: string, userId: string, campaignId: string): stri
  * follow-up (onConflictDoNothing).
  */
 export async function upsertBotGuideDelivery(
-  db: Database,
-  entry: NewBotGuideDeliveryEntry,
+	db: Database,
+	entry: NewBotGuideDeliveryEntry,
 ): Promise<void> {
-  if (!db) return;
-  await db
-    .insert(botGuideDeliveries)
-    .values({
-      id: deliveryId(entry.messenger, entry.userId, entry.campaignId),
-      ...entry,
-    })
-    .onConflictDoNothing({ target: botGuideDeliveries.id });
+	if (!db) return;
+	await db
+		.insert(botGuideDeliveries)
+		.values({
+			id: deliveryId(entry.messenger, entry.userId, entry.campaignId),
+			...entry,
+		})
+		.onConflictDoNothing({ target: botGuideDeliveries.id });
 }
 
 export async function getBotGuideDelivery(
-  db: Database,
-  messenger: string,
-  userId: string,
-  campaignId: string,
+	db: Database,
+	messenger: string,
+	userId: string,
+	campaignId: string,
 ): Promise<BotGuideDelivery | null> {
-  if (!db) return null;
-  const rows = await db
-    .select()
-    .from(botGuideDeliveries)
-    .where(eq(botGuideDeliveries.id, deliveryId(messenger, userId, campaignId)))
-    .limit(1);
-  return rows[0] ?? null;
+	if (!db) return null;
+	const rows = await db
+		.select()
+		.from(botGuideDeliveries)
+		.where(eq(botGuideDeliveries.id, deliveryId(messenger, userId, campaignId)))
+		.limit(1);
+	return rows[0] ?? null;
 }
 
 export interface DueGuideFollowUp {
-  delivery: BotGuideDelivery;
-  campaign: typeof botGuideCampaigns.$inferSelect;
+	delivery: BotGuideDelivery;
+	campaign: typeof botGuideCampaigns.$inferSelect;
 }
 
 /**
@@ -65,38 +69,38 @@ export interface DueGuideFollowUp {
  * отправлено, кампания активна.
  */
 export async function listDueGuideFollowUps(
-  db: Database,
+	db: Database,
 ): Promise<DueGuideFollowUp[]> {
-  if (!db) return [];
-  const rows = await db
-    .select({
-      delivery: botGuideDeliveries,
-      campaign: botGuideCampaigns,
-    })
-    .from(botGuideDeliveries)
-    .innerJoin(
-      botGuideCampaigns,
-      eq(botGuideCampaigns.id, botGuideDeliveries.campaignId),
-    )
-    .where(
-      and(
-        isNull(botGuideDeliveries.followUpSentAt),
-        eq(botGuideCampaigns.active, true),
-        sql`${botGuideDeliveries.deliveredAt} <= now() - (${botGuideCampaigns.followUpDelayDays} || ' days')::interval`,
-      ),
-    );
-  return rows;
+	if (!db) return [];
+	const rows = await db
+		.select({
+			delivery: botGuideDeliveries,
+			campaign: botGuideCampaigns,
+		})
+		.from(botGuideDeliveries)
+		.innerJoin(
+			botGuideCampaigns,
+			eq(botGuideCampaigns.id, botGuideDeliveries.campaignId),
+		)
+		.where(
+			and(
+				isNull(botGuideDeliveries.followUpSentAt),
+				eq(botGuideCampaigns.active, true),
+				sql`${botGuideDeliveries.deliveredAt} <= now() - (${botGuideCampaigns.followUpDelayDays} || ' days')::interval`,
+			),
+		);
+	return rows;
 }
 
 export async function markGuideFollowUpSent(
-  db: Database,
-  id: string,
+	db: Database,
+	id: string,
 ): Promise<void> {
-  if (!db) return;
-  await db
-    .update(botGuideDeliveries)
-    .set({ followUpSentAt: sql`now()` })
-    .where(eq(botGuideDeliveries.id, id));
+	if (!db) return;
+	await db
+		.update(botGuideDeliveries)
+		.set({ followUpSentAt: sql`now()` })
+		.where(eq(botGuideDeliveries.id, id));
 }
 
 /**
@@ -105,38 +109,38 @@ export async function markGuideFollowUpSent(
  * соглашается на диагностику (кнопкой или текстом) после follow-up-сообщения.
  */
 export async function getPendingGuideDiagnosticDelivery(
-  db: Database,
-  messenger: string,
-  userId: string,
+	db: Database,
+	messenger: string,
+	userId: string,
 ): Promise<BotGuideDelivery | null> {
-  if (!db) return null;
-  const rows = await db
-    .select()
-    .from(botGuideDeliveries)
-    .where(
-      and(
-        eq(botGuideDeliveries.messenger, messenger),
-        eq(botGuideDeliveries.userId, userId),
-        sql`${botGuideDeliveries.followUpSentAt} is not null`,
-        isNull(botGuideDeliveries.diagnosticRequestedAt),
-      ),
-    )
-    .orderBy(desc(botGuideDeliveries.deliveredAt))
-    .limit(1);
-  return rows[0] ?? null;
+	if (!db) return null;
+	const rows = await db
+		.select()
+		.from(botGuideDeliveries)
+		.where(
+			and(
+				eq(botGuideDeliveries.messenger, messenger),
+				eq(botGuideDeliveries.userId, userId),
+				sql`${botGuideDeliveries.followUpSentAt} is not null`,
+				isNull(botGuideDeliveries.diagnosticRequestedAt),
+			),
+		)
+		.orderBy(desc(botGuideDeliveries.deliveredAt))
+		.limit(1);
+	return rows[0] ?? null;
 }
 
 export async function markGuideDiagnosticRequested(
-  db: Database,
-  id: string,
-  dealId?: number,
+	db: Database,
+	id: string,
+	dealId?: number,
 ): Promise<void> {
-  if (!db) return;
-  await db
-    .update(botGuideDeliveries)
-    .set({
-      diagnosticRequestedAt: sql`now()`,
-      ...(dealId !== undefined ? { dealId } : {}),
-    })
-    .where(eq(botGuideDeliveries.id, id));
+	if (!db) return;
+	await db
+		.update(botGuideDeliveries)
+		.set({
+			diagnosticRequestedAt: sql`now()`,
+			...(dealId !== undefined ? { dealId } : {}),
+		})
+		.where(eq(botGuideDeliveries.id, id));
 }

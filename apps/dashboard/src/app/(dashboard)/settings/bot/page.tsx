@@ -33,6 +33,7 @@ import {
 	SendTestGuideButton,
 	SetActiveGuideButton,
 } from "./guide-actions";
+import { GuideCampaignsCard } from "./guide-campaigns";
 import { GuideUploadForm } from "./guide-upload-form";
 
 function groupDefs(
@@ -205,6 +206,8 @@ export default function BotTextsPage() {
 			</div>
 
 			<GuidesLibraryCard guides={guides} activeS3Key={activeS3Key} />
+
+			<GuideCampaignsCard />
 
 			<BotTextsForm groups={groups} initialOverrides={overrides} />
 		</div>

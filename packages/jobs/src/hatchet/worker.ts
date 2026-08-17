@@ -1,36 +1,35 @@
-import { getHatchetClient } from "./client";
 import { deliverBroadcast } from "./broadcast";
+import { getHatchetClient } from "./client";
 import { consultationReminders } from "./consultation-reminders";
 import { crmBackup, crmBackupSchedule } from "./crm-backup";
 import { diagnosticReminders } from "./diagnostic-reminders";
-import {
-  deliverEmailCampaign,
-  pollEmailCampaigns,
-} from "./email-campaign";
+import { deliverEmailCampaign, pollEmailCampaigns } from "./email-campaign";
+import { guideFollowUps } from "./guide-follow-ups";
 import { maxWebhookHealthcheck } from "./max-webhook-healthcheck";
 import { scenarioReminders } from "./scenario-reminders";
 
 export const hatchetTasks = [
-  deliverBroadcast,
-  deliverEmailCampaign,
-  crmBackup,
-  crmBackupSchedule,
-  pollEmailCampaigns,
-  consultationReminders,
-  diagnosticReminders,
-  scenarioReminders,
-  maxWebhookHealthcheck,
+	deliverBroadcast,
+	deliverEmailCampaign,
+	crmBackup,
+	crmBackupSchedule,
+	pollEmailCampaigns,
+	consultationReminders,
+	diagnosticReminders,
+	scenarioReminders,
+	guideFollowUps,
+	maxWebhookHealthcheck,
 ];
 
 export async function startHatchetWorker(): Promise<void> {
-  const worker = await getHatchetClient().worker("psi-opora-worker", {
-    slots: 10,
-    handleKill: true,
-  });
-  await worker.registerWorkflows(hatchetTasks);
+	const worker = await getHatchetClient().worker("psi-opora-worker", {
+		slots: 10,
+		handleKill: true,
+	});
+	await worker.registerWorkflows(hatchetTasks);
 
-  console.info(
-    `[hatchet] worker запускается, зарегистрировано задач: ${hatchetTasks.length}`,
-  );
-  await worker.start();
+	console.info(
+		`[hatchet] worker запускается, зарегистрировано задач: ${hatchetTasks.length}`,
+	);
+	await worker.start();
 }

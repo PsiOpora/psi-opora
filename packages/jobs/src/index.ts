@@ -20,6 +20,10 @@ export {
 	handleDiagnosticDealUpdate,
 } from "./diagnostic-scheduling";
 export {
+	type SendGuideFollowUpsResult,
+	sendGuideFollowUps,
+} from "./guide-follow-ups";
+export {
 	type DeliverBroadcastPayload,
 	deliverBroadcast,
 } from "./hatchet/broadcast";
@@ -41,6 +45,7 @@ export {
 	enqueueCrmBackup,
 	enqueueEmailCampaign,
 } from "./hatchet/enqueue";
+export { guideFollowUps } from "./hatchet/guide-follow-ups";
 export { maxWebhookHealthcheck } from "./hatchet/max-webhook-healthcheck";
 export { scenarioReminders } from "./hatchet/scenario-reminders";
 export { hatchetTasks, startHatchetWorker } from "./hatchet/worker";
