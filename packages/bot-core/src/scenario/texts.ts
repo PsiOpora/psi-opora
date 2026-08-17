@@ -428,6 +428,17 @@ export const SCENARIO_TEXT_DEFS = [
       "Если возникнут какие-либо сложности с подключением или появятся вопросы перед началом консультации, пожалуйста, напишите нам. Мы с радостью поможем.\n\n" +
       "До скорой встречи! 🌿",
   },
+
+  // ── 11. Кампании по кодовому слову: заявка на диагностику после гайда ──────
+  {
+    key: "guide_diagnostic_confirmed",
+    label: "Подтверждение заявки на диагностику",
+    hint: "Ответ клиенту, когда он согласился на бесплатную диагностическую консультацию после follow-up-сообщения по кампании гайда (кнопкой или текстом).",
+    group: "11. Кампании по кодовому слову",
+    multiline: true,
+    defaultValue:
+      "Спасибо! Заявку приняли — мы свяжемся с вами, чтобы согласовать удобное время для бесплатной 30-минутной диагностической консультации.",
+  },
 ] as const satisfies readonly ScenarioTextDef[];
 
 export type ScenarioTextKey = (typeof SCENARIO_TEXT_DEFS)[number]["key"];
@@ -506,4 +517,27 @@ export async function getGuideFile(): Promise<GuideFile | null> {
     url,
     name: overrides[GUIDE_FILE_NAME_KEY]?.trim() || "guide.pdf",
   };
+}
+
+/**
+ * Гайд для отправки: если задан guideId (кампания по кодовому слову) —
+ * конкретный файл из библиотеки bot_guides, иначе — глобальный активный
+ * гайд (getGuideFile). Ленивый импорт @psi-opora/db/queries — по той же
+ * причине, что и в getOverrides выше.
+ */
+export async function resolveGuideFile(
+  guideId?: string | null,
+): Promise<GuideFile | null> {
+  if (guideId) {
+    try {
+      const { getBotGuide } = await import("@psi-opora/db/queries");
+      const guide = await getBotGuide(guideId);
+      if (guide) return { url: guide.fileUrl, name: guide.fileName };
+    } catch (err) {
+      console.error(
+        `[texts] не удалось получить гайд кампании ${guideId}: ${(err as Error).message}`,
+      );
+    }
+  }
+  return getGuideFile();
 }

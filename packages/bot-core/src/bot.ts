@@ -6,12 +6,20 @@ import {
   actionLabel,
   applyScenarioAction,
   applyScenarioText,
+  type GuideCampaignContext,
   isScenarioAction,
   type ScenarioMessage,
   type ScenarioOutput,
   startConsultation,
+  startGuideCampaign,
   startScenario,
 } from "./scenario/engine";
+import {
+  findGuideCampaignByText,
+  handleGuideDiagnosticRequest,
+  loadGuideCampaignContext,
+  looksLikeDiagnosticConsent,
+} from "./scenario/guide-campaign";
 import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
 import type { RedisClient } from "./storage/redis";
 import type { AppContext, ConsultationSession } from "./types/context";
@@ -276,6 +284,7 @@ export function createBot({
     ctx: AppContext,
     out: ScenarioOutput,
     texts: ScenarioTexts,
+    guideCampaign?: GuideCampaignContext | null,
   ) => {
     const chatId = ctx.chatId;
     if (!chatId) return;
@@ -294,6 +303,7 @@ export function createBot({
       userId: ctx.from?.id,
       source: ctx.session.source,
       campaign: ctx.session.campaign,
+      guideCampaign,
     });
   };
 
@@ -333,6 +343,38 @@ export function createBot({
   bot.on("callback_query:data", async (ctx) => {
     const action = ctx.callbackQuery.data;
     await ctx.answerCallbackQuery();
+
+    // Кнопка из follow-up-сообщения кампании гайда (packages/jobs) — не
+    // часть машины состояний сценария, обрабатывается отдельно.
+    if (action === "sc_guide_diagnostic") {
+      await ctx
+        .editMessageReplyMarkup({ reply_markup: undefined })
+        .catch(() => {});
+      if (!ctx.from || !ctx.chatId) return;
+      await logBotMessage({
+        messenger: "telegram",
+        userId: ctx.from.id,
+        direction: "in",
+        source: "scenario",
+        text: "Согласен/согласна на диагностику",
+      });
+      const texts = await getScenarioTexts();
+      const reply = await handleGuideDiagnosticRequest(
+        "telegram",
+        String(ctx.from.id),
+        texts,
+      );
+      if (!reply) return;
+      await sendTelegramScenarioMessage(ctx.api, ctx.chatId, { text: reply });
+      await logBotMessage({
+        messenger: "telegram",
+        userId: ctx.from.id,
+        direction: "out",
+        source: "scenario",
+        text: reply,
+      });
+      return;
+    }
 
     const texts = await getScenarioTexts();
     let out: ScenarioOutput | null = null;

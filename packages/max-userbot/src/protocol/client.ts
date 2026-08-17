@@ -186,6 +186,9 @@ export class MaxProtocolClient {
 		if (pending && header.cmd !== 0) {
 			this.pending.delete(header.seq);
 			if (header.cmd === 3) {
+				console.error(
+					`[max-userbot] MAX вернул ошибку на opcode ${pending.opcode} (seq ${header.seq}): ${JSON.stringify(payload)}`,
+				);
 				pending.reject(
 					new Error(
 						`MAX вернул ошибку на opcode ${pending.opcode}: ${JSON.stringify(payload)}`,
@@ -203,6 +206,9 @@ export class MaxProtocolClient {
 	private onFatalError(err: Error): void {
 		if (this.fatalErrorHandled) return;
 		this.fatalErrorHandled = true;
+		if (!this.closing) {
+			console.error(`[max-userbot] соединение с MAX прервано: ${err.message}`);
+		}
 		const socket = this.socket;
 		this.socket = null;
 		if (socket && !socket.destroyed) socket.destroy();

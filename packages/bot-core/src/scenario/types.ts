@@ -64,6 +64,12 @@ export interface ScenarioState {
   dealId?: number;
   /** Явное согласие на рекламную рассылку (отдельное от согласия на обработку ПДн). */
   marketingConsent?: boolean;
+  /**
+   * Вход по кодовому слову кампании (bot_guide_campaigns.id) — вместо
+   * обычного выбора категории/темы сразу ведёт к выдаче гайда кампании
+   * (см. startGuideCampaign в engine.ts).
+   */
+  campaignId?: string;
 }
 
 export interface ScenarioButton {
@@ -77,6 +83,8 @@ export interface ScenarioMessage {
   buttons?: ScenarioButton[][];
   /** Вслед за текстом отправить PDF-гайд (если загружен в дашборде). */
   guide?: boolean;
+  /** Гайд конкретной кампании (bot_guides.id) — иначе берётся глобальный. */
+  guideId?: string;
 }
 
 export interface ScenarioLead {
@@ -89,6 +97,8 @@ export interface ScenarioLead {
   issue?: ScenarioIssue;
   /** Явное согласие на рекламную рассылку. */
   marketingConsent?: boolean;
+  /** Кампания, по кодовому слову которой пришла заявка (bot_guide_campaigns.id). */
+  campaignId?: string;
 }
 
 /** Контакт, который нужно сохранить в CRM без создания сделки. */

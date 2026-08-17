@@ -96,6 +96,33 @@ export function startScenario(t: ScenarioTexts): ScenarioOutput {
   return output({ step: "entry" }, [entryQuestion(t)], { track: ["start"] });
 }
 
+/** Данные кампании гайда (bot_guide_campaigns), нужные движку сценария. */
+export interface GuideCampaignContext {
+  id: string;
+  title: string;
+  guideId: string | null;
+  emailSubject: string;
+  emailBody: string;
+  deliveryMessage: string;
+}
+
+/**
+ * Вход по кодовому слову кампании (см. bot_guide_campaigns): минуя обычный
+ * выбор категории/темы, сразу — согласие на ПДн → согласие на рекламу →
+ * email → выдача гайда кампании → телефон (см. ветвление по campaignId
+ * в applyScenarioAction/applyScenarioText ниже).
+ */
+export function startGuideCampaign(
+  campaign: GuideCampaignContext,
+  t: ScenarioTexts,
+): ScenarioOutput {
+  return output(
+    { step: "consent", flow: "guide", campaignId: campaign.id },
+    [consentQuestion(t)],
+    { track: ["guide_click"] },
+  );
+}
+
 /**
  * Вход в флоу записи на консультацию: согласие на обработку ПДн.
  * Используется и для кнопки «Записаться» из сообщений старого бота.
@@ -133,6 +160,7 @@ function submitGuidePhone(
     audience: state.audience ?? "self",
     issue: state.issue ?? "other",
     marketingConsent: state.marketingConsent,
+    campaignId: state.campaignId,
   };
 
   if (state.audience === "self") {
@@ -232,6 +260,26 @@ export function applyScenarioAction(
         return null;
       }
       const marketingConsent = action === "marketing_consent_agree";
+      const consentReply = {
+        text: marketingConsent
+          ? t.marketing_consent_agreed
+          : t.marketing_consent_declined,
+      };
+      // Вход по кодовому слову кампании — тема уже известна, category/issue
+      // не спрашиваем, сразу переходим к email (ветка «ребёнок»: email →
+      // гайд → телефон → done, см. submitGuidePhone).
+      if (state.campaignId) {
+        return output(
+          {
+            ...fresh(state),
+            step: "email",
+            marketingConsent,
+            audience: "child",
+          },
+          [consentReply, emailQuestion(t)],
+          { track: ["marketing_consent"] },
+        );
+      }
       const isGuide = state.flow === "guide";
       return output(
         {
@@ -239,14 +287,7 @@ export function applyScenarioAction(
           step: isGuide ? "category" : "name",
           marketingConsent,
         },
-        [
-          {
-            text: marketingConsent
-              ? t.marketing_consent_agreed
-              : t.marketing_consent_declined,
-          },
-          isGuide ? categoryQuestion(t) : { text: t.name_question },
-        ],
+        [consentReply, isGuide ? categoryQuestion(t) : { text: t.name_question }],
         { track: ["marketing_consent"] },
       );
     }
@@ -312,11 +353,16 @@ export function applyScenarioAction(
 /**
  * Текстовое сообщение пользователя. Возвращает null, если сценарий
  * завершён — текст не относится к боту (например, диалог с оператором).
+ *
+ * campaign — данные кампании при state.campaignId (адаптер подгружает их
+ * заново на каждый вызов, т.к. движок остаётся чистой функцией состояния и
+ * не обращается к БД сам).
  */
 export async function applyScenarioText(
   state: ScenarioState,
   text: string,
   t: ScenarioTexts,
+  campaign?: GuideCampaignContext | null,
 ): Promise<ScenarioOutput | null> {
   switch (state.step) {
     case "name": {
@@ -399,10 +445,14 @@ export async function applyScenarioText(
       }
 
       if (isValidEmail(text)) {
+        const deliveryMessage =
+          state.campaignId && campaign
+            ? { text: campaign.deliveryMessage, guide: true, guideId: campaign.guideId ?? undefined }
+            : { text: t.lead_magnet, guide: true };
         return askForPhone(
           { ...state, email: text },
           t,
-          [{ text: t.lead_magnet, guide: true }],
+          [deliveryMessage],
           ["email"],
           { email: text },
         );
@@ -496,11 +546,23 @@ export function actionLabel(action: ScenarioAction, t: ScenarioTexts): string {
   return labels[action];
 }
 
-/** Комментарий к сделке для менеджера — что выбрал пользователь. */
-export function describeLead(lead: ScenarioLead, t: ScenarioTexts): string {
+/**
+ * Комментарий к сделке для менеджера — что выбрал пользователь.
+ * campaignTitle — тема кампании, если заявка пришла по кодовому слову
+ * (см. GuideCampaignContext.title); в остальном лид не отличить от обычной
+ * ветки «Получить гайд».
+ */
+export function describeLead(
+  lead: ScenarioLead,
+  t: ScenarioTexts,
+  campaignTitle?: string,
+): string {
   const marketingConsentLine = `Согласие на рекламную рассылку: ${lead.marketingConsent ? "да" : "нет"}`;
   if (lead.flow === "consult") {
     return `Заявка: ${t.btn_consult}\n${marketingConsentLine}`;
+  }
+  if (campaignTitle) {
+    return `Заявка: гайд по кодовому слову «${campaignTitle}»\n${marketingConsentLine}`;
   }
   const audience = lead.audience === "child" ? t.btn_child : t.btn_self;
   const issue =

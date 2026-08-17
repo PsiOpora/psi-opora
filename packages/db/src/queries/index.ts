@@ -35,6 +35,7 @@ import {
 } from "./bot-guide-campaigns";
 import {
 	getBotGuideDelivery as _getBotGuideDelivery,
+	getPendingGuideDiagnosticDelivery as _getPendingGuideDiagnosticDelivery,
 	listDueGuideFollowUps as _listDueGuideFollowUps,
 	markGuideDiagnosticRequested as _markGuideDiagnosticRequested,
 	markGuideFollowUpSent as _markGuideFollowUpSent,
@@ -480,6 +481,13 @@ export async function getBotGuideDelivery(
 	campaignId: string,
 ) {
 	return _getBotGuideDelivery(db, messenger, userId, campaignId);
+}
+
+export async function getPendingGuideDiagnosticDelivery(
+	messenger: string,
+	userId: string,
+) {
+	return _getPendingGuideDiagnosticDelivery(db, messenger, userId);
 }
 
 export async function listDueGuideFollowUps() {

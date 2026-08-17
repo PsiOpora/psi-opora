@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "../client.types";
 import { botGuideCampaigns } from "../schema/bot-guide-campaigns";
 import { botGuideDeliveries } from "../schema/bot-guide-deliveries";
@@ -97,6 +97,33 @@ export async function markGuideFollowUpSent(
     .update(botGuideDeliveries)
     .set({ followUpSentAt: sql`now()` })
     .where(eq(botGuideDeliveries.id, id));
+}
+
+/**
+ * Последняя выдача гайда этому пользователю, для которой уже ушёл follow-up,
+ * но заявка на диагностику ещё не оформлена — используется, когда клиент
+ * соглашается на диагностику (кнопкой или текстом) после follow-up-сообщения.
+ */
+export async function getPendingGuideDiagnosticDelivery(
+  db: Database,
+  messenger: string,
+  userId: string,
+): Promise<BotGuideDelivery | null> {
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(botGuideDeliveries)
+    .where(
+      and(
+        eq(botGuideDeliveries.messenger, messenger),
+        eq(botGuideDeliveries.userId, userId),
+        sql`${botGuideDeliveries.followUpSentAt} is not null`,
+        isNull(botGuideDeliveries.diagnosticRequestedAt),
+      ),
+    )
+    .orderBy(desc(botGuideDeliveries.deliveredAt))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function markGuideDiagnosticRequested(

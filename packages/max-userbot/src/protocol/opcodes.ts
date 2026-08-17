@@ -27,6 +27,16 @@ export const OPCODE = {
   CONTACT_PRESENCE: 35,
   /** Резолв контакта по номеру телефона — для «написать первым». */
   CONTACT_INFO_BY_PHONE: 46,
+  /** Загрузка файла: запрос URL для upload, возвращает { info: [{ url, fileId, token }] }. */
+  FILE_UPLOAD: 51,
+  /** Скачивание файла/фото/видео: { url, token } или { chatId, messageId, fileId/videoId }. */
+  FILE_DOWNLOAD: 52,
+  /** Загрузка фото: запрос URL, возвращает { url }. */
+  PHOTO_UPLOAD: 53,
+  /** Загрузка видео/аудио: { uploaderType, type, count }, возвращает { info: [{ url, videoId, token }] }. */
+  VIDEO_UPLOAD: 54,
+  /** Воспроизведение видео: получение URL источников видео разных качеств. */
+  VIDEO_PLAY: 55,
   /** Отправка сообщения: `{ chatId, message: { text, cid, elements,
    * attaches, link? }, notify }` — форма подтверждена рабочим кодом
    * Grovvik/vkmax-nodejs и nsdkinx/vkmax (`sendMessage`/`send_message`). */
@@ -38,6 +48,14 @@ export const OPCODE = {
   /** Редактирование сообщения: `{ chatId, messageId, text, elements,
    * attachments }`. */
   MSG_EDIT: 67,
+  /** Реакция на сообщение: { chatId, messageId, reaction: { reactionType, id } }. */
+  MSG_REACTION: 72,
+  /** Отмена реакции на сообщение: { chatId, messageId }. */
+  MSG_CANCEL_REACTION: 73,
+  /** Отправка callback-данных inline-кнопки: { chatId, messageId, callbackId, payload? }. */
+  MSG_SEND_CALLBACK: 77,
+  /** Запрос расшифровки аудиосообщения: { chatId, messageId, mediaId }. */
+  AUDIO_TRANSCRIPTION: 95,
   /** Пуш нового сообщения (сервер→клиент, без ожидающего запроса). Точная
    * раскладка полей нигде не задокументирована — см. предупреждение в
    * relay.ts и scripts/manual-relay.ts для живой проверки. */

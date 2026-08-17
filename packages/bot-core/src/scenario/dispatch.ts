@@ -1,4 +1,7 @@
-import { markBotMessageGuideEmailSent } from "@psi-opora/db/queries";
+import {
+  markBotMessageGuideEmailSent,
+  upsertBotGuideDelivery,
+} from "@psi-opora/db/queries";
 import type { RedisClient } from "../storage/redis";
 import { appendDealComment } from "../utils/bitrix";
 import {
@@ -10,11 +13,12 @@ import { trackFunnelStep } from "../utils/funnel";
 import { logBotMessage } from "../utils/message-log";
 import {
   describeLead,
+  type GuideCampaignContext,
   type ScenarioMessage,
   type ScenarioOutput,
 } from "./engine";
 import { clearScenarioAwaiting, markScenarioAwaiting } from "./reminders";
-import { getGuideFile, type ScenarioTexts } from "./texts";
+import { resolveGuideFile, type ScenarioTexts } from "./texts";
 
 export interface ScenarioDispatchDeps {
   messenger: string;
@@ -32,6 +36,8 @@ export interface ScenarioDispatchDeps {
   chatId?: number;
   source?: string;
   campaign?: string;
+  /** Данные кампании гайда при out.state.campaignId — переопределяет тему/текст письма и фиксирует выдачу. */
+  guideCampaign?: GuideCampaignContext | null;
 }
 
 /**
@@ -54,13 +60,13 @@ export async function dispatchScenarioOutput(
 
     if (message.guide && out.state.email) {
       try {
-        const guide = await getGuideFile();
+        const guide = await resolveGuideFile(message.guideId);
         if (guide) {
           await sendGuideEmail(
             out.state.email,
             guide,
-            deps.texts.email_subject,
-            deps.texts.email_body,
+            deps.guideCampaign?.emailSubject ?? deps.texts.email_subject,
+            deps.guideCampaign?.emailBody ?? deps.texts.email_body,
           );
           if (messageId) await markBotMessageGuideEmailSent(messageId);
         }
@@ -97,7 +103,7 @@ export async function dispatchScenarioOutput(
       chatId: deps.chatId,
       source: deps.source,
       campaign: deps.campaign,
-      comment: describeLead(out.lead, deps.texts),
+      comment: describeLead(out.lead, deps.texts, deps.guideCampaign?.title),
       flow: out.lead.flow,
       audience: out.lead.audience,
       issue: out.lead.issue,
@@ -105,6 +111,22 @@ export async function dispatchScenarioOutput(
     // Мутируем state по ссылке: адаптер уже положил его в сессию,
     // и сессия сохранится после завершения обработчика
     if (dealId) out.state.dealId = dealId;
+
+    // Снимок выдачи для follow-up-джобы (packages/jobs) — она шлёт
+    // напоминание через campaign.followUpDelayDays независимо от того,
+    // жива ли ещё Redis-сессия сценария к тому моменту.
+    if (out.lead.campaignId && deps.userId !== undefined) {
+      await upsertBotGuideDelivery({
+        campaignId: out.lead.campaignId,
+        messenger: deps.messenger,
+        userId: String(deps.userId),
+        chatId: deps.chatId !== undefined ? String(deps.chatId) : undefined,
+        dealId: dealId ?? undefined,
+        name,
+        phone: out.lead.phone,
+        email: out.lead.email,
+      });
+    }
   }
 
   if (out.contact) {

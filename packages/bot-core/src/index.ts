@@ -16,6 +16,7 @@ export {
 	applyScenarioText,
 	buildReminder,
 	describeLead,
+	type GuideCampaignContext,
 	isScenarioAction,
 	SCENARIO_ACTIONS,
 	type ScenarioAction,
@@ -30,9 +31,16 @@ export {
 	type ScenarioState,
 	type ScenarioStep,
 	startConsultation,
+	startGuideCampaign,
 	startScenario,
 	stepQuestion,
 } from "./scenario/engine";
+export {
+	findGuideCampaignByText,
+	handleGuideDiagnosticRequest,
+	loadGuideCampaignContext,
+	looksLikeDiagnosticConsent,
+} from "./scenario/guide-campaign";
 export {
 	clearScenarioAwaiting,
 	markScenarioAwaiting,
@@ -50,6 +58,7 @@ export {
 	type GuideFile,
 	getGuideFile,
 	getScenarioTexts,
+	resolveGuideFile,
 	SCENARIO_TEXT_DEFS,
 	type ScenarioTextDef,
 	type ScenarioTextKey,

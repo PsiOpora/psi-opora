@@ -1,7 +1,7 @@
 import { sendLoginCode } from "@psi-opora/max-userbot";
 import { publicProcedure } from "../../orpc";
 import { startMaxLoginSchema } from "../../schemas/max-personal";
-import { savePendingMaxLogin } from "./helpers";
+import { maskPhone, savePendingMaxLogin } from "./helpers";
 
 export const startLogin = publicProcedure
 	.input(startMaxLoginSchema)
@@ -13,6 +13,9 @@ export const startLogin = publicProcedure
 			if (!context.memberId) {
 				return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
 			}
+			console.log(
+				`[max-personal-login] startLogin: memberId=${context.memberId} line=${input.lineId} connector=${input.connectorId} phone=${maskPhone(input.phone)}`,
+			);
 			try {
 				const result = await sendLoginCode(input.phone);
 				const loginId = crypto.randomUUID();
@@ -23,8 +26,14 @@ export const startLogin = publicProcedure
 					phone: result.phone,
 					pendingSession: result.pendingSession,
 				});
+				console.log(
+					`[max-personal-login] startLogin ok: loginId=${loginId} phone=${maskPhone(result.phone)} codeLength=${result.codeLength}`,
+				);
 				return { loginId, codeLength: result.codeLength };
 			} catch (error) {
+				console.error(
+					`[max-personal-login] startLogin failed: memberId=${context.memberId} phone=${maskPhone(input.phone)}: ${(error as Error).stack ?? (error as Error).message}`,
+				);
 				return { error: (error as Error).message };
 			}
 		},
