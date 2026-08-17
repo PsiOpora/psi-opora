@@ -410,7 +410,10 @@ export function createBot({
         ? actionLabel(action, texts)
         : texts.btn_consult,
     });
-    await dispatch(ctx, out, texts);
+    const guideCampaign = out.state.campaignId
+      ? await loadGuideCampaignContext(out.state.campaignId)
+      : null;
+    await dispatch(ctx, out, texts, guideCampaign);
   });
 
   bot.on("message:text", async (ctx) => {
@@ -457,6 +460,43 @@ export function createBot({
 
     const state = ctx.session.scenario;
     if (!state) {
+      // Кодовое слово кампании гайда (см. bot_guide_campaigns) — запускаем
+      // спецветку сценария вместо обычного /start-меню.
+      const campaign = await findGuideCampaignByText(text);
+      if (campaign) {
+        log(
+          `[GUIDE] user=${ctx.from?.id} keyword="${text}" campaign=${campaign.id} messenger=telegram`,
+        );
+        const texts = await getScenarioTexts();
+        await dispatch(ctx, startGuideCampaign(campaign, texts), texts, campaign);
+        await crmEnrichment;
+        return;
+      }
+
+      // Согласие на диагностику текстом (follow-up просит написать фразу
+      // словами, а не только кнопкой) — только если для пользователя есть
+      // ожидающая выдача гайда, иначе это обычное офф-скрипт сообщение.
+      if (looksLikeDiagnosticConsent(text) && ctx.from && ctx.chatId) {
+        const texts = await getScenarioTexts();
+        const reply = await handleGuideDiagnosticRequest(
+          "telegram",
+          String(ctx.from.id),
+          texts,
+        );
+        if (reply) {
+          await sendTelegramScenarioMessage(ctx.api, ctx.chatId, { text: reply });
+          await logBotMessage({
+            messenger: "telegram",
+            userId: ctx.from.id,
+            direction: "out",
+            source: "scenario",
+            text: reply,
+          });
+          await crmEnrichment;
+          return;
+        }
+      }
+
       await Promise.all([
         crmEnrichment,
         ctx.from
@@ -471,7 +511,10 @@ export function createBot({
     }
 
     const texts = await getScenarioTexts();
-    const out = await applyScenarioText(state, text, texts);
+    const guideCampaign = state.campaignId
+      ? await loadGuideCampaignContext(state.campaignId)
+      : null;
+    const out = await applyScenarioText(state, text, texts, guideCampaign);
     if (!out) {
       // Сообщение не подошло ни под один ожидаемый на этом шаге ввод (клиент
       // пишет что-то своё, а не то, что просит сценарий) — бот здесь не
@@ -490,7 +533,7 @@ export function createBot({
       return;
     }
 
-    await dispatch(ctx, out, texts);
+    await dispatch(ctx, out, texts, guideCampaign);
     await crmEnrichment;
   });
 

@@ -8,11 +8,16 @@ import {
   type ConsultationSession,
   dispatchScenarioOutput,
   enrichCrmFromClientMessage,
+  findGuideCampaignByText,
   formatUtmLog,
-  getGuideFile,
+  type GuideCampaignContext,
   getScenarioTexts,
+  handleGuideDiagnosticRequest,
+  loadGuideCampaignContext,
   logBotMessage,
+  looksLikeDiagnosticConsent,
   parseUtmParams,
+  resolveGuideFile,
   SCENARIO_ACTIONS,
   type ScenarioMessage,
   type ScenarioOutput,
@@ -21,6 +26,7 @@ import {
   sendMessageToOpenLine,
   setFunnelUpsert,
   startConsultation,
+  startGuideCampaign,
   startScenario,
   triageOffScriptMessage,
   upsertBotUserProfile,
@@ -315,7 +321,7 @@ export function createMaxBot({
 
     if (message.guide) {
       try {
-        const guide = await getGuideFile();
+        const guide = await resolveGuideFile(message.guideId);
         if (guide) await sendMaxGuideFile(ctx, guide);
       } catch (err) {
         // Текст гайда уже отправлен — без файла диалог не ломаем
@@ -328,6 +334,7 @@ export function createMaxBot({
     ctx: AppContext,
     out: ScenarioOutput,
     texts: ScenarioTexts,
+    guideCampaign?: GuideCampaignContext | null,
   ) => {
     ctx.session.scenario = out.state;
     await dispatchScenarioOutput(out, {
@@ -344,6 +351,7 @@ export function createMaxBot({
       userId: ctx.user?.user_id,
       source: ctx.session.source,
       campaign: ctx.session.campaign,
+      guideCampaign,
     });
   };
 
@@ -395,6 +403,37 @@ export function createMaxBot({
     await dispatch(appCtx, startConsultation(texts), texts);
   });
 
+  // Кнопка из follow-up-сообщения кампании гайда (packages/jobs) — не часть
+  // машины состояний сценария, обрабатывается отдельно.
+  bot.action("sc_guide_diagnostic", async (ctx) => {
+    const appCtx = ctx as AppContext;
+    await appCtx.answerOnCallback({}).catch(() => {});
+    const userId = appCtx.user?.user_id;
+    if (!userId) return;
+    await logBotMessage({
+      messenger: "max",
+      userId,
+      direction: "in",
+      source: "scenario",
+      text: "Согласен/согласна на диагностику",
+    });
+    const texts = await getScenarioTexts();
+    const reply = await handleGuideDiagnosticRequest(
+      "max",
+      String(userId),
+      texts,
+    );
+    if (!reply) return;
+    await replyWithFallback(appCtx, reply);
+    await logBotMessage({
+      messenger: "max",
+      userId,
+      direction: "out",
+      source: "scenario",
+      text: reply,
+    });
+  });
+
   for (const action of SCENARIO_ACTIONS) {
     bot.action(action, async (ctx) => {
       const appCtx = ctx as AppContext;
@@ -421,7 +460,10 @@ export function createMaxBot({
         source: "scenario",
         text: actionLabel(action, texts),
       });
-      await dispatch(appCtx, out, texts);
+      const guideCampaign = out.state.campaignId
+        ? await loadGuideCampaignContext(out.state.campaignId)
+        : null;
+      await dispatch(appCtx, out, texts, guideCampaign);
     });
   }
 
@@ -505,6 +547,47 @@ export function createMaxBot({
 
     const state = appCtx.session.scenario;
     if (!state) {
+      // Кодовое слово кампании гайда (см. bot_guide_campaigns) — запускаем
+      // спецветку сценария вместо обычного /start-меню.
+      const campaign = await findGuideCampaignByText(text);
+      if (campaign) {
+        log(
+          `[GUIDE] user=${userId} keyword="${text}" campaign=${campaign.id} messenger=max`,
+        );
+        const texts = await getScenarioTexts();
+        await dispatch(
+          appCtx,
+          startGuideCampaign(campaign, texts),
+          texts,
+          campaign,
+        );
+        await crmEnrichment;
+        return;
+      }
+
+      // Согласие на диагностику текстом (follow-up просит написать фразу
+      // словами, а не только кнопкой).
+      if (looksLikeDiagnosticConsent(text) && userId) {
+        const texts = await getScenarioTexts();
+        const reply = await handleGuideDiagnosticRequest(
+          "max",
+          String(userId),
+          texts,
+        );
+        if (reply) {
+          await replyWithFallback(appCtx, reply);
+          await logBotMessage({
+            messenger: "max",
+            userId,
+            direction: "out",
+            source: "scenario",
+            text: reply,
+          });
+          await crmEnrichment;
+          return;
+        }
+      }
+
       await Promise.all([
         crmEnrichment,
         userId
@@ -519,7 +602,10 @@ export function createMaxBot({
     }
 
     const texts = await getScenarioTexts();
-    const out = await applyScenarioText(state, text, texts);
+    const guideCampaign = state.campaignId
+      ? await loadGuideCampaignContext(state.campaignId)
+      : null;
+    const out = await applyScenarioText(state, text, texts, guideCampaign);
     if (!out) {
       // Сообщение не подошло ни под один ожидаемый на этом шаге ввод (клиент
       // пишет что-то своё, а не то, что просит сценарий) — бот здесь не
@@ -538,7 +624,7 @@ export function createMaxBot({
       return;
     }
 
-    await dispatch(appCtx, out, texts);
+    await dispatch(appCtx, out, texts, guideCampaign);
     await crmEnrichment;
   });
 
