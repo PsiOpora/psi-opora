@@ -99,6 +99,8 @@ export function startScenario(t: ScenarioTexts): ScenarioOutput {
 /** Данные кампании гайда (bot_guide_campaigns), нужные движку сценария. */
 export interface GuideCampaignContext {
 	id: string;
+	/** Кодовое слово — также используется как метка campaign в воронке/CRM. */
+	keyword: string;
 	title: string;
 	guideId: string | null;
 	emailSubject: string;

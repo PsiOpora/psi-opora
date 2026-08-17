@@ -359,13 +359,6 @@ export function createMaxBot({
 		ctx: AppContext,
 		startPayload: string | undefined,
 	) {
-		const utm = parseUtmParams(startPayload);
-		if (utm.campaign) ctx.session.campaign = utm.campaign;
-		if (utm.source) ctx.session.source = utm.source;
-
-		log(
-			`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} ${formatUtmLog(utm)} messenger=max`,
-		);
 		await logBotMessage({
 			messenger: "max",
 			userId: ctx.user?.user_id,
@@ -373,6 +366,30 @@ export function createMaxBot({
 			source: "scenario",
 			text: startPayload ? `/start ${startPayload}` : "/start",
 		});
+
+		// Диплинк с кодовым словом кампании гайда в /start-параметре — см.
+		// такую же ветку в bot.command("start") у TG-бота (packages/bot-core/src/bot.ts).
+		const campaign = startPayload
+			? await findGuideCampaignByText(startPayload)
+			: null;
+		if (campaign) {
+			log(
+				`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} guide_campaign=${campaign.id} messenger=max`,
+			);
+			ctx.session.campaign = campaign.keyword;
+			await collectMaxProfile(ctx, ctx.session.source, ctx.session.campaign);
+			const texts = await getScenarioTexts();
+			await dispatch(ctx, startGuideCampaign(campaign, texts), texts, campaign);
+			return;
+		}
+
+		const utm = parseUtmParams(startPayload);
+		if (utm.campaign) ctx.session.campaign = utm.campaign;
+		if (utm.source) ctx.session.source = utm.source;
+
+		log(
+			`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} ${formatUtmLog(utm)} messenger=max`,
+		);
 		await collectMaxProfile(ctx, ctx.session.source, ctx.session.campaign);
 
 		const texts = await getScenarioTexts();
@@ -554,6 +571,7 @@ export function createMaxBot({
 				log(
 					`[GUIDE] user=${userId} keyword="${text}" campaign=${campaign.id} messenger=max`,
 				);
+				appCtx.session.campaign = appCtx.session.campaign ?? campaign.keyword;
 				const texts = await getScenarioTexts();
 				await dispatch(
 					appCtx,

@@ -12,6 +12,7 @@ import type { ScenarioTexts } from "./texts";
 function toContext(row: BotGuideCampaign): GuideCampaignContext {
 	return {
 		id: row.id,
+		keyword: row.keyword,
 		title: row.title,
 		guideId: row.guideId,
 		emailSubject: row.emailSubject,

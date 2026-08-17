@@ -309,8 +309,39 @@ export function createBot({
 
 	bot.command("start", async (ctx) => {
 		const rawParam = typeof ctx.match === "string" ? ctx.match : undefined;
-		const utm = parseUtmParams(rawParam);
 
+		await logBotMessage({
+			messenger: "telegram",
+			userId: ctx.from?.id,
+			direction: "in",
+			source: "scenario",
+			text: rawParam ? `/start ${rawParam}` : "/start",
+		});
+
+		// Диплинк вида t.me/bot?start=ШКОЛА — кодовое слово кампании гайда в
+		// параметре /start, а не введённое текстом в чате (см. также ветку
+		// keyword в bot.on("message:text") ниже). Приоритет отдаём кампании:
+		// UTM-коды в SITE_CODES короткие служебные метки, коллизия с кодовым
+		// словом кампании маловероятна, а кампания конкретнее.
+		const campaign = rawParam ? await findGuideCampaignByText(rawParam) : null;
+		if (campaign) {
+			log(
+				`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} guide_campaign=${campaign.id} messenger=telegram`,
+			);
+			ctx.session.campaign = campaign.keyword;
+			await collectTelegramProfile(
+				ctx,
+				ctx.session.source,
+				ctx.session.campaign,
+				resolvedToken,
+				uploadAvatar,
+			);
+			const texts = await getScenarioTexts();
+			await dispatch(ctx, startGuideCampaign(campaign, texts), texts, campaign);
+			return;
+		}
+
+		const utm = parseUtmParams(rawParam);
 		if (utm.campaign) {
 			ctx.session.campaign = utm.campaign;
 		}
@@ -321,13 +352,6 @@ export function createBot({
 		log(
 			`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)} messenger=telegram`,
 		);
-		await logBotMessage({
-			messenger: "telegram",
-			userId: ctx.from?.id,
-			direction: "in",
-			source: "scenario",
-			text: rawParam ? `/start ${rawParam}` : "/start",
-		});
 		await collectTelegramProfile(
 			ctx,
 			ctx.session.source,
@@ -467,6 +491,7 @@ export function createBot({
 				log(
 					`[GUIDE] user=${ctx.from?.id} keyword="${text}" campaign=${campaign.id} messenger=telegram`,
 				);
+				ctx.session.campaign = ctx.session.campaign ?? campaign.keyword;
 				const texts = await getScenarioTexts();
 				await dispatch(
 					ctx,
