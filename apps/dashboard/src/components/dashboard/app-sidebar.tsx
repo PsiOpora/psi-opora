@@ -71,7 +71,7 @@ const NAV_GROUPS = [
     items: [
       {
         href: "/settings/bot",
-        label: "Тексты бота",
+        label: "Сценарий бота",
         icon: MessageSquareTextIcon,
       },
       { href: "/settings/connectors", label: "Каналы ботов", icon: PlugIcon },

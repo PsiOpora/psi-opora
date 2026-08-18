@@ -50,6 +50,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { orpc } from "@/lib/orpc/client";
+import {
+  BotUsernamesEditor,
+  CampaignStartLinks,
+  isStartParamSafe,
+} from "./bot-links";
 
 interface GuideCampaignView {
   id: string;
@@ -250,75 +255,99 @@ function GuideCampaignForm({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <FormStep
+        title="Шаг 1. Как клиент попадает в кампанию"
+        description="Кодовое слово можно написать боту в чат или зашить в ссылку — результат одинаковый."
+      >
         <div className="grid gap-1.5">
           <Label htmlFor="gc-keyword">Кодовое слово</Label>
           <Input
             id="gc-keyword"
             value={value.keyword}
             onChange={(e) => set("keyword", e.target.value)}
-            placeholder="ШКОЛА"
+            placeholder="SCHOOL"
           />
+          {value.keyword.trim() && !isStartParamSafe(value.keyword) ? (
+            <p className="text-xs text-muted-foreground">
+              Слово с кириллицей или пробелами бот примет только текстом в чате
+              — ссылку с ним собрать нельзя. Для ссылки используйте латиницу,
+              цифры, «_» и «-».
+            </p>
+          ) : (
+            <CampaignStartLinks keyword={value.keyword} />
+          )}
         </div>
+
+        <div className="flex items-center gap-2 text-sm">
+          <Checkbox
+            id="gc-active"
+            checked={value.active}
+            onCheckedChange={(checked) => set("active", checked === true)}
+          />
+          <Label htmlFor="gc-active">
+            Кампания активна (кодовое слово принимается ботом)
+          </Label>
+        </div>
+      </FormStep>
+
+      <FormStep
+        title="Шаг 2. Что выдаём"
+        description="Тема подставляется в тексты письма и сообщений ниже, пока вы их не отредактировали вручную."
+      >
         <div className="grid gap-1.5">
-          <Label htmlFor="gc-days">Follow-up через (дней)</Label>
+          <Label htmlFor="gc-title">Тема материала</Label>
           <Input
-            id="gc-days"
-            type="number"
-            min={1}
-            max={30}
-            value={value.followUpDelayDays}
-            onChange={(e) => set("followUpDelayDays", e.target.value)}
+            id="gc-title"
+            value={value.title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Почему одному ребёнку школа даётся легко, а другому — нет"
+          />
+          <p className="text-xs text-muted-foreground">
+            Эта же тема уходит в Bitrix24 — в комментарий и метку кампании
+            сделки, по ней потом видно источник заявки в CRM-отчётах.
+          </p>
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label>PDF-гайд из библиотеки</Label>
+          <Select
+            value={value.guideId || "__none"}
+            onValueChange={(v) => setGuide(v === "__none" ? "" : v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Без файла — только текст со ссылкой" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none">Без файла</SelectItem>
+              {guides.map((guide) => (
+                <SelectItem key={guide.id} value={guide.id}>
+                  {guide.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Файлы загружаются в блоке «PDF-гайды» выше. Без файла клиент получит
+            только текст — тогда вставьте ссылку на материал в сообщение ниже.
+          </p>
+        </div>
+      </FormStep>
+
+      <FormStep
+        title="Шаг 3. Выдача материала"
+        description="Сразу после того, как клиент оставил email: сообщение в чат и письмо с вложением."
+      >
+        <div className="grid gap-1.5">
+          <Label htmlFor="gc-delivery">Сообщение в чат</Label>
+          <Textarea
+            id="gc-delivery"
+            rows={3}
+            value={value.deliveryMessage}
+            onChange={(e) => setAutoText("deliveryMessage", e.target.value)}
+            placeholder="Спасибо! Данные получили. Сейчас отправим материал на почту..."
           />
         </div>
-      </div>
 
-      <div className="grid gap-1.5">
-        <Label htmlFor="gc-title">Тема материала</Label>
-        <Input
-          id="gc-title"
-          value={value.title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Почему одному ребёнку школа даётся легко, а другому — нет"
-        />
-        <p className="text-xs text-muted-foreground">
-          Тема автоматически подставляется в тексты писем и сообщений, пока вы
-          их не отредактировали вручную.
-        </p>
-      </div>
-
-      <div className="grid gap-1.5">
-        <Label>PDF-гайд из библиотеки</Label>
-        <Select
-          value={value.guideId || "__none"}
-          onValueChange={(v) => setGuide(v === "__none" ? "" : v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Без файла — только текст со ссылкой" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none">Без файла</SelectItem>
-            {guides.map((guide) => (
-              <SelectItem key={guide.id} value={guide.id}>
-                {guide.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid gap-1.5">
-        <Label htmlFor="gc-delivery">Сообщение при выдаче гайда</Label>
-        <Textarea
-          id="gc-delivery"
-          rows={3}
-          value={value.deliveryMessage}
-          onChange={(e) => setAutoText("deliveryMessage", e.target.value)}
-          placeholder="Спасибо! Данные получили. Сейчас отправим материал на почту..."
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
         <div className="grid gap-1.5">
           <Label htmlFor="gc-email-subject">Тема письма</Label>
           <Input
@@ -327,48 +356,81 @@ function GuideCampaignForm({
             onChange={(e) => setAutoText("emailSubject", e.target.value)}
           />
         </div>
+
         <div className="grid gap-1.5">
-          <Label htmlFor="gc-cta">Текст кнопки на диагностику</Label>
+          <Label htmlFor="gc-email-body">Текст письма</Label>
+          <Textarea
+            id="gc-email-body"
+            rows={3}
+            value={value.emailBody}
+            onChange={(e) => setAutoText("emailBody", e.target.value)}
+          />
+        </div>
+      </FormStep>
+
+      <FormStep
+        title="Шаг 4. Напоминание и приглашение на диагностику"
+        description="Бот сам возвращается к клиенту через заданное число дней и предлагает бесплатную 30-минутную диагностику."
+      >
+        <div className="grid gap-1.5">
+          <Label htmlFor="gc-days">Напомнить через, дней</Label>
+          <Input
+            id="gc-days"
+            type="number"
+            min={1}
+            max={30}
+            className="sm:max-w-32"
+            value={value.followUpDelayDays}
+            onChange={(e) => set("followUpDelayDays", e.target.value)}
+          />
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="gc-followup">Текст напоминания</Label>
+          <Textarea
+            id="gc-followup"
+            rows={3}
+            value={value.followUpMessage}
+            onChange={(e) => setAutoText("followUpMessage", e.target.value)}
+            placeholder="Добрый день! Удалось ли вам ознакомиться с материалом?..."
+          />
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="gc-cta">Текст кнопки согласия на диагностику</Label>
           <Input
             id="gc-cta"
             value={value.diagnosticCtaText}
             onChange={(e) => set("diagnosticCtaText", e.target.value)}
           />
+          <p className="text-xs text-muted-foreground">
+            Ответ на согласие общий для всех кампаний — редактируется в блоке
+            «Кампании по кодовому слову» → «Заявка на диагностику после гайда».
+          </p>
         </div>
-      </div>
-
-      <div className="grid gap-1.5">
-        <Label htmlFor="gc-email-body">Текст письма</Label>
-        <Textarea
-          id="gc-email-body"
-          rows={3}
-          value={value.emailBody}
-          onChange={(e) => setAutoText("emailBody", e.target.value)}
-        />
-      </div>
-
-      <div className="grid gap-1.5">
-        <Label htmlFor="gc-followup">Follow-up-сообщение (через N дней)</Label>
-        <Textarea
-          id="gc-followup"
-          rows={3}
-          value={value.followUpMessage}
-          onChange={(e) => setAutoText("followUpMessage", e.target.value)}
-          placeholder="Добрый день! Удалось ли вам выполнить задание?..."
-        />
-      </div>
-
-      <div className="flex items-center gap-2 text-sm">
-        <Checkbox
-          id="gc-active"
-          checked={value.active}
-          onCheckedChange={(checked) => set("active", checked === true)}
-        />
-        <Label htmlFor="gc-active">
-          Кампания активна (кодовое слово принимается ботом)
-        </Label>
-      </div>
+      </FormStep>
     </div>
+  );
+}
+
+/** Смысловой шаг формы кампании — чтобы девять полей читались как путь клиента. */
+function FormStep({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="grid gap-3 rounded-lg border p-3">
+      <div>
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -449,11 +511,11 @@ function GuideCampaignDialog({
       return;
     }
     if (!Number.isFinite(followUpDelayDays) || followUpDelayDays < 1) {
-      toast.error("Follow-up через сколько дней? Укажите число от 1");
+      toast.error("Через сколько дней напомнить? Укажите число от 1");
       return;
     }
     if (!form.deliveryMessage.trim() || !form.followUpMessage.trim()) {
-      toast.error("Заполните сообщение выдачи и follow-up-сообщение");
+      toast.error("Заполните сообщение при выдаче и текст напоминания");
       return;
     }
     if (!form.emailSubject.trim() || !form.emailBody.trim()) {
@@ -489,8 +551,9 @@ function GuideCampaignDialog({
               : "Новая кампания по кодовому слову"}
           </DialogTitle>
           <DialogDescription>
-            Клиент пишет боту кодовое слово — бот сразу ведёт его к согласию,
-            email и выдаче этого материала, минуя обычный выбор темы.
+            Клиент присылает боту кодовое слово или переходит по ссылке — бот
+            сразу ведёт его к согласиям, email и выдаче этого материала, минуя
+            обычный выбор темы.
           </DialogDescription>
         </DialogHeader>
         <GuideCampaignForm
@@ -561,12 +624,39 @@ function DeleteCampaignButton({ id, title }: { id: string; title: string }) {
   );
 }
 
+/** Шаги, которые проходит клиент по кодовому слову — чтобы поля формы читались как путь. */
+const CAMPAIGN_PATH_STEPS = [
+  "кодовое слово или ссылка",
+  "согласия",
+  "email",
+  "выдача материала",
+  "напоминание через N дней",
+  "заявка на диагностику",
+];
+
+function CampaignPath() {
+  return (
+    <ol className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+      {CAMPAIGN_PATH_STEPS.map((step, index) => (
+        <li key={step} className="flex items-center gap-1">
+          <span className="rounded bg-muted px-1.5 py-0.5">{step}</span>
+          {index < CAMPAIGN_PATH_STEPS.length - 1 && <span aria-hidden>→</span>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function GuideCampaignsCard() {
   const [open, setOpen] = useState(false);
   const { data: campaigns = [] } = useQuery(
     orpc.guideCampaigns.list.queryOptions(),
   );
+  const { data: stats = [] } = useQuery(
+    orpc.guideCampaigns.stats.queryOptions(),
+  );
   const { data: guides = [] } = useQuery(orpc.bot.listGuides.queryOptions());
+  const statsById = new Map(stats.map((row) => [row.campaignId, row]));
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -597,21 +687,27 @@ export function GuideCampaignsCard() {
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="flex flex-col gap-4 border-t pt-6">
-            <p className="text-sm text-muted-foreground">
-              Клиент пишет боту кодовое слово (например «ШКОЛА») — бот сразу
-              ведёт к согласию, email и выдаче этого материала, минуя обычный
-              выбор темы. Через заданное число дней бот сам напоминает и
-              предлагает бесплатную диагностику.
-            </p>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-muted-foreground">
+                Клиент присылает боту кодовое слово (например SCHOOL) или
+                переходит по готовой ссылке — бот сразу ведёт его к согласиям,
+                email и выдаче именно этого материала, минуя обычный выбор темы.
+                Через заданное число дней бот сам напоминает о материале и
+                предлагает бесплатную диагностику.
+              </p>
+              <CampaignPath />
+            </div>
+
+            <BotUsernamesEditor />
 
             {campaigns.length > 0 && (
               <div className="flex flex-col gap-2">
                 {campaigns.map((campaign) => (
                   <div
                     key={campaign.id}
-                    className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-3"
+                    className="flex flex-wrap items-start justify-between gap-4 rounded-lg border p-3"
                   >
-                    <div className="flex min-w-0 flex-col gap-0.5">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-sm font-medium">
                           {campaign.title}
@@ -624,9 +720,17 @@ export function GuideCampaignsCard() {
                         </Badge>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        Слово «{campaign.keyword}» · follow-up через{" "}
-                        {campaign.followUpDelayDays} дн.
+                        Слово «{campaign.keyword}» · напоминание через{" "}
+                        {campaign.followUpDelayDays} дн. ·{" "}
+                        {(() => {
+                          const row = statsById.get(campaign.id);
+                          if (!row || row.delivered === 0) {
+                            return "материал ещё не выдавался";
+                          }
+                          return `выдано ${row.delivered} · напомнили ${row.followUpSent} · заявок на диагностику ${row.diagnosticRequested}`;
+                        })()}
                       </span>
+                      <CampaignStartLinks keyword={campaign.keyword} />
                     </div>
                     <div className="flex items-center gap-2">
                       <GuideCampaignDialog

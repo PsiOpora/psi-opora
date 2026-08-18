@@ -4,14 +4,15 @@
  * серверного кода (db, better-auth) в клиентский бандл.
  */
 export { type AdCredentialsInput, adCredentialsSchema } from "./ads";
+export { type BackupCredentialsInput, backupCredentialsSchema } from "./backup";
 export {
-  type BackupCredentialsInput,
-  backupCredentialsSchema,
-} from "./backup";
-export {
+  type DetectBotUsernameInput,
+  detectBotUsernameSchema,
   guideIdSchema,
   type SaveBotTextsInput,
+  type SaveBotUsernamesInput,
   saveBotTextsSchema,
+  saveBotUsernamesSchema,
 } from "./bot";
 export {
   type ActivateBotConnectorInput,
@@ -82,14 +83,8 @@ export {
   type UnisenderSettingsInput,
   unisenderSettingsSchema,
 } from "./unisender";
-export {
-  type SmtpBzSettingsInput,
-  smtpBzSettingsSchema,
-} from "./smtp-bz";
-export {
-  type ResendSettingsInput,
-  resendSettingsSchema,
-} from "./resend";
+export { type SmtpBzSettingsInput, smtpBzSettingsSchema } from "./smtp-bz";
+export { type ResendSettingsInput, resendSettingsSchema } from "./resend";
 export {
   type DisconnectWhatsappPersonalInput,
   disconnectWhatsappPersonalSchema,

@@ -1,6 +1,7 @@
 import {
   GUIDE_FILE_S3_KEY,
   SCENARIO_TEXT_DEFS,
+  SCENARIO_TEXT_SECTIONS,
 } from "@psi-opora/bot-core";
 import { NextResponse } from "next/server";
 
@@ -13,6 +14,7 @@ import { NextResponse } from "next/server";
 export async function GET() {
   return NextResponse.json({
     defs: SCENARIO_TEXT_DEFS,
+    sections: SCENARIO_TEXT_SECTIONS,
     guideFileS3Key: GUIDE_FILE_S3_KEY,
   });
 }
