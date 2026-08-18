@@ -6,6 +6,7 @@ export * from "./bot-conversations";
 export * from "./bot-funnel";
 export * from "./bot-guide-campaigns";
 export * from "./bot-guide-deliveries";
+export * from "./bot-guide-views";
 export * from "./bot-guides";
 export * from "./bot-messages";
 export * from "./bot-users";

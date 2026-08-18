@@ -153,6 +153,10 @@ export interface GuideCampaignStats {
   followUpSent: number;
   /** Сколько из них оставили заявку на диагностику после напоминания. */
   diagnosticRequested: number;
+  /** Сколько человек реально открыли материал по ссылке из чата. */
+  opened: number;
+  /** Всего открытий (один человек мог возвращаться к файлу). */
+  opens: number;
 }
 
 /**
@@ -169,6 +173,8 @@ export async function listGuideCampaignStats(
       delivered: sql<number>`count(*)::int`,
       followUpSent: sql<number>`count(${botGuideDeliveries.followUpSentAt})::int`,
       diagnosticRequested: sql<number>`count(${botGuideDeliveries.diagnosticRequestedAt})::int`,
+      opened: sql<number>`count(${botGuideDeliveries.firstOpenedAt})::int`,
+      opens: sql<number>`coalesce(sum(${botGuideDeliveries.openCount}), 0)::int`,
     })
     .from(botGuideDeliveries)
     .groupBy(botGuideDeliveries.campaignId);

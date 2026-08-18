@@ -44,6 +44,12 @@ import {
   type NewBotGuideDeliveryEntry,
 } from "./bot-guide-deliveries";
 import {
+  listGuideViewers as _listGuideViewers,
+  recordBotGuideView as _recordBotGuideView,
+  type GuideViewMeta,
+  type RecordedGuideView,
+} from "./bot-guide-views";
+import {
   getBotMessageMedia as _getBotMessageMedia,
   getClientMessageStats as _getClientMessageStats,
   getClientMessageStatsForGroup as _getClientMessageStatsForGroup,
@@ -123,6 +129,12 @@ export type {
   GuideCampaignStats,
   NewBotGuideDeliveryEntry,
 } from "./bot-guide-deliveries";
+export type {
+  BotGuideView,
+  GuideViewer,
+  GuideViewMeta,
+  RecordedGuideView,
+} from "./bot-guide-views";
 export * from "./bot-guides";
 export type {
   BotMessage,
@@ -509,4 +521,17 @@ export async function markGuideDiagnosticRequested(
   dealId?: number,
 ): Promise<void> {
   return _markGuideDiagnosticRequested(db, id, dealId);
+}
+
+export async function recordBotGuideView(
+  token: string,
+  meta?: GuideViewMeta,
+): Promise<RecordedGuideView | null> {
+  return _recordBotGuideView(db, token, meta);
+}
+
+export async function listGuideViewers(
+  opts?: Parameters<typeof _listGuideViewers>[1],
+) {
+  return _listGuideViewers(db, opts);
 }

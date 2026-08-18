@@ -10,6 +10,7 @@ import {
 } from "../utils/consultation-deal";
 import { sendGuideEmail } from "../utils/email";
 import { trackFunnelStep } from "../utils/funnel";
+import { buildGuideTrackingUrl } from "../utils/guide-link";
 import { logBotMessage } from "../utils/message-log";
 import {
   describeLead,
@@ -48,6 +49,12 @@ export async function dispatchScenarioOutput(
   out: ScenarioOutput,
   deps: ScenarioDispatchDeps,
 ): Promise<void> {
+  // Кампания, в рамках которой выдаётся материал: по ней же строится id
+  // выдачи (см. upsertBotGuideDelivery ниже), поэтому токен ссылки и строка
+  // выдачи гарантированно сходятся.
+  const campaignId =
+    out.lead?.campaignId ?? out.state.campaignId ?? deps.guideCampaign?.id;
+
   for (const message of out.messages) {
     const guide = message.guide
       ? await resolveGuideFile(message.guideId)
@@ -59,11 +66,24 @@ export async function dispatchScenarioOutput(
     // почту» и не может открыть материал сразу с телефона (см. исходное
     // ТЗ — «бот выдачи материала»). Для глобального гайда (без guideId)
     // поведение прежнее — только email, чтобы не менять давно живущий флоу.
+    //
+    // Ссылка персональная: с токеном просмотра, чтобы открытие материала
+    // попало в bot_guide_views (кто и когда дошёл до файла). Без кампании
+    // или userId привязать открытие не к чему — отдаём обычный URL.
+    const guideUrl =
+      guide && campaignId && deps.userId !== undefined
+        ? buildGuideTrackingUrl(guide.url, {
+            messenger: deps.messenger,
+            userId: deps.userId,
+            campaignId,
+          })
+        : guide?.url;
+
     const outgoing =
-      guide && message.guideId && deps.messenger === "telegram"
+      guide && guideUrl && message.guideId && deps.messenger === "telegram"
         ? {
             ...message,
-            text: `${message.text}\n\n📄 [Открыть материал](${guide.url})`,
+            text: `${message.text}\n\n📄 [Открыть материал](${guideUrl})`,
           }
         : message;
 

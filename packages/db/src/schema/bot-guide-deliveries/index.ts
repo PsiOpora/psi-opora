@@ -25,4 +25,12 @@ export const botGuideDeliveries = pgTable("bot_guide_deliveries", {
   deliveredAt: timestamp("delivered_at").defaultNow().notNull(),
   followUpSentAt: timestamp("follow_up_sent_at"),
   diagnosticRequestedAt: timestamp("diagnostic_requested_at"),
+  /**
+   * Открытия материала по персональной ссылке из чата (детали каждого
+   * перехода — в bot_guide_views). Денормализованы сюда, чтобы карточка
+   * кампании и follow-up-логика читались одним запросом по выдачам.
+   */
+  firstOpenedAt: timestamp("first_opened_at"),
+  lastOpenedAt: timestamp("last_opened_at"),
+  openCount: integer("open_count").notNull().default(0),
 });
