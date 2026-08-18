@@ -1,5 +1,6 @@
 import { getGuidePdfStream } from "@psi-opora/api";
 import { getBotGuide } from "@psi-opora/db/queries";
+import { hasGuideViewToken, trackGuideOpen } from "@/lib/guide-views";
 
 export const dynamic = "force-dynamic";
 
@@ -12,14 +13,21 @@ export const dynamic = "force-dynamic";
  * @/lib/guide-storage) — тот путь работает по ключам GUIDE_FILE_* в bot_texts
  * и не тронут, чтобы уже отправленные ссылки на старый единственный гайд
  * не сломались.
+ *
+ * Если в ссылке есть токен просмотра (персональная ссылка из чата бота) —
+ * фиксируем открытие в bot_guide_views. Ссылка без токена работает как
+ * раньше: по ней гайд тянут сами сервисы (вложение в письмо, файл в MAX).
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string; filename: string }> },
 ): Promise<Response> {
   const { id } = await params;
   const guide = await getBotGuide(id);
   if (!guide) return new Response("Гайд не найден", { status: 404 });
+
+  const tracked = hasGuideViewToken(request);
+  if (tracked) await trackGuideOpen(request);
 
   try {
     const { stream, contentLength } = await getGuidePdfStream(guide.s3Key);
@@ -28,7 +36,9 @@ export async function GET(
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(guide.fileName)}`,
         ...(contentLength ? { "Content-Length": String(contentLength) } : {}),
-        "Cache-Control": "public, max-age=60",
+        // Персональные ссылки не кешируем: иначе повторное открытие
+        // материала до нас не дойдёт и статистика просмотров занизится.
+        "Cache-Control": tracked ? "no-store" : "public, max-age=60",
       },
     });
   } catch (err) {

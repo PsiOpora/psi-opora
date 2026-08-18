@@ -266,6 +266,13 @@
       "when": 1787044579727,
       "tag": "0037_giant_night_nurse",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787045979459,
+      "tag": "0038_careful_sentry",
+      "breakpoints": true
     }
   ]
 }
