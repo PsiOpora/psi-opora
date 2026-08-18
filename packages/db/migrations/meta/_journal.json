@@ -252,6 +252,13 @@
       "when": 1786963535551,
       "tag": "0035_sturdy_brother_voodoo",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787037758805,
+      "tag": "0036_rich_squirrel_girl",
+      "breakpoints": true
     }
   ]
 }

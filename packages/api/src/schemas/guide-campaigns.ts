@@ -6,6 +6,7 @@ export const guideCampaignInputSchema = z.object({
 	keyword: z.string().trim().min(1, "Укажите кодовое слово"),
 	title: z.string().trim().min(1, "Укажите тему материала"),
 	guideId: z.string().nullable().optional(),
+	emailQuestion: z.string().trim().min(1, "Укажите вопрос перед сбором email"),
 	emailSubject: z.string().trim().min(1, "Укажите тему письма"),
 	emailBody: z.string().trim().min(1, "Укажите текст письма"),
 	deliveryMessage: z
