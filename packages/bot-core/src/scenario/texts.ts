@@ -596,9 +596,9 @@ export const GUIDE_FILE_SIZE_KEY = "guide_file_size";
 // автоматически из getMe по токену из bot_connectors и правятся вручную.
 
 /** Username Telegram-бота без «@» (например psiopora_bot). */
-export const TG_BOT_USERNAME_KEY = "tg_bot_username";
+export const TG_BOT_USERNAME_KEY = "KLUVAND_BOT";
 /** Username бота в MAX без «@». */
-export const MAX_BOT_USERNAME_KEY = "max_bot_username";
+export const MAX_BOT_USERNAME_KEY = "id525603925717_bot";
 
 export interface GuideFile {
   url: string;
