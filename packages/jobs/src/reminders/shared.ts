@@ -173,7 +173,25 @@ async function logReminderMessage(params: {
   const text = params.text.trim();
   if (!text) return;
   try {
-    const { insertBotMessage } = await import("@psi-opora/db/queries");
+    const { insertBotMessage, listBotMessages } =
+      await import("@psi-opora/db/queries");
+    // Крон повторяет попытку каждые 5 минут, пока встреча в окне напоминания,
+    // поэтому у заблокировавшего бота клиента одна и та же неудача набежала бы
+    // десятком записей «не доставлено». Достаточно одной отметки на текст.
+    if (params.status === "failed") {
+      const recent = await listBotMessages(
+        params.target.messenger,
+        params.target.userId,
+        10,
+      );
+      const alreadyMarked = recent.some(
+        (row) =>
+          row.direction === "out" &&
+          row.status === "failed" &&
+          row.text === text,
+      );
+      if (alreadyMarked) return;
+    }
     await insertBotMessage({
       messenger: params.target.messenger,
       userId: params.target.userId,
