@@ -1,3 +1,4 @@
+import { appendDealComment } from "@psi-opora/bot-core";
 import {
   insertBotMessage,
   listDueGuideFollowUps,
@@ -75,6 +76,19 @@ export async function sendGuideFollowUps(): Promise<SendGuideFollowUpsResult> {
         externalId,
       });
       await markGuideFollowUpSent(delivery.id);
+      // В таймлайне сделки должна быть вся история материала: выдали →
+      // открыл → напомнили → заявка. Без этой отметки менеджер не понимает,
+      // почему клиент внезапно пишет про диагностику.
+      if (delivery.dealId) {
+        const openedNote = delivery.firstOpenedAt
+          ? `материал открывал (открытий: ${delivery.openCount})`
+          : "материал так и не открыл";
+        await appendDealComment(
+          messenger,
+          delivery.dealId,
+          `🔔 Отправлено напоминание по материалу «${campaign.title}» — ${openedNote}.`,
+        );
+      }
       sent++;
     } catch (err) {
       errors++;
