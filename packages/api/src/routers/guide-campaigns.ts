@@ -41,6 +41,7 @@ export const guideCampaignsRouter = router({
 					keyword: input.keyword,
 					title: input.title,
 					guideId: input.guideId || null,
+					welcomeMessage: input.welcomeMessage?.trim() || null,
 					emailQuestion: input.emailQuestion,
 					emailSubject: input.emailSubject,
 					emailBody: input.emailBody,
@@ -66,11 +67,14 @@ export const guideCampaignsRouter = router({
 	update: publicProcedure
 		.input(updateGuideCampaignSchema)
 		.handler(async ({ input }) => {
-			const { id, guideId, ...patch } = input;
+			const { id, guideId, welcomeMessage, ...patch } = input;
 			try {
 				await updateBotGuideCampaign(id, {
 					...patch,
 					...(guideId !== undefined ? { guideId: guideId || null } : {}),
+					...(welcomeMessage !== undefined
+						? { welcomeMessage: welcomeMessage?.trim() || null }
+						: {}),
 				});
 			} catch (err) {
 				if (isDuplicateKeywordError(err)) {

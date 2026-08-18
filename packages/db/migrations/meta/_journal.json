@@ -259,6 +259,13 @@
       "when": 1787037758805,
       "tag": "0036_rich_squirrel_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787044579727,
+      "tag": "0037_giant_night_nurse",
+      "breakpoints": true
     }
   ]
 }

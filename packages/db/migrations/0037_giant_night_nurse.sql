@@ -1,0 +1,1 @@
+ALTER TABLE "bot_guide_campaigns" ADD COLUMN "welcome_message" text;

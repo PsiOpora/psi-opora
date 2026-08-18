@@ -21,6 +21,14 @@ export const botGuideCampaigns = pgTable("bot_guide_campaigns", {
 	title: text("title").notNull(),
 	guideId: text("guide_id").references(() => botGuides.id),
 	/**
+	 * Приветствие перед согласием на ПДн — показывается при любом входе в
+	 * кампанию (по /start-ссылке и по кодовому слову в чате), в т.ч. для
+	 * ссылок с источником рекламы вида SCHOOL_VK (см. resolveGuideCampaignStart
+	 * в bot-core/scenario/guide-campaign.ts). Пусто — шаг пропускается,
+	 * сценарий сразу показывает согласие на ПДн, как раньше.
+	 */
+	welcomeMessage: text("welcome_message"),
+	/**
 	 * Вопрос перед сбором email — специфичен для темы кампании, не общий
 	 * emailQuestion сценария (тот жёстко ссылается на дефолтный гайд и вводит
 	 * в заблуждение, когда кампаний несколько — см. чат SCHOOL 2026-08-18).

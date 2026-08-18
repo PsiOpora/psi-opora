@@ -37,12 +37,46 @@ export function useBotUsernames() {
 	return useQuery(orpc.bot.getBotUsernames.queryOptions());
 }
 
+/**
+ * Запасной способ через скрытый textarea + execCommand("copy") — синхронный,
+ * не требует secure context (HTTP) и permissions API, в отличие от
+ * navigator.clipboard.writeText. Нужен, когда сам Clipboard API недоступен
+ * (HTTP-доступ к дашборду, старый WebView) или браузер отклоняет запрос
+ * (Safari теряет user-activation к моменту резолва промиса в некоторых
+ * сценариях — там основной путь падает, а execCommand ещё отрабатывает).
+ */
+function copyViaExecCommand(value: string): boolean {
+	const textarea = document.createElement("textarea");
+	textarea.value = value;
+	textarea.style.position = "fixed";
+	textarea.style.top = "-1000px";
+	textarea.style.left = "-1000px";
+	document.body.appendChild(textarea);
+	textarea.focus();
+	textarea.select();
+	let ok = false;
+	try {
+		ok = document.execCommand("copy");
+	} catch {
+		ok = false;
+	}
+	document.body.removeChild(textarea);
+	return ok;
+}
+
 async function copyToClipboard(value: string, label: string) {
 	try {
+		if (!navigator.clipboard?.writeText) {
+			throw new Error("Clipboard API недоступен");
+		}
 		await navigator.clipboard.writeText(value);
 		toast.success(`${label} скопирована`);
 	} catch {
-		toast.error("Браузер не дал скопировать — выделите ссылку вручную");
+		if (copyViaExecCommand(value)) {
+			toast.success(`${label} скопирована`);
+		} else {
+			toast.error("Браузер не дал скопировать — выделите ссылку вручную");
+		}
 	}
 }
 

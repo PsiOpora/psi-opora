@@ -62,6 +62,7 @@ interface GuideCampaignView {
 	keyword: string;
 	title: string;
 	guideId: string | null;
+	welcomeMessage: string | null;
 	emailQuestion: string;
 	emailSubject: string;
 	emailBody: string;
@@ -76,6 +77,7 @@ interface FormState {
 	keyword: string;
 	title: string;
 	guideId: string;
+	welcomeMessage: string;
 	emailQuestion: string;
 	emailSubject: string;
 	emailBody: string;
@@ -135,6 +137,7 @@ const EMPTY_FORM: FormState = {
 	keyword: "",
 	title: "",
 	guideId: "",
+	welcomeMessage: "",
 	followUpDelayDays: "2",
 	diagnosticCtaText: "Согласен/согласна на диагностику",
 	active: true,
@@ -146,6 +149,7 @@ function toForm(campaign: GuideCampaignView): FormState {
 		keyword: campaign.keyword,
 		title: campaign.title,
 		guideId: campaign.guideId ?? "",
+		welcomeMessage: campaign.welcomeMessage ?? "",
 		emailQuestion: campaign.emailQuestion,
 		emailSubject: campaign.emailSubject,
 		emailBody: campaign.emailBody,
@@ -289,6 +293,21 @@ function GuideCampaignForm({
 				{value.keyword.trim() && isStartParamSafe(value.keyword) && (
 					<CampaignSourceLinks keyword={value.keyword} />
 				)}
+
+				<div className="grid gap-1.5">
+					<Label htmlFor="gc-welcome">Приветствие (необязательно)</Label>
+					<Textarea
+						id="gc-welcome"
+						rows={2}
+						value={value.welcomeMessage}
+						onChange={(e) => set("welcomeMessage", e.target.value)}
+						placeholder="Например: Здравствуйте! Вы перешли по рекламе ВКонтакте — сейчас пришлём материал."
+					/>
+					<p className="text-xs text-muted-foreground">
+						Показывается первым сообщением сразу по кодовому слову или ссылке —
+						до согласия на обработку данных. Пусто — этот шаг пропускается.
+					</p>
+				</div>
 
 				<div className="flex items-center gap-2 text-sm">
 					<Checkbox
@@ -558,6 +577,7 @@ function GuideCampaignDialog({
 			keyword: form.keyword.trim(),
 			title: form.title.trim(),
 			guideId: form.guideId || null,
+			welcomeMessage: form.welcomeMessage.trim() || null,
 			emailQuestion: form.emailQuestion.trim(),
 			emailSubject: form.emailSubject.trim(),
 			emailBody: form.emailBody.trim(),

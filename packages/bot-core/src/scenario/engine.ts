@@ -106,6 +106,8 @@ export interface GuideCampaignContext {
 	keyword: string;
 	title: string;
 	guideId: string | null;
+	/** Приветствие перед согласием на ПДн — null/пусто, если шаг не нужен. */
+	welcomeMessage: string | null;
 	/** Вопрос перед сбором email — конкретика темы, не общий emailQuestion сценария. */
 	emailQuestion: string;
 	emailSubject: string;
@@ -115,17 +117,18 @@ export interface GuideCampaignContext {
 
 /**
  * Вход по кодовому слову кампании (см. bot_guide_campaigns): минуя обычный
- * выбор категории/темы, сразу — согласие на ПДн → согласие на рекламу →
- * email → выдача гайда кампании → телефон (см. ветвление по campaignId
- * в applyScenarioAction/applyScenarioText ниже).
+ * выбор категории/темы, сразу (опционально приветствие →) согласие на ПДн →
+ * согласие на рекламу → email → выдача гайда кампании → телефон (см.
+ * ветвление по campaignId в applyScenarioAction/applyScenarioText ниже).
  */
 export function startGuideCampaign(
 	campaign: GuideCampaignContext,
 	t: ScenarioTexts,
 ): ScenarioOutput {
+	const welcome = campaign.welcomeMessage?.trim();
 	return output(
 		{ step: "consent", flow: "guide", campaignId: campaign.id },
-		[consentQuestion(t)],
+		[...(welcome ? [{ text: welcome }] : []), consentQuestion(t)],
 		{ track: ["guide_click"] },
 	);
 }

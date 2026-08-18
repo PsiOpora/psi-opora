@@ -16,6 +16,7 @@ function toContext(row: BotGuideCampaign): GuideCampaignContext {
 		keyword: row.keyword,
 		title: row.title,
 		guideId: row.guideId,
+		welcomeMessage: row.welcomeMessage,
 		emailQuestion: row.emailQuestion,
 		emailSubject: row.emailSubject,
 		emailBody: row.emailBody,
