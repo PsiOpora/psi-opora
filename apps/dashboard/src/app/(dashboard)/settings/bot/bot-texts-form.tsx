@@ -80,7 +80,7 @@ export function BotTextsForm({
     groups.flatMap(({ defs }) =>
       defs.map((def) => [
         def.key,
-        initialOverrides[def.key] ?? def.defaultValue,
+        initialOverrides[def.key] || def.defaultValue,
       ]),
     ),
   );
