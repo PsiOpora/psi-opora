@@ -317,7 +317,10 @@ export function applyScenarioAction(
 						marketingConsent,
 						audience: "child",
 					},
-					[consentReply, emailQuestion(t)],
+					[
+						consentReply,
+						campaign ? { text: campaign.emailQuestion } : emailQuestion(t),
+					],
 					{ track: ["marketing_consent"] },
 				);
 			}
