@@ -235,7 +235,7 @@ export function MessageWidget({
       <div>
         <p className="text-sm font-medium">{recipient.contactName}</p>
         <p className="text-xs text-muted-foreground">
-          Сообщение уйдёт от имени бота центра «Опора»
+          Сообщение уйдёт от имени бота Психологического центра «Опора»
         </p>
       </div>
 
@@ -284,7 +284,7 @@ export function MessageWidget({
           text={text}
           onTextChange={setText}
           onSend={send}
-          placeholder="Здравствуйте! Это центр «Опора»… (Enter — отправить, Shift+Enter — новая строка)"
+          placeholder="Здравствуйте! Это Психологический центр «Опора»… (Enter — отправить, Shift+Enter — новая строка)"
         />
       </div>
 

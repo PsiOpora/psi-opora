@@ -23,6 +23,12 @@ export const botGuideDeliveries = pgTable("bot_guide_deliveries", {
   phone: text("phone"),
   email: text("email"),
   deliveredAt: timestamp("delivered_at").defaultNow().notNull(),
+  /**
+   * Когда письмо с материалом реально ушло на email. null — письма не было
+   * или отправка упала: в карточке клиента это разные истории, а по одному
+   * полю email не отличить «обещали прислать» от «прислали».
+   */
+  emailSentAt: timestamp("email_sent_at"),
   followUpSentAt: timestamp("follow_up_sent_at"),
   diagnosticRequestedAt: timestamp("diagnostic_requested_at"),
   /**

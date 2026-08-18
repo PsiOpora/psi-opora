@@ -14,6 +14,8 @@ export interface NewBotGuideDeliveryEntry {
   name?: string;
   phone?: string;
   email?: string;
+  /** Проставляется, только если письмо с материалом действительно отправилось. */
+  emailSentAt?: Date;
 }
 
 function deliveryId(
@@ -143,6 +145,61 @@ export async function markGuideDiagnosticRequested(
       ...(dealId !== undefined ? { dealId } : {}),
     })
     .where(eq(botGuideDeliveries.id, id));
+}
+
+export interface ClientGuideActivity {
+  campaignId: string;
+  /** Тема материала из кампании; null — кампанию удалили. */
+  title: string | null;
+  dealId: number | null;
+  deliveredAt: Date;
+  email: string | null;
+  emailSentAt: Date | null;
+  firstOpenedAt: Date | null;
+  lastOpenedAt: Date | null;
+  openCount: number;
+  followUpSentAt: Date | null;
+  diagnosticRequestedAt: Date | null;
+}
+
+/**
+ * Что происходило с материалами у конкретного клиента: выдача, письмо,
+ * открытия, напоминание, заявка на диагностику. Для карточки клиента в
+ * приложении «Клиенты» — оператору нужно одним взглядом понять, дошёл ли
+ * человек до файла, а не сверять три таблицы.
+ */
+export async function listClientGuideActivity(
+  db: Database,
+  messenger: string,
+  userId: string,
+): Promise<ClientGuideActivity[]> {
+  if (!db) return [];
+  return db
+    .select({
+      campaignId: botGuideDeliveries.campaignId,
+      title: botGuideCampaigns.title,
+      dealId: botGuideDeliveries.dealId,
+      deliveredAt: botGuideDeliveries.deliveredAt,
+      email: botGuideDeliveries.email,
+      emailSentAt: botGuideDeliveries.emailSentAt,
+      firstOpenedAt: botGuideDeliveries.firstOpenedAt,
+      lastOpenedAt: botGuideDeliveries.lastOpenedAt,
+      openCount: botGuideDeliveries.openCount,
+      followUpSentAt: botGuideDeliveries.followUpSentAt,
+      diagnosticRequestedAt: botGuideDeliveries.diagnosticRequestedAt,
+    })
+    .from(botGuideDeliveries)
+    .leftJoin(
+      botGuideCampaigns,
+      eq(botGuideCampaigns.id, botGuideDeliveries.campaignId),
+    )
+    .where(
+      and(
+        eq(botGuideDeliveries.messenger, messenger),
+        eq(botGuideDeliveries.userId, userId),
+      ),
+    )
+    .orderBy(desc(botGuideDeliveries.deliveredAt));
 }
 
 export interface GuideCampaignStats {

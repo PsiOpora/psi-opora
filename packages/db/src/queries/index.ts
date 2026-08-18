@@ -36,6 +36,7 @@ import {
 import {
   getBotGuideDelivery as _getBotGuideDelivery,
   getPendingGuideDiagnosticDelivery as _getPendingGuideDiagnosticDelivery,
+  listClientGuideActivity as _listClientGuideActivity,
   listDueGuideFollowUps as _listDueGuideFollowUps,
   listGuideCampaignStats as _listGuideCampaignStats,
   markGuideDiagnosticRequested as _markGuideDiagnosticRequested,
@@ -506,6 +507,13 @@ export async function getPendingGuideDiagnosticDelivery(
 
 export async function listDueGuideFollowUps() {
   return _listDueGuideFollowUps(db);
+}
+
+export async function listClientGuideActivity(
+  messenger: string,
+  userId: string,
+) {
+  return _listClientGuideActivity(db, messenger, userId);
 }
 
 export async function listGuideCampaignStats() {

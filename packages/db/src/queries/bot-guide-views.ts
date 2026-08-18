@@ -1,5 +1,6 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Database } from "../client.types";
+import { botGuideCampaigns } from "../schema/bot-guide-campaigns";
 import { botGuideDeliveries } from "../schema/bot-guide-deliveries";
 import { botGuideViews } from "../schema/bot-guide-views";
 
@@ -43,6 +44,16 @@ export interface RecordedGuideView {
   campaignId: string;
   messenger: string;
   userId: string;
+  /** Сделка Bitrix из выдачи — null, если сделку создать не удалось. */
+  dealId: number | null;
+  /** Тема материала из кампании — для комментария в таймлайне сделки. */
+  campaignTitle: string | null;
+  /** Открытие первое за всю историю выдачи. */
+  firstOpen: boolean;
+  /** Предыдущее открытие; null — открыли впервые. */
+  previousOpenedAt: Date | null;
+  /** Сколько раз материал открыт с учётом текущего открытия. */
+  openCount: number;
   /** false — запрос склеен с недавним просмотром, в БД ничего не добавлено. */
   recorded: boolean;
 }
@@ -72,18 +83,30 @@ export async function recordBotGuideView(
       campaignId: botGuideDeliveries.campaignId,
       messenger: botGuideDeliveries.messenger,
       userId: botGuideDeliveries.userId,
+      dealId: botGuideDeliveries.dealId,
+      campaignTitle: botGuideCampaigns.title,
+      lastOpenedAt: botGuideDeliveries.lastOpenedAt,
+      openCount: botGuideDeliveries.openCount,
     })
     .from(botGuideDeliveries)
+    .leftJoin(
+      botGuideCampaigns,
+      eq(botGuideCampaigns.id, botGuideDeliveries.campaignId),
+    )
     .where(deliveryTokenMatches(token))
     .limit(1);
   const delivery = found[0];
   if (!delivery) return null;
 
-  const base: Omit<RecordedGuideView, "recorded"> = {
+  const base: Omit<RecordedGuideView, "recorded" | "openCount"> = {
     deliveryId: delivery.id,
     campaignId: delivery.campaignId,
     messenger: delivery.messenger,
     userId: delivery.userId,
+    dealId: delivery.dealId,
+    campaignTitle: delivery.campaignTitle,
+    firstOpen: delivery.lastOpenedAt === null,
+    previousOpenedAt: delivery.lastOpenedAt,
   };
 
   const recent = await db
@@ -96,7 +119,9 @@ export async function recordBotGuideView(
       ),
     )
     .limit(1);
-  if (recent.length > 0) return { ...base, recorded: false };
+  if (recent.length > 0) {
+    return { ...base, openCount: delivery.openCount, recorded: false };
+  }
 
   await db
     .update(botGuideDeliveries)
@@ -119,7 +144,7 @@ export async function recordBotGuideView(
     userAgent: meta.userAgent?.slice(0, 500) || null,
   });
 
-  return { ...base, recorded: true };
+  return { ...base, openCount: delivery.openCount + 1, recorded: true };
 }
 
 export interface GuideViewer {
