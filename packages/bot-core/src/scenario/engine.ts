@@ -34,10 +34,13 @@ import type {
  *   старт → выбор:
  *   ├── «Записаться на консультацию» (флоу consult)
  *   │     └── согласие на ПДн → имя → телефон → email → сделка
- *   └── «Получить гайд» (флоу guide)
- *         └── согласие на ПДн → категория (ребёнок / для себя) → тема
- *             ветка «ребёнок»: email → гайд → телефон → сделка
- *             ветка «для себя»: телефон (или отказ) → вопрос о рассылке
+ *   ├── «Получить гайд» (флоу guide)
+ *   │     └── согласие на ПДн → категория (ребёнок / для себя) → тема
+ *   │         ветка «ребёнок»: email → гайд → телефон → сделка
+ *   │         ветка «для себя»: телефон (или отказ) → вопрос о рассылке
+ *   └── кодовое слово кампании (см. startGuideCampaign/GuideCampaignContext)
+ *         └── согласие на ПДн → согласие на рекламу → email → гайд → сделка
+ *             (без телефона — материал кампании отдаётся только за email)
  *
  * Адаптеры (grammy для TG, @maxhub для MAX) рендерят ScenarioMessage
  * и исполняют эффекты: track (воронка) и lead (сделка в Bitrix).
@@ -103,6 +106,8 @@ export interface GuideCampaignContext {
 	keyword: string;
 	title: string;
 	guideId: string | null;
+	/** Вопрос перед сбором email — конкретика темы, не общий emailQuestion сценария. */
+	emailQuestion: string;
 	emailSubject: string;
 	emailBody: string;
 	deliveryMessage: string;
@@ -180,6 +185,39 @@ function submitGuidePhone(
 }
 
 /**
+ * Email получен в кампании по кодовому слову: сразу сделка + выдача гайда,
+ * без вопроса о телефоне — в отличие от обычной ветки «Получить гайд»,
+ * материал кампании отдаётся только за email (см. исходное ТЗ — «бот
+ * выдачи материала»: согласие → email → материал, без сбора телефона).
+ */
+function submitCampaignGuide(
+	state: ScenarioState,
+	email: string,
+	campaign: GuideCampaignContext,
+): ScenarioOutput {
+	const lead: ScenarioLead = {
+		flow: "guide",
+		phone: state.phone ?? "",
+		email,
+		audience: "child",
+		issue: "other",
+		marketingConsent: state.marketingConsent,
+		campaignId: state.campaignId,
+	};
+	return output(
+		{ ...state, email, step: "done" },
+		[
+			{
+				text: campaign.deliveryMessage,
+				guide: true,
+				guideId: campaign.guideId ?? undefined,
+			},
+		],
+		{ track: ["email"], lead },
+	);
+}
+
+/**
  * Отказ от телефона (кнопкой или после исчерпанных попыток) в флоу гайда.
  * Ветка «для себя» всё равно получает вопрос о рассылке — контакта может
  * не быть, но интерес к каналу бота остаётся; ветка «ребёнок» просто
@@ -224,6 +262,7 @@ export function applyScenarioAction(
 	state: ScenarioState,
 	action: ScenarioAction,
 	t: ScenarioTexts,
+	campaign?: GuideCampaignContext | null,
 ): ScenarioOutput | null {
 	switch (state.step) {
 		case "entry": {
@@ -459,24 +498,26 @@ export async function applyScenarioText(
 			}
 
 			if (isValidEmail(text)) {
-				const deliveryMessage =
-					state.campaignId && campaign
-						? {
-								text: campaign.deliveryMessage,
-								guide: true,
-								guideId: campaign.guideId ?? undefined,
-							}
-						: { text: t.lead_magnet, guide: true };
+				if (state.campaignId && campaign) {
+					return submitCampaignGuide(state, text, campaign);
+				}
 				return askForPhone(
 					{ ...state, email: text },
 					t,
-					[deliveryMessage],
+					[{ text: t.lead_magnet, guide: true }],
 					["email"],
 					{ email: text },
 				);
 			}
 			const attempts = (state.emailAttempts ?? 0) + 1;
 			if (attempts >= MAX_ATTEMPTS) {
+				// Кампания отдаёт материал только за email — без него дальше идти
+				// некуда (в отличие от обычного гайда, телефон здесь не спрашиваем).
+				if (state.campaignId) {
+					return output({ ...state, emailAttempts: attempts, step: "done" }, [
+						{ text: t.guide_campaign_email_invalid_final },
+					]);
+				}
 				// Не мучаем пользователя — продолжаем без email
 				return askForPhone({ ...state, emailAttempts: attempts }, t);
 			}

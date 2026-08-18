@@ -49,27 +49,42 @@ export async function dispatchScenarioOutput(
 	deps: ScenarioDispatchDeps,
 ): Promise<void> {
 	for (const message of out.messages) {
-		await deps.sendMessage(message);
+		const guide = message.guide
+			? await resolveGuideFile(message.guideId)
+			: null;
+
+		// Telegram не шлёт PDF отдельным документом (см. sendTelegramScenarioMessage) —
+		// для гайда конкретной кампании (message.guideId) добавляем прямую
+		// ссылку прямо в текст, иначе клиент видит только «сейчас отправим на
+		// почту» и не может открыть материал сразу с телефона (см. исходное
+		// ТЗ — «бот выдачи материала»). Для глобального гайда (без guideId)
+		// поведение прежнее — только email, чтобы не менять давно живущий флоу.
+		const outgoing =
+			guide && message.guideId && deps.messenger === "telegram"
+				? {
+						...message,
+						text: `${message.text}\n\n📄 [Открыть материал](${guide.url})`,
+					}
+				: message;
+
+		await deps.sendMessage(outgoing);
 		const messageId = await logBotMessage({
 			messenger: deps.messenger,
 			userId: deps.userId,
 			direction: "out",
 			source: "scenario",
-			text: message.text,
+			text: outgoing.text,
 		});
 
-		if (message.guide && out.state.email) {
+		if (guide && out.state.email) {
 			try {
-				const guide = await resolveGuideFile(message.guideId);
-				if (guide) {
-					await sendGuideEmail(
-						out.state.email,
-						guide,
-						deps.guideCampaign?.emailSubject ?? deps.texts.email_subject,
-						deps.guideCampaign?.emailBody ?? deps.texts.email_body,
-					);
-					if (messageId) await markBotMessageGuideEmailSent(messageId);
-				}
+				await sendGuideEmail(
+					out.state.email,
+					guide,
+					deps.guideCampaign?.emailSubject ?? deps.texts.email_subject,
+					deps.guideCampaign?.emailBody ?? deps.texts.email_body,
+				);
+				if (messageId) await markBotMessageGuideEmailSent(messageId);
 			} catch (err) {
 				// Гайд уже ушёл в чат — без письма диалог не ломаем
 				console.error(

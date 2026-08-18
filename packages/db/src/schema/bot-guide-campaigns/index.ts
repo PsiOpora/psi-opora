@@ -14,6 +14,12 @@ export const botGuideCampaigns = pgTable("bot_guide_campaigns", {
   /** Тема материала — уходит в comment/campaign сделки Bitrix. */
   title: text("title").notNull(),
   guideId: text("guide_id").references(() => botGuides.id),
+  /**
+   * Вопрос перед сбором email — специфичен для темы кампании, не общий
+   * emailQuestion сценария (тот жёстко ссылается на дефолтный гайд и вводит
+   * в заблуждение, когда кампаний несколько — см. чат SCHOOL 2026-08-18).
+   */
+  emailQuestion: text("email_question").notNull(),
   emailSubject: text("email_subject").notNull(),
   emailBody: text("email_body").notNull(),
   /** Сообщение в чате при выдаче материала (аналог lead_magnet, поддерживает Markdown-ссылку). */
