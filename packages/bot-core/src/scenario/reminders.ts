@@ -71,6 +71,9 @@ export async function runScenarioReminders({
   const result: ReminderRunResult = { reminded: 0, expired: 0 };
 
   for (const sessionKey of due) {
+    // Текст напоминания нужен и в catch — чтобы записать в историю
+    // неудачную попытку отправки (см. ниже).
+    let attemptedText: string | undefined;
     try {
       const session = await storage.read(sessionKey);
       const state = session?.scenario;
@@ -95,6 +98,7 @@ export async function runScenarioReminders({
         continue;
       }
 
+      attemptedText = message.text;
       await send(sessionKey, message);
       await logBotMessage({
         messenger,
@@ -109,10 +113,22 @@ export async function runScenarioReminders({
       result.reminded++;
     } catch (err) {
       // Не удалось отправить (бот заблокирован и т.п.) — убираем из очереди,
-      // чтобы не зациклиться на одном пользователе
+      // чтобы не зациклиться на одном пользователе. Сам факт неудачной
+      // попытки пишем в историю со статусом "failed": в инбоксе это видно
+      // как «не доставлено», иначе напоминание пропадало бы бесследно.
       console.error(
         `[reminder] ${messenger} sessionKey=${sessionKey}: ${(err as Error).message}`,
       );
+      if (attemptedText) {
+        await logBotMessage({
+          messenger,
+          userId: sessionKey,
+          direction: "out",
+          source: "reminder",
+          text: attemptedText,
+          status: "failed",
+        });
+      }
       await redis.zrem(key, sessionKey).catch(() => {});
     }
   }

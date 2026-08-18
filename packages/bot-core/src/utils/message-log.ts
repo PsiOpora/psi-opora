@@ -15,6 +15,11 @@ export interface BotMessageLogEntry {
   mediaS3Key?: string;
   mediaMimeType?: string;
   mediaDurationSec?: number;
+  /** По умолчанию "sent". "failed" — отправка в мессенджер не удалась;
+   * запись всё равно нужна, чтобы в истории было видно «не доставлено». */
+  status?: "sent" | "delivered" | "read" | "failed";
+  /** ID сообщения во внешней системе — по нему прилетают ack-статусы. */
+  externalId?: string;
 }
 
 /**
@@ -41,6 +46,8 @@ export async function logBotMessage(
       mediaS3Key: entry.mediaS3Key,
       mediaMimeType: entry.mediaMimeType,
       mediaDurationSec: entry.mediaDurationSec,
+      status: entry.status,
+      externalId: entry.externalId,
     });
   } catch (err) {
     const error = err as Error;

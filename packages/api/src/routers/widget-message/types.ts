@@ -41,6 +41,10 @@ export interface WidgetHistoryItem {
   direction: "in" | "out";
   source: string;
   text: string;
+  /** Статус доставки исходящего: sent | delivered | read | failed. Выше "sent"
+   * поднимается только WhatsApp (ack WAHA); "failed" ставят пути автоотправки,
+   * когда мессенджер отклонил сообщение. */
+  status: string;
   /** ISO-строка — Date не сериализуется через границу server action. */
   createdAt: string;
 }

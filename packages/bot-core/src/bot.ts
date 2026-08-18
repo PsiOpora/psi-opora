@@ -15,10 +15,10 @@ import {
 	startScenario,
 } from "./scenario/engine";
 import {
-	findGuideCampaignByText,
 	handleGuideDiagnosticRequest,
 	loadGuideCampaignContext,
 	looksLikeDiagnosticConsent,
+	resolveGuideCampaignStart,
 } from "./scenario/guide-campaign";
 import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
 import type { RedisClient } from "./storage/redis";
@@ -318,21 +318,25 @@ export function createBot({
 			text: rawParam ? `/start ${rawParam}` : "/start",
 		});
 
-		// Диплинк вида t.me/bot?start=ШКОЛА — кодовое слово кампании гайда в
-		// параметре /start, а не введённое текстом в чате (см. также ветку
-		// keyword в bot.on("message:text") ниже). Приоритет отдаём кампании:
-		// UTM-коды в SITE_CODES короткие служебные метки, коллизия с кодовым
-		// словом кампании маловероятна, а кампания конкретнее.
-		// Декодируем до сравнения: кириллица в ссылке приходит percent-encoded.
+		// Диплинк вида t.me/bot?start=ШКОЛА или t.me/bot?start=SCHOOL_VK
+		// (кодовое слово + источник рекламы, см. splitStartParam) — кодовое
+		// слово кампании гайда в параметре /start, а не введённое текстом в
+		// чате (см. также ветку keyword в bot.on("message:text") ниже).
+		// Приоритет отдаём кампании: UTM-коды в SITE_CODES короткие служебные
+		// метки, коллизия с кодовым словом кампании маловероятна, а кампания
+		// конкретнее. Декодируем до сравнения: кириллица в ссылке приходит
+		// percent-encoded.
 		const startParam = decodeStartParam(rawParam);
-		const campaign = startParam
-			? await findGuideCampaignByText(startParam)
+		const resolved = startParam
+			? await resolveGuideCampaignStart(startParam)
 			: null;
-		if (campaign) {
+		if (resolved) {
+			const { campaign, source } = resolved;
 			log(
-				`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} guide_campaign=${campaign.id} messenger=telegram`,
+				`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} guide_campaign=${campaign.id}${source ? ` source=${source}` : ""} messenger=telegram`,
 			);
 			ctx.session.campaign = campaign.keyword;
+			if (source) ctx.session.source = source;
 			await collectTelegramProfile(
 				ctx,
 				ctx.session.source,
@@ -491,14 +495,16 @@ export function createBot({
 
 		const state = ctx.session.scenario;
 		if (!state) {
-			// Кодовое слово кампании гайда (см. bot_guide_campaigns) — запускаем
-			// спецветку сценария вместо обычного /start-меню.
-			const campaign = await findGuideCampaignByText(text);
-			if (campaign) {
+			// Кодовое слово кампании гайда, вводится текстом (см. bot_guide_campaigns)
+			// — можно и с источником рекламы через `_` (SCHOOL_VK), как в /start.
+			const resolved = await resolveGuideCampaignStart(text);
+			if (resolved) {
+				const { campaign, source } = resolved;
 				log(
-					`[GUIDE] user=${ctx.from?.id} keyword="${text}" campaign=${campaign.id} messenger=telegram`,
+					`[GUIDE] user=${ctx.from?.id} keyword="${text}" campaign=${campaign.id}${source ? ` source=${source}` : ""} messenger=telegram`,
 				);
 				ctx.session.campaign = ctx.session.campaign ?? campaign.keyword;
+				if (source) ctx.session.source = ctx.session.source ?? source;
 				const texts = await getScenarioTexts();
 				await dispatch(
 					ctx,

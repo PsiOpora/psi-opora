@@ -52,6 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { orpc } from "@/lib/orpc/client";
 import {
 	BotUsernamesEditor,
+	CampaignSourceLinks,
 	CampaignStartLinks,
 	isStartParamSafe,
 } from "./bot-links";
@@ -284,6 +285,10 @@ function GuideCampaignForm({
 						<CampaignStartLinks keyword={value.keyword} />
 					)}
 				</div>
+
+				{value.keyword.trim() && isStartParamSafe(value.keyword) && (
+					<CampaignSourceLinks keyword={value.keyword} />
+				)}
 
 				<div className="flex items-center gap-2 text-sm">
 					<Checkbox
@@ -602,6 +607,30 @@ function GuideCampaignDialog({
 	);
 }
 
+/** Свёрнутый по умолчанию блок ссылок по рекламным площадкам — не загромождает строку кампании. */
+function CampaignSourceLinksToggle({ keyword }: { keyword: string }) {
+	const [open, setOpen] = useState(false);
+	return (
+		<Collapsible open={open} onOpenChange={setOpen}>
+			<CollapsibleTrigger asChild>
+				<Button
+					type="button"
+					variant="link"
+					size="sm"
+					className="h-auto self-start p-0 text-xs"
+				>
+					{open
+						? "Скрыть ссылки по источникам"
+						: "Ссылки по источникам рекламы"}
+				</Button>
+			</CollapsibleTrigger>
+			<CollapsibleContent className="pt-2">
+				<CampaignSourceLinks keyword={keyword} />
+			</CollapsibleContent>
+		</Collapsible>
+	);
+}
+
 function DeleteCampaignButton({ id, title }: { id: string; title: string }) {
 	const queryClient = useQueryClient();
 	const mutation = useMutation(
@@ -757,6 +786,7 @@ export function GuideCampaignsCard() {
 												})()}
 											</span>
 											<CampaignStartLinks keyword={campaign.keyword} />
+											<CampaignSourceLinksToggle keyword={campaign.keyword} />
 										</div>
 										<div className="flex items-center gap-2">
 											<GuideCampaignDialog

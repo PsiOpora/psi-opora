@@ -9,7 +9,6 @@ import {
 	decodeStartParam,
 	dispatchScenarioOutput,
 	enrichCrmFromClientMessage,
-	findGuideCampaignByText,
 	formatUtmLog,
 	type GuideCampaignContext,
 	getScenarioTexts,
@@ -18,6 +17,7 @@ import {
 	logBotMessage,
 	looksLikeDiagnosticConsent,
 	parseUtmParams,
+	resolveGuideCampaignStart,
 	resolveGuideFile,
 	SCENARIO_ACTIONS,
 	type ScenarioMessage,
@@ -368,18 +368,21 @@ export function createMaxBot({
 			text: startPayload ? `/start ${startPayload}` : "/start",
 		});
 
-		// Диплинк с кодовым словом кампании гайда в /start-параметре — см.
+		// Диплинк с кодовым словом кампании гайда в /start-параметре — можно и
+		// с источником рекламы через `_` (SCHOOL_VK, см. splitStartParam). См.
 		// такую же ветку в bot.command("start") у TG-бота (packages/bot-core/src/bot.ts).
 		// Декодируем до сравнения: кириллица в ссылке приходит percent-encoded.
 		const startParam = decodeStartParam(startPayload);
-		const campaign = startParam
-			? await findGuideCampaignByText(startParam)
+		const resolved = startParam
+			? await resolveGuideCampaignStart(startParam)
 			: null;
-		if (campaign) {
+		if (resolved) {
+			const { campaign, source } = resolved;
 			log(
-				`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} guide_campaign=${campaign.id} messenger=max`,
+				`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} guide_campaign=${campaign.id}${source ? ` source=${source}` : ""} messenger=max`,
 			);
 			ctx.session.campaign = campaign.keyword;
+			if (source) ctx.session.source = source;
 			await collectMaxProfile(ctx, ctx.session.source, ctx.session.campaign);
 			const texts = await getScenarioTexts();
 			await dispatch(ctx, startGuideCampaign(campaign, texts), texts, campaign);
@@ -569,14 +572,16 @@ export function createMaxBot({
 
 		const state = appCtx.session.scenario;
 		if (!state) {
-			// Кодовое слово кампании гайда (см. bot_guide_campaigns) — запускаем
-			// спецветку сценария вместо обычного /start-меню.
-			const campaign = await findGuideCampaignByText(text);
-			if (campaign) {
+			// Кодовое слово кампании гайда, вводится текстом (см. bot_guide_campaigns)
+			// — можно и с источником рекламы через `_` (SCHOOL_VK), как в /start.
+			const resolved = await resolveGuideCampaignStart(text);
+			if (resolved) {
+				const { campaign, source } = resolved;
 				log(
-					`[GUIDE] user=${userId} keyword="${text}" campaign=${campaign.id} messenger=max`,
+					`[GUIDE] user=${userId} keyword="${text}" campaign=${campaign.id}${source ? ` source=${source}` : ""} messenger=max`,
 				);
 				appCtx.session.campaign = appCtx.session.campaign ?? campaign.keyword;
+				if (source) appCtx.session.source = appCtx.session.source ?? source;
 				const texts = await getScenarioTexts();
 				await dispatch(
 					appCtx,

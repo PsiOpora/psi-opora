@@ -59,7 +59,7 @@ export const deliverBroadcast = CreateTaskWorkflow({
 
       for (const recipient of targets) {
         try {
-          await sendMessengerMessage(
+          const externalId = await sendMessengerMessage(
             recipient.messenger as Messenger,
             recipient.messengerUserId as string,
             broadcast.message,
@@ -71,12 +71,16 @@ export const deliverBroadcast = CreateTaskWorkflow({
           });
           // Журнал сообщений — рассылка тоже должна быть видна в истории
           // диалога во вкладке CRM. Ошибка записи не должна валить рассылку.
+          // externalId сохраняем, чтобы статус доставки можно было привязать
+          // к записи по ack внешнего мессенджера (updateBotMessageStatus).
           await insertBotMessage({
             messenger: recipient.messenger as Messenger,
             userId: recipient.messengerUserId as string,
             direction: "out",
             source: "broadcast",
             text: broadcast.message,
+            status: "sent",
+            externalId,
           }).catch((err: unknown) => {
             console.error(
               `[broadcast] не удалось записать сообщение в журнал: ${(err as Error).message}`,
@@ -87,6 +91,21 @@ export const deliverBroadcast = CreateTaskWorkflow({
             status: "error",
             error: formatMessengerError((err as Error).message),
             sentAt: null,
+          });
+          // Провал отправки тоже виден в истории диалога — статус "failed"
+          // инбокс показывает как «не доставлено», иначе по конкретному
+          // клиенту не понять, что рассылка до него не дошла.
+          await insertBotMessage({
+            messenger: recipient.messenger as Messenger,
+            userId: recipient.messengerUserId as string,
+            direction: "out",
+            source: "broadcast",
+            text: broadcast.message,
+            status: "failed",
+          }).catch((logErr: unknown) => {
+            console.error(
+              `[broadcast] не удалось записать неотправленное сообщение в журнал: ${(logErr as Error).message}`,
+            );
           });
         }
         await sleep(SEND_INTERVAL_MS);

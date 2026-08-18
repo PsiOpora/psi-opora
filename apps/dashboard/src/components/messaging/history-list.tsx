@@ -30,19 +30,40 @@ export const SOURCE_LABELS: Record<string, string> = {
  * иначе менеджер, читающий историю выше, не будет «дёрнут» вниз поллингом. */
 const STICK_TO_BOTTOM_THRESHOLD_PX = 40;
 
-/** Вливает новые сообщения с поллинга в локальную историю: заменяет
- * совпадающее по смыслу оптимистичное сообщение подтверждённой записью
- * (чтобы не задваивать только что отправленное), остальное — добавляет.
- * Матчинг идёт по id с префиксом "pending-", а не по флагу `pending` —
- * он мог быть уже снят по таймауту, но запись всё ещё нужно бесшовно
- * заменить подтверждённой, без дубля. */
+/** Статус доставки исходящего сообщения. Выше "sent" его поднимает только
+ * WhatsApp (ack WAHA) — у Telegram/MAX нет вебхуков доставки, это ограничение
+ * их API. "failed" ставят пути отправки, когда мессенджер отклонил сообщение
+ * (бот заблокирован, диалог удалён и т.п.). */
+export const STATUS_LABELS: Record<string, string> = {
+  sent: "отправлено",
+  delivered: "доставлено",
+  read: "прочитано",
+  failed: "не доставлено",
+};
+
+/** Вливает новые сообщения с поллинга в локальную историю: уже известный id —
+ * обновляет запись на месте (так долетают статусные апдейты sent → delivered
+ * → read → failed по уже показанным сообщениям, поллинг ходит по updatedAt),
+ * совпадающее по смыслу оптимистичное сообщение — заменяет подтверждённой
+ * записью (чтобы не задваивать только что отправленное), остальное —
+ * добавляет. Матчинг оптимистичной записи идёт по id с префиксом "pending-",
+ * а не по флагу `pending` — он мог быть уже снят по таймауту, но запись всё
+ * ещё нужно бесшовно заменить подтверждённой, без дубля. */
 export function mergeHistory(
   prev: HistoryEntry[],
   incoming: WidgetHistoryItem[],
 ): HistoryEntry[] {
   let next = prev;
   for (const msg of incoming) {
-    if (next.some((item) => item.id === msg.id)) continue;
+    const existingIdx = next.findIndex((item) => item.id === msg.id);
+    if (existingIdx !== -1) {
+      next = [
+        ...next.slice(0, existingIdx),
+        { ...next[existingIdx], ...msg },
+        ...next.slice(existingIdx + 1),
+      ];
+      continue;
+    }
     const pendingIdx = next.findIndex(
       (item) =>
         item.id.startsWith("pending-") &&
@@ -94,6 +115,9 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
               ? "self-end bg-primary/10"
               : "self-start bg-muted",
             item.pending && "opacity-60",
+            item.direction === "out" &&
+              item.status === "failed" &&
+              "ring-1 ring-destructive/40",
           )}
         >
           {item.text}
@@ -106,10 +130,26 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
             })}
             {" · "}
             {item.direction === "out" ? "бот" : "клиент"}
-            {SOURCE_LABELS[item.source] ? ` · ${SOURCE_LABELS[item.source]}` : ""}
+            {SOURCE_LABELS[item.source]
+              ? ` · ${SOURCE_LABELS[item.source]}`
+              : ""}
             {" · "}
             {historyLabel(item.messenger)}
             {item.pending ? " · отправляется…" : ""}
+            {/* Статус показываем только у исходящих и только после
+                подтверждения записью в БД: у оптимистичной записи он всегда
+                "sent" и вводил бы в заблуждение. */}
+            {!item.pending &&
+            item.direction === "out" &&
+            STATUS_LABELS[item.status] ? (
+              <span
+                className={cn(
+                  item.status === "failed" && "font-medium text-destructive",
+                )}
+              >
+                {` · ${STATUS_LABELS[item.status]}`}
+              </span>
+            ) : null}
           </div>
         </div>
       ))}

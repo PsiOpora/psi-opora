@@ -1,8 +1,5 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
-import {
-  sendMessengerMessage,
-  type Messenger,
-} from "../messenger";
+import { sendMessengerMessage, type Messenger } from "../messenger";
 
 /**
  * Общие константы и хелперы для напоминаний о консультации и диагностике
@@ -115,7 +112,9 @@ export type BotDeliveryResult =
   | { status: "skipped" | "error"; reason: string };
 
 function messengerFromImType(raw: unknown): Messenger | null {
-  const type = String(raw ?? "").trim().toLowerCase();
+  const type = String(raw ?? "")
+    .trim()
+    .toLowerCase();
   if (type.includes("telegram")) return "telegram";
   if (type === "max" || type.endsWith("|max") || type.includes("max.ru")) {
     return "max";
@@ -134,7 +133,7 @@ export function resolveDirectBotTarget(
   contact: { IM?: ContactIm[] } | false,
 ): DirectBotTarget | null {
   const preferred = MESSENGER_BOT_MAP[String(deal[MESSENGER_FIELD] ?? "")];
-  const targets = (contact ? contact.IM ?? [] : [])
+  const targets = (contact ? (contact.IM ?? []) : [])
     .map((entry): DirectBotTarget | null => {
       const messenger = messengerFromImType(entry.VALUE_TYPE);
       const userId = String(entry.VALUE ?? "").trim();
@@ -142,11 +141,53 @@ export function resolveDirectBotTarget(
     })
     .filter((target): target is DirectBotTarget => target !== null);
 
-  return targets.find((target) => target.messenger === preferred) ?? targets[0] ?? null;
+  return (
+    targets.find((target) => target.messenger === preferred) ??
+    targets[0] ??
+    null
+  );
 }
 
 export function botDeliveryLabel(messenger: Messenger): string {
   return messenger === "telegram" ? "Telegram-бот" : "MAX-бот";
+}
+
+/**
+ * Пишет автосообщение в журнал bot_messages, чтобы напоминание было видно в
+ * истории диалога (вкладка CRM и инбокс «Клиенты») рядом с ответом клиента, а
+ * не только комментарием в таймлайне сделки. Неудачная отправка тоже
+ * записывается — со статусом "failed", который инбокс показывает как
+ * «не доставлено»; иначе провал выглядел бы как «сообщения не было».
+ *
+ * Ленивый импорт queries: клиент БД подключается на верхнем уровне модуля
+ * (top-level await + проверка POSTGRES_URL), статический импорт ронял бы
+ * индексацию Hatchet-задач при деплое, где БД недоступна (как в
+ * hatchet/broadcast.ts). Ошибка записи не должна отменять сам факт отправки.
+ */
+async function logReminderMessage(params: {
+  target: DirectBotTarget;
+  text: string;
+  status: "sent" | "failed";
+  externalId?: string;
+}): Promise<void> {
+  const text = params.text.trim();
+  if (!text) return;
+  try {
+    const { insertBotMessage } = await import("@psi-opora/db/queries");
+    await insertBotMessage({
+      messenger: params.target.messenger,
+      userId: params.target.userId,
+      direction: "out",
+      source: "reminder",
+      text,
+      status: params.status,
+      externalId: params.externalId,
+    });
+  } catch (err) {
+    console.error(
+      `[reminder] не удалось записать сообщение в журнал (${params.target.messenger} ${params.target.userId}): ${(err as Error).message}`,
+    );
+  }
 }
 
 /** Отправляет уведомление напрямую через нашего Telegram/MAX-бота. */
@@ -161,9 +202,20 @@ export async function sendReminderBotMessage(
   }
 
   try {
-    await sendMessengerMessage(target.messenger, target.userId, message);
+    const externalId = await sendMessengerMessage(
+      target.messenger,
+      target.userId,
+      message,
+    );
+    await logReminderMessage({
+      target,
+      text: message,
+      status: "sent",
+      externalId,
+    });
     return { status: "sent", ...target };
   } catch (error) {
+    await logReminderMessage({ target, text: message, status: "failed" });
     return {
       status: "error",
       reason: `bot_send_failed: ${(error as Error).message}`,

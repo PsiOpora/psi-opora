@@ -52,6 +52,7 @@ export const poll = publicProcedure
                 row.direction === "in" ? ("in" as const) : ("out" as const),
               source: row.source,
               text: row.text,
+              status: row.status,
               createdAt: row.createdAt.toISOString(),
             }));
           }),

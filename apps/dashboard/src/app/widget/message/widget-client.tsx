@@ -189,6 +189,7 @@ export function MessageWidget({
           direction: "out",
           source: "widget",
           text: trimmedText,
+          status: "sent",
           createdAt: new Date().toISOString(),
           pending: true,
         },

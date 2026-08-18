@@ -1,8 +1,8 @@
 import { SITE_CODES } from "./site-codes";
 
 export interface UtmParams {
-  source?: string;
-  campaign?: string;
+	source?: string;
+	campaign?: string;
 }
 
 /**
@@ -13,25 +13,25 @@ export interface UtmParams {
  * ссылке молча уедет в обычный сценарий.
  */
 export function decodeStartParam(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    // Некорректный percent-encoding не должен ломать запуск бота:
-    // сохраняем исходную метку как раньше.
-    return raw;
-  }
+	if (!raw) return undefined;
+	try {
+		return decodeURIComponent(raw);
+	} catch {
+		// Некорректный percent-encoding не должен ломать запуск бота:
+		// сохраняем исходную метку как раньше.
+		return raw;
+	}
 }
 
 export function parseUtmParams(startParam: string | undefined): UtmParams {
-  if (!startParam) return {};
-  const decodedParam = decodeStartParam(startParam) ?? startParam;
+	if (!startParam) return {};
+	const decodedParam = decodeStartParam(startParam) ?? startParam;
 
-  const entry = SITE_CODES[decodedParam];
-  if (entry) return { source: entry.source, campaign: entry.campaign };
-  // код не зарегистрирован в SITE_CODES — не теряем трафик,
-  // трактуем как кампанию по старой схеме, но без источника
-  return { campaign: decodedParam };
+	const entry = SITE_CODES[decodedParam];
+	if (entry) return { source: entry.source, campaign: entry.campaign };
+	// код не зарегистрирован в SITE_CODES — не теряем трафик,
+	// трактуем как кампанию по старой схеме, но без источника
+	return { campaign: decodedParam };
 }
 
 /**
@@ -43,7 +43,7 @@ export function parseUtmParams(startParam: string | undefined): UtmParams {
 const START_PARAM_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 export function isValidStartParam(code: string): boolean {
-  return START_PARAM_RE.test(code);
+	return START_PARAM_RE.test(code);
 }
 
 /**
@@ -55,7 +55,7 @@ export function isValidStartParam(code: string): boolean {
 const CAMPAIGN_KEYWORD_RE = /^[A-Za-z0-9-]{1,64}$/;
 
 export function isValidCampaignKeyword(keyword: string): boolean {
-  return CAMPAIGN_KEYWORD_RE.test(keyword);
+	return CAMPAIGN_KEYWORD_RE.test(keyword);
 }
 
 /**
@@ -68,19 +68,19 @@ export function isValidCampaignKeyword(keyword: string): boolean {
  * isValidStartParam, которую задаёт администратор в дашборде.
  */
 export function splitStartParam(raw: string): {
-  keyword: string;
-  source?: string;
+	keyword: string;
+	source?: string;
 } {
-  const index = raw.indexOf("_");
-  if (index === -1) return { keyword: raw };
-  const keyword = raw.slice(0, index);
-  const source = raw.slice(index + 1);
-  if (!keyword || !source) return { keyword: raw };
-  return { keyword, source };
+	const index = raw.indexOf("_");
+	if (index === -1) return { keyword: raw };
+	const keyword = raw.slice(0, index);
+	const source = raw.slice(index + 1);
+	if (!keyword || !source) return { keyword: raw };
+	return { keyword, source };
 }
 
 export function buildStartLink(botUsername: string, code: string): string {
-  return `https://t.me/${stripAt(botUsername)}?start=${code}`;
+	return `https://t.me/${stripAt(botUsername)}?start=${code}`;
 }
 
 /**
@@ -89,18 +89,18 @@ export function buildStartLink(botUsername: string, code: string): string {
  * handleStart в apps/max-bot/src/bot.ts.
  */
 export function buildMaxStartLink(botUsername: string, code: string): string {
-  return `https://max.ru/${stripAt(botUsername)}?start=${code}`;
+	return `https://max.ru/${stripAt(botUsername)}?start=${code}`;
 }
 
 /** Заказчик почти всегда вводит username с «@» — принимаем оба варианта. */
 function stripAt(botUsername: string): string {
-  return botUsername.trim().replace(/^@/, "");
+	return botUsername.trim().replace(/^@/, "");
 }
 
 export function formatUtmLog(params: UtmParams): string {
-  const parts = [
-    params.source && `source=${params.source}`,
-    params.campaign && `campaign=${params.campaign}`,
-  ].filter(Boolean);
-  return parts.length ? parts.join(" ") : "без метки";
+	const parts = [
+		params.source && `source=${params.source}`,
+		params.campaign && `campaign=${params.campaign}`,
+	].filter(Boolean);
+	return parts.length ? parts.join(" ") : "без метки";
 }
