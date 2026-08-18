@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { ClientAvatar } from "@/components/inbox/client-avatar";
 import { CrmSection } from "@/components/inbox/crm-section";
+import { GuidesSection } from "@/components/inbox/guides-section";
 import { messengerLabel } from "@/components/inbox/messenger-meta";
 import { NotesSection } from "@/components/inbox/notes-section";
 import { TagsEditor } from "@/components/inbox/tags-editor";
@@ -170,6 +171,8 @@ export function ProfilePane({
       <Separator />
 
       <NotesSection selected={selected} operator={operator} />
+
+      <GuidesSection selected={selected} />
 
       <Separator />
 

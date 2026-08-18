@@ -41,6 +41,46 @@ export interface ScenarioDispatchDeps {
   guideCampaign?: GuideCampaignContext | null;
 }
 
+/** Что именно клиент получил вместе с материалом — для комментария в сделке. */
+interface GuideHandout {
+  /** Тема кампании; пусто для глобального «активного» гайда. */
+  title?: string;
+  fileName: string;
+  url: string;
+  /** Ссылка ушла в чат (Telegram) — по ней и трекаются открытия. */
+  linkInChat: boolean;
+  email?: string;
+  emailSentAt?: Date;
+  emailError?: string;
+}
+
+/**
+ * Комментарий о выдаче материала. Оператору важны три вещи: что выдали, ушло
+ * ли письмо и есть ли у клиента ссылка (по ней потом видно открытие).
+ */
+function describeGuideHandout(handout: GuideHandout): string {
+  const what = handout.title
+    ? `«${handout.title}» (${handout.fileName})`
+    : handout.fileName;
+  const lines = [`📄 Материал выдан: ${what}`];
+
+  if (handout.emailSentAt) {
+    lines.push(`Письмо с PDF отправлено на ${handout.email}.`);
+  } else if (handout.emailError) {
+    lines.push(
+      `Письмо на ${handout.email} отправить не удалось: ${handout.emailError}`,
+    );
+  } else if (!handout.email) {
+    lines.push("Email клиент не оставил — письмо не отправлялось.");
+  }
+
+  if (handout.linkInChat) {
+    lines.push(`Ссылка в чате: ${handout.url}`);
+  }
+
+  return lines.join("\n");
+}
+
 /**
  * Исполняет результат шага сценария: отправляет сообщения, трекает воронку,
  * создаёт сделку в Bitrix и управляет очередью напоминаний.
@@ -54,6 +94,12 @@ export async function dispatchScenarioOutput(
   // выдачи гарантированно сходятся.
   const campaignId =
     out.lead?.campaignId ?? out.state.campaignId ?? deps.guideCampaign?.id;
+
+  // Факты выдачи материала для таймлайна сделки. Сделка на этот момент ещё
+  // может не существовать (в обычном флоу гайда она создаётся позже, на шаге
+  // телефона), поэтому комментарий формируем здесь, а отправляем ниже —
+  // когда dealId известен.
+  let handout: GuideHandout | null = null;
 
   for (const message of out.messages) {
     const guide = message.guide
@@ -112,6 +158,16 @@ export async function dispatchScenarioOutput(
       text: outgoing.text,
     });
 
+    if (guide) {
+      handout = {
+        title: deps.guideCampaign?.title,
+        fileName: guide.name,
+        url: guideUrl ?? guide.url,
+        linkInChat: outgoing !== message,
+        email: out.state.email,
+      };
+    }
+
     if (guide && out.state.email) {
       try {
         await sendGuideEmail(
@@ -121,7 +177,9 @@ export async function dispatchScenarioOutput(
           deps.guideCampaign?.emailBody ?? deps.texts.email_body,
         );
         if (messageId) await markBotMessageGuideEmailSent(messageId);
+        if (handout) handout.emailSentAt = new Date();
       } catch (err) {
+        if (handout) handout.emailError = (err as Error).message;
         // Гайд уже ушёл в чат — без письма диалог не ломаем
         console.error(
           `[guide] не удалось отправить email: ${(err as Error).message}`,
@@ -176,8 +234,29 @@ export async function dispatchScenarioOutput(
         name,
         phone: out.lead.phone,
         email: out.lead.email,
+        emailSentAt: handout?.emailSentAt,
       });
     }
+  }
+
+  // Выдача материала в таймлайне сделки: и ссылка в чате, и письмо на email.
+  // Комментарий копим в состоянии сценария, если сделки ещё нет: в обычном
+  // флоу гайда материал уходит на шаге email, а сделка создаётся только
+  // после телефона — иначе факт выдачи в CRM не попал бы вообще.
+  const handoutComment = handout ? describeGuideHandout(handout) : null;
+  if (handoutComment) {
+    if (out.state.dealId) {
+      await appendDealComment(deps.messenger, out.state.dealId, handoutComment);
+    } else {
+      out.state.pendingGuideComment = handoutComment;
+    }
+  } else if (out.state.dealId && out.state.pendingGuideComment) {
+    await appendDealComment(
+      deps.messenger,
+      out.state.dealId,
+      out.state.pendingGuideComment,
+    );
+    out.state.pendingGuideComment = undefined;
   }
 
   if (out.contact) {

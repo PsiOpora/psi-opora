@@ -126,6 +126,7 @@ export type {
 } from "./bot-guide-campaigns";
 export type {
   BotGuideDelivery,
+  ClientGuideActivity,
   DueGuideFollowUp,
   GuideCampaignStats,
   NewBotGuideDeliveryEntry,

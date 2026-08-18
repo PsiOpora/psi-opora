@@ -59,6 +59,7 @@ export type {
   CampaignTemplateSummary,
 } from "./routers/email-templates";
 export type {
+  ClientGuideItem,
   ClientListItem,
   ClientMessageItem,
   ClientNoteItem,
@@ -80,8 +81,5 @@ export type {
   WidgetHistoryItem,
   WidgetRecipient,
 } from "./routers/widget-message";
-export {
-  type AdCredentialsInput,
-  adCredentialsSchema,
-} from "./schemas/ads";
+export { type AdCredentialsInput, adCredentialsSchema } from "./schemas/ads";
 export type { RouterInputs, RouterOutputs };

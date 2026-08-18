@@ -80,6 +80,7 @@ export {
 } from "./storage/redis";
 export type { AppContext, ConsultationSession } from "./types/context";
 export {
+  appendDealComment,
   type BitrixApiLike,
   type BitrixSource,
   type ContactData,
