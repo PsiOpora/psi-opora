@@ -46,6 +46,39 @@ export function isValidStartParam(code: string): boolean {
   return START_PARAM_RE.test(code);
 }
 
+/**
+ * Кодовое слово кампании гайда — та же латиница/цифры/`-`, что и в
+ * isValidStartParam, но без `_`: подчёркивание зарезервировано под источник
+ * рекламы в ссылке (см. splitStartParam) и однозначно отделяет слово от
+ * метки, только если само слово его не содержит.
+ */
+const CAMPAIGN_KEYWORD_RE = /^[A-Za-z0-9-]{1,64}$/;
+
+export function isValidCampaignKeyword(keyword: string): boolean {
+  return CAMPAIGN_KEYWORD_RE.test(keyword);
+}
+
+/**
+ * Ссылка «кодовое слово + источник рекламы» вида `SCHOOL_VK`,
+ * `SCHOOL_INSTAGRAM` — чтобы отличать, из какой рекламы пришёл клиент,
+ * не заводя для каждого источника отдельную кампанию. Делим по первому `_`:
+ * при соблюдении isValidCampaignKeyword (слово без `_`) это однозначно.
+ * source не валидируется списком — рекламных площадок слишком много и
+ * список быстро устареет, поэтому источник — любая строка в рамках
+ * isValidStartParam, которую задаёт администратор в дашборде.
+ */
+export function splitStartParam(raw: string): {
+  keyword: string;
+  source?: string;
+} {
+  const index = raw.indexOf("_");
+  if (index === -1) return { keyword: raw };
+  const keyword = raw.slice(0, index);
+  const source = raw.slice(index + 1);
+  if (!keyword || !source) return { keyword: raw };
+  return { keyword, source };
+}
+
 export function buildStartLink(botUsername: string, code: string): string {
   return `https://t.me/${stripAt(botUsername)}?start=${code}`;
 }

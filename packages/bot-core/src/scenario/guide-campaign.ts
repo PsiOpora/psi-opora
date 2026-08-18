@@ -6,6 +6,7 @@ import {
 	markGuideDiagnosticRequested,
 } from "@psi-opora/db/queries";
 import { appendDealComment } from "../utils/bitrix";
+import { splitStartParam } from "../utils/utm";
 import type { GuideCampaignContext } from "./engine";
 import type { ScenarioTexts } from "./texts";
 
@@ -28,6 +29,32 @@ export async function findGuideCampaignByText(
 ): Promise<GuideCampaignContext | null> {
 	const row = await getBotGuideCampaignByKeyword(text);
 	return row ? toContext(row) : null;
+}
+
+export interface GuideCampaignStart {
+	campaign: GuideCampaignContext;
+	/** Источник рекламы из ссылки вида SCHOOL_VK — undefined, если его не было. */
+	source?: string;
+}
+
+/**
+ * Кампания по тексту, который может быть как голым кодовым словом
+ * («SCHOOL» — набрано в чате или отдано мессенджером как /start-параметр),
+ * так и словом с источником рекламы через `_` («SCHOOL_VK», см.
+ * splitStartParam) — так дашборд собирает разные ссылки на одну кампанию
+ * под разные площадки, не заводя кампанию под каждую отдельно.
+ * Используется и для /start-параметра, и для кодового слова текстом в чате.
+ */
+export async function resolveGuideCampaignStart(
+	text: string,
+): Promise<GuideCampaignStart | null> {
+	const direct = await findGuideCampaignByText(text);
+	if (direct) return { campaign: direct };
+
+	const { keyword, source } = splitStartParam(text);
+	if (!source) return null;
+	const campaign = await findGuideCampaignByText(keyword);
+	return campaign ? { campaign, source } : null;
 }
 
 /**

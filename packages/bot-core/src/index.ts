@@ -37,9 +37,11 @@ export {
 } from "./scenario/engine";
 export {
   findGuideCampaignByText,
+  type GuideCampaignStart,
   handleGuideDiagnosticRequest,
   loadGuideCampaignContext,
   looksLikeDiagnosticConsent,
+  resolveGuideCampaignStart,
 } from "./scenario/guide-campaign";
 export {
   clearScenarioAwaiting,
@@ -137,8 +139,10 @@ export {
   buildStartLink,
   decodeStartParam,
   formatUtmLog,
+  isValidCampaignKeyword,
   isValidStartParam,
   parseUtmParams,
+  splitStartParam,
   type UtmParams,
 } from "./utils/utm";
 export { hasPhoneNumber, isValidEmail } from "./utils/validation";
