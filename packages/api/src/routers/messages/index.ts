@@ -7,6 +7,7 @@ import { edit } from "./edit";
 import { guideActivity } from "./guide-activity";
 import { list } from "./list";
 import { markRead } from "./mark-read";
+import { mergeClients, unmergeClient } from "./merge";
 import { addNote, deleteNote, notes } from "./notes";
 import { poll } from "./poll";
 import { profile } from "./profile";
@@ -28,6 +29,8 @@ export const messagesRouter = router({
   delete: deleteMessage,
   markRead,
   assign,
+  mergeClients,
+  unmergeClient,
   profile,
   guideActivity,
   crmLinks,

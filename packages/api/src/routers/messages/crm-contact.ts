@@ -2,6 +2,7 @@ import { type BitrixApi, createWebhookApi } from "@psi-opora/bitrix-client";
 import {
   getBitrixCrmLink,
   getBotConnector,
+  listGroupIdentities,
   listMaxPersonalAccounts,
   listTelegramPersonalAccounts,
   listWhatsappPersonalAccounts,
@@ -154,6 +155,10 @@ const EMPTY_CRM_BINDINGS: CrmBindings = {
  *   до этой миграции: entity_data_2 заполняет только сам трекер при
  *   автосоздании сущностей, которое в текущих настройках линии отключено,
  *   так что для новых диалогов там нет ни контакта, ни сделки.
+ *
+ * Если канал объединён с другими (см. merge.ts), bitrix_crm_links проверяется
+ * по всей группе identity (primary — первым) — так уже привязанный к Bitrix
+ * контакт не «теряется» после слияния с каналом, у которого своей привязки нет.
  */
 export async function resolveDialogCrmBindings(
   api: BitrixApi,
@@ -161,13 +166,18 @@ export async function resolveDialogCrmBindings(
   messenger: InboxMessenger,
   userId: string,
 ): Promise<CrmBindings> {
-  const link = await getBitrixCrmLink(messenger, userId).catch(() => null);
-  if (link) {
-    return {
-      contactId: link.contactId,
-      dealId: link.dealId ?? null,
-      leadId: null,
-    };
+  const identities = await listGroupIdentities(messenger, userId);
+  for (const identity of identities) {
+    const link = await getBitrixCrmLink(identity.messenger, identity.userId).catch(
+      () => null,
+    );
+    if (link) {
+      return {
+        contactId: link.contactId,
+        dealId: link.dealId ?? null,
+        leadId: null,
+      };
+    }
   }
 
   if (

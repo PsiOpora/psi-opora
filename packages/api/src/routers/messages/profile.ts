@@ -1,24 +1,43 @@
 import {
   getBotUserProfile,
-  getClientMessageStats,
+  getClientMessageStatsForGroup,
+  listGroupIdentities,
 } from "@psi-opora/db/queries";
 import { bitrixProcedure } from "../../orpc";
 import { clientThreadSchema } from "../../schemas/messages";
-import { type ClientProfile, createAvatarUrl } from "./types";
+import {
+  type ClientProfile,
+  createAvatarUrl,
+  type InboxMessenger,
+} from "./types";
 
-/** Карточка клиента для правой панели инбокса: профиль из bot_users + сводка переписки. */
+/** Карточка клиента для правой панели инбокса: профиль из bot_users + сводка
+ * переписки — по группе identity, если канал объединён с другими (см. merge.ts). */
 export const profile = bitrixProcedure
   .input(clientThreadSchema)
   .handler(async ({ input }): Promise<{ profile: ClientProfile }> => {
+    const identities = await listGroupIdentities(input.messenger, input.userId);
+    const primary = identities[0] ?? {
+      messenger: input.messenger,
+      userId: input.userId,
+    };
+    const secondaries = identities.slice(1);
+
     const [user, stats] = await Promise.all([
-      getBotUserProfile(input.messenger, input.userId),
-      getClientMessageStats(input.messenger, input.userId),
+      getBotUserProfile(primary.messenger, primary.userId),
+      getClientMessageStatsForGroup(identities),
     ]);
 
     return {
       profile: {
         messenger: input.messenger,
         userId: input.userId,
+        canonicalMessenger: primary.messenger as InboxMessenger,
+        canonicalUserId: primary.userId,
+        linkedIdentities: secondaries.map((identity) => ({
+          messenger: identity.messenger as InboxMessenger,
+          userId: identity.userId,
+        })),
         firstName: user?.firstName ?? null,
         lastName: user?.lastName ?? null,
         name: user?.name ?? null,
@@ -27,8 +46,8 @@ export const profile = bitrixProcedure
         isPremium: user?.isPremium ?? null,
         bio: user?.bio ?? null,
         avatarUrl: createAvatarUrl(
-          input.messenger,
-          input.userId,
+          primary.messenger,
+          primary.userId,
           Boolean(user?.avatarS3Key),
         ),
         source: user?.source ?? null,

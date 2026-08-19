@@ -1,4 +1,7 @@
-import { listBotMessagesSince } from "@psi-opora/db/queries";
+import {
+  listBotMessagesSinceForGroup,
+  listGroupIdentities,
+} from "@psi-opora/db/queries";
 import { bitrixProcedure } from "../../orpc";
 import { clientPollSchema } from "../../schemas/messages";
 import { type ClientMessageItem, toClientMessageItem } from "./types";
@@ -14,11 +17,11 @@ export const poll = bitrixProcedure
       const since = new Date(input.sinceIso);
       if (Number.isNaN(since.getTime())) return { error: "Некорректная дата" };
 
-      const rows = await listBotMessagesSince(
+      const identities = await listGroupIdentities(
         input.messenger,
         input.userId,
-        since,
       );
+      const rows = await listBotMessagesSinceForGroup(identities, since);
 
       return {
         messages: rows.map((row) =>

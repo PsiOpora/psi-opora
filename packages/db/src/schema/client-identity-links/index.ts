@@ -9,21 +9,21 @@ import { index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
  * поддерживает mergeClientIdentities (packages/db/src/queries/client-identity-links.ts).
  */
 export const clientIdentityLinks = pgTable(
-  "client_identity_links",
-  {
-    id: text("id").primaryKey(),
-    messenger: text("messenger").notNull(),
-    userId: text("user_id").notNull(),
-    primaryMessenger: text("primary_messenger").notNull(),
-    primaryUserId: text("primary_user_id").notNull(),
-    mergedByOperatorId: text("merged_by_operator_id"),
-    mergedByOperatorName: text("merged_by_operator_name"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (table) => [
-    index("client_identity_links_primary_idx").on(
-      table.primaryMessenger,
-      table.primaryUserId,
-    ),
-  ],
+	"client_identity_links",
+	{
+		id: text("id").primaryKey(),
+		messenger: text("messenger").notNull(),
+		userId: text("user_id").notNull(),
+		primaryMessenger: text("primary_messenger").notNull(),
+		primaryUserId: text("primary_user_id").notNull(),
+		mergedByOperatorId: text("merged_by_operator_id"),
+		mergedByOperatorName: text("merged_by_operator_name"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("client_identity_links_primary_idx").on(
+			table.primaryMessenger,
+			table.primaryUserId,
+		),
+	],
 );

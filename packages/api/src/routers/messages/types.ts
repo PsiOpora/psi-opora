@@ -28,6 +28,9 @@ export interface ClientListItem {
   assignedOperatorId: string | null;
   assignedOperatorName: string | null;
   tags: string[];
+  /** Остальные каналы, объединённые с этим клиентом (см. merge.ts) — пусто,
+   * если клиент ни с кем не объединён. */
+  linkedChannels: InboxMessenger[];
 }
 
 export interface CrmContactLink {
@@ -94,6 +97,14 @@ export interface ClientGuideItem {
 export interface ClientProfile {
   messenger: InboxMessenger;
   userId: string;
+  /** Каноническая identity клиента — обычно совпадает с messenger/userId,
+   * но если запрос пришёл по устаревшей ссылке на уже объединённый канал
+   * (см. merge.ts), указывает на актуального primary-клиента: фронт по
+   * этим полям редиректит выбранный диалог. */
+  canonicalMessenger: InboxMessenger;
+  canonicalUserId: string;
+  /** Остальные каналы, объединённые с этим клиентом. */
+  linkedIdentities: { messenger: InboxMessenger; userId: string }[];
   firstName: string | null;
   lastName: string | null;
   name: string | null;

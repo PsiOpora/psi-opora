@@ -70,6 +70,7 @@ export const list = bitrixProcedure
         assignedOperatorId: row.assignedOperatorId,
         assignedOperatorName: row.assignedOperatorName,
         tags: row.tags,
+        linkedChannels: row.linkedChannels as ClientListItem["linkedChannels"],
       })),
     };
   });

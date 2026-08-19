@@ -1,7 +1,9 @@
 import {
   addClientNote,
   deleteClientNote,
-  listClientNotes,
+  listClientNotesForGroup,
+  listGroupIdentities,
+  resolveCanonicalIdentity,
 } from "@psi-opora/db/queries";
 import { bitrixProcedure } from "../../orpc";
 import {
@@ -27,20 +29,30 @@ function toItem(row: {
   };
 }
 
-/** Внутренние заметки по диалогу — клиенту не отправляются. */
+/** Внутренние заметки по диалогу — клиенту не отправляются. Если канал
+ * объединён с другими (см. merge.ts), показывает заметки всей группы, чтобы
+ * записи, оставленные до слияния, не терялись из вида. */
 export const notes = bitrixProcedure
   .input(clientThreadSchema)
   .handler(async ({ input }): Promise<{ notes: ClientNoteItem[] }> => {
-    const rows = await listClientNotes(input.messenger, input.userId);
+    const identities = await listGroupIdentities(input.messenger, input.userId);
+    const rows = await listClientNotesForGroup(identities);
     return { notes: rows.map(toItem) };
   });
 
+/** Новые заметки всегда пишутся на канонического клиента — так они не
+ * расходятся по каналам, даже если оператор открыл диалог по устаревшей
+ * ссылке на уже объединённую secondary-identity. */
 export const addNote = bitrixProcedure
   .input(addClientNoteSchema)
   .handler(async ({ input }): Promise<{ note: ClientNoteItem | null }> => {
+    const primary = await resolveCanonicalIdentity(
+      input.messenger,
+      input.userId,
+    );
     const row = await addClientNote({
-      messenger: input.messenger,
-      userId: input.userId,
+      messenger: primary.messenger,
+      userId: primary.userId,
       text: input.text,
       operatorId: input.operatorId,
       operatorName: input.operatorName,

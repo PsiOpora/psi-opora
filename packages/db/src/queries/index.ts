@@ -419,7 +419,7 @@ export async function resolveCanonicalIdentity(
 export async function listGroupIdentities(
   messenger: string,
   userId: string,
-): Promise<ClientIdentity[]> {
+): Promise<[ClientIdentity, ...ClientIdentity[]]> {
   return _listGroupIdentities(db, messenger, userId);
 }
 
