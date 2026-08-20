@@ -4,6 +4,12 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { DateRange as DayPickerRange } from "react-day-picker";
 import { ru } from "date-fns/locale";
+import {
+	startOfWeek,
+	startOfMonth,
+	startOfQuarter,
+	endOfDay,
+} from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -14,13 +20,49 @@ import {
 } from "@/components/ui/popover";
 import { formatDateParam } from "@/lib/analytics/date-range";
 
-const PRESETS = [
-	{ label: "7 дней", days: 7 },
-	{ label: "30 дней", days: 30 },
-	{ label: "90 дней", days: 90 },
-];
-
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+const PRESETS: { label: string; range: () => { from: Date; to: Date } }[] = [
+	{
+		label: "Текущая неделя",
+		range: () => ({
+			from: startOfWeek(new Date(), { weekStartsOn: 1 }),
+			to: endOfDay(new Date()),
+		}),
+	},
+	{
+		label: "Текущий месяц",
+		range: () => ({ from: startOfMonth(new Date()), to: endOfDay(new Date()) }),
+	},
+	{
+		label: "Текущий квартал",
+		range: () => ({
+			from: startOfQuarter(new Date()),
+			to: endOfDay(new Date()),
+		}),
+	},
+	{
+		label: "Последние 7 дней",
+		range: () => ({
+			from: new Date(Date.now() - 7 * DAY_MS),
+			to: endOfDay(new Date()),
+		}),
+	},
+	{
+		label: "Последние 30 дней",
+		range: () => ({
+			from: new Date(Date.now() - 30 * DAY_MS),
+			to: endOfDay(new Date()),
+		}),
+	},
+	{
+		label: "Последние 90 дней",
+		range: () => ({
+			from: new Date(Date.now() - 90 * DAY_MS),
+			to: endOfDay(new Date()),
+		}),
+	},
+];
 
 function currentRange(searchParams: URLSearchParams): { from: Date; to: Date } {
 	const toParam = searchParams.get("to");
@@ -48,11 +90,10 @@ export function DateRangePicker() {
 		setOpen(false);
 	}
 
-	function applyPreset(days: number) {
-		const now = new Date();
-		const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-		setRange({ from: start, to: now });
-		apply({ from: start, to: now });
+	function applyPreset(preset: (typeof PRESETS)[number]) {
+		const next = preset.range();
+		setRange(next);
+		apply(next);
 	}
 
 	return (
@@ -65,13 +106,14 @@ export function DateRangePicker() {
 			</PopoverTrigger>
 			<PopoverContent className="w-auto p-0" align="end">
 				<div className="flex flex-col gap-2 p-3 sm:flex-row">
-					<div className="flex flex-row gap-1 sm:flex-col">
+					<div className="flex flex-row flex-wrap gap-1 sm:w-40 sm:flex-col sm:flex-nowrap">
 						{PRESETS.map((preset) => (
 							<Button
-								key={preset.days}
+								key={preset.label}
 								variant="ghost"
 								size="sm"
-								onClick={() => applyPreset(preset.days)}
+								className="justify-start"
+								onClick={() => applyPreset(preset)}
 							>
 								{preset.label}
 							</Button>
