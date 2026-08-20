@@ -1,34 +1,32 @@
 {
-	"name": "psi-opora",
-	"private": true,
-	"type": "module",
-	"packageManager": "bun@1.3.14",
-	"workspaces": [
-		"apps/*",
-		"packages/*",
-		"tooling/*"
-	],
-	"scripts": {
-		"migrate": "bun run --cwd packages/db migrate",
-		"format": "biome format . --skip-parse-errors",
-		"format:fix": "biome format --write . --skip-parse-errors",
-		"lint": "biome lint . --skip-parse-errors",
-		"lint:fix": "biome lint --write . --skip-parse-errors",
-		"dev:tg": "turbo dev --filter=@psi-opora/tg-bot",
-		"dev:max": "turbo dev --filter=@psi-opora/max-bot",
-		"dev:dashboard": "turbo dev --filter=@psi-opora/dashboard",
-		"dev:clients": "turbo dev --filter=@psi-opora/clients",
-		"dev:landing": "turbo dev --filter=@psi-opora/landing",
-		"build": "bun --env-file=.env turbo run build",
-		"typecheck": "turbo typecheck"
-	},
-	"devDependencies": {
-		"@types/bun": "1.3.14",
-		"@types/node": "26.2.0",
-		"turbo": "^2.10.10",
-		"typescript": "7.0.2"
-	},
-	"dependencies": {
-		"@biomejs/biome": "^2.5.8"
-	}
+  "name": "psi-opora",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.3.14",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "tooling/*"
+  ],
+  "scripts": {
+    "migrate": "bun run --cwd packages/db migrate",
+    "format": "biome format . --skip-parse-errors",
+    "format:fix": "biome format --write . --skip-parse-errors",
+    "lint": "biome lint . --skip-parse-errors",
+    "lint:fix": "biome lint --write . --skip-parse-errors",
+    "dev:tg": "turbo dev --filter=@psi-opora/tg-bot",
+    "dev:max": "turbo dev --filter=@psi-opora/max-bot",
+    "dev:dashboard": "turbo dev --filter=@psi-opora/dashboard",
+    "dev:clients": "turbo dev --filter=@psi-opora/clients",
+    "dev:landing": "turbo dev --filter=@psi-opora/landing",
+    "build": "bun --env-file=.env turbo run build",
+    "typecheck": "turbo typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.9",
+    "@types/bun": "1.3.14",
+    "@types/node": "26.2.0",
+    "turbo": "^2.10.10",
+    "typescript": "7.0.2"
+  }
 }

@@ -61,6 +61,12 @@ interface DealsTableProps {
 	categoryNames?: Map<string, string>;
 	stageNames?: Map<string, StageInfo>;
 	dealDomain?: string | null;
+	/** Начальные значения фильтров — например, при переходе из другого отчёта. */
+	initialStatus?: string;
+	initialCategory?: string;
+	initialStage?: string;
+	initialSource?: string;
+	initialSearch?: string;
 }
 
 function sortableHeader(label: string) {
@@ -219,6 +225,11 @@ export function DealsTable({
 	categoryNames,
 	stageNames,
 	dealDomain,
+	initialStatus,
+	initialCategory,
+	initialStage,
+	initialSource,
+	initialSearch,
 }: DealsTableProps) {
 	const [sorting, setSorting] = useState<SortingState>([
 		{ id: "dateCreate", desc: true },
@@ -227,10 +238,11 @@ export function DealsTable({
 		pageIndex: 0,
 		pageSize: PAGE_SIZE,
 	});
-	const [search, setSearch] = useState("");
-	const [status, setStatus] = useState(ALL);
-	const [category, setCategory] = useState(ALL);
-	const [source, setSource] = useState(ALL);
+	const [search, setSearch] = useState(initialSearch ?? "");
+	const [status, setStatus] = useState(initialStatus ?? ALL);
+	const [category, setCategory] = useState(initialCategory ?? ALL);
+	const [stage, setStage] = useState(initialStage ?? ALL);
+	const [source, setSource] = useState(initialSource ?? ALL);
 
 	const columns = useMemo(
 		() => buildColumns({ sourceNames, categoryNames, stageNames, dealDomain }),
@@ -243,6 +255,7 @@ export function DealsTable({
 				(deal) =>
 					(status === ALL || deal.status === status) &&
 					(category === ALL || deal.categoryId === category) &&
+					(stage === ALL || deal.stageId === stage) &&
 					(source === ALL || deal.sourceId === source) &&
 					includesSearch(
 						deal,
@@ -256,6 +269,7 @@ export function DealsTable({
 			deals,
 			status,
 			category,
+			stage,
 			source,
 			search,
 			sourceNames,
@@ -273,6 +287,13 @@ export function DealsTable({
 				}))
 				.sort((a, b) => a.label.localeCompare(b.label, "ru")),
 		[deals, categoryNames],
+	);
+	const stageOptions = useMemo(
+		() =>
+			[...new Set(deals.map((deal) => deal.stageId))]
+				.map((id) => ({ id, label: stageNames?.get(id)?.name ?? id }))
+				.sort((a, b) => a.label.localeCompare(b.label, "ru")),
+		[deals, stageNames],
 	);
 	const sourceOptions = useMemo(
 		() =>
@@ -297,6 +318,7 @@ export function DealsTable({
 		setSearch("");
 		setStatus(ALL);
 		setCategory(ALL);
+		setStage(ALL);
 		setSource(ALL);
 		setPagination((current) => ({ ...current, pageIndex: 0 }));
 	};
@@ -311,7 +333,11 @@ export function DealsTable({
 	const from = filteredDeals.length === 0 ? 0 : pageIndex * PAGE_SIZE + 1;
 	const to = Math.min(filteredDeals.length, (pageIndex + 1) * PAGE_SIZE);
 	const hasFilters =
-		search.length > 0 || status !== ALL || category !== ALL || source !== ALL;
+		search.length > 0 ||
+		status !== ALL ||
+		category !== ALL ||
+		stage !== ALL ||
+		source !== ALL;
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -359,6 +385,24 @@ export function DealsTable({
 						<SelectGroup>
 							<SelectItem value={ALL}>Все воронки</SelectItem>
 							{categoryOptions.map((option) => (
+								<SelectItem key={option.id} value={option.id}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectGroup>
+					</SelectContent>
+				</Select>
+				<Select
+					value={stage}
+					onValueChange={(value) => updateFilter(setStage, value)}
+				>
+					<SelectTrigger aria-label="Фильтр по стадии" className="min-w-40">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectGroup>
+							<SelectItem value={ALL}>Все стадии</SelectItem>
+							{stageOptions.map((option) => (
 								<SelectItem key={option.id} value={option.id}>
 									{option.label}
 								</SelectItem>

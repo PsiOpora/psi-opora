@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircleIcon, HandshakeIcon } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { DealsTable } from "@/components/dashboard/deals-table";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { PageSuspense } from "@/components/dashboard/page-suspense";
@@ -61,6 +62,7 @@ export default function DealsPage() {
 }
 
 function DealsPageContent() {
+	const searchParams = useSearchParams();
 	const { data, isLoading, isError, isFetching, refetch } = useBitrixData([
 		"deals",
 	]);
@@ -98,6 +100,31 @@ function DealsPageContent() {
 
 	const deals = data.deals ?? [];
 
+	// Validate URL parameters against loaded data
+	const rawStatus = searchParams.get("status");
+	const validStatus =
+		rawStatus === "won" || rawStatus === "lost" || rawStatus === "in_progress"
+			? rawStatus
+			: undefined;
+
+	const rawCategory = searchParams.get("category");
+	const validCategory =
+		rawCategory && deals.some((d) => d.categoryId === rawCategory)
+			? rawCategory
+			: undefined;
+
+	const rawStage = searchParams.get("stage");
+	const validStage =
+		rawStage && deals.some((d) => d.stageId === rawStage)
+			? rawStage
+			: undefined;
+
+	const rawSource = searchParams.get("source");
+	const validSource =
+		rawSource && deals.some((d) => d.sourceId === rawSource)
+			? rawSource
+			: undefined;
+
 	return (
 		<Card>
 			<CardHeader>
@@ -122,11 +149,16 @@ function DealsPageContent() {
 					</Empty>
 				) : (
 					<DealsTable
+						key={searchParams.toString()}
 						deals={deals}
 						sourceNames={enrichmentData?.sourceNames}
 						categoryNames={enrichmentData?.categoryNames}
 						stageNames={enrichmentData?.stageNames}
 						dealDomain={enrichmentData?.dealDomain}
+						initialStatus={validStatus}
+						initialCategory={validCategory}
+						initialStage={validStage}
+						initialSource={validSource}
 					/>
 				)}
 			</CardContent>
