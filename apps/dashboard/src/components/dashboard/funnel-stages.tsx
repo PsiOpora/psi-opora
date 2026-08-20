@@ -5,6 +5,7 @@ import {
 	HelpCircleIcon,
 	Layers3Icon,
 } from "lucide-react";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -21,8 +22,38 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { FunnelStage } from "@/lib/analytics/types";
+import { formatDateParam } from "@/lib/analytics/date-range";
+import type { DateRange, FunnelStage } from "@/lib/analytics/types";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
+
+/** Очень широкий диапазон дат — используется для ссылок из режима «Активно
+ * сейчас», где сделки не отфильтрованы по дате создания, чтобы таблица
+ * сделок не отсекла старые сделки, которые всё ещё в работе. */
+const WIDE_RANGE_START = new Date("2015-01-01");
+
+/** Ссылка на таблицу сделок дашборда с предзаполненными фильтрами. */
+function dealsHref(params: {
+	categoryId?: string;
+	status?: string;
+	stageId?: string;
+	mode: "created" | "active";
+	reportFilter?: DateRange;
+}): string {
+	const search = new URLSearchParams();
+	if (params.categoryId) search.set("category", params.categoryId);
+	if (params.status) search.set("status", params.status);
+	if (params.stageId) search.set("stage", params.stageId);
+
+	if (params.mode === "created" && params.reportFilter) {
+		search.set("from", formatDateParam(params.reportFilter.from));
+		search.set("to", formatDateParam(params.reportFilter.to));
+	} else {
+		search.set("from", formatDateParam(WIDE_RANGE_START));
+		search.set("to", formatDateParam(new Date()));
+	}
+
+	return `/deals?${search.toString()}`;
+}
 
 /** Иконка-вопросик с расшифровкой метрики. */
 function HelpHint({ text }: { text: string }) {
@@ -45,10 +76,14 @@ function HelpHint({ text }: { text: string }) {
 export function FunnelStages({
 	stages,
 	mode,
+	categoryId,
+	reportFilter,
 }: {
 	stages: FunnelStage[];
-	/** Режим выборки сделок — влияет только на подписи. */
+	/** Режим выборки сделок — влияет на подписи и на диапазон дат в ссылках. */
 	mode: "created" | "active";
+	categoryId?: string;
+	reportFilter?: DateRange;
 }) {
 	const activeStages = stages.filter((stage) => stage.status === "in_progress");
 	const wonStages = stages.filter((stage) => stage.status === "won");
@@ -90,6 +125,7 @@ export function FunnelStages({
 							? "Все сделки CRM этой воронки, созданные в выбранном периоде, — источник: Bitrix24 crm.deal.list."
 							: "Все сделки CRM этой воронки, которые сейчас не закрыты, — источник: Bitrix24 crm.deal.list."
 					}
+					href={dealsHref({ categoryId, mode, reportFilter })}
 				/>
 				<MetricCard
 					label="Сейчас в работе"
@@ -97,6 +133,12 @@ export function FunnelStages({
 					description={formatMoney(activeSum)}
 					icon={CircleDotIcon}
 					hint="Сделки на промежуточных стадиях воронки — ещё не выиграны и не проиграны."
+					href={dealsHref({
+						categoryId,
+						status: "in_progress",
+						mode,
+						reportFilter,
+					})}
 				/>
 				<MetricCard
 					label="Выиграно"
@@ -104,6 +146,7 @@ export function FunnelStages({
 					description={formatMoney(wonSum)}
 					icon={CheckCircle2Icon}
 					hint="Сделки со стадией в статусе «Успешно» (semantic STAGE_SEMANTIC_ID = S)."
+					href={dealsHref({ categoryId, status: "won", mode, reportFilter })}
 				/>
 				<MetricCard
 					label="Конверсия в победу"
@@ -160,14 +203,22 @@ export function FunnelStages({
 														активных сделок
 													</p>
 												</div>
-												<div className="flex shrink-0 items-baseline gap-2 sm:text-right">
+												<Link
+													href={dealsHref({
+														categoryId,
+														stageId: stage.stageId,
+														mode,
+														reportFilter,
+													})}
+													className="flex shrink-0 items-baseline gap-2 rounded-sm hover:underline sm:text-right"
+												>
 													<span className="font-heading text-lg font-medium">
 														{formatNumber(stage.deals)}
 													</span>
 													<span className="text-xs text-muted-foreground">
 														{formatMoney(stage.opportunitySum)}
 													</span>
-												</div>
+												</Link>
 											</div>
 											<Progress
 												value={(stage.deals / activeMax) * 100}
@@ -225,6 +276,12 @@ export function FunnelStages({
 										deals={wonDeals}
 										sum={wonSum}
 										icon={CheckCircle2Icon}
+										href={dealsHref({
+											categoryId,
+											status: "won",
+											mode,
+											reportFilter,
+										})}
 									/>
 									<Outcome
 										label="Проиграно"
@@ -232,6 +289,12 @@ export function FunnelStages({
 										sum={lostSum}
 										icon={CircleXIcon}
 										destructive
+										href={dealsHref({
+											categoryId,
+											status: "lost",
+											mode,
+											reportFilter,
+										})}
 									/>
 								</div>
 							</div>
@@ -253,12 +316,14 @@ function MetricCard({
 	description,
 	icon: Icon,
 	hint,
+	href,
 }: {
 	label: string;
 	value: string;
 	description: string;
 	icon: typeof Layers3Icon;
 	hint?: string;
+	href?: string;
 }) {
 	return (
 		<Card size="sm">
@@ -272,7 +337,16 @@ function MetricCard({
 				</CardAction>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-1">
-				<p className="font-heading text-2xl font-medium">{value}</p>
+				{href ? (
+					<Link
+						href={href}
+						className="font-heading text-2xl font-medium hover:underline"
+					>
+						{value}
+					</Link>
+				) : (
+					<p className="font-heading text-2xl font-medium">{value}</p>
+				)}
 				<p className="text-xs text-muted-foreground">{description}</p>
 			</CardContent>
 		</Card>
@@ -285,15 +359,17 @@ function Outcome({
 	sum,
 	icon: Icon,
 	destructive = false,
+	href,
 }: {
 	label: string;
 	deals: number;
 	sum: number;
 	icon: typeof CheckCircle2Icon;
 	destructive?: boolean;
+	href?: string;
 }) {
-	return (
-		<div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+	const content = (
+		<>
 			<div className="flex items-center gap-2">
 				<Badge variant={destructive ? "destructive" : "default"}>
 					<Icon data-icon="inline-start" />
@@ -302,6 +378,23 @@ function Outcome({
 				<span className="font-medium">{formatNumber(deals)}</span>
 			</div>
 			<span className="text-xs text-muted-foreground">{formatMoney(sum)}</span>
-		</div>
+		</>
+	);
+
+	if (!href) {
+		return (
+			<div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+				{content}
+			</div>
+		);
+	}
+
+	return (
+		<Link
+			href={href}
+			className="flex items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/50"
+		>
+			{content}
+		</Link>
 	);
 }

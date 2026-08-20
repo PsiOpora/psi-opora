@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircleIcon, HandshakeIcon } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { DealsTable } from "@/components/dashboard/deals-table";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { PageSuspense } from "@/components/dashboard/page-suspense";
@@ -61,6 +62,7 @@ export default function DealsPage() {
 }
 
 function DealsPageContent() {
+	const searchParams = useSearchParams();
 	const { data, isLoading, isError, isFetching, refetch } = useBitrixData([
 		"deals",
 	]);
@@ -122,11 +124,16 @@ function DealsPageContent() {
 					</Empty>
 				) : (
 					<DealsTable
+						key={searchParams.toString()}
 						deals={deals}
 						sourceNames={enrichmentData?.sourceNames}
 						categoryNames={enrichmentData?.categoryNames}
 						stageNames={enrichmentData?.stageNames}
 						dealDomain={enrichmentData?.dealDomain}
+						initialStatus={searchParams.get("status") ?? undefined}
+						initialCategory={searchParams.get("category") ?? undefined}
+						initialStage={searchParams.get("stage") ?? undefined}
+						initialSource={searchParams.get("source") ?? undefined}
 					/>
 				)}
 			</CardContent>

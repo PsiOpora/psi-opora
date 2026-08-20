@@ -122,6 +122,8 @@ function FunnelPageContent() {
 							<FunnelStages
 								stages={funnelByStage(categoryDeals, stageNames)}
 								mode={mode}
+								categoryId={categoryId}
+								reportFilter={reportFilter}
 							/>
 						</TabsContent>
 					))}
