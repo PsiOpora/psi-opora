@@ -125,7 +125,12 @@ export function FunnelStages({
               ? "Все сделки CRM этой воронки, созданные в выбранном периоде, — источник: Bitrix24 crm.deal.list."
               : "Все сделки CRM этой воронки, которые сейчас не закрыты, — источник: Bitrix24 crm.deal.list."
           }
-          href={dealsHref({ categoryId, mode, reportFilter })}
+          href={dealsHref({
+            categoryId,
+            status: mode === "active" ? "in_progress" : undefined,
+            mode,
+            reportFilter,
+          })}
         />
         <MetricCard
           label="Сейчас в работе"
