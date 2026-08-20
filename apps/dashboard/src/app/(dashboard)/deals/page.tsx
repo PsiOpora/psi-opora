@@ -100,6 +100,31 @@ function DealsPageContent() {
 
 	const deals = data.deals ?? [];
 
+	// Validate URL parameters against loaded data
+	const rawStatus = searchParams.get("status");
+	const validStatus =
+		rawStatus === "won" || rawStatus === "lost" || rawStatus === "in_progress"
+			? rawStatus
+			: undefined;
+
+	const rawCategory = searchParams.get("category");
+	const validCategory =
+		rawCategory && deals.some((d) => d.categoryId === rawCategory)
+			? rawCategory
+			: undefined;
+
+	const rawStage = searchParams.get("stage");
+	const validStage =
+		rawStage && deals.some((d) => d.stageId === rawStage)
+			? rawStage
+			: undefined;
+
+	const rawSource = searchParams.get("source");
+	const validSource =
+		rawSource && deals.some((d) => d.sourceId === rawSource)
+			? rawSource
+			: undefined;
+
 	return (
 		<Card>
 			<CardHeader>
@@ -130,10 +155,10 @@ function DealsPageContent() {
 						categoryNames={enrichmentData?.categoryNames}
 						stageNames={enrichmentData?.stageNames}
 						dealDomain={enrichmentData?.dealDomain}
-						initialStatus={searchParams.get("status") ?? undefined}
-						initialCategory={searchParams.get("category") ?? undefined}
-						initialStage={searchParams.get("stage") ?? undefined}
-						initialSource={searchParams.get("source") ?? undefined}
+						initialStatus={validStatus}
+						initialCategory={validCategory}
+						initialStage={validStage}
+						initialSource={validSource}
 					/>
 				)}
 			</CardContent>
