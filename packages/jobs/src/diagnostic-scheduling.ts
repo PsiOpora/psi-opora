@@ -19,7 +19,8 @@ export const DIAGNOSTIC_STAGE_IDS = [
 ] as const;
 
 export const DIAGNOSTIC_JOIN_URL = "https://psi-opora.ktalk.ru/smd1srvdssx9";
-export const DIAGNOSTIC_PAYMENT_URL = "https://psi-opora.ru/prices/";
+export const DIAGNOSTIC_PAYMENT_URL = "https://psi-opora.ru/product/diagnostics/";
+export const DIAGNOSTIC_DISCOUNT_COUPON = "dia5000";
 
 const DIAGNOSTIC_DURATION_MS = 90 * 60 * 1000;
 const STATE_TTL_SECONDS = 366 * 24 * 60 * 60;
@@ -210,6 +211,7 @@ export function buildImmediateDiagnosticMessage(params: {
 		return [
 			greeting,
 			`Мы запланировали вашу диагностическую консультацию с психологом Андреем Клюевым на ${when} (по московскому времени).`,
+			`Для новых клиентов в течение первой недели действует скидка 50% на диагностическую консультацию. ❤️\n\nПри оплате используйте купон ${DIAGNOSTIC_DISCOUNT_COUPON} — по нему стоимость консультации составит 5 000 ₽ вместо 10 000 ₽.`,
 			`Ссылка на оплату:\n${params.paymentUrl ?? ""}`,
 			`Ссылка для подключения к онлайн-диагностике:\n${DIAGNOSTIC_JOIN_URL}`,
 			"Подключиться можно с телефона или компьютера. Пожалуйста, заранее выберите спокойное место, где вас никто не будет отвлекать.",
