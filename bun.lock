@@ -42,9 +42,9 @@
       "version": "0.0.1",
       "dependencies": {
         "@bitrix24/b24jssdk": "2.0.0",
-        "@orpc/client": "^1.15.0",
-        "@orpc/server": "^1.15.0",
-        "@orpc/tanstack-query": "^1.15.0",
+        "@orpc/client": "1.15.0",
+        "@orpc/server": "1.15.0",
+        "@orpc/tanstack-query": "1.15.0",
         "@psi-opora/api": "workspace:*",
         "@psi-opora/bitrix-client": "workspace:*",
         "@tanstack/react-query": "^5.101.4",
@@ -77,9 +77,9 @@
       "dependencies": {
         "@bitrix24/b24jssdk": "2.0.0",
         "@hookform/resolvers": "^5.9.1",
-        "@orpc/client": "^1.15.0",
-        "@orpc/server": "^1.15.0",
-        "@orpc/tanstack-query": "^1.15.0",
+        "@orpc/client": "1.15.0",
+        "@orpc/server": "1.15.0",
+        "@orpc/tanstack-query": "1.15.0",
         "@psi-opora/api": "workspace:*",
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
@@ -208,8 +208,8 @@
     "packages/api": {
       "name": "@psi-opora/api",
       "dependencies": {
-        "@orpc/contract": "^1.15.0",
-        "@orpc/server": "^1.15.0",
+        "@orpc/contract": "1.15.0",
+        "@orpc/server": "1.15.0",
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
