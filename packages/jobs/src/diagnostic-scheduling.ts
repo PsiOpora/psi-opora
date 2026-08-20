@@ -1,4 +1,7 @@
-import { type BitrixApi, resolveCalendarBitrixApi } from "@psi-opora/bitrix-client";
+import {
+	type BitrixApi,
+	resolveCalendarBitrixApi,
+} from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
 import {
 	appendReminderSentComment,
@@ -19,7 +22,8 @@ export const DIAGNOSTIC_STAGE_IDS = [
 ] as const;
 
 export const DIAGNOSTIC_JOIN_URL = "https://psi-opora.ktalk.ru/smd1srvdssx9";
-export const DIAGNOSTIC_PAYMENT_URL = "https://psi-opora.ru/product/diagnostics/";
+export const DIAGNOSTIC_PAYMENT_URL =
+	"https://psi-opora.ru/product/diagnostics/";
 export const DIAGNOSTIC_DISCOUNT_COUPON = "dia5000";
 
 const DIAGNOSTIC_DURATION_MS = 90 * 60 * 1000;

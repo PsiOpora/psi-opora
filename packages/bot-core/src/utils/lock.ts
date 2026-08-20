@@ -58,50 +58,50 @@ return 0
  * Без Redis (локальная разработка/тесты) — no-op, просто выполняет fn.
  */
 export async function withUserLock<T>(
-  redis: RedisClient | undefined,
-  key: string,
-  fn: () => Promise<T>,
+	redis: RedisClient | undefined,
+	key: string,
+	fn: () => Promise<T>,
 ): Promise<T> {
-  if (!redis) return fn();
+	if (!redis) return fn();
 
-  const lockKey = `lock:session:${key}`;
-  const token = crypto.randomUUID();
-  const deadline = Date.now() + MAX_WAIT_MS;
+	const lockKey = `lock:session:${key}`;
+	const token = crypto.randomUUID();
+	const deadline = Date.now() + MAX_WAIT_MS;
 
-  let acquired = false;
-  while (!acquired) {
-    acquired = Boolean(
-      await redis.set(lockKey, token, { nx: true, px: LOCK_TTL_MS }),
-    );
-    if (acquired) break;
-    if (Date.now() >= deadline) {
-      throw new Error(
-        `[lock] не удалось получить ${lockKey} за ${MAX_WAIT_MS}мс`,
-      );
-    }
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-  }
+	let acquired = false;
+	while (!acquired) {
+		acquired = Boolean(
+			await redis.set(lockKey, token, { nx: true, px: LOCK_TTL_MS }),
+		);
+		if (acquired) break;
+		if (Date.now() >= deadline) {
+			throw new Error(
+				`[lock] не удалось получить ${lockKey} за ${MAX_WAIT_MS}мс`,
+			);
+		}
+		await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+	}
 
-  // Пока fn() выполняется — продлеваем TTL, чтобы не потерять лок на
-  // легитимно долгих путях (скачивание/заливка аватара, вызовы Bitrix API,
-  // вложенный LLM-запрос на шаге "имя") раньше, чем обработка реально
-  // завершится.
-  const renewTimer = setInterval(() => {
-    redis.eval(RENEW_SCRIPT, [lockKey], [token, LOCK_TTL_MS]).catch((err) => {
-      console.error(
-        `[lock] не удалось продлить ${lockKey}: ${(err as Error).message}`,
-      );
-    });
-  }, RENEW_INTERVAL_MS);
+	// Пока fn() выполняется — продлеваем TTL, чтобы не потерять лок на
+	// легитимно долгих путях (скачивание/заливка аватара, вызовы Bitrix API,
+	// вложенный LLM-запрос на шаге "имя") раньше, чем обработка реально
+	// завершится.
+	const renewTimer = setInterval(() => {
+		redis.eval(RENEW_SCRIPT, [lockKey], [token, LOCK_TTL_MS]).catch((err) => {
+			console.error(
+				`[lock] не удалось продлить ${lockKey}: ${(err as Error).message}`,
+			);
+		});
+	}, RENEW_INTERVAL_MS);
 
-  try {
-    return await fn();
-  } finally {
-    clearInterval(renewTimer);
-    await redis.eval(RELEASE_SCRIPT, [lockKey], [token]).catch((err) => {
-      console.error(
-        `[lock] не удалось снять ${lockKey}: ${(err as Error).message}`,
-      );
-    });
-  }
+	try {
+		return await fn();
+	} finally {
+		clearInterval(renewTimer);
+		await redis.eval(RELEASE_SCRIPT, [lockKey], [token]).catch((err) => {
+			console.error(
+				`[lock] не удалось снять ${lockKey}: ${(err as Error).message}`,
+			);
+		});
+	}
 }

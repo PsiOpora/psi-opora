@@ -9,7 +9,7 @@ export const guideIdSchema = z.object({ id: z.string() });
 
 /** Тестовая отправка на адрес того же письма, что реально уйдёт клиенту (активный гайд). */
 export const sendTestGuideSchema = z.object({
-  email: z.email("Укажите корректный email"),
+	email: z.email("Укажите корректный email"),
 });
 
 export type SendTestGuideInput = z.infer<typeof sendTestGuideSchema>;
@@ -20,15 +20,15 @@ export type SendTestGuideInput = z.infer<typeof sendTestGuideSchema>;
  * сборке ссылки — заказчик обычно копирует username вместе с ним.
  */
 export const saveBotUsernamesSchema = z.object({
-  telegram: z.string().max(64).optional(),
-  max: z.string().max(64).optional(),
+	telegram: z.string().max(64).optional(),
+	max: z.string().max(64).optional(),
 });
 
 export type SaveBotUsernamesInput = z.infer<typeof saveBotUsernamesSchema>;
 
 /** Автоопределение username через Telegram getMe / MAX GET /me. */
 export const detectBotUsernameSchema = z.object({
-  messenger: z.enum(["telegram", "max"]),
+	messenger: z.enum(["telegram", "max"]),
 });
 
 export type DetectBotUsernameInput = z.infer<typeof detectBotUsernameSchema>;

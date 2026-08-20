@@ -1,43 +1,38 @@
 import { getHatchetClient } from "./client";
-import {
-  type DeliverBroadcastPayload,
-  deliverBroadcast,
-} from "./broadcast";
+import { type DeliverBroadcastPayload, deliverBroadcast } from "./broadcast";
 import { type CrmBackupPayload, crmBackup } from "./crm-backup";
 import {
-  type DeliverEmailCampaignPayload,
-  deliverEmailCampaign,
+	type DeliverEmailCampaignPayload,
+	deliverEmailCampaign,
 } from "./email-campaign";
 
 export interface EnqueuedRun {
-  id: string;
+	id: string;
 }
 
 async function toEnqueuedRun(
-  refPromise: ReturnType<ReturnType<typeof getHatchetClient>["runNoWait"]>,
+	refPromise: ReturnType<ReturnType<typeof getHatchetClient>["runNoWait"]>,
 ): Promise<EnqueuedRun> {
-  const ref = await refPromise;
-  return { id: await ref.getWorkflowRunId() };
+	const ref = await refPromise;
+	return { id: await ref.getWorkflowRunId() };
 }
 
 export function enqueueBroadcast(
-  payload: DeliverBroadcastPayload,
+	payload: DeliverBroadcastPayload,
 ): Promise<EnqueuedRun> {
-  return toEnqueuedRun(
-    getHatchetClient().runNoWait(deliverBroadcast, payload),
-  );
+	return toEnqueuedRun(getHatchetClient().runNoWait(deliverBroadcast, payload));
 }
 
 export function enqueueEmailCampaign(
-  payload: DeliverEmailCampaignPayload,
+	payload: DeliverEmailCampaignPayload,
 ): Promise<EnqueuedRun> {
-  return toEnqueuedRun(
-    getHatchetClient().runNoWait(deliverEmailCampaign, payload),
-  );
+	return toEnqueuedRun(
+		getHatchetClient().runNoWait(deliverEmailCampaign, payload),
+	);
 }
 
 export function enqueueCrmBackup(
-  payload: CrmBackupPayload,
+	payload: CrmBackupPayload,
 ): Promise<EnqueuedRun> {
-  return toEnqueuedRun(getHatchetClient().runNoWait(crmBackup, payload));
+	return toEnqueuedRun(getHatchetClient().runNoWait(crmBackup, payload));
 }

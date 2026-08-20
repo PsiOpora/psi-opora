@@ -7,10 +7,10 @@ import { createS3Client, getObjectStream } from "@psi-opora/storage";
  * чтобы наружу не светился ключ бота/CDN мессенджера.
  */
 export async function getAvatarStream(key: string): Promise<{
-  stream: ReadableStream;
-  contentLength?: number;
-  contentType?: string;
+	stream: ReadableStream;
+	contentLength?: number;
+	contentType?: string;
 }> {
-  const { client, bucket } = await createS3Client();
-  return getObjectStream({ client, bucket, key });
+	const { client, bucket } = await createS3Client();
+	return getObjectStream({ client, bucket, key });
 }

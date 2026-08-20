@@ -1,11 +1,11 @@
 {
-  "extends": "@psi-opora/tsconfig/base.json",
-  "compilerOptions": {
-    "composite": true,
-    "outDir": "dist",
-    "lib": ["ES2022"],
-    "types": ["node"]
-  },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist"]
+	"extends": "@psi-opora/tsconfig/base.json",
+	"compilerOptions": {
+		"composite": true,
+		"outDir": "dist",
+		"lib": ["ES2022"],
+		"types": ["node"]
+	},
+	"include": ["src"],
+	"exclude": ["node_modules", "dist"]
 }

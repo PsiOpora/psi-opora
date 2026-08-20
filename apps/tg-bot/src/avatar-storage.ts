@@ -16,39 +16,39 @@ const AVATAR_PREFIX = "bot/avatar/";
 export const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
 
 function extensionFor(contentType: string): string {
-  if (contentType.includes("png")) return "png";
-  if (contentType.includes("webp")) return "webp";
-  return "jpg";
+	if (contentType.includes("png")) return "png";
+	if (contentType.includes("webp")) return "webp";
+	return "jpg";
 }
 
 /** Скачивает и заливает аватар клиента в S3, возвращает внутренний путь раздачи. */
 export async function uploadTelegramAvatar(params: {
-  bytes: Uint8Array;
-  contentType: string;
-  messenger: "telegram";
-  userId: number;
+	bytes: Uint8Array;
+	contentType: string;
+	messenger: "telegram";
+	userId: number;
 }): Promise<{ avatarS3Key: string }> {
-  if (
-    params.bytes.byteLength === 0 ||
-    params.bytes.byteLength > MAX_AVATAR_SIZE
-  ) {
-    throw new Error(
-      `некорректный размер аватара: ${params.bytes.byteLength} байт`,
-    );
-  }
+	if (
+		params.bytes.byteLength === 0 ||
+		params.bytes.byteLength > MAX_AVATAR_SIZE
+	) {
+		throw new Error(
+			`некорректный размер аватара: ${params.bytes.byteLength} байт`,
+		);
+	}
 
-  const { client, bucket } = await createS3Client();
-  const key = `${AVATAR_PREFIX}${params.messenger}/${params.userId}.${extensionFor(params.contentType)}`;
+	const { client, bucket } = await createS3Client();
+	const key = `${AVATAR_PREFIX}${params.messenger}/${params.userId}.${extensionFor(params.contentType)}`;
 
-  await uploadObject({
-    client,
-    bucket,
-    key,
-    body: params.bytes,
-    contentType: params.contentType,
-  });
+	await uploadObject({
+		client,
+		bucket,
+		key,
+		body: params.bytes,
+		contentType: params.contentType,
+	});
 
-  return { avatarS3Key: key };
+	return { avatarS3Key: key };
 }
 
 const MEDIA_PREFIX = "bot/media/";
@@ -57,39 +57,39 @@ const MEDIA_PREFIX = "bot/media/";
 export const MAX_MEDIA_SIZE = 20 * 1024 * 1024;
 
 function mediaExtensionFor(contentType: string): string {
-  if (contentType.includes("mpeg") || contentType.includes("mp3")) return "mp3";
-  if (contentType.includes("mp4") || contentType.includes("m4a")) return "m4a";
-  return "ogg";
+	if (contentType.includes("mpeg") || contentType.includes("mp3")) return "mp3";
+	if (contentType.includes("mp4") || contentType.includes("m4a")) return "m4a";
+	return "ogg";
 }
 
 /** Скачивает и заливает голосовое/аудио-вложение Telegram в S3, возвращает
  * внутренний ключ (публичный URL строится по id сообщения, см.
  * packages/api/routers/messages). */
 export async function uploadTelegramMedia(params: {
-  bytes: Uint8Array;
-  contentType: string;
-  messenger: "telegram";
-  fileId: string;
+	bytes: Uint8Array;
+	contentType: string;
+	messenger: "telegram";
+	fileId: string;
 }): Promise<{ mediaS3Key: string }> {
-  if (
-    params.bytes.byteLength === 0 ||
-    params.bytes.byteLength > MAX_MEDIA_SIZE
-  ) {
-    throw new Error(
-      `некорректный размер вложения: ${params.bytes.byteLength} байт`,
-    );
-  }
+	if (
+		params.bytes.byteLength === 0 ||
+		params.bytes.byteLength > MAX_MEDIA_SIZE
+	) {
+		throw new Error(
+			`некорректный размер вложения: ${params.bytes.byteLength} байт`,
+		);
+	}
 
-  const { client, bucket } = await createS3Client();
-  const key = `${MEDIA_PREFIX}${params.messenger}/${params.fileId}.${mediaExtensionFor(params.contentType)}`;
+	const { client, bucket } = await createS3Client();
+	const key = `${MEDIA_PREFIX}${params.messenger}/${params.fileId}.${mediaExtensionFor(params.contentType)}`;
 
-  await uploadObject({
-    client,
-    bucket,
-    key,
-    body: params.bytes,
-    contentType: params.contentType,
-  });
+	await uploadObject({
+		client,
+		bucket,
+		key,
+		body: params.bytes,
+		contentType: params.contentType,
+	});
 
-  return { mediaS3Key: key };
+	return { mediaS3Key: key };
 }

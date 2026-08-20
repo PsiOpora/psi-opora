@@ -9,14 +9,14 @@ import { sendDiagnosticReminders } from "../diagnostic-reminders";
  * См. sendDiagnosticReminders в diagnostic-reminders.ts.
  */
 export const diagnosticReminders = CreateTaskWorkflow({
-  name: "diagnostic-reminders",
-  on: { cron: "*/5 * * * *" },
-  retries: 0,
-  executionTimeout: "5m",
-  fn: async () => {
-    const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
-    if (!api) throw new Error("Bitrix24 не подключён");
-    const redis = createRedisClient();
-    return { ...(await sendDiagnosticReminders(api, redis)) };
-  },
+	name: "diagnostic-reminders",
+	on: { cron: "*/5 * * * *" },
+	retries: 0,
+	executionTimeout: "5m",
+	fn: async () => {
+		const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
+		if (!api) throw new Error("Bitrix24 не подключён");
+		const redis = createRedisClient();
+		return { ...(await sendDiagnosticReminders(api, redis)) };
+	},
 });

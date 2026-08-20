@@ -4,22 +4,22 @@ export type BotMessageDirection = "in" | "out";
 export type BotMessageSource = "scenario" | "reminder" | "widget" | "broadcast";
 
 export interface BotMessageLogEntry {
-  messenger: string;
-  /** ID клиента в мессенджере (chat id TG / user id MAX). */
-  userId: string | number | undefined;
-  direction: BotMessageDirection;
-  source: BotMessageSource;
-  text: string;
-  /** По умолчанию "text". "voice" — заливаем mediaS3Key голосового вложения. */
-  kind?: "text" | "voice";
-  mediaS3Key?: string;
-  mediaMimeType?: string;
-  mediaDurationSec?: number;
-  /** По умолчанию "sent". "failed" — отправка в мессенджер не удалась;
-   * запись всё равно нужна, чтобы в истории было видно «не доставлено». */
-  status?: "sent" | "delivered" | "read" | "failed";
-  /** ID сообщения во внешней системе — по нему прилетают ack-статусы. */
-  externalId?: string;
+	messenger: string;
+	/** ID клиента в мессенджере (chat id TG / user id MAX). */
+	userId: string | number | undefined;
+	direction: BotMessageDirection;
+	source: BotMessageSource;
+	text: string;
+	/** По умолчанию "text". "voice" — заливаем mediaS3Key голосового вложения. */
+	kind?: "text" | "voice";
+	mediaS3Key?: string;
+	mediaMimeType?: string;
+	mediaDurationSec?: number;
+	/** По умолчанию "sent". "failed" — отправка в мессенджер не удалась;
+	 * запись всё равно нужна, чтобы в истории было видно «не доставлено». */
+	status?: "sent" | "delivered" | "read" | "failed";
+	/** ID сообщения во внешней системе — по нему прилетают ack-статусы. */
+	externalId?: string;
 }
 
 /**
@@ -29,33 +29,33 @@ export interface BotMessageLogEntry {
  * отметить на этом же сообщении отправку гайда на email.
  */
 export async function logBotMessage(
-  entry: BotMessageLogEntry,
+	entry: BotMessageLogEntry,
 ): Promise<string | undefined> {
-  if (entry.userId === undefined || entry.userId === null) return undefined;
-  const text = entry.text.trim();
-  if (!text) return undefined;
+	if (entry.userId === undefined || entry.userId === null) return undefined;
+	const text = entry.text.trim();
+	if (!text) return undefined;
 
-  try {
-    return await insertBotMessage({
-      messenger: entry.messenger,
-      userId: String(entry.userId),
-      direction: entry.direction,
-      source: entry.source,
-      text,
-      kind: entry.kind,
-      mediaS3Key: entry.mediaS3Key,
-      mediaMimeType: entry.mediaMimeType,
-      mediaDurationSec: entry.mediaDurationSec,
-      status: entry.status,
-      externalId: entry.externalId,
-    });
-  } catch (err) {
-    const error = err as Error;
-    console.error(
-      `[messages] не удалось записать сообщение в журнал: ${error.message}`,
-      error.cause ?? "",
-      error.stack ?? "",
-    );
-    return undefined;
-  }
+	try {
+		return await insertBotMessage({
+			messenger: entry.messenger,
+			userId: String(entry.userId),
+			direction: entry.direction,
+			source: entry.source,
+			text,
+			kind: entry.kind,
+			mediaS3Key: entry.mediaS3Key,
+			mediaMimeType: entry.mediaMimeType,
+			mediaDurationSec: entry.mediaDurationSec,
+			status: entry.status,
+			externalId: entry.externalId,
+		});
+	} catch (err) {
+		const error = err as Error;
+		console.error(
+			`[messages] не удалось записать сообщение в журнал: ${error.message}`,
+			error.cause ?? "",
+			error.stack ?? "",
+		);
+		return undefined;
+	}
 }

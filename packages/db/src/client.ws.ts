@@ -10,6 +10,6 @@ neonConfig.webSocketConstructor = ws;
 const pool = new Pool({ connectionString: env.POSTGRES_URL });
 
 export const db = drizzle(pool, {
-  schema,
-  casing: "snake_case",
+	schema,
+	casing: "snake_case",
 });

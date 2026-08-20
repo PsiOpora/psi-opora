@@ -6,10 +6,10 @@ import { bitrixPost, getEnv } from "./client";
 const DEFAULT_TASK_RESPONSIBLE_ID = 1;
 
 function taskResponsibleId(messenger: string): number {
-  const configured = Number(getEnv(messenger, "BITRIX_GUIDE_TASK_USER_ID"));
-  return Number.isInteger(configured) && configured > 0
-    ? configured
-    : DEFAULT_TASK_RESPONSIBLE_ID;
+	const configured = Number(getEnv(messenger, "BITRIX_GUIDE_TASK_USER_ID"));
+	return Number.isInteger(configured) && configured > 0
+		? configured
+		: DEFAULT_TASK_RESPONSIBLE_ID;
 }
 
 /**
@@ -20,27 +20,27 @@ function taskResponsibleId(messenger: string): number {
  * случайно при просмотре переписки (см. describeGuideHandout в dispatch.ts).
  */
 export async function createBitrixTask(
-  messenger: string,
-  params: { title: string; description: string; dealId?: number },
+	messenger: string,
+	params: { title: string; description: string; dealId?: number },
 ): Promise<void> {
-  const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
-  if (!webhookUrl) return;
+	const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
+	if (!webhookUrl) return;
 
-  try {
-    await bitrixPost(
-      "tasks.task.add",
-      {
-        fields: {
-          TITLE: params.title,
-          DESCRIPTION: params.description,
-          RESPONSIBLE_ID: taskResponsibleId(messenger),
-          ...(params.dealId ? { UF_CRM_TASK: [`D_${params.dealId}`] } : {}),
-        },
-      },
-      messenger,
-    );
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[bitrix] не удалось создать задачу: ${message}`);
-  }
+	try {
+		await bitrixPost(
+			"tasks.task.add",
+			{
+				fields: {
+					TITLE: params.title,
+					DESCRIPTION: params.description,
+					RESPONSIBLE_ID: taskResponsibleId(messenger),
+					...(params.dealId ? { UF_CRM_TASK: [`D_${params.dealId}`] } : {}),
+				},
+			},
+			messenger,
+		);
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(`[bitrix] не удалось создать задачу: ${message}`);
+	}
 }

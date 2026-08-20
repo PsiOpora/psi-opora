@@ -1,6 +1,6 @@
 import {
-  listClientsWithLastMessage,
-  upsertBotUser,
+	listClientsWithLastMessage,
+	upsertBotUser,
 } from "@psi-opora/db/queries";
 import { bitrixProcedure } from "../../orpc";
 import { listClientsSchema } from "../../schemas/messages";
@@ -16,61 +16,57 @@ import { type ClientListItem, createAvatarUrl } from "./types";
 const MAX_CRM_NAME_LOOKUPS_PER_REQUEST = 5;
 
 export const list = bitrixProcedure
-  .input(listClientsSchema)
-  .handler(async ({ input, context }): Promise<{ items: ClientListItem[] }> => {
-    const rows = await listClientsWithLastMessage({
-      search: input.search,
-      limit: input.limit,
-      offset: input.offset,
-    });
+	.input(listClientsSchema)
+	.handler(async ({ input, context }): Promise<{ items: ClientListItem[] }> => {
+		const rows = await listClientsWithLastMessage({
+			search: input.search,
+			limit: input.limit,
+			offset: input.offset,
+		});
 
-    const api = await context.getBitrixApi();
-    let lookupsLeft = MAX_CRM_NAME_LOOKUPS_PER_REQUEST;
+		const api = await context.getBitrixApi();
+		let lookupsLeft = MAX_CRM_NAME_LOOKUPS_PER_REQUEST;
 
-    const names = await Promise.all(
-      rows.map(async (row) => {
-        if (row.name || row.username) return row.name ?? row.username;
-        if (!api || lookupsLeft <= 0) return null;
-        lookupsLeft--;
+		const names = await Promise.all(
+			rows.map(async (row) => {
+				if (row.name || row.username) return row.name ?? row.username;
+				if (!api || lookupsLeft <= 0) return null;
+				lookupsLeft--;
 
-        const messenger = row.messenger as ClientListItem["messenger"];
-        const crmName = await resolveCrmContactName(
-          api,
-          context.memberId,
-          messenger,
-          row.userId,
-        );
-        if (crmName) {
-          await upsertBotUser({
-            messenger: row.messenger,
-            userId: row.userId,
-            name: crmName,
-          }).catch(() => {});
-        }
-        return crmName;
-      }),
-    );
+				const messenger = row.messenger as ClientListItem["messenger"];
+				const crmName = await resolveCrmContactName(
+					api,
+					context.memberId,
+					messenger,
+					row.userId,
+				);
+				if (crmName) {
+					await upsertBotUser({
+						messenger: row.messenger,
+						userId: row.userId,
+						name: crmName,
+					}).catch(() => {});
+				}
+				return crmName;
+			}),
+		);
 
-    return {
-      items: rows.map((row, i) => ({
-        messenger: row.messenger as ClientListItem["messenger"],
-        userId: row.userId,
-        name: names[i] ?? `${row.messenger}:${row.userId}`,
-        username: row.username,
-        avatarUrl: createAvatarUrl(
-          row.messenger,
-          row.userId,
-          row.hasAvatar,
-        ),
-        lastMessageText: row.lastMessageText,
-        lastMessageDirection: row.lastMessageDirection,
-        lastMessageAt: row.lastMessageAt.toISOString(),
-        unread: row.unread,
-        unreadCount: row.unreadCount,
-        assignedOperatorId: row.assignedOperatorId,
-        assignedOperatorName: row.assignedOperatorName,
-        tags: row.tags,
-        linkedChannels: row.linkedChannels as ClientListItem["linkedChannels"],
-      })),
-    };
-  });
+		return {
+			items: rows.map((row, i) => ({
+				messenger: row.messenger as ClientListItem["messenger"],
+				userId: row.userId,
+				name: names[i] ?? `${row.messenger}:${row.userId}`,
+				username: row.username,
+				avatarUrl: createAvatarUrl(row.messenger, row.userId, row.hasAvatar),
+				lastMessageText: row.lastMessageText,
+				lastMessageDirection: row.lastMessageDirection,
+				lastMessageAt: row.lastMessageAt.toISOString(),
+				unread: row.unread,
+				unreadCount: row.unreadCount,
+				assignedOperatorId: row.assignedOperatorId,
+				assignedOperatorName: row.assignedOperatorName,
+				tags: row.tags,
+				linkedChannels: row.linkedChannels as ClientListItem["linkedChannels"],
+			})),
+		};
+	});

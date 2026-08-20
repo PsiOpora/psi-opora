@@ -1,16 +1,16 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { env, logger } from "@psi-opora/config";
 import {
-  addClientNote,
-  addConversationTag,
-  getConversationMeta,
+	addClientNote,
+	addConversationTag,
+	getConversationMeta,
 } from "@psi-opora/db/queries";
 import { generateObject } from "ai";
 import { z } from "zod";
 
 const TriageSchema = z.object({
-  needsAttention: z.boolean(),
-  summary: z.string(),
+	needsAttention: z.boolean(),
+	summary: z.string(),
 });
 
 const TRIAGE_TIMEOUT_MS = 8_000;
@@ -35,20 +35,20 @@ let cachedModel: OpenRouterModel | null = null;
  * триажим это сообщение (как и при отсутствии ключа).
  */
 function getModel(): OpenRouterModel | null {
-  if (!env.OPENROUTER_API_KEY) return null;
-  if (!cachedClient) {
-    cachedClient = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY });
-  }
-  if (!cachedModel) {
-    cachedModel = cachedClient.chat(env.OPENROUTER_MODEL);
-  }
-  return cachedModel;
+	if (!env.OPENROUTER_API_KEY) return null;
+	if (!cachedClient) {
+		cachedClient = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY });
+	}
+	if (!cachedModel) {
+		cachedModel = cachedClient.chat(env.OPENROUTER_MODEL);
+	}
+	return cachedModel;
 }
 
 export interface TriageMessage {
-  messenger: string;
-  userId: string;
-  text: string;
+	messenger: string;
+	userId: string;
+	text: string;
 }
 
 /**
@@ -66,56 +66,56 @@ export interface TriageMessage {
  * тихо ничего не делает, как и extractContactInfo в llm-extract.ts.
  */
 export async function triageOffScriptMessage(
-  message: TriageMessage,
+	message: TriageMessage,
 ): Promise<void> {
-  const text = message.text.trim();
-  if (text.length < MIN_LENGTH) return;
+	const text = message.text.trim();
+	if (text.length < MIN_LENGTH) return;
 
-  const model = getModel();
-  if (!model) return;
+	const model = getModel();
+	if (!model) return;
 
-  // Диалог уже помечен — не гоняем LLM и не плодим дубликаты заметок на
-  // каждое следующее внесценарное сообщение болтливого клиента. Пометка
-  // снимается оператором вручную (как и любой другой тег) — это и есть
-  // сигнал "уже разобрались, можно снова реагировать".
-  const meta = await getConversationMeta(message.messenger, message.userId);
-  if (meta?.tags?.includes(ATTENTION_TAG)) return;
+	// Диалог уже помечен — не гоняем LLM и не плодим дубликаты заметок на
+	// каждое следующее внесценарное сообщение болтливого клиента. Пометка
+	// снимается оператором вручную (как и любой другой тег) — это и есть
+	// сигнал "уже разобрались, можно снова реагировать".
+	const meta = await getConversationMeta(message.messenger, message.userId);
+	if (meta?.tags?.includes(ATTENTION_TAG)) return;
 
-  try {
-    const { object } = await generateObject({
-      model,
-      schema: TriageSchema,
-      abortSignal: AbortSignal.timeout(TRIAGE_TIMEOUT_MS),
-      system:
-        "Ты помогаешь операторам психологического центра не пропустить важное " +
-        "сообщение клиента. Тебе присылают сообщение, которое клиент написал в " +
-        "чат-боте вне заранее прописанного сценария — бот на него не отвечает и " +
-        "не должен пытаться помочь, это делает только оператор-человек. Определи: " +
-        "1) needsAttention — действительно ли сообщение требует внимания оператора " +
-        "(а не рутинная реплика вроде «спасибо», «да», «хорошо», подтверждение " +
-        "времени встречи, приветствие); 2) summary — если needsAttention=true, одна " +
-        "короткая фраза на русском (до 15 слов) с сутью обращения для оператора: " +
-        "кто/что случилось, есть ли риск или срочность. Если needsAttention=false — " +
-        "пустая строка в summary. Никогда не формулируй ответ клиенту, только оценку " +
-        "для оператора.",
-      prompt: text,
-    });
+	try {
+		const { object } = await generateObject({
+			model,
+			schema: TriageSchema,
+			abortSignal: AbortSignal.timeout(TRIAGE_TIMEOUT_MS),
+			system:
+				"Ты помогаешь операторам психологического центра не пропустить важное " +
+				"сообщение клиента. Тебе присылают сообщение, которое клиент написал в " +
+				"чат-боте вне заранее прописанного сценария — бот на него не отвечает и " +
+				"не должен пытаться помочь, это делает только оператор-человек. Определи: " +
+				"1) needsAttention — действительно ли сообщение требует внимания оператора " +
+				"(а не рутинная реплика вроде «спасибо», «да», «хорошо», подтверждение " +
+				"времени встречи, приветствие); 2) summary — если needsAttention=true, одна " +
+				"короткая фраза на русском (до 15 слов) с сутью обращения для оператора: " +
+				"кто/что случилось, есть ли риск или срочность. Если needsAttention=false — " +
+				"пустая строка в summary. Никогда не формулируй ответ клиенту, только оценку " +
+				"для оператора.",
+			prompt: text,
+		});
 
-    if (!object.needsAttention) return;
-    const summary = object.summary.trim();
-    if (!summary) return;
+		if (!object.needsAttention) return;
+		const summary = object.summary.trim();
+		if (!summary) return;
 
-    await addClientNote({
-      messenger: message.messenger,
-      userId: message.userId,
-      text: `🤖 Авто-заметка: ${summary}`,
-    });
-    await addConversationTag(message.messenger, message.userId, ATTENTION_TAG);
-  } catch (err) {
-    logger.error("bot.triage.failed", err as Error, {
-      messenger: message.messenger,
-      textLength: text.length,
-      model: model.modelId,
-    });
-  }
+		await addClientNote({
+			messenger: message.messenger,
+			userId: message.userId,
+			text: `🤖 Авто-заметка: ${summary}`,
+		});
+		await addConversationTag(message.messenger, message.userId, ATTENTION_TAG);
+	} catch (err) {
+		logger.error("bot.triage.failed", err as Error, {
+			messenger: message.messenger,
+			textLength: text.length,
+			model: model.modelId,
+		});
+	}
 }

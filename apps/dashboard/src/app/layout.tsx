@@ -10,30 +10,30 @@ import { QueryProvider } from "@/components/providers/query-provider";
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Пси-Опора — CRM аналитика",
-  description:
-    "Аналитика CRM и маркетинга для Битрикс24: UTM-отчёты, воронка, источники.",
+	title: "Пси-Опора — CRM аналитика",
+	description:
+		"Аналитика CRM и маркетинга для Битрикс24: UTM-отчёты, воронка, источники.",
 };
 
 export default function RootLayout({
-  children,
+	children,
 }: {
-  children: React.ReactNode;
+	children: React.ReactNode;
 }) {
-  return (
-    <html
-      lang="ru"
-      suppressHydrationWarning
-      className={cn("font-sans", geist.variable)}
-    >
-      <body>
-        <QueryProvider>
-          <TooltipProvider>
-            <BitrixFrameProvider>{children}</BitrixFrameProvider>
-            <Toaster position="top-right" richColors />
-          </TooltipProvider>
-        </QueryProvider>
-      </body>
-    </html>
-  );
+	return (
+		<html
+			lang="ru"
+			suppressHydrationWarning
+			className={cn("font-sans", geist.variable)}
+		>
+			<body>
+				<QueryProvider>
+					<TooltipProvider>
+						<BitrixFrameProvider>{children}</BitrixFrameProvider>
+						<Toaster position="top-right" richColors />
+					</TooltipProvider>
+				</QueryProvider>
+			</body>
+		</html>
+	);
 }

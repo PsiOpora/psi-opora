@@ -17,55 +17,55 @@ import { encryptSecret } from "@psi-opora/tg-userbot";
  * шифрование финальной сессии.
  */
 export interface PendingTelegramLogin {
-  memberId: string;
-  lineId: string;
-  connectorId: string;
-  phone: string;
-  phoneCodeHash: string;
-  pendingSession: string;
-  awaiting: "code" | "password";
-  /** api_id/api_hash приложения Telegram, введённые администратором на
-   * первом шаге — используются для переподключения на всех следующих. */
-  apiId: number;
-  apiHash: string;
+	memberId: string;
+	lineId: string;
+	connectorId: string;
+	phone: string;
+	phoneCodeHash: string;
+	pendingSession: string;
+	awaiting: "code" | "password";
+	/** api_id/api_hash приложения Telegram, введённые администратором на
+	 * первом шаге — используются для переподключения на всех следующих. */
+	apiId: number;
+	apiHash: string;
 }
 
 const PENDING_LOGIN_TTL_SECONDS = 10 * 60;
 
 function pendingLoginKey(loginId: string): string {
-  return `tg-userbot:pending-login:${loginId}`;
+	return `tg-userbot:pending-login:${loginId}`;
 }
 
 export async function savePendingTelegramLogin(
-  loginId: string,
-  data: PendingTelegramLogin,
+	loginId: string,
+	data: PendingTelegramLogin,
 ): Promise<void> {
-  const redis = createRedisClient();
-  await redis.set(pendingLoginKey(loginId), data, {
-    ex: PENDING_LOGIN_TTL_SECONDS,
-  });
+	const redis = createRedisClient();
+	await redis.set(pendingLoginKey(loginId), data, {
+		ex: PENDING_LOGIN_TTL_SECONDS,
+	});
 }
 
 export async function getPendingTelegramLogin(
-  loginId: string,
+	loginId: string,
 ): Promise<PendingTelegramLogin | null> {
-  const redis = createRedisClient();
-  return (
-    (await redis.get<PendingTelegramLogin>(pendingLoginKey(loginId))) ?? null
-  );
+	const redis = createRedisClient();
+	return (
+		(await redis.get<PendingTelegramLogin>(pendingLoginKey(loginId))) ?? null
+	);
 }
 
 export async function deletePendingTelegramLogin(
-  loginId: string,
+	loginId: string,
 ): Promise<void> {
-  const redis = createRedisClient();
-  await redis.del(pendingLoginKey(loginId));
+	const redis = createRedisClient();
+	await redis.del(pendingLoginKey(loginId));
 }
 
 /** Префикс для генерации ID новых слотов (см. generateConnectorId) — сам по
  * себе значением коннектора больше не является. */
 export function connectorIdPrefix(): string {
-  return env.TG_USERBOT_CONNECTOR_ID;
+	return env.TG_USERBOT_CONNECTOR_ID;
 }
 
 /**
@@ -77,7 +77,7 @@ export function connectorIdPrefix(): string {
  * одной LINE, но только один активный слот на пару CONNECTOR+LINE).
  */
 export function generateConnectorId(): string {
-  return `${connectorIdPrefix()}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+	return `${connectorIdPrefix()}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
 }
 
 /**
@@ -89,35 +89,35 @@ export function generateConnectorId(): string {
  * администратор может повторить активацию отдельно.
  */
 export async function finalizeConnectedLogin(params: {
-  memberId: string;
-  lineId: string;
-  connectorId: string;
-  phone: string;
-  apiId: number;
-  apiHash: string;
-  session: string;
-  getBitrixApi: () => Promise<BitrixApi | null>;
+	memberId: string;
+	lineId: string;
+	connectorId: string;
+	phone: string;
+	apiId: number;
+	apiHash: string;
+	session: string;
+	getBitrixApi: () => Promise<BitrixApi | null>;
 }): Promise<{ activationError?: string }> {
-  await upsertTelegramPersonalAccountConnected({
-    memberId: params.memberId,
-    openLineId: params.lineId,
-    connectorId: params.connectorId,
-    phone: params.phone,
-    apiId: String(params.apiId),
-    apiHashEncrypted: encryptSecret(params.apiHash),
-    sessionEncrypted: encryptSecret(params.session),
-  });
+	await upsertTelegramPersonalAccountConnected({
+		memberId: params.memberId,
+		openLineId: params.lineId,
+		connectorId: params.connectorId,
+		phone: params.phone,
+		apiId: String(params.apiId),
+		apiHashEncrypted: encryptSecret(params.apiHash),
+		sessionEncrypted: encryptSecret(params.session),
+	});
 
-  try {
-    const api = await params.getBitrixApi();
-    if (!api) return { activationError: "Нет подключения к Битрикс24" };
-    await api.call("imconnector.activate", {
-      CONNECTOR: params.connectorId,
-      LINE: Number(params.lineId),
-      ACTIVE: "Y",
-    });
-    return {};
-  } catch (err) {
-    return { activationError: (err as Error).message };
-  }
+	try {
+		const api = await params.getBitrixApi();
+		if (!api) return { activationError: "Нет подключения к Битрикс24" };
+		await api.call("imconnector.activate", {
+			CONNECTOR: params.connectorId,
+			LINE: Number(params.lineId),
+			ACTIVE: "Y",
+		});
+		return {};
+	} catch (err) {
+		return { activationError: (err as Error).message };
+	}
 }

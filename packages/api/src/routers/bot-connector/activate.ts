@@ -1,8 +1,8 @@
 import { decryptSecret, encryptSecret, logger } from "@psi-opora/config";
 import {
-  getBotConnector,
-  markBotConnectorWebhookConfigured,
-  upsertBotConnector,
+	getBotConnector,
+	markBotConnectorWebhookConfigured,
+	upsertBotConnector,
 } from "@psi-opora/db/queries";
 import { setMessengerWebhook } from "@psi-opora/jobs";
 import { publicProcedure } from "../../orpc";
@@ -18,90 +18,90 @@ import { connectorId } from "./helpers";
  * раньше это был ручной скрипт (set-webhook.ts).
  */
 export const activate = publicProcedure
-  .input(activateBotConnectorSchema)
-  .handler(
-    async ({
-      input,
-      context,
-    }): Promise<{
-      ok?: true;
-      error?: string;
-      webhookError?: string;
-      tokenRequired?: true;
-    }> => {
-      if (!context.memberId) {
-        return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
-      }
+	.input(activateBotConnectorSchema)
+	.handler(
+		async ({
+			input,
+			context,
+		}): Promise<{
+			ok?: true;
+			error?: string;
+			webhookError?: string;
+			tokenRequired?: true;
+		}> => {
+			if (!context.memberId) {
+				return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
+			}
 
-      let existing: Awaited<ReturnType<typeof getBotConnector>>;
-      try {
-        existing = await getBotConnector(input.messenger);
-      } catch (err) {
-        logger.error(
-          "bot-connector.activate: не удалось прочитать коннектор из БД",
-          err,
-          { messenger: input.messenger },
-        );
-        return {
-          error: `Не удалось прочитать канал из базы данных: ${(err as Error).message}`,
-        };
-      }
+			let existing: Awaited<ReturnType<typeof getBotConnector>>;
+			try {
+				existing = await getBotConnector(input.messenger);
+			} catch (err) {
+				logger.error(
+					"bot-connector.activate: не удалось прочитать коннектор из БД",
+					err,
+					{ messenger: input.messenger },
+				);
+				return {
+					error: `Не удалось прочитать канал из базы данных: ${(err as Error).message}`,
+				};
+			}
 
-      const newToken = input.botToken?.trim();
-      const effectiveToken =
-        newToken ||
-        (existing?.botTokenEncrypted
-          ? decryptSecret(existing.botTokenEncrypted)
-          : "");
-      if (!effectiveToken) {
-        return { tokenRequired: true };
-      }
+			const newToken = input.botToken?.trim();
+			const effectiveToken =
+				newToken ||
+				(existing?.botTokenEncrypted
+					? decryptSecret(existing.botTokenEncrypted)
+					: "");
+			if (!effectiveToken) {
+				return { tokenRequired: true };
+			}
 
-      const api = await context.getBitrixApi();
-      if (!api) {
-        return { error: "Нет подключения к Битрикс24 — обновите страницу" };
-      }
+			const api = await context.getBitrixApi();
+			if (!api) {
+				return { error: "Нет подключения к Битрикс24 — обновите страницу" };
+			}
 
-      try {
-        await api.call("imconnector.activate", {
-          CONNECTOR: connectorId(input.messenger),
-          LINE: Number(input.lineId),
-          ACTIVE: "Y",
-        });
-      } catch (err) {
-        return { error: (err as Error).message };
-      }
+			try {
+				await api.call("imconnector.activate", {
+					CONNECTOR: connectorId(input.messenger),
+					LINE: Number(input.lineId),
+					ACTIVE: "Y",
+				});
+			} catch (err) {
+				return { error: (err as Error).message };
+			}
 
-      try {
-        await upsertBotConnector({
-          messenger: input.messenger,
-          memberId: context.memberId,
-          openLineId: input.lineId,
-          connectorId: connectorId(input.messenger),
-          ...(newToken ? { botTokenEncrypted: encryptSecret(newToken) } : {}),
-        });
-      } catch (err) {
-        logger.error(
-          "bot-connector.activate: не удалось сохранить коннектор в БД",
-          err,
-          {
-            messenger: input.messenger,
-          },
-        );
-        return {
-          error: `Не удалось сохранить канал в базе данных: ${(err as Error).message}`,
-        };
-      }
+			try {
+				await upsertBotConnector({
+					messenger: input.messenger,
+					memberId: context.memberId,
+					openLineId: input.lineId,
+					connectorId: connectorId(input.messenger),
+					...(newToken ? { botTokenEncrypted: encryptSecret(newToken) } : {}),
+				});
+			} catch (err) {
+				logger.error(
+					"bot-connector.activate: не удалось сохранить коннектор в БД",
+					err,
+					{
+						messenger: input.messenger,
+					},
+				);
+				return {
+					error: `Не удалось сохранить канал в базе данных: ${(err as Error).message}`,
+				};
+			}
 
-      try {
-        await setMessengerWebhook(input.messenger);
-        await markBotConnectorWebhookConfigured(input.messenger);
-      } catch (err) {
-        // Линия уже активирована и сохранена — вебхук можно перенастроить
-        // отдельно (повторной активацией), это не откатывает предыдущие шаги.
-        return { ok: true, webhookError: (err as Error).message };
-      }
+			try {
+				await setMessengerWebhook(input.messenger);
+				await markBotConnectorWebhookConfigured(input.messenger);
+			} catch (err) {
+				// Линия уже активирована и сохранена — вебхук можно перенастроить
+				// отдельно (повторной активацией), это не откатывает предыдущие шаги.
+				return { ok: true, webhookError: (err as Error).message };
+			}
 
-      return { ok: true };
-    },
-  );
+			return { ok: true };
+		},
+	);

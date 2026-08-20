@@ -1,14 +1,14 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.8/schema.json",
-  "files": {
-    "includes": [
-      "**",
-      "!**/.next",
-      "!**/dist",
-      "!**/build",
-      "!**/.turbo",
-      "!**/node_modules",
-      "!**/*.css"
-    ]
-  }
+	"$schema": "https://biomejs.dev/schemas/2.5.8/schema.json",
+	"files": {
+		"includes": [
+			"**",
+			"!**/.next",
+			"!**/dist",
+			"!**/build",
+			"!**/.turbo",
+			"!**/node_modules",
+			"!**/*.css"
+		]
+	}
 }

@@ -1,11 +1,11 @@
 import { serve } from "@hono/node-server";
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import {
-  type ConsultationSession,
-  createBot,
-  createRedisClient,
-  createRedisStorage,
-  resolveTelegramBotToken,
+	type ConsultationSession,
+	createBot,
+	createRedisClient,
+	createRedisStorage,
+	resolveTelegramBotToken,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { webhookCallback } from "grammy";
@@ -18,16 +18,16 @@ const storage = createRedisStorage<ConsultationSession>(redis);
 // который для imconnector.* не подходит (нужен OAuth) — поэтому передаём
 // bitrixApi только когда BITRIX_MEMBER_ID реально задан.
 const bitrixApi = env.BITRIX_MEMBER_ID
-  ? resolveBitrixApi(env.BITRIX_MEMBER_ID)
-  : undefined;
+	? resolveBitrixApi(env.BITRIX_MEMBER_ID)
+	: undefined;
 const token = await resolveTelegramBotToken();
 const bot = createBot({
-  storage,
-  redis,
-  bitrixApi: bitrixApi ?? undefined,
-  token,
-  uploadAvatar: uploadTelegramAvatar,
-  uploadMedia: uploadTelegramMedia,
+	storage,
+	redis,
+	bitrixApi: bitrixApi ?? undefined,
+	token,
+	uploadAvatar: uploadTelegramAvatar,
+	uploadMedia: uploadTelegramMedia,
 });
 
 const app = new Hono();
@@ -38,20 +38,20 @@ app.get("/api/webhook", (c) => c.text("ok"));
 // (дефолт grammy — "throw"), который валит процесс и вызывает ретраи от
 // Telegram. Обработка апдейта при этом продолжается в фоне — see webhook.js.
 app.post(
-  "/api/webhook",
-  webhookCallback(bot, "hono", {
-    onTimeout: "return",
-    timeoutMilliseconds: 15_000,
-  }),
+	"/api/webhook",
+	webhookCallback(bot, "hono", {
+		onTimeout: "return",
+		timeoutMilliseconds: 15_000,
+	}),
 );
 
 const port = Number(process.env.PORT ?? 3000);
 const server = serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`[BOT] tg-bot webhook слушает на :${info.port}`);
+	console.log(`[BOT] tg-bot webhook слушает на :${info.port}`);
 });
 
 // При rollout k8s шлёт SIGTERM до SIGKILL — дожидаемся завершения активных
 // запросов вместо мгновенного обрыва соединений.
 process.on("SIGTERM", () => {
-  server.close(() => process.exit(0));
+	server.close(() => process.exit(0));
 });

@@ -19,9 +19,9 @@ import type { AppRouter } from "@psi-opora/api";
  * логика состояния (dry-run/подтверждение/поллинг) не ложится на кэш query/mutation.
  */
 export const orpcClient = createORPCClient<RouterClient<AppRouter>>(
-  new RPCLink({
-    url: () => `${window.location.origin}/api/orpc`,
-  }),
+	new RPCLink({
+		url: () => `${window.location.origin}/api/orpc`,
+	}),
 );
 
 export const orpc = createTanstackQueryUtils(orpcClient);

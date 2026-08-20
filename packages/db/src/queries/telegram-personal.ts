@@ -3,7 +3,7 @@ import { db } from "../client";
 import { telegramPersonalAccounts } from "../schema/telegram-personal";
 
 export type TelegramPersonalAccount =
-  typeof telegramPersonalAccounts.$inferSelect;
+	typeof telegramPersonalAccounts.$inferSelect;
 
 /**
  * "connected" — обычное состояние строки. "error" — воркер (apps/tg-userbot-worker)
@@ -15,48 +15,48 @@ export type TelegramPersonalAccountStatus = "connected" | "error";
 
 /** Все подключённые номера портала — для карточки в настройках. */
 export async function listTelegramPersonalAccounts(
-  memberId: string,
+	memberId: string,
 ): Promise<TelegramPersonalAccount[]> {
-  if (!db) return [];
-  return db
-    .select()
-    .from(telegramPersonalAccounts)
-    .where(eq(telegramPersonalAccounts.memberId, memberId));
+	if (!db) return [];
+	return db
+		.select()
+		.from(telegramPersonalAccounts)
+		.where(eq(telegramPersonalAccounts.memberId, memberId));
 }
 
 /** Все подключённые номера всех порталов — воркер (apps/tg-userbot-worker)
  * поднимает по живому MTProto-клиенту на каждую строку при старте. */
 export async function listConnectedTelegramPersonalAccounts(): Promise<
-  TelegramPersonalAccount[]
+	TelegramPersonalAccount[]
 > {
-  if (!db) return [];
-  return db
-    .select()
-    .from(telegramPersonalAccounts)
-    .where(
-      eq(
-        telegramPersonalAccounts.status,
-        "connected" satisfies TelegramPersonalAccountStatus,
-      ),
-    );
+	if (!db) return [];
+	return db
+		.select()
+		.from(telegramPersonalAccounts)
+		.where(
+			eq(
+				telegramPersonalAccounts.status,
+				"connected" satisfies TelegramPersonalAccountStatus,
+			),
+		);
 }
 
 export async function getTelegramPersonalAccount(
-  memberId: string,
-  openLineId: string,
+	memberId: string,
+	openLineId: string,
 ): Promise<TelegramPersonalAccount | null> {
-  if (!db) return null;
-  const [row] = await db
-    .select()
-    .from(telegramPersonalAccounts)
-    .where(
-      and(
-        eq(telegramPersonalAccounts.memberId, memberId),
-        eq(telegramPersonalAccounts.openLineId, openLineId),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
+	if (!db) return null;
+	const [row] = await db
+		.select()
+		.from(telegramPersonalAccounts)
+		.where(
+			and(
+				eq(telegramPersonalAccounts.memberId, memberId),
+				eq(telegramPersonalAccounts.openLineId, openLineId),
+			),
+		)
+		.limit(1);
+	return row ?? null;
 }
 
 /**
@@ -69,21 +69,21 @@ export async function getTelegramPersonalAccount(
  * без неё поиск по одному connectorId был бы неоднозначным.
  */
 export async function getTelegramPersonalAccountByConnector(
-  connectorId: string,
-  openLineId: string,
+	connectorId: string,
+	openLineId: string,
 ): Promise<TelegramPersonalAccount | null> {
-  if (!db) return null;
-  const [row] = await db
-    .select()
-    .from(telegramPersonalAccounts)
-    .where(
-      and(
-        eq(telegramPersonalAccounts.connectorId, connectorId),
-        eq(telegramPersonalAccounts.openLineId, openLineId),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
+	if (!db) return null;
+	const [row] = await db
+		.select()
+		.from(telegramPersonalAccounts)
+		.where(
+			and(
+				eq(telegramPersonalAccounts.connectorId, connectorId),
+				eq(telegramPersonalAccounts.openLineId, openLineId),
+			),
+		)
+		.limit(1);
+	return row ?? null;
 }
 
 /**
@@ -93,78 +93,78 @@ export async function getTelegramPersonalAccountByConnector(
  * пока не станет финальной сессией.
  */
 export async function upsertTelegramPersonalAccountConnected(data: {
-  memberId: string;
-  openLineId: string;
-  connectorId: string;
-  phone: string;
-  apiId: string;
-  apiHashEncrypted: string;
-  sessionEncrypted: string;
+	memberId: string;
+	openLineId: string;
+	connectorId: string;
+	phone: string;
+	apiId: string;
+	apiHashEncrypted: string;
+	sessionEncrypted: string;
 }): Promise<void> {
-  if (!db) return;
-  await db
-    .insert(telegramPersonalAccounts)
-    .values({
-      id: crypto.randomUUID(),
-      ...data,
-      status: "connected" satisfies TelegramPersonalAccountStatus,
-      lastError: null,
-    })
-    .onConflictDoUpdate({
-      target: [
-        telegramPersonalAccounts.memberId,
-        telegramPersonalAccounts.openLineId,
-        telegramPersonalAccounts.connectorId,
-      ],
-      set: {
-        connectorId: data.connectorId,
-        phone: data.phone,
-        apiId: data.apiId,
-        apiHashEncrypted: data.apiHashEncrypted,
-        sessionEncrypted: data.sessionEncrypted,
-        status: "connected" satisfies TelegramPersonalAccountStatus,
-        lastError: null,
-        updatedAt: new Date(),
-      },
-    });
+	if (!db) return;
+	await db
+		.insert(telegramPersonalAccounts)
+		.values({
+			id: crypto.randomUUID(),
+			...data,
+			status: "connected" satisfies TelegramPersonalAccountStatus,
+			lastError: null,
+		})
+		.onConflictDoUpdate({
+			target: [
+				telegramPersonalAccounts.memberId,
+				telegramPersonalAccounts.openLineId,
+				telegramPersonalAccounts.connectorId,
+			],
+			set: {
+				connectorId: data.connectorId,
+				phone: data.phone,
+				apiId: data.apiId,
+				apiHashEncrypted: data.apiHashEncrypted,
+				sessionEncrypted: data.sessionEncrypted,
+				status: "connected" satisfies TelegramPersonalAccountStatus,
+				lastError: null,
+				updatedAt: new Date(),
+			},
+		});
 }
 
 export async function markTelegramPersonalAccountError(
-  memberId: string,
-  openLineId: string,
-  connectorId: string,
-  error: string,
+	memberId: string,
+	openLineId: string,
+	connectorId: string,
+	error: string,
 ): Promise<void> {
-  if (!db) return;
-  await db
-    .update(telegramPersonalAccounts)
-    .set({
-      status: "error" satisfies TelegramPersonalAccountStatus,
-      lastError: error,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(telegramPersonalAccounts.memberId, memberId),
-        eq(telegramPersonalAccounts.openLineId, openLineId),
-        eq(telegramPersonalAccounts.connectorId, connectorId),
-      ),
-    );
+	if (!db) return;
+	await db
+		.update(telegramPersonalAccounts)
+		.set({
+			status: "error" satisfies TelegramPersonalAccountStatus,
+			lastError: error,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(telegramPersonalAccounts.memberId, memberId),
+				eq(telegramPersonalAccounts.openLineId, openLineId),
+				eq(telegramPersonalAccounts.connectorId, connectorId),
+			),
+		);
 }
 
 export async function removeTelegramPersonalAccount(
-  memberId: string,
-  openLineId: string,
-  connectorId: string,
+	memberId: string,
+	openLineId: string,
+	connectorId: string,
 ): Promise<void> {
-  if (!db) return;
-  await db
-    .delete(telegramPersonalAccounts)
-    .where(
-      and(
-        eq(telegramPersonalAccounts.memberId, memberId),
-        eq(telegramPersonalAccounts.openLineId, openLineId),
-        eq(telegramPersonalAccounts.connectorId, connectorId),
-      ),
-    );
+	if (!db) return;
+	await db
+		.delete(telegramPersonalAccounts)
+		.where(
+			and(
+				eq(telegramPersonalAccounts.memberId, memberId),
+				eq(telegramPersonalAccounts.openLineId, openLineId),
+				eq(telegramPersonalAccounts.connectorId, connectorId),
+			),
+		);
 }

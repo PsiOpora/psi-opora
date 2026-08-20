@@ -5,57 +5,57 @@ import { botConversations } from "../schema/bot-conversations";
 export type BotConversation = typeof botConversations.$inferSelect;
 
 function makeId(messenger: string, userId: string): string {
-  return `${messenger}:${userId}`;
+	return `${messenger}:${userId}`;
 }
 
 /** Диалог отмечен прочитанным (общий курсор — не персональный на менеджера). */
 export async function markConversationRead(
-  db: Database,
-  messenger: string,
-  userId: string,
+	db: Database,
+	messenger: string,
+	userId: string,
 ): Promise<void> {
-  if (!db) return;
-  const id = makeId(messenger, userId);
-  await db
-    .insert(botConversations)
-    .values({ id, messenger, userId, lastReadAt: new Date() })
-    .onConflictDoUpdate({
-      target: botConversations.id,
-      set: { lastReadAt: new Date(), updatedAt: new Date() },
-    });
+	if (!db) return;
+	const id = makeId(messenger, userId);
+	await db
+		.insert(botConversations)
+		.values({ id, messenger, userId, lastReadAt: new Date() })
+		.onConflictDoUpdate({
+			target: botConversations.id,
+			set: { lastReadAt: new Date(), updatedAt: new Date() },
+		});
 }
 
 export interface ConversationAssignment {
-  messenger: string;
-  userId: string;
-  operatorId: string;
-  operatorName: string;
+	messenger: string;
+	userId: string;
+	operatorId: string;
+	operatorName: string;
 }
 
 /** Назначает ответственного менеджера на диалог (перезаписывает предыдущего). */
 export async function assignConversation(
-  db: Database,
-  entry: ConversationAssignment,
+	db: Database,
+	entry: ConversationAssignment,
 ): Promise<void> {
-  if (!db) return;
-  const id = makeId(entry.messenger, entry.userId);
-  await db
-    .insert(botConversations)
-    .values({
-      id,
-      messenger: entry.messenger,
-      userId: entry.userId,
-      assignedOperatorId: entry.operatorId,
-      assignedOperatorName: entry.operatorName,
-    })
-    .onConflictDoUpdate({
-      target: botConversations.id,
-      set: {
-        assignedOperatorId: entry.operatorId,
-        assignedOperatorName: entry.operatorName,
-        updatedAt: new Date(),
-      },
-    });
+	if (!db) return;
+	const id = makeId(entry.messenger, entry.userId);
+	await db
+		.insert(botConversations)
+		.values({
+			id,
+			messenger: entry.messenger,
+			userId: entry.userId,
+			assignedOperatorId: entry.operatorId,
+			assignedOperatorName: entry.operatorName,
+		})
+		.onConflictDoUpdate({
+			target: botConversations.id,
+			set: {
+				assignedOperatorId: entry.operatorId,
+				assignedOperatorName: entry.operatorName,
+				updatedAt: new Date(),
+			},
+		});
 }
 
 /**
@@ -64,47 +64,47 @@ export async function assignConversation(
  * оператора прямо из Открытой линии Bitrix24).
  */
 export async function assignConversationIfUnassigned(
-  db: Database,
-  entry: ConversationAssignment,
+	db: Database,
+	entry: ConversationAssignment,
 ): Promise<void> {
-  if (!db) return;
-  const id = makeId(entry.messenger, entry.userId);
-  await db
-    .insert(botConversations)
-    .values({
-      id,
-      messenger: entry.messenger,
-      userId: entry.userId,
-      assignedOperatorId: entry.operatorId,
-      assignedOperatorName: entry.operatorName,
-    })
-    .onConflictDoUpdate({
-      target: botConversations.id,
-      set: {
-        assignedOperatorId: entry.operatorId,
-        assignedOperatorName: entry.operatorName,
-        updatedAt: new Date(),
-      },
-      setWhere: isNull(botConversations.assignedOperatorId),
-    });
+	if (!db) return;
+	const id = makeId(entry.messenger, entry.userId);
+	await db
+		.insert(botConversations)
+		.values({
+			id,
+			messenger: entry.messenger,
+			userId: entry.userId,
+			assignedOperatorId: entry.operatorId,
+			assignedOperatorName: entry.operatorName,
+		})
+		.onConflictDoUpdate({
+			target: botConversations.id,
+			set: {
+				assignedOperatorId: entry.operatorId,
+				assignedOperatorName: entry.operatorName,
+				updatedAt: new Date(),
+			},
+			setWhere: isNull(botConversations.assignedOperatorId),
+		});
 }
 
 /** Полностью заменяет набор тегов диалога (пустой массив — снять все теги). */
 export async function setConversationTags(
-  db: Database,
-  messenger: string,
-  userId: string,
-  tags: string[],
+	db: Database,
+	messenger: string,
+	userId: string,
+	tags: string[],
 ): Promise<void> {
-  if (!db) return;
-  const id = makeId(messenger, userId);
-  await db
-    .insert(botConversations)
-    .values({ id, messenger, userId, tags })
-    .onConflictDoUpdate({
-      target: botConversations.id,
-      set: { tags, updatedAt: new Date() },
-    });
+	if (!db) return;
+	const id = makeId(messenger, userId);
+	await db
+		.insert(botConversations)
+		.values({ id, messenger, userId, tags })
+		.onConflictDoUpdate({
+			target: botConversations.id,
+			set: { tags, updatedAt: new Date() },
+		});
 }
 
 /**
@@ -120,46 +120,46 @@ export async function setConversationTags(
  * функция).
  */
 export async function addConversationTag(
-  db: Database,
-  messenger: string,
-  userId: string,
-  tag: string,
+	db: Database,
+	messenger: string,
+	userId: string,
+	tag: string,
 ): Promise<void> {
-  if (!db) return;
-  const id = makeId(messenger, userId);
-  await db
-    .insert(botConversations)
-    .values({ id, messenger, userId, tags: [tag] })
-    .onConflictDoUpdate({
-      target: botConversations.id,
-      set: {
-        tags: sql`(
+	if (!db) return;
+	const id = makeId(messenger, userId);
+	await db
+		.insert(botConversations)
+		.values({ id, messenger, userId, tags: [tag] })
+		.onConflictDoUpdate({
+			target: botConversations.id,
+			set: {
+				tags: sql`(
           select coalesce(jsonb_agg(distinct elem), '[]'::jsonb)
           from jsonb_array_elements_text(
             coalesce(${botConversations.tags}, '[]'::jsonb)
               || jsonb_build_array(${tag}::text)
           ) as elem
         )`,
-        updatedAt: new Date(),
-      },
-    });
+				updatedAt: new Date(),
+			},
+		});
 }
 
 export async function getConversationMeta(
-  db: Database,
-  messenger: string,
-  userId: string,
+	db: Database,
+	messenger: string,
+	userId: string,
 ): Promise<BotConversation | null> {
-  if (!db) return null;
-  const [row] = await db
-    .select()
-    .from(botConversations)
-    .where(
-      and(
-        eq(botConversations.messenger, messenger),
-        eq(botConversations.userId, userId),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
+	if (!db) return null;
+	const [row] = await db
+		.select()
+		.from(botConversations)
+		.where(
+			and(
+				eq(botConversations.messenger, messenger),
+				eq(botConversations.userId, userId),
+			),
+		)
+		.limit(1);
+	return row ?? null;
 }

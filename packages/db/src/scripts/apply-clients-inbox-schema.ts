@@ -9,12 +9,12 @@ import { db } from "../client";
  * Скрипт идемпотентен (IF NOT EXISTS) — можно запускать повторно.
  */
 async function apply() {
-  if (!db) {
-    console.error("Нет подключения к БД (POSTGRES_URL)");
-    process.exit(1);
-  }
+	if (!db) {
+		console.error("Нет подключения к БД (POSTGRES_URL)");
+		process.exit(1);
+	}
 
-  await db.execute(sql`
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "client_notes" (
       "id" text PRIMARY KEY NOT NULL,
       "messenger" text NOT NULL,
@@ -25,11 +25,11 @@ async function apply() {
       "created_at" timestamp DEFAULT now() NOT NULL
     )
   `);
-  await db.execute(sql`
+	await db.execute(sql`
     CREATE INDEX IF NOT EXISTS "client_notes_dialog_idx"
       ON "client_notes" ("messenger", "user_id", "created_at")
   `);
-  await db.execute(sql`
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "quick_replies" (
       "id" text PRIMARY KEY NOT NULL,
       "title" text NOT NULL,
@@ -38,17 +38,17 @@ async function apply() {
       "updated_at" timestamp DEFAULT now() NOT NULL
     )
   `);
-  await db.execute(sql`
+	await db.execute(sql`
     ALTER TABLE "bot_conversations" ADD COLUMN IF NOT EXISTS "tags" jsonb
   `);
 
-  console.log(
-    "✅ client_notes, quick_replies и bot_conversations.tags применены",
-  );
-  process.exit(0);
+	console.log(
+		"✅ client_notes, quick_replies и bot_conversations.tags применены",
+	);
+	process.exit(0);
 }
 
 apply().catch((err) => {
-  console.error("❌", err);
-  process.exit(1);
+	console.error("❌", err);
+	process.exit(1);
 });

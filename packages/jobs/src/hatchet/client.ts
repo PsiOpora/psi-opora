@@ -7,6 +7,6 @@ let client: HatchetClient | undefined;
  * когда runtime-секрет HATCHET_CLIENT_TOKEN намеренно недоступен.
  */
 export function getHatchetClient(): HatchetClient {
-  client ??= HatchetClient.init();
-  return client;
+	client ??= HatchetClient.init();
+	return client;
 }

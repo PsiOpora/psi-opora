@@ -4,13 +4,13 @@
  * `undefined` в `.set()` drizzle трактует как «не менять колонку».
  */
 export function blankToUndefined<T extends Record<string, unknown>>(
-  values: T,
+	values: T,
 ): T {
-  const result = { ...values };
-  for (const key in result) {
-    if (result[key] === "") {
-      result[key] = undefined as T[Extract<keyof T, string>];
-    }
-  }
-  return result;
+	const result = { ...values };
+	for (const key in result) {
+		if (result[key] === "") {
+			result[key] = undefined as T[Extract<keyof T, string>];
+		}
+	}
+	return result;
 }

@@ -11,21 +11,24 @@ import type { ContactData } from "./types";
 // `imol === null` — привязку не добавлять вовсе (контакт создан трекером
 // линии: Bitrix уже проставил IM сам, повторная передача без ID мультиполя
 // добавила бы дублирующую строку).
-export function buildMessengerLinkFields(data: ContactData, imol?: string | null) {
-  if (imol === null) return null;
-  if (imol) {
-    return { IM: [{ VALUE: imol, VALUE_TYPE: "OPENLINE" }] };
-  }
-  if (!data.telegramUserId) return null;
-  const messenger = data.messenger ?? "telegram";
-  return {
-    IM: [
-      {
-        VALUE: String(data.telegramUserId),
-        VALUE_TYPE: messenger,
-      },
-    ],
-  };
+export function buildMessengerLinkFields(
+	data: ContactData,
+	imol?: string | null,
+) {
+	if (imol === null) return null;
+	if (imol) {
+		return { IM: [{ VALUE: imol, VALUE_TYPE: "OPENLINE" }] };
+	}
+	if (!data.telegramUserId) return null;
+	const messenger = data.messenger ?? "telegram";
+	return {
+		IM: [
+			{
+				VALUE: String(data.telegramUserId),
+				VALUE_TYPE: messenger,
+			},
+		],
+	};
 }
 
 /**
@@ -34,50 +37,52 @@ export function buildMessengerLinkFields(data: ContactData, imol?: string | null
  * отдельных полей, поэтому это просто текстовая справка для оператора.
  */
 function buildProfileComment(data: ContactData): string | undefined {
-  const lines = [
-    data.username && `Username: @${data.username}`,
-    data.languageCode && `Язык интерфейса: ${data.languageCode}`,
-    data.isPremium && "Telegram Premium: да",
-    data.bio && `О себе: ${data.bio}`,
-  ].filter(Boolean);
-  return lines.length ? `Профиль в мессенджере:\n${lines.join("\n")}` : undefined;
+	const lines = [
+		data.username && `Username: @${data.username}`,
+		data.languageCode && `Язык интерфейса: ${data.languageCode}`,
+		data.isPremium && "Telegram Premium: да",
+		data.bio && `О себе: ${data.bio}`,
+	].filter(Boolean);
+	return lines.length
+		? `Профиль в мессенджере:\n${lines.join("\n")}`
+		: undefined;
 }
 
 export function buildContactFields(data: ContactData, imol?: string | null) {
-  const messenger = data.messenger ?? "telegram";
-  const profileComment = buildProfileComment(data);
-  return {
-    NAME: data.name,
-    ...(data.phone ? { PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }] } : {}),
-    ...(data.email
-      ? { EMAIL: [{ VALUE: data.email, VALUE_TYPE: "WORK" }] }
-      : {}),
-    SOURCE_ID: getSourceId(messenger),
-    SOURCE_DESCRIPTION: [data.source, data.campaign]
-      .filter(Boolean)
-      .join(" / "),
-    // Сценарий бота всегда передаёт consentGranted=true после экрана
-    // согласия. Контакт, созданный из произвольного входящего телефона/email,
-    // не получает этот флаг автоматически.
-    ...(data.consentGranted
-      ? { UF_CRM_CONTACT_1779910236669: 1 }
-      : {}),
-    ...(profileComment ? { COMMENTS: profileComment } : {}),
-    ...(buildMessengerLinkFields(data, imol) ?? {}),
-  };
+	const messenger = data.messenger ?? "telegram";
+	const profileComment = buildProfileComment(data);
+	return {
+		NAME: data.name,
+		...(data.phone
+			? { PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }] }
+			: {}),
+		...(data.email
+			? { EMAIL: [{ VALUE: data.email, VALUE_TYPE: "WORK" }] }
+			: {}),
+		SOURCE_ID: getSourceId(messenger),
+		SOURCE_DESCRIPTION: [data.source, data.campaign]
+			.filter(Boolean)
+			.join(" / "),
+		// Сценарий бота всегда передаёт consentGranted=true после экрана
+		// согласия. Контакт, созданный из произвольного входящего телефона/email,
+		// не получает этот флаг автоматически.
+		...(data.consentGranted ? { UF_CRM_CONTACT_1779910236669: 1 } : {}),
+		...(profileComment ? { COMMENTS: profileComment } : {}),
+		...(buildMessengerLinkFields(data, imol) ?? {}),
+	};
 }
 
 async function findContactIdByComm(
-  messenger: string,
-  type: "PHONE" | "EMAIL",
-  value: string,
+	messenger: string,
+	type: "PHONE" | "EMAIL",
+	value: string,
 ): Promise<number | null> {
-  const result = await bitrixPost<{ CONTACT?: number[] }>(
-    "crm.duplicate.findbycomm",
-    { entity_type: "CONTACT", type, values: [value] },
-    messenger,
-  );
-  return result.CONTACT?.[0] ?? null;
+	const result = await bitrixPost<{ CONTACT?: number[] }>(
+		"crm.duplicate.findbycomm",
+		{ entity_type: "CONTACT", type, values: [value] },
+		messenger,
+	);
+	return result.CONTACT?.[0] ?? null;
 }
 
 /**
@@ -89,21 +94,21 @@ async function findContactIdByComm(
  * как раньше.
  */
 export async function findExistingContactId(
-  data: ContactData,
+	data: ContactData,
 ): Promise<number | null> {
-  const messenger = data.messenger ?? "telegram";
-  try {
-    if (data.phone) {
-      const byPhone = await findContactIdByComm(messenger, "PHONE", data.phone);
-      if (byPhone) return byPhone;
-    }
-    if (data.email) {
-      const byEmail = await findContactIdByComm(messenger, "EMAIL", data.email);
-      if (byEmail) return byEmail;
-    }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[bitrix] ошибка поиска существующего контакта: ${message}`);
-  }
-  return null;
+	const messenger = data.messenger ?? "telegram";
+	try {
+		if (data.phone) {
+			const byPhone = await findContactIdByComm(messenger, "PHONE", data.phone);
+			if (byPhone) return byPhone;
+		}
+		if (data.email) {
+			const byEmail = await findContactIdByComm(messenger, "EMAIL", data.email);
+			if (byEmail) return byEmail;
+		}
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(`[bitrix] ошибка поиска существующего контакта: ${message}`);
+	}
+	return null;
 }

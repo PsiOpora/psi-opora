@@ -15,48 +15,48 @@ export const MESSENGER_FIELD = "UF_CRM_1779643796551";
 // Значения поля сделки "Мессенджер" → наш бот, через которого отправляем
 // сообщение напрямую. Открытые линии Bitrix24 для доставки не используются.
 export const MESSENGER_BOT_MAP: Record<string, Messenger> = {
-  "326": "max",
-  "328": "telegram",
+	"326": "max",
+	"328": "telegram",
 };
 
 /** Нормализует дату из поля сделки к ISO-строке; Bitrix отдаёт datetime уже со смещением. */
 export function normalizeConsultationDt(raw: unknown): string | null {
-  const value = String(raw ?? "").trim();
-  if (!value) return null;
-  const ts = new Date(value).getTime();
-  return Number.isFinite(ts) ? new Date(ts).toISOString() : null;
+	const value = String(raw ?? "").trim();
+	if (!value) return null;
+	const ts = new Date(value).getTime();
+	return Number.isFinite(ts) ? new Date(ts).toISOString() : null;
 }
 
 export function toTimestamp(iso: string): number {
-  const ts = new Date(iso).getTime();
-  return Number.isFinite(ts) ? ts : 0;
+	const ts = new Date(iso).getTime();
+	return Number.isFinite(ts) ? ts : 0;
 }
 
 /** Время встречи по Москве для подстановки в шаблон напоминания, напр. "11:00". */
 export function formatConsultationTime(iso: string): string {
-  return new Intl.DateTimeFormat("ru-RU", {
-    timeZone: "Europe/Moscow",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
+	return new Intl.DateTimeFormat("ru-RU", {
+		timeZone: "Europe/Moscow",
+		hour: "2-digit",
+		minute: "2-digit",
+	}).format(new Date(iso));
 }
 
 export function renderReminderMessage(
-  template: string,
-  vars: { name: string; time: string },
+	template: string,
+	vars: { name: string; time: string },
 ): string {
-  return template
-    .replaceAll("{name}", vars.name)
-    .replaceAll("{time}", vars.time);
+	return template
+		.replaceAll("{name}", vars.name)
+		.replaceAll("{time}", vars.time);
 }
 
 /** Дата и время по Москве для комментария в таймлайне сделки, напр. "23.07.2026, 14:05". */
 export function formatMoscowDateTime(date: Date = new Date()): string {
-  return new Intl.DateTimeFormat("ru-RU", {
-    timeZone: "Europe/Moscow",
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
+	return new Intl.DateTimeFormat("ru-RU", {
+		timeZone: "Europe/Moscow",
+		dateStyle: "short",
+		timeStyle: "short",
+	}).format(date);
 }
 
 /**
@@ -66,60 +66,60 @@ export function formatMoscowDateTime(date: Date = new Date()): string {
  * не должно считаться сбоем отправки самого напоминания.
  */
 export async function appendReminderSentComment(
-  api: BitrixApi,
-  dealId: number,
-  comment: string,
+	api: BitrixApi,
+	dealId: number,
+	comment: string,
 ): Promise<void> {
-  try {
-    await api.call("crm.timeline.comment.add", {
-      fields: {
-        ENTITY_ID: dealId,
-        ENTITY_TYPE: "deal",
-        COMMENT: comment,
-      },
-    });
-  } catch (err) {
-    console.error(
-      `[reminder] не удалось добавить комментарий к сделке ${dealId}: ${(err as Error).message}`,
-    );
-  }
+	try {
+		await api.call("crm.timeline.comment.add", {
+			fields: {
+				ENTITY_ID: dealId,
+				ENTITY_TYPE: "deal",
+				COMMENT: comment,
+			},
+		});
+	} catch (err) {
+		console.error(
+			`[reminder] не удалось добавить комментарий к сделке ${dealId}: ${(err as Error).message}`,
+		);
+	}
 }
 
 export function extractClientContactId(deal: Record<string, unknown>): number {
-  const contactId = Number(deal.CONTACT_ID ?? 0);
-  if (contactId > 0) return contactId;
+	const contactId = Number(deal.CONTACT_ID ?? 0);
+	if (contactId > 0) return contactId;
 
-  const ids = deal.CONTACT_IDS;
-  if (Array.isArray(ids) && ids.length > 0) {
-    const first = Number(ids[0] ?? 0);
-    return first > 0 ? first : 0;
-  }
-  return 0;
+	const ids = deal.CONTACT_IDS;
+	if (Array.isArray(ids) && ids.length > 0) {
+		const first = Number(ids[0] ?? 0);
+		return first > 0 ? first : 0;
+	}
+	return 0;
 }
 
 interface ContactIm {
-  VALUE?: string;
-  VALUE_TYPE?: string;
+	VALUE?: string;
+	VALUE_TYPE?: string;
 }
 
 export interface DirectBotTarget {
-  messenger: Messenger;
-  userId: string;
+	messenger: Messenger;
+	userId: string;
 }
 
 export type BotDeliveryResult =
-  | { status: "sent"; messenger: Messenger; userId: string }
-  | { status: "skipped" | "error"; reason: string };
+	| { status: "sent"; messenger: Messenger; userId: string }
+	| { status: "skipped" | "error"; reason: string };
 
 function messengerFromImType(raw: unknown): Messenger | null {
-  const type = String(raw ?? "")
-    .trim()
-    .toLowerCase();
-  if (type.includes("telegram")) return "telegram";
-  if (type === "max" || type.endsWith("|max") || type.includes("max.ru")) {
-    return "max";
-  }
-  return null;
+	const type = String(raw ?? "")
+		.trim()
+		.toLowerCase();
+	if (type.includes("telegram")) return "telegram";
+	if (type === "max" || type.endsWith("|max") || type.includes("max.ru")) {
+		return "max";
+	}
+	return null;
 }
 
 /**
@@ -129,27 +129,27 @@ function messengerFromImType(raw: unknown): Messenger | null {
  * Открытой линии.
  */
 export function resolveDirectBotTarget(
-  deal: Record<string, unknown>,
-  contact: { IM?: ContactIm[] } | false,
+	deal: Record<string, unknown>,
+	contact: { IM?: ContactIm[] } | false,
 ): DirectBotTarget | null {
-  const preferred = MESSENGER_BOT_MAP[String(deal[MESSENGER_FIELD] ?? "")];
-  const targets = (contact ? (contact.IM ?? []) : [])
-    .map((entry): DirectBotTarget | null => {
-      const messenger = messengerFromImType(entry.VALUE_TYPE);
-      const userId = String(entry.VALUE ?? "").trim();
-      return messenger && /^\d+$/.test(userId) ? { messenger, userId } : null;
-    })
-    .filter((target): target is DirectBotTarget => target !== null);
+	const preferred = MESSENGER_BOT_MAP[String(deal[MESSENGER_FIELD] ?? "")];
+	const targets = (contact ? (contact.IM ?? []) : [])
+		.map((entry): DirectBotTarget | null => {
+			const messenger = messengerFromImType(entry.VALUE_TYPE);
+			const userId = String(entry.VALUE ?? "").trim();
+			return messenger && /^\d+$/.test(userId) ? { messenger, userId } : null;
+		})
+		.filter((target): target is DirectBotTarget => target !== null);
 
-  return (
-    targets.find((target) => target.messenger === preferred) ??
-    targets[0] ??
-    null
-  );
+	return (
+		targets.find((target) => target.messenger === preferred) ??
+		targets[0] ??
+		null
+	);
 }
 
 export function botDeliveryLabel(messenger: Messenger): string {
-  return messenger === "telegram" ? "Telegram-бот" : "MAX-бот";
+	return messenger === "telegram" ? "Telegram-бот" : "MAX-бот";
 }
 
 /**
@@ -165,78 +165,79 @@ export function botDeliveryLabel(messenger: Messenger): string {
  * hatchet/broadcast.ts). Ошибка записи не должна отменять сам факт отправки.
  */
 async function logReminderMessage(params: {
-  target: DirectBotTarget;
-  text: string;
-  status: "sent" | "failed";
-  externalId?: string;
+	target: DirectBotTarget;
+	text: string;
+	status: "sent" | "failed";
+	externalId?: string;
 }): Promise<void> {
-  const text = params.text.trim();
-  if (!text) return;
-  try {
-    const { insertBotMessage, listBotMessages } =
-      await import("@psi-opora/db/queries");
-    // Крон повторяет попытку каждые 5 минут, пока встреча в окне напоминания,
-    // поэтому у заблокировавшего бота клиента одна и та же неудача набежала бы
-    // десятком записей «не доставлено». Достаточно одной отметки на текст.
-    if (params.status === "failed") {
-      const recent = await listBotMessages(
-        params.target.messenger,
-        params.target.userId,
-        10,
-      );
-      const alreadyMarked = recent.some(
-        (row) =>
-          row.direction === "out" &&
-          row.status === "failed" &&
-          row.text === text,
-      );
-      if (alreadyMarked) return;
-    }
-    await insertBotMessage({
-      messenger: params.target.messenger,
-      userId: params.target.userId,
-      direction: "out",
-      source: "reminder",
-      text,
-      status: params.status,
-      externalId: params.externalId,
-    });
-  } catch (err) {
-    console.error(
-      `[reminder] не удалось записать сообщение в журнал (${params.target.messenger} ${params.target.userId}): ${(err as Error).message}`,
-    );
-  }
+	const text = params.text.trim();
+	if (!text) return;
+	try {
+		const { insertBotMessage, listBotMessages } = await import(
+			"@psi-opora/db/queries"
+		);
+		// Крон повторяет попытку каждые 5 минут, пока встреча в окне напоминания,
+		// поэтому у заблокировавшего бота клиента одна и та же неудача набежала бы
+		// десятком записей «не доставлено». Достаточно одной отметки на текст.
+		if (params.status === "failed") {
+			const recent = await listBotMessages(
+				params.target.messenger,
+				params.target.userId,
+				10,
+			);
+			const alreadyMarked = recent.some(
+				(row) =>
+					row.direction === "out" &&
+					row.status === "failed" &&
+					row.text === text,
+			);
+			if (alreadyMarked) return;
+		}
+		await insertBotMessage({
+			messenger: params.target.messenger,
+			userId: params.target.userId,
+			direction: "out",
+			source: "reminder",
+			text,
+			status: params.status,
+			externalId: params.externalId,
+		});
+	} catch (err) {
+		console.error(
+			`[reminder] не удалось записать сообщение в журнал (${params.target.messenger} ${params.target.userId}): ${(err as Error).message}`,
+		);
+	}
 }
 
 /** Отправляет уведомление напрямую через нашего Telegram/MAX-бота. */
 export async function sendReminderBotMessage(
-  deal: Record<string, unknown>,
-  contact: { IM?: ContactIm[] } | false,
-  message: string,
+	deal: Record<string, unknown>,
+	contact: { IM?: ContactIm[] } | false,
+	message: string,
 ): Promise<BotDeliveryResult> {
-  const target = resolveDirectBotTarget(deal, contact);
-  if (!target) {
-    return { status: "skipped", reason: "bot_target_not_found" };
-  }
+	const target = resolveDirectBotTarget(deal, contact);
+	if (!target) {
+		return { status: "skipped", reason: "bot_target_not_found" };
+	}
 
-  try {
-    const externalId = await sendMessengerMessage(
-      target.messenger,
-      target.userId,
-      message,
-    );
-    await logReminderMessage({
-      target,
-      text: message,
-      status: "sent",
-      externalId,
-    });
-    return { status: "sent", ...target };
-  } catch (error) {
-    await logReminderMessage({ target, text: message, status: "failed" });
-    return {
-      status: "error",
-      reason: `bot_send_failed: ${(error as Error).message}`,
-    };
-  }
+	try {
+		const externalId = await sendMessengerMessage(
+			target.messenger,
+			target.userId,
+			message,
+		);
+		await logReminderMessage({
+			target,
+			text: message,
+			status: "sent",
+			externalId,
+		});
+		return { status: "sent", ...target };
+	} catch (error) {
+		await logReminderMessage({ target, text: message, status: "failed" });
+		return {
+			status: "error",
+			reason: `bot_send_failed: ${(error as Error).message}`,
+		};
+	}
 }

@@ -8,29 +8,29 @@ import { db } from "../client";
  * Скрипт идемпотентен (IF NOT EXISTS) — можно запускать повторно.
  */
 async function apply() {
-  if (!db) {
-    console.error("Нет подключения к БД (POSTGRES_URL)");
-    process.exit(1);
-  }
+	if (!db) {
+		console.error("Нет подключения к БД (POSTGRES_URL)");
+		process.exit(1);
+	}
 
-  await db.execute(sql`
+	await db.execute(sql`
     ALTER TABLE "bot_messages" ADD COLUMN IF NOT EXISTS "kind" text NOT NULL DEFAULT 'text'
   `);
-  await db.execute(sql`
+	await db.execute(sql`
     ALTER TABLE "bot_messages" ADD COLUMN IF NOT EXISTS "media_s3_key" text
   `);
-  await db.execute(sql`
+	await db.execute(sql`
     ALTER TABLE "bot_messages" ADD COLUMN IF NOT EXISTS "media_mime_type" text
   `);
-  await db.execute(sql`
+	await db.execute(sql`
     ALTER TABLE "bot_messages" ADD COLUMN IF NOT EXISTS "media_duration_sec" integer
   `);
 
-  console.log("✅ bot_messages.kind/media_* применены");
-  process.exit(0);
+	console.log("✅ bot_messages.kind/media_* применены");
+	process.exit(0);
 }
 
 apply().catch((err) => {
-  console.error("❌", err);
-  process.exit(1);
+	console.error("❌", err);
+	process.exit(1);
 });

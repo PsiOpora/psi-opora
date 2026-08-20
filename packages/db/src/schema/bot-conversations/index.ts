@@ -10,19 +10,17 @@ import { index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
  * как и в самой Открытой линии Bitrix24: открыл диалог — прочитано для всех.
  */
 export const botConversations = pgTable(
-  "bot_conversations",
-  {
-    id: text("id").primaryKey(),
-    messenger: text("messenger").notNull(),
-    userId: text("user_id").notNull(),
-    assignedOperatorId: text("assigned_operator_id"),
-    assignedOperatorName: text("assigned_operator_name"),
-    /** Теги диалога для фильтрации в инбоксе «Клиенты» (apps/clients). */
-    tags: jsonb("tags").$type<string[]>(),
-    lastReadAt: timestamp("last_read_at"),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => [
-    index("bot_conversations_messenger_idx").on(table.messenger),
-  ],
+	"bot_conversations",
+	{
+		id: text("id").primaryKey(),
+		messenger: text("messenger").notNull(),
+		userId: text("user_id").notNull(),
+		assignedOperatorId: text("assigned_operator_id"),
+		assignedOperatorName: text("assigned_operator_name"),
+		/** Теги диалога для фильтрации в инбоксе «Клиенты» (apps/clients). */
+		tags: jsonb("tags").$type<string[]>(),
+		lastReadAt: timestamp("last_read_at"),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [index("bot_conversations_messenger_idx").on(table.messenger)],
 );

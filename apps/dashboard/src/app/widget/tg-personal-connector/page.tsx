@@ -14,21 +14,21 @@ import { TgPersonalConnectorClient } from "./tg-personal-connector-client";
  * внешние отступы минимальны.
  */
 export default function TgPersonalConnectorPage() {
-  return (
-    <Suspense fallback={null}>
-      <TgPersonalConnectorPageContent />
-    </Suspense>
-  );
+	return (
+		<Suspense fallback={null}>
+			<TgPersonalConnectorPageContent />
+		</Suspense>
+	);
 }
 
 function TgPersonalConnectorPageContent() {
-  const searchParams = useSearchParams();
-  const lineId = searchParams.get("line") ?? "";
-  const connectorId = searchParams.get("connector") ?? "";
+	const searchParams = useSearchParams();
+	const lineId = searchParams.get("line") ?? "";
+	const connectorId = searchParams.get("connector") ?? "";
 
-  return (
-    <div className="p-2">
-      <TgPersonalConnectorClient lineId={lineId} connectorId={connectorId} />
-    </div>
-  );
+	return (
+		<div className="p-2">
+			<TgPersonalConnectorClient lineId={lineId} connectorId={connectorId} />
+		</div>
+	);
 }

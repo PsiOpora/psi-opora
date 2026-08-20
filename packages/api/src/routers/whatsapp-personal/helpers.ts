@@ -5,7 +5,7 @@ import { upsertWhatsappPersonalAccountConnected } from "@psi-opora/db/queries";
 /** Префикс для генерации ID новых слотов (см. generateConnectorId) — сам по
  * себе значением коннектора больше не является. */
 export function connectorIdPrefix(): string {
-  return env.WA_PERSONAL_CONNECTOR_ID;
+	return env.WA_PERSONAL_CONNECTOR_ID;
 }
 
 /**
@@ -17,7 +17,7 @@ export function connectorIdPrefix(): string {
  * одной LINE, но только один активный слот на пару CONNECTOR+LINE).
  */
 export function generateConnectorId(): string {
-  return `${connectorIdPrefix()}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+	return `${connectorIdPrefix()}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
 }
 
 /**
@@ -27,13 +27,13 @@ export function generateConnectorId(): string {
  * на приём, в отличие от tg-userbot-worker.
  */
 export function sessionWebhook():
-  | { url: string; hmacKey?: string }
-  | undefined {
-  if (!env.WAHA_WEBHOOK_URL) return undefined;
-  return {
-    url: env.WAHA_WEBHOOK_URL,
-    hmacKey: env.WAHA_WEBHOOK_SECRET,
-  };
+	| { url: string; hmacKey?: string }
+	| undefined {
+	if (!env.WAHA_WEBHOOK_URL) return undefined;
+	return {
+		url: env.WAHA_WEBHOOK_URL,
+		hmacKey: env.WAHA_WEBHOOK_SECRET,
+	};
 }
 
 /**
@@ -44,31 +44,31 @@ export function sessionWebhook():
  * активацию, открыв настройки канала ещё раз (как у telegram-personal).
  */
 export async function finalizeConnectedLogin(params: {
-  memberId: string;
-  lineId: string;
-  connectorId: string;
-  phone: string;
-  sessionName: string;
-  getBitrixApi: () => Promise<BitrixApi | null>;
+	memberId: string;
+	lineId: string;
+	connectorId: string;
+	phone: string;
+	sessionName: string;
+	getBitrixApi: () => Promise<BitrixApi | null>;
 }): Promise<{ activationError?: string }> {
-  await upsertWhatsappPersonalAccountConnected({
-    memberId: params.memberId,
-    openLineId: params.lineId,
-    connectorId: params.connectorId,
-    phone: params.phone,
-    sessionName: params.sessionName,
-  });
+	await upsertWhatsappPersonalAccountConnected({
+		memberId: params.memberId,
+		openLineId: params.lineId,
+		connectorId: params.connectorId,
+		phone: params.phone,
+		sessionName: params.sessionName,
+	});
 
-  try {
-    const api = await params.getBitrixApi();
-    if (!api) return { activationError: "Нет подключения к Битрикс24" };
-    await api.call("imconnector.activate", {
-      CONNECTOR: params.connectorId,
-      LINE: Number(params.lineId),
-      ACTIVE: "Y",
-    });
-    return {};
-  } catch (err) {
-    return { activationError: (err as Error).message };
-  }
+	try {
+		const api = await params.getBitrixApi();
+		if (!api) return { activationError: "Нет подключения к Битрикс24" };
+		await api.call("imconnector.activate", {
+			CONNECTOR: params.connectorId,
+			LINE: Number(params.lineId),
+			ACTIVE: "Y",
+		});
+		return {};
+	} catch (err) {
+		return { activationError: (err as Error).message };
+	}
 }

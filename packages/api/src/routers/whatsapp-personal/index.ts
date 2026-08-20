@@ -6,11 +6,11 @@ import { registerSlot } from "./register-slot";
 import { startLogin } from "./start-login";
 
 export const whatsappPersonalRouter = router({
-  registerSlot,
-  startLogin,
-  pollStatus,
-  list,
-  disconnect,
+	registerSlot,
+	startLogin,
+	pollStatus,
+	list,
+	disconnect,
 });
 
 export type { WhatsappPersonalAccountView } from "./types";

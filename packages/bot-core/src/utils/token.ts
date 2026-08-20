@@ -7,11 +7,11 @@ import { getBotConnector } from "@psi-opora/db/queries";
  * обязан ввести токен через виджет активации канала.
  */
 export async function resolveTelegramBotToken(): Promise<string> {
-  const row = await getBotConnector("telegram");
-  return row?.botTokenEncrypted ? decryptSecret(row.botTokenEncrypted) : "";
+	const row = await getBotConnector("telegram");
+	return row?.botTokenEncrypted ? decryptSecret(row.botTokenEncrypted) : "";
 }
 
 export async function resolveMaxBotToken(): Promise<string> {
-  const row = await getBotConnector("max");
-  return row?.botTokenEncrypted ? decryptSecret(row.botTokenEncrypted) : "";
+	const row = await getBotConnector("max");
+	return row?.botTokenEncrypted ? decryptSecret(row.botTokenEncrypted) : "";
 }

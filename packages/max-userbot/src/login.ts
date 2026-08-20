@@ -29,69 +29,69 @@ import { OPCODE } from "./protocol/opcodes";
  * user-agent форма должна уходить что на разовых подключениях логина, что
  * на постоянном соединении воркера. */
 export function userAgentPayload() {
-  // Порядок ключей важен (см. src/protocol/frame.ts) — не менять местами.
-  return {
-    deviceType: "ANDROID",
-    pushDeviceType: "GCM",
-    appVersion: env.MAX_USERBOT_APP_VERSION,
-    arch: "arm64-v8a",
-    buildNumber: env.MAX_USERBOT_BUILD_NUMBER,
-    osVersion: "34",
-    locale: "ru",
-    deviceLocale: "ru_RU",
-    deviceName: "samsung SM-G998B",
-    screen: "1080x1920",
-    timezone: "Europe/Moscow",
-    carrierName: "MTS",
-    networkType: "wifi",
-    vendor: "samsung",
-    installSource: "com.android.vending",
-  };
+	// Порядок ключей важен (см. src/protocol/frame.ts) — не менять местами.
+	return {
+		deviceType: "ANDROID",
+		pushDeviceType: "GCM",
+		appVersion: env.MAX_USERBOT_APP_VERSION,
+		arch: "arm64-v8a",
+		buildNumber: env.MAX_USERBOT_BUILD_NUMBER,
+		osVersion: "34",
+		locale: "ru",
+		deviceLocale: "ru_RU",
+		deviceName: "samsung SM-G998B",
+		screen: "1080x1920",
+		timezone: "Europe/Moscow",
+		carrierName: "MTS",
+		networkType: "wifi",
+		vendor: "samsung",
+		installSource: "com.android.vending",
+	};
 }
 
 /** Протокол принимает телефон только в E.164. Разрешаем привычное российское
  * написание через 8 и визуальные разделители, но в MAX всегда отправляем +7. */
 export function normalizeMaxPhone(value: string): string {
-  const compact = value.trim().replace(/[\s()-]/g, "");
-  if (/^8\d{10}$/.test(compact)) return `+7${compact.slice(1)}`;
-  if (/^7\d{10}$/.test(compact)) return `+${compact}`;
-  if (/^\+[1-9]\d{7,14}$/.test(compact)) return compact;
-  throw new Error(
-    "Введите номер MAX в международном формате, например +79991234567",
-  );
+	const compact = value.trim().replace(/[\s()-]/g, "");
+	if (/^8\d{10}$/.test(compact)) return `+7${compact.slice(1)}`;
+	if (/^7\d{10}$/.test(compact)) return `+${compact}`;
+	if (/^\+[1-9]\d{7,14}$/.test(compact)) return compact;
+	throw new Error(
+		"Введите номер MAX в международном формате, например +79991234567",
+	);
 }
 
 function readInteger(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isSafeInteger(value)) return value;
-  if (typeof value === "string" && /^\d+$/.test(value)) {
-    const parsed = Number(value);
-    if (Number.isSafeInteger(parsed)) return parsed;
-  }
-  return undefined;
+	if (typeof value === "number" && Number.isSafeInteger(value)) return value;
+	if (typeof value === "string" && /^\d+$/.test(value)) {
+		const parsed = Number(value);
+		if (Number.isSafeInteger(parsed)) return parsed;
+	}
+	return undefined;
 }
 
 export interface SessionInitResult {
-  /** `callsSeed` из ответа SESSION_INIT — используется для вычисления
-   * ChatCacheFingerprint (поле `mode` в AUTH_REQUEST), как у Komet. */
-  callsSeed: number | undefined;
+	/** `callsSeed` из ответа SESSION_INIT — используется для вычисления
+	 * ChatCacheFingerprint (поле `mode` в AUTH_REQUEST), как у Komet. */
+	callsSeed: number | undefined;
 }
 
 /** Экспортируется для переиспользования в relay.ts (Фаза 2). */
 export async function sessionInit(
-  client: MaxProtocolClient,
-  deviceId: string,
+	client: MaxProtocolClient,
+	deviceId: string,
 ): Promise<SessionInitResult> {
-  const response = await client.request(OPCODE.SESSION_INIT, {
-    userAgent: userAgentPayload(),
-    deviceId,
-    clientSessionId: Date.now(),
-  });
-  console.log(
-    `[max-personal-login] SESSION_INIT response: ${JSON.stringify(response)}`,
-  );
-  const callsSeed =
-    typeof response.callsSeed === "number" ? response.callsSeed : undefined;
-  return { callsSeed };
+	const response = await client.request(OPCODE.SESSION_INIT, {
+		userAgent: userAgentPayload(),
+		deviceId,
+		clientSessionId: Date.now(),
+	});
+	console.log(
+		`[max-personal-login] SESSION_INIT response: ${JSON.stringify(response)}`,
+	);
+	const callsSeed =
+		typeof response.callsSeed === "number" ? response.callsSeed : undefined;
+	return { callsSeed };
 }
 
 /**
@@ -107,53 +107,53 @@ export async function sessionInit(
  * Дайджесты — публичные константы из исходников Komet (chat_cache_fingerprint.dart).
  */
 function chatCacheFingerprint(callsSeed: number, deviceId: string): Uint8Array {
-  const SIGNATURE_DIGEST = Buffer.from(
-    "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
-    "hex",
-  );
-  const SO_DIGEST = Buffer.from(
-    "90e2fb8745b17b42a10182f8d8ac590e3fca5b311e2ce2d5144fa2c18cb3090d",
-    "hex",
-  );
-  const DEX_DIGEST = Buffer.from(
-    "0a6265f6e5d8231b9cba641f8c40475e6f3baeb06ed41b804b9bf7307aa4214e",
-    "hex",
-  );
+	const SIGNATURE_DIGEST = Buffer.from(
+		"1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
+		"hex",
+	);
+	const SO_DIGEST = Buffer.from(
+		"90e2fb8745b17b42a10182f8d8ac590e3fca5b311e2ce2d5144fa2c18cb3090d",
+		"hex",
+	);
+	const DEX_DIGEST = Buffer.from(
+		"0a6265f6e5d8231b9cba641f8c40475e6f3baeb06ed41b804b9bf7307aa4214e",
+		"hex",
+	);
 
-  const seed = Buffer.allocUnsafe(8);
-  // callsSeed — 32-битное целое от сервера, пишем в int64 big-endian как Dart
-  seed.writeBigInt64BE(BigInt(callsSeed), 0);
-  const device = Buffer.from(deviceId, "utf8");
+	const seed = Buffer.allocUnsafe(8);
+	// callsSeed — 32-битное целое от сервера, пишем в int64 big-endian как Dart
+	seed.writeBigInt64BE(BigInt(callsSeed), 0);
+	const device = Buffer.from(deviceId, "utf8");
 
-  function sha256part(a: Buffer): Buffer {
-    return createHash("sha256").update(a).update(seed).update(device).digest();
-  }
+	function sha256part(a: Buffer): Buffer {
+		return createHash("sha256").update(a).update(seed).update(device).digest();
+	}
 
-  return Buffer.concat([
-    sha256part(SIGNATURE_DIGEST),
-    sha256part(DEX_DIGEST),
-    sha256part(SO_DIGEST),
-  ]);
+	return Buffer.concat([
+		sha256part(SIGNATURE_DIGEST),
+		sha256part(DEX_DIGEST),
+		sha256part(SO_DIGEST),
+	]);
 }
 async function connectAndInit(
-  deviceId: string,
+	deviceId: string,
 ): Promise<{ client: MaxProtocolClient; callsSeed: number | undefined }> {
-  const client = new MaxProtocolClient({
-    proxy: env.MAX_USERBOT_PROXY,
-  });
-  await client.connect();
-  const { callsSeed } = await sessionInit(client, deviceId);
-  return { client, callsSeed };
+	const client = new MaxProtocolClient({
+		proxy: env.MAX_USERBOT_PROXY,
+	});
+	await client.connect();
+	const { callsSeed } = await sessionInit(client, deviceId);
+	return { client, callsSeed };
 }
 
 /** Читает строковое поле из ответа сервера, перебирая несколько возможных
  * имён — форма ответа эмпирическая, см. предупреждение выше. */
 function readToken(payload: Record<string, unknown>): string | undefined {
-  for (const key of ["token", "authToken", "sessionToken"]) {
-    const value = payload[key];
-    if (typeof value === "string" && value.length > 0) return value;
-  }
-  return undefined;
+	for (const key of ["token", "authToken", "sessionToken"]) {
+		const value = payload[key];
+		if (typeof value === "string" && value.length > 0) return value;
+	}
+	return undefined;
 }
 
 /**
@@ -165,84 +165,84 @@ function readToken(payload: Record<string, unknown>): string | undefined {
  * нибудь начнёт отдавать его иначе, откатываемся на readToken() как раньше.
  */
 function readLoginToken(payload: Record<string, unknown>): string | undefined {
-  const tokenAttrs = payload.tokenAttrs as Record<string, unknown> | undefined;
-  const loginAttr = tokenAttrs?.LOGIN as Record<string, unknown> | undefined;
-  const nested = loginAttr?.token;
-  if (typeof nested === "string" && nested.length > 0) return nested;
-  return readToken(payload);
+	const tokenAttrs = payload.tokenAttrs as Record<string, unknown> | undefined;
+	const loginAttr = tokenAttrs?.LOGIN as Record<string, unknown> | undefined;
+	const nested = loginAttr?.token;
+	if (typeof nested === "string" && nested.length > 0) return nested;
+	return readToken(payload);
 }
 
 export interface PendingMaxLogin {
-  phone: string;
-  deviceId: string;
-  /** Токен верификации, полученный от AUTH_REQUEST — предъявляется вместе с
-   * SMS-кодом на шаге AUTH. */
-  verifyToken: string;
+	phone: string;
+	deviceId: string;
+	/** Токен верификации, полученный от AUTH_REQUEST — предъявляется вместе с
+	 * SMS-кодом на шаге AUTH. */
+	verifyToken: string;
 }
 
 export interface SendLoginCodeResult {
-  /** Непрозрачная строка для вызывающего кода — сериализованный
-   * PendingMaxLogin, ничего не шифруем на этом уровне (см. crypto.ts —
-   * шифруется только финальная сессия перед записью в БД, как и у
-   * telegram-personal). */
-  pendingSession: string;
-  codeLength: number;
-  phone: string;
+	/** Непрозрачная строка для вызывающего кода — сериализованный
+	 * PendingMaxLogin, ничего не шифруем на этом уровне (см. crypto.ts —
+	 * шифруется только финальная сессия перед записью в БД, как и у
+	 * telegram-personal). */
+	pendingSession: string;
+	codeLength: number;
+	phone: string;
 }
 
 export async function sendLoginCode(
-  phone: string,
+	phone: string,
 ): Promise<SendLoginCodeResult> {
-  const normalizedPhone = normalizeMaxPhone(phone);
-  const deviceId = crypto.randomUUID();
-  const { client, callsSeed } = await connectAndInit(deviceId);
-  try {
-    const authRequestPayload: Record<string, unknown> = {
-      phone: normalizedPhone,
-      type: "START_AUTH",
-      language: "ru",
-    };
-    // Поле `mode` (ChatCacheFingerprint) — антиспам-метрика сервера,
-    // отправляется если callsSeed пришёл в ответе SESSION_INIT, как у Komet.
-    if (callsSeed !== undefined) {
-      authRequestPayload.mode = chatCacheFingerprint(callsSeed, deviceId);
-    }
+	const normalizedPhone = normalizeMaxPhone(phone);
+	const deviceId = crypto.randomUUID();
+	const { client, callsSeed } = await connectAndInit(deviceId);
+	try {
+		const authRequestPayload: Record<string, unknown> = {
+			phone: normalizedPhone,
+			type: "START_AUTH",
+			language: "ru",
+		};
+		// Поле `mode` (ChatCacheFingerprint) — антиспам-метрика сервера,
+		// отправляется если callsSeed пришёл в ответе SESSION_INIT, как у Komet.
+		if (callsSeed !== undefined) {
+			authRequestPayload.mode = chatCacheFingerprint(callsSeed, deviceId);
+		}
 
-    const response = await client.request(
-      OPCODE.AUTH_REQUEST,
-      authRequestPayload,
-    );
-    console.log(
-      `[max-personal-login] AUTH_REQUEST response: ${JSON.stringify(response, (_k, v) => (v instanceof Uint8Array ? `<Uint8Array(${v.length})>` : v))}`,
-    );
+		const response = await client.request(
+			OPCODE.AUTH_REQUEST,
+			authRequestPayload,
+		);
+		console.log(
+			`[max-personal-login] AUTH_REQUEST response: ${JSON.stringify(response, (_k, v) => (v instanceof Uint8Array ? `<Uint8Array(${v.length})>` : v))}`,
+		);
 
-    const verifyToken = readToken(response);
-    if (!verifyToken) {
-      throw new Error(
-        `MAX не вернул токен верификации на AUTH_REQUEST: ${JSON.stringify(response)}`,
-      );
-    }
-    const codeLength = readInteger(response.codeLength) ?? 6;
-    const requestCountLeft = readInteger(response.requestCountLeft);
-    if (requestCountLeft === 0) {
-      throw new Error(
-        "MAX исчерпал лимит отправки кодов для этого номера. Подождите и повторите позже",
-      );
-    }
+		const verifyToken = readToken(response);
+		if (!verifyToken) {
+			throw new Error(
+				`MAX не вернул токен верификации на AUTH_REQUEST: ${JSON.stringify(response)}`,
+			);
+		}
+		const codeLength = readInteger(response.codeLength) ?? 6;
+		const requestCountLeft = readInteger(response.requestCountLeft);
+		if (requestCountLeft === 0) {
+			throw new Error(
+				"MAX исчерпал лимит отправки кодов для этого номера. Подождите и повторите позже",
+			);
+		}
 
-    const pending: PendingMaxLogin = {
-      phone: normalizedPhone,
-      deviceId,
-      verifyToken,
-    };
-    return {
-      pendingSession: JSON.stringify(pending),
-      codeLength,
-      phone: normalizedPhone,
-    };
-  } finally {
-    client.close();
-  }
+		const pending: PendingMaxLogin = {
+			phone: normalizedPhone,
+			deviceId,
+			verifyToken,
+		};
+		return {
+			pendingSession: JSON.stringify(pending),
+			codeLength,
+			phone: normalizedPhone,
+		};
+	} finally {
+		client.close();
+	}
 }
 
 /**
@@ -252,48 +252,48 @@ export async function sendLoginCode(
  * telegram-personal.
  */
 export interface MaxUserbotSession {
-  phone: string;
-  deviceId: string;
-  /** `tokenAttrs.LOGIN.token` из ответа AUTH — см. readLoginToken(). */
-  sessionToken: string;
+	phone: string;
+	deviceId: string;
+	/** `tokenAttrs.LOGIN.token` из ответа AUTH — см. readLoginToken(). */
+	sessionToken: string;
 }
 
 export interface ConfirmLoginCodeResult {
-  status: "connected";
-  /** JSON-сериализованный MaxUserbotSession. */
-  session: string;
+	status: "connected";
+	/** JSON-сериализованный MaxUserbotSession. */
+	session: string;
 }
 
 export async function confirmLoginCode(params: {
-  pendingSession: string;
-  code: string;
+	pendingSession: string;
+	code: string;
 }): Promise<ConfirmLoginCodeResult> {
-  const pending: PendingMaxLogin = JSON.parse(params.pendingSession);
-  const { client } = await connectAndInit(pending.deviceId);
-  try {
-    const authResponse = await client.request(OPCODE.AUTH, {
-      token: pending.verifyToken,
-      verifyCode: params.code,
-      authTokenType: "CHECK_CODE",
-    });
-    console.log(
-      `[max-personal-login] AUTH (confirm code) response: ${JSON.stringify(authResponse, (_k, v) => (v instanceof Uint8Array ? `<Uint8Array(${v.length})>` : v))}`,
-    );
+	const pending: PendingMaxLogin = JSON.parse(params.pendingSession);
+	const { client } = await connectAndInit(pending.deviceId);
+	try {
+		const authResponse = await client.request(OPCODE.AUTH, {
+			token: pending.verifyToken,
+			verifyCode: params.code,
+			authTokenType: "CHECK_CODE",
+		});
+		console.log(
+			`[max-personal-login] AUTH (confirm code) response: ${JSON.stringify(authResponse, (_k, v) => (v instanceof Uint8Array ? `<Uint8Array(${v.length})>` : v))}`,
+		);
 
-    const sessionToken = readLoginToken(authResponse);
-    if (!sessionToken) {
-      throw new Error(
-        `MAX не вернул токен для повторного входа в ответе на AUTH: ${JSON.stringify(authResponse)}`,
-      );
-    }
+		const sessionToken = readLoginToken(authResponse);
+		if (!sessionToken) {
+			throw new Error(
+				`MAX не вернул токен для повторного входа в ответе на AUTH: ${JSON.stringify(authResponse)}`,
+			);
+		}
 
-    const session: MaxUserbotSession = {
-      phone: pending.phone,
-      deviceId: pending.deviceId,
-      sessionToken,
-    };
-    return { status: "connected", session: JSON.stringify(session) };
-  } finally {
-    client.close();
-  }
+		const session: MaxUserbotSession = {
+			phone: pending.phone,
+			deviceId: pending.deviceId,
+			sessionToken,
+		};
+		return { status: "connected", session: JSON.stringify(session) };
+	} finally {
+		client.close();
+	}
 }

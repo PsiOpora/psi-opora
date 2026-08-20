@@ -4,12 +4,12 @@ import { sendTest } from "./send-test";
 import { templatePreview } from "./template-preview";
 
 export const emailBroadcastRouter = router({
-  templatePreview,
-  sendTest,
-  send,
+	templatePreview,
+	sendTest,
+	send,
 });
 
 export type {
-  EmailCampaignActionResult,
-  RecentEmailCampaignInfo,
+	EmailCampaignActionResult,
+	RecentEmailCampaignInfo,
 } from "./types";

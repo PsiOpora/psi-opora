@@ -4,6 +4,6 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const campaigns = await listEmailCampaigns();
-  return NextResponse.json({ campaigns });
+	const campaigns = await listEmailCampaigns();
+	return NextResponse.json({ campaigns });
 }

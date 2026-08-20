@@ -6,5 +6,5 @@ import { InboxApp } from "@/components/inbox/inbox-app";
 export const dynamic = "force-dynamic";
 
 export default function ClientsPage() {
-  return <InboxApp />;
+	return <InboxApp />;
 }

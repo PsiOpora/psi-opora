@@ -1,47 +1,47 @@
 {
-  "$schema": "https://turbo.build/schema.json",
-  "tasks": {
-    "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
-      "passThroughEnv": [
-        "POSTGRES_URL",
-        "REDIS_URL",
-        "REDIS_HOST",
-        "REDIS_PORT",
-        "REDIS_PASSWORD",
-        "NEXT_PUBLIC_BASE_URL",
-        "CRON_SECRET",
-        "DASHBOARD_BITRIX_CLIENT_ID",
-        "DASHBOARD_BITRIX_CLIENT_SECRET",
-        "DASHBOARD_BITRIX_WEBHOOK_URL",
-        "CLIENTS_BITRIX_CLIENT_ID",
-        "CLIENTS_BITRIX_CLIENT_SECRET",
-        "KV_URL",
-        "MAX_WEBHOOK_URL",
-        "MAX_USERBOT_CONNECTOR_ID",
-        "HATCHET_CLIENT_TOKEN",
-        "HATCHET_CLIENT_HOST_PORT",
-        "HATCHET_CLIENT_API_URL",
-        "HATCHET_CLIENT_TLS_STRATEGY",
-        "NODE_TLS_REJECT_UNAUTHORIZED",
-        "BITRIX_WEBHOOK_URL",
-        "MAX_BOT_ID",
-        "MAX_BITRIX_SOURCE_ID",
-        "MAX_BITRIX_SOURCE_NAME",
-        "UNISENDER_API_KEY"
-      ]
-    },
-    "typecheck": {
-      "dependsOn": ["^typecheck", "^build"]
-    },
-    "dev": {
-      "cache": false,
-      "persistent": true,
-      "dependsOn": ["^build"]
-    },
-    "set-webhook": {
-      "cache": false
-    }
-  }
+	"$schema": "https://turbo.build/schema.json",
+	"tasks": {
+		"build": {
+			"dependsOn": ["^build"],
+			"outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+			"passThroughEnv": [
+				"POSTGRES_URL",
+				"REDIS_URL",
+				"REDIS_HOST",
+				"REDIS_PORT",
+				"REDIS_PASSWORD",
+				"NEXT_PUBLIC_BASE_URL",
+				"CRON_SECRET",
+				"DASHBOARD_BITRIX_CLIENT_ID",
+				"DASHBOARD_BITRIX_CLIENT_SECRET",
+				"DASHBOARD_BITRIX_WEBHOOK_URL",
+				"CLIENTS_BITRIX_CLIENT_ID",
+				"CLIENTS_BITRIX_CLIENT_SECRET",
+				"KV_URL",
+				"MAX_WEBHOOK_URL",
+				"MAX_USERBOT_CONNECTOR_ID",
+				"HATCHET_CLIENT_TOKEN",
+				"HATCHET_CLIENT_HOST_PORT",
+				"HATCHET_CLIENT_API_URL",
+				"HATCHET_CLIENT_TLS_STRATEGY",
+				"NODE_TLS_REJECT_UNAUTHORIZED",
+				"BITRIX_WEBHOOK_URL",
+				"MAX_BOT_ID",
+				"MAX_BITRIX_SOURCE_ID",
+				"MAX_BITRIX_SOURCE_NAME",
+				"UNISENDER_API_KEY"
+			]
+		},
+		"typecheck": {
+			"dependsOn": ["^typecheck", "^build"]
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true,
+			"dependsOn": ["^build"]
+		},
+		"set-webhook": {
+			"cache": false
+		}
+	}
 }

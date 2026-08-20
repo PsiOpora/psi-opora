@@ -10,7 +10,7 @@ export { MEMBER_ID_COOKIE };
  * разработки (DASHBOARD_BITRIX_WEBHOOK_URL в .env).
  */
 export async function getBitrixApi(): Promise<BitrixApi | null> {
-  const store = await cookies();
-  const memberId = store.get(MEMBER_ID_COOKIE)?.value ?? null;
-  return resolveBitrixApiForRequest(memberId);
+	const store = await cookies();
+	const memberId = store.get(MEMBER_ID_COOKIE)?.value ?? null;
+	return resolveBitrixApiForRequest(memberId);
 }

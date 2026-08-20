@@ -18,44 +18,44 @@
 
 import { ORPCError, os } from "@orpc/server";
 import {
-  type BitrixApi,
-  type BitrixSessionClaims,
-  resolveBitrixApiForRequest,
+	type BitrixApi,
+	type BitrixSessionClaims,
+	resolveBitrixApiForRequest,
 } from "@psi-opora/bitrix-client";
 import { env, logger } from "@psi-opora/config";
 import { db } from "@psi-opora/db";
 
 export interface CreateORPCContextOptions {
-  /** Request headers, kept on the context for procedures that need them. */
-  headers: Headers;
-  /** Pre-resolved session (or `null` for anonymous requests). */
-  session: { user: { id: string; email: string; name: string } } | null;
-  /**
-   * memberId портала Bitrix24 из cookie текущего запроса (или `null`) —
-   * caller (route handler / RSC-клиент) читает cookie сам, чтобы этот пакет
-   * не зависел от `next/headers`. См. `getBitrixApi()` на контексте.
-   */
-  memberId: string | null;
-  /** Серверно проверенная сессия встроенного приложения Bitrix24. */
-  bitrixSession: BitrixSessionClaims | null;
+	/** Request headers, kept on the context for procedures that need them. */
+	headers: Headers;
+	/** Pre-resolved session (or `null` for anonymous requests). */
+	session: { user: { id: string; email: string; name: string } } | null;
+	/**
+	 * memberId портала Bitrix24 из cookie текущего запроса (или `null`) —
+	 * caller (route handler / RSC-клиент) читает cookie сам, чтобы этот пакет
+	 * не зависел от `next/headers`. См. `getBitrixApi()` на контексте.
+	 */
+	memberId: string | null;
+	/** Серверно проверенная сессия встроенного приложения Bitrix24. */
+	bitrixSession: BitrixSessionClaims | null;
 }
 
 export function createORPCContext(opts: CreateORPCContextOptions) {
-  let bitrixApiPromise: Promise<BitrixApi | null> | undefined;
+	let bitrixApiPromise: Promise<BitrixApi | null> | undefined;
 
-  return {
-    session: opts.session,
-    headers: opts.headers,
-    db,
-    /** memberId портала Bitrix24 (для payload фоновых заданий Hatchet). */
-    memberId: opts.memberId,
-    bitrixSession: opts.bitrixSession,
-    /** Резолвит Bitrix24-клиент для запроса лениво и не более одного раза. */
-    getBitrixApi(): Promise<BitrixApi | null> {
-      bitrixApiPromise ??= resolveBitrixApiForRequest(opts.memberId);
-      return bitrixApiPromise;
-    },
-  };
+	return {
+		session: opts.session,
+		headers: opts.headers,
+		db,
+		/** memberId портала Bitrix24 (для payload фоновых заданий Hatchet). */
+		memberId: opts.memberId,
+		bitrixSession: opts.bitrixSession,
+		/** Резолвит Bitrix24-клиент для запроса лениво и не более одного раза. */
+		getBitrixApi(): Promise<BitrixApi | null> {
+			bitrixApiPromise ??= resolveBitrixApiForRequest(opts.memberId);
+			return bitrixApiPromise;
+		},
+	};
 }
 
 /**
@@ -71,23 +71,23 @@ const o = os.$context<ReturnType<typeof createORPCContext>>();
  * Emits a structured log line per request instead of a raw `console.log`.
  */
 const timingMiddleware = o.middleware(async ({ next, path }) => {
-  const start = Date.now();
-  const pathStr = Array.isArray(path) ? path.join(".") : path;
+	const start = Date.now();
+	const pathStr = Array.isArray(path) ? path.join(".") : path;
 
-  try {
-    return await next();
-  } catch (err) {
-    logger.error(`orpc.error: ${pathStr}`, err, {
-      path: pathStr,
-      durationMs: Date.now() - start,
-    });
-    throw err;
-  } finally {
-    logger.info("orpc.request", {
-      path: pathStr,
-      durationMs: Date.now() - start,
-    });
-  }
+	try {
+		return await next();
+	} catch (err) {
+		logger.error(`orpc.error: ${pathStr}`, err, {
+			path: pathStr,
+			durationMs: Date.now() - start,
+		});
+		throw err;
+	} finally {
+		logger.info("orpc.request", {
+			path: pathStr,
+			durationMs: Date.now() - start,
+		});
+	}
 });
 
 /**
@@ -109,31 +109,31 @@ export const router = o.router.bind(o);
  * @see https://orpc.dev/docs/server/procedures
  */
 export const protectedProcedure = publicProcedure.use(({ context, next }) => {
-  if (!context.session?.user) {
-    throw new ORPCError("UNAUTHORIZED");
-  }
+	if (!context.session?.user) {
+		throw new ORPCError("UNAUTHORIZED");
+	}
 
-  return next({
-    context: {
-      ...context,
-      session: context.session as {
-        user: { id: string; email: string; name: string };
-      },
-    },
-  });
+	return next({
+		context: {
+			...context,
+			session: context.session as {
+				user: { id: string; email: string; name: string };
+			},
+		},
+	});
 });
 
 /** Процедура, доступная только из проверенного встроенного приложения Bitrix24. */
 export const bitrixProcedure = publicProcedure.use(({ context, next }) => {
-  if (!context.bitrixSession) {
-    throw new ORPCError("UNAUTHORIZED");
-  }
-  return next({
-    context: {
-      ...context,
-      bitrixSession: context.bitrixSession as BitrixSessionClaims,
-    },
-  });
+	if (!context.bitrixSession) {
+		throw new ORPCError("UNAUTHORIZED");
+	}
+	return next({
+		context: {
+			...context,
+			bitrixSession: context.bitrixSession as BitrixSessionClaims,
+		},
+	});
 });
 
 /**
@@ -148,16 +148,16 @@ export const bitrixProcedure = publicProcedure.use(({ context, next }) => {
  * @example ADMIN_EMAILS=admin@example.com,ops@example.com
  */
 export const adminProcedure = protectedProcedure.use(({ context, next }) => {
-  const adminEmails = (env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
+	const adminEmails = (env.ADMIN_EMAILS ?? "")
+		.split(",")
+		.map((e) => e.trim().toLowerCase())
+		.filter(Boolean);
 
-  if (!adminEmails.includes(context.session.user.email.toLowerCase())) {
-    throw new ORPCError("FORBIDDEN", { message: "Admin access required" });
-  }
+	if (!adminEmails.includes(context.session.user.email.toLowerCase())) {
+		throw new ORPCError("FORBIDDEN", { message: "Admin access required" });
+	}
 
-  return next();
+	return next();
 });
 
 // Export the context type for use in other files

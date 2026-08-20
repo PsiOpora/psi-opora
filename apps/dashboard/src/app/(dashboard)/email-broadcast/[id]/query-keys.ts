@@ -1,3 +1,3 @@
 export function emailCampaignDetailKey(id: string) {
-  return ["dashboard-email-campaign", id];
+	return ["dashboard-email-campaign", id];
 }

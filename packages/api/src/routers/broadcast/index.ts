@@ -4,9 +4,9 @@ import { send } from "./send";
 import { sendTest } from "./send-test";
 
 export const broadcastRouter = router({
-  sendTest,
-  send,
-  resendFailed,
+	sendTest,
+	send,
+	resendFailed,
 });
 
 export type { BroadcastActionResult, RecentBroadcastInfo } from "./types";

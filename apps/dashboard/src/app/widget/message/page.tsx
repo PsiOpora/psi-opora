@@ -11,21 +11,21 @@ import { MessageWidget } from "./widget-client";
  * BitrixFrameProvider в корневом layout.
  */
 export default function MessageWidgetPage() {
-  return (
-    <Suspense fallback={null}>
-      <MessageWidgetPageContent />
-    </Suspense>
-  );
+	return (
+		<Suspense fallback={null}>
+			<MessageWidgetPageContent />
+		</Suspense>
+	);
 }
 
 function MessageWidgetPageContent() {
-  const searchParams = useSearchParams();
-  const entity = searchParams.get("entity") === "contact" ? "contact" : "deal";
-  const id = searchParams.get("id") ?? "";
+	const searchParams = useSearchParams();
+	const entity = searchParams.get("entity") === "contact" ? "contact" : "deal";
+	const id = searchParams.get("id") ?? "";
 
-  return (
-    <div className="p-4">
-      <MessageWidget entity={entity} entityId={id} />
-    </div>
-  );
+	return (
+		<div className="p-4">
+			<MessageWidget entity={entity} entityId={id} />
+		</div>
+	);
 }

@@ -11,40 +11,41 @@ import { createUserbotClient, sendUserbotMessage } from "../src/relay";
  *   bun run manual-relay
  */
 async function main(): Promise<void> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    const sessionJson = await rl.question("Сессия (JSON из manual-login): ");
+	const rl = createInterface({ input: process.stdin, output: process.stdout });
+	try {
+		const sessionJson = await rl.question("Сессия (JSON из manual-login): ");
 
-    console.log("→ SESSION_INIT + LOGIN...");
-    const client = await createUserbotClient(sessionJson.trim(), {
-      onMessage: (message) => console.log("← NOTIF_MESSAGE (разобрано):", message),
-      onTyping: (event) => console.log("← NOTIF_TYPING:", event),
-      onPresence: (event) => console.log("← NOTIF_PRESENCE:", event),
-    });
-    console.log("← Подключено, слушаю пуши. Ctrl+C для выхода.");
+		console.log("→ SESSION_INIT + LOGIN...");
+		const client = await createUserbotClient(sessionJson.trim(), {
+			onMessage: (message) =>
+				console.log("← NOTIF_MESSAGE (разобрано):", message),
+			onTyping: (event) => console.log("← NOTIF_TYPING:", event),
+			onPresence: (event) => console.log("← NOTIF_PRESENCE:", event),
+		});
+		console.log("← Подключено, слушаю пуши. Ctrl+C для выхода.");
 
-    const chatIdInput = await rl.question(
-      "chatId для тестового сообщения (Enter — пропустить): ",
-    );
-    if (chatIdInput.trim()) {
-      const text = await rl.question("Текст сообщения: ");
-      const messageId = await sendUserbotMessage(
-        client,
-        chatIdInput.trim(),
-        text.trim(),
-      );
-      console.log(`← Отправлено, messageId: ${messageId}`);
-    }
+		const chatIdInput = await rl.question(
+			"chatId для тестового сообщения (Enter — пропустить): ",
+		);
+		if (chatIdInput.trim()) {
+			const text = await rl.question("Текст сообщения: ");
+			const messageId = await sendUserbotMessage(
+				client,
+				chatIdInput.trim(),
+				text.trim(),
+			);
+			console.log(`← Отправлено, messageId: ${messageId}`);
+		}
 
-    await new Promise(() => {
-      // Держим процесс живым, чтобы успеть увидеть входящие пуши.
-    });
-  } finally {
-    rl.close();
-  }
+		await new Promise(() => {
+			// Держим процесс живым, чтобы успеть увидеть входящие пуши.
+		});
+	} finally {
+		rl.close();
+	}
 }
 
 main().catch((err) => {
-  console.error("Ошибка проверки relay MAX:", err);
-  process.exitCode = 1;
+	console.error("Ошибка проверки relay MAX:", err);
+	process.exitCode = 1;
 });

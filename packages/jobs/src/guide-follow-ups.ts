@@ -1,14 +1,14 @@
 import { appendDealComment } from "@psi-opora/bot-core";
 import {
-  insertBotMessage,
-  listDueGuideFollowUps,
-  markGuideFollowUpSent,
+	insertBotMessage,
+	listDueGuideFollowUps,
+	markGuideFollowUpSent,
 } from "@psi-opora/db/queries";
 import { type Messenger, sendMessengerMessage } from "./messenger";
 
 export interface SendGuideFollowUpsResult {
-  sent: number;
-  errors: number;
+	sent: number;
+	errors: number;
 }
 
 /**
@@ -18,27 +18,27 @@ export interface SendGuideFollowUpsResult {
  * должна ломать прогон рассылки follow-up'ов.
  */
 async function logFollowUpMessage(params: {
-  messenger: Messenger;
-  userId: string;
-  text: string;
-  status: "sent" | "failed";
-  externalId?: string;
+	messenger: Messenger;
+	userId: string;
+	text: string;
+	status: "sent" | "failed";
+	externalId?: string;
 }): Promise<void> {
-  try {
-    await insertBotMessage({
-      messenger: params.messenger,
-      userId: params.userId,
-      direction: "out",
-      source: "reminder",
-      text: params.text,
-      status: params.status,
-      externalId: params.externalId,
-    });
-  } catch (err) {
-    console.error(
-      `[guide-follow-ups] не удалось записать сообщение в журнал: ${(err as Error).message}`,
-    );
-  }
+	try {
+		await insertBotMessage({
+			messenger: params.messenger,
+			userId: params.userId,
+			direction: "out",
+			source: "reminder",
+			text: params.text,
+			status: params.status,
+			externalId: params.externalId,
+		});
+	} catch (err) {
+		console.error(
+			`[guide-follow-ups] не удалось записать сообщение в журнал: ${(err as Error).message}`,
+		);
+	}
 }
 
 /**
@@ -48,61 +48,61 @@ async function logFollowUpMessage(params: {
  * (см. sc_guide_diagnostic в apps/tg-bot и apps/max-bot).
  */
 export async function sendGuideFollowUps(): Promise<SendGuideFollowUpsResult> {
-  const due = await listDueGuideFollowUps();
-  let sent = 0;
-  let errors = 0;
+	const due = await listDueGuideFollowUps();
+	let sent = 0;
+	let errors = 0;
 
-  for (const { delivery, campaign } of due) {
-    const messenger = delivery.messenger as Messenger;
-    try {
-      const externalId = await sendMessengerMessage(
-        messenger,
-        delivery.userId,
-        campaign.followUpMessage,
-        [
-          [
-            {
-              text: campaign.diagnosticCtaText,
-              payload: "sc_guide_diagnostic",
-            },
-          ],
-        ],
-      );
-      await logFollowUpMessage({
-        messenger,
-        userId: delivery.userId,
-        text: campaign.followUpMessage,
-        status: "sent",
-        externalId,
-      });
-      await markGuideFollowUpSent(delivery.id);
-      // В таймлайне сделки должна быть вся история материала: выдали →
-      // открыл → напомнили → заявка. Без этой отметки менеджер не понимает,
-      // почему клиент внезапно пишет про диагностику.
-      if (delivery.dealId) {
-        const openedNote = delivery.firstOpenedAt
-          ? `материал открывал (открытий: ${delivery.openCount})`
-          : "материал так и не открыл";
-        await appendDealComment(
-          messenger,
-          delivery.dealId,
-          `🔔 Отправлено напоминание по материалу «${campaign.title}» — ${openedNote}.`,
-        );
-      }
-      sent++;
-    } catch (err) {
-      errors++;
-      await logFollowUpMessage({
-        messenger,
-        userId: delivery.userId,
-        text: campaign.followUpMessage,
-        status: "failed",
-      });
-      console.error(
-        `[guide-follow-ups] delivery=${delivery.id} messenger=${delivery.messenger}: ${(err as Error).message}`,
-      );
-    }
-  }
+	for (const { delivery, campaign } of due) {
+		const messenger = delivery.messenger as Messenger;
+		try {
+			const externalId = await sendMessengerMessage(
+				messenger,
+				delivery.userId,
+				campaign.followUpMessage,
+				[
+					[
+						{
+							text: campaign.diagnosticCtaText,
+							payload: "sc_guide_diagnostic",
+						},
+					],
+				],
+			);
+			await logFollowUpMessage({
+				messenger,
+				userId: delivery.userId,
+				text: campaign.followUpMessage,
+				status: "sent",
+				externalId,
+			});
+			await markGuideFollowUpSent(delivery.id);
+			// В таймлайне сделки должна быть вся история материала: выдали →
+			// открыл → напомнили → заявка. Без этой отметки менеджер не понимает,
+			// почему клиент внезапно пишет про диагностику.
+			if (delivery.dealId) {
+				const openedNote = delivery.firstOpenedAt
+					? `материал открывал (открытий: ${delivery.openCount})`
+					: "материал так и не открыл";
+				await appendDealComment(
+					messenger,
+					delivery.dealId,
+					`🔔 Отправлено напоминание по материалу «${campaign.title}» — ${openedNote}.`,
+				);
+			}
+			sent++;
+		} catch (err) {
+			errors++;
+			await logFollowUpMessage({
+				messenger,
+				userId: delivery.userId,
+				text: campaign.followUpMessage,
+				status: "failed",
+			});
+			console.error(
+				`[guide-follow-ups] delivery=${delivery.id} messenger=${delivery.messenger}: ${(err as Error).message}`,
+			);
+		}
+	}
 
-  return { sent, errors };
+	return { sent, errors };
 }

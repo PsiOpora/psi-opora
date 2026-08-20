@@ -14,14 +14,14 @@ export type DbDriver = "node" | "neon-http";
  *   the box.
  */
 export function selectDbDriver(
-  connectionString: string | undefined,
-  override: string | undefined = env.DB_DRIVER,
+	connectionString: string | undefined,
+	override: string | undefined = env.DB_DRIVER,
 ): DbDriver {
-  if (override === "node" || override === "neon-http") {
-    return override;
-  }
-  if (connectionString && /\.neon\.tech/i.test(connectionString)) {
-    return "neon-http";
-  }
-  return "node";
+	if (override === "node" || override === "neon-http") {
+		return override;
+	}
+	if (connectionString && /\.neon\.tech/i.test(connectionString)) {
+		return "neon-http";
+	}
+	return "node";
 }

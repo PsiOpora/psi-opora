@@ -1,8 +1,8 @@
 {
-  "mcpServers": {
-    "bitrix24": {
-      "type": "http",
-      "url": "https://mcp-dev.bitrix24.tech/mcp"
-    }
-  }
+	"mcpServers": {
+		"bitrix24": {
+			"type": "http",
+			"url": "https://mcp-dev.bitrix24.tech/mcp"
+		}
+	}
 }

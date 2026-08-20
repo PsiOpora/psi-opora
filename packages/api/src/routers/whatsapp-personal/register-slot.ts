@@ -9,10 +9,10 @@ import { generateConnectorId } from "./helpers";
  * нужной линии в Контакт-центре.
  */
 export const registerSlot = publicProcedure.handler(
-  async ({ context }): Promise<{ connectorId?: string; error?: string }> => {
-    if (!context.memberId) {
-      return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
-    }
-    return { connectorId: generateConnectorId() };
-  },
+	async ({ context }): Promise<{ connectorId?: string; error?: string }> => {
+		if (!context.memberId) {
+			return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
+		}
+		return { connectorId: generateConnectorId() };
+	},
 );

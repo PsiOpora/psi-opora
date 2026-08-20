@@ -9,11 +9,11 @@ import { Suspense, type ReactNode } from "react";
  * дублирования Suspense в каждом page.tsx.
  */
 export function PageSuspense({ children }: { children: ReactNode }) {
-  return (
-    <Suspense
-      fallback={<p className="text-sm text-muted-foreground">Загрузка…</p>}
-    >
-      {children}
-    </Suspense>
-  );
+	return (
+		<Suspense
+			fallback={<p className="text-sm text-muted-foreground">Загрузка…</p>}
+		>
+			{children}
+		</Suspense>
+	);
 }

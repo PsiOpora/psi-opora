@@ -1,19 +1,19 @@
 {
-  "name": "@psi-opora/hatchet-worker",
-  "version": "0.0.1",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "start": "bun run src/index.ts",
-    "dev": "bun run --watch --env-file=../../.env src/index.ts",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@psi-opora/jobs": "workspace:*"
-  },
-  "devDependencies": {
-    "@psi-opora/tsconfig": "workspace:*",
-    "@types/node": "26.2.0",
-    "typescript": "7.0.2"
-  }
+	"name": "@psi-opora/hatchet-worker",
+	"version": "0.0.1",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"start": "bun run src/index.ts",
+		"dev": "bun run --watch --env-file=../../.env src/index.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@psi-opora/jobs": "workspace:*"
+	},
+	"devDependencies": {
+		"@psi-opora/tsconfig": "workspace:*",
+		"@types/node": "26.2.0",
+		"typescript": "7.0.2"
+	}
 }

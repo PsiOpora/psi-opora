@@ -19,30 +19,30 @@ export const dynamic = "force-dynamic";
  * раньше: по ней гайд тянут сами сервисы (вложение в письмо, файл в MAX).
  */
 export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string; filename: string }> },
+	request: Request,
+	{ params }: { params: Promise<{ id: string; filename: string }> },
 ): Promise<Response> {
-  const { id } = await params;
-  const guide = await getBotGuide(id);
-  if (!guide) return new Response("Гайд не найден", { status: 404 });
+	const { id } = await params;
+	const guide = await getBotGuide(id);
+	if (!guide) return new Response("Гайд не найден", { status: 404 });
 
-  const tracked = hasGuideViewToken(request);
-  if (tracked) await trackGuideOpen(request);
+	const tracked = hasGuideViewToken(request);
+	if (tracked) await trackGuideOpen(request);
 
-  try {
-    const { stream, contentLength } = await getGuidePdfStream(guide.s3Key);
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(guide.fileName)}`,
-        ...(contentLength ? { "Content-Length": String(contentLength) } : {}),
-        // Персональные ссылки не кешируем: иначе повторное открытие
-        // материала до нас не дойдёт и статистика просмотров занизится.
-        "Cache-Control": tracked ? "no-store" : "public, max-age=60",
-      },
-    });
-  } catch (err) {
-    console.error(`[guide] раздача не удалась: ${(err as Error).message}`);
-    return new Response("Гайд временно недоступен", { status: 502 });
-  }
+	try {
+		const { stream, contentLength } = await getGuidePdfStream(guide.s3Key);
+		return new Response(stream, {
+			headers: {
+				"Content-Type": "application/pdf",
+				"Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(guide.fileName)}`,
+				...(contentLength ? { "Content-Length": String(contentLength) } : {}),
+				// Персональные ссылки не кешируем: иначе повторное открытие
+				// материала до нас не дойдёт и статистика просмотров занизится.
+				"Cache-Control": tracked ? "no-store" : "public, max-age=60",
+			},
+		});
+	} catch (err) {
+		console.error(`[guide] раздача не удалась: ${(err as Error).message}`);
+		return new Response("Гайд временно недоступен", { status: 502 });
+	}
 }

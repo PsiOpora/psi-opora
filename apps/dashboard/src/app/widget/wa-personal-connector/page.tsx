@@ -14,21 +14,21 @@ import { WaPersonalConnectorClient } from "./wa-personal-connector-client";
  * внешние отступы минимальны.
  */
 export default function WaPersonalConnectorPage() {
-  return (
-    <Suspense fallback={null}>
-      <WaPersonalConnectorPageContent />
-    </Suspense>
-  );
+	return (
+		<Suspense fallback={null}>
+			<WaPersonalConnectorPageContent />
+		</Suspense>
+	);
 }
 
 function WaPersonalConnectorPageContent() {
-  const searchParams = useSearchParams();
-  const lineId = searchParams.get("line") ?? "";
-  const connectorId = searchParams.get("connector") ?? "";
+	const searchParams = useSearchParams();
+	const lineId = searchParams.get("line") ?? "";
+	const connectorId = searchParams.get("connector") ?? "";
 
-  return (
-    <div className="p-2">
-      <WaPersonalConnectorClient lineId={lineId} connectorId={connectorId} />
-    </div>
-  );
+	return (
+		<div className="p-2">
+			<WaPersonalConnectorClient lineId={lineId} connectorId={connectorId} />
+		</div>
+	);
 }

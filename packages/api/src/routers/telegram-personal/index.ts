@@ -7,12 +7,12 @@ import { submitCode } from "./submit-code";
 import { submitPassword } from "./submit-password";
 
 export const telegramPersonalRouter = router({
-  registerSlot,
-  startLogin,
-  submitCode,
-  submitPassword,
-  list,
-  disconnect,
+	registerSlot,
+	startLogin,
+	submitCode,
+	submitPassword,
+	list,
+	disconnect,
 });
 
 export type { TelegramPersonalAccountView } from "./types";

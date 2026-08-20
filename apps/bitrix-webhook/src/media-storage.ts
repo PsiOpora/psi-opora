@@ -19,29 +19,29 @@ export const MAX_MEDIA_SIZE = 20 * 1024 * 1024;
  * ключ (публичный URL строится по id сообщения, см.
  * packages/api/routers/messages). */
 export async function uploadWahaMedia(params: {
-  bytes: Uint8Array;
-  contentType: string;
-  messageId: string;
+	bytes: Uint8Array;
+	contentType: string;
+	messageId: string;
 }): Promise<{ mediaS3Key: string }> {
-  if (
-    params.bytes.byteLength === 0 ||
-    params.bytes.byteLength > MAX_MEDIA_SIZE
-  ) {
-    throw new Error(
-      `некорректный размер вложения: ${params.bytes.byteLength} байт`,
-    );
-  }
+	if (
+		params.bytes.byteLength === 0 ||
+		params.bytes.byteLength > MAX_MEDIA_SIZE
+	) {
+		throw new Error(
+			`некорректный размер вложения: ${params.bytes.byteLength} байт`,
+		);
+	}
 
-  const { client, bucket } = await createS3Client();
-  const key = `${MEDIA_PREFIX}whatsapp-personal/${params.messageId}.ogg`;
+	const { client, bucket } = await createS3Client();
+	const key = `${MEDIA_PREFIX}whatsapp-personal/${params.messageId}.ogg`;
 
-  await uploadObject({
-    client,
-    bucket,
-    key,
-    body: params.bytes,
-    contentType: params.contentType,
-  });
+	await uploadObject({
+		client,
+		bucket,
+		key,
+		body: params.bytes,
+		contentType: params.contentType,
+	});
 
-  return { mediaS3Key: key };
+	return { mediaS3Key: key };
 }

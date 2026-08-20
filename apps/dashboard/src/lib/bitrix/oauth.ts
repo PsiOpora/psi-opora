@@ -1,4 +1,4 @@
 export {
-  getValidPortalTokens,
-  refreshPortalTokens,
+	getValidPortalTokens,
+	refreshPortalTokens,
 } from "@psi-opora/bitrix-client";

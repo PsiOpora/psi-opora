@@ -1,17 +1,17 @@
 import { type BitrixApi, createWebhookApi } from "@psi-opora/bitrix-client";
 import {
-  getBitrixCrmLink,
-  getBotConnector,
-  listGroupIdentities,
-  listMaxPersonalAccounts,
-  listTelegramPersonalAccounts,
-  listWhatsappPersonalAccounts,
+	getBitrixCrmLink,
+	getBotConnector,
+	listGroupIdentities,
+	listMaxPersonalAccounts,
+	listTelegramPersonalAccounts,
+	listWhatsappPersonalAccounts,
 } from "@psi-opora/db/queries";
 import type { InboxMessenger } from "./types";
 
 /** Ошибки прав/скоупа — повод попробовать другой ключ, а не падать. */
 export function isCredentialsError(message: string): boolean {
-  return /INVALID_CREDENTIALS|insufficient_scope|ACCESS_DENIED/i.test(message);
+	return /INVALID_CREDENTIALS|insufficient_scope|ACCESS_DENIED/i.test(message);
 }
 
 /**
@@ -21,22 +21,22 @@ export function isCredentialsError(message: string): boolean {
  * разработка) обычно нет скоупа imopenlines, а у вебхука ботов — есть.
  */
 function botWebhookUrl(messenger: string): string | null {
-  if (messenger !== "telegram" && messenger !== "max") {
-    // Личные номера (telegram-personal/whatsapp-personal) не имеют своего
-    // вебхука бота — фолбэка для них нет, есть только OAuth-сессия дашборда.
-    return null;
-  }
-  const prefix = messenger === "telegram" ? "TG" : "MAX";
-  return (
-    process.env[`${prefix}_BITRIX_WEBHOOK_URL`] ??
-    process.env.BITRIX_WEBHOOK_URL ??
-    null
-  );
+	if (messenger !== "telegram" && messenger !== "max") {
+		// Личные номера (telegram-personal/whatsapp-personal) не имеют своего
+		// вебхука бота — фолбэка для них нет, есть только OAuth-сессия дашборда.
+		return null;
+	}
+	const prefix = messenger === "telegram" ? "TG" : "MAX";
+	return (
+		process.env[`${prefix}_BITRIX_WEBHOOK_URL`] ??
+		process.env.BITRIX_WEBHOOK_URL ??
+		null
+	);
 }
 
 export interface OpenLineDialogRaw {
-  id?: number;
-  entity_data_2?: string;
+	id?: number;
+	entity_data_2?: string;
 }
 
 /**
@@ -45,33 +45,33 @@ export interface OpenLineDialogRaw {
  * «диалога ещё нет» (клиент не писал через коннектор) — это null, не сбой.
  */
 export async function getOpenLineDialog(
-  api: BitrixApi,
-  messenger: string,
-  userCode: string,
+	api: BitrixApi,
+	messenger: string,
+	userCode: string,
 ): Promise<OpenLineDialogRaw | null> {
-  const call = (a: BitrixApi) =>
-    a.call<OpenLineDialogRaw>("imopenlines.dialog.get", {
-      USER_CODE: userCode,
-    });
+	const call = (a: BitrixApi) =>
+		a.call<OpenLineDialogRaw>("imopenlines.dialog.get", {
+			USER_CODE: userCode,
+		});
 
-  try {
-    return await call(api);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("ACCESS_ERROR")) return null;
-    if (!isCredentialsError(message)) throw err;
+	try {
+		return await call(api);
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		if (message.includes("ACCESS_ERROR")) return null;
+		if (!isCredentialsError(message)) throw err;
 
-    const webhookUrl = botWebhookUrl(messenger);
-    if (!webhookUrl) throw err;
-    try {
-      return await call(createWebhookApi(webhookUrl));
-    } catch (retryErr) {
-      const retryMessage =
-        retryErr instanceof Error ? retryErr.message : String(retryErr);
-      if (retryMessage.includes("ACCESS_ERROR")) return null;
-      throw retryErr;
-    }
-  }
+		const webhookUrl = botWebhookUrl(messenger);
+		if (!webhookUrl) throw err;
+		try {
+			return await call(createWebhookApi(webhookUrl));
+		} catch (retryErr) {
+			const retryMessage =
+				retryErr instanceof Error ? retryErr.message : String(retryErr);
+			if (retryMessage.includes("ACCESS_ERROR")) return null;
+			throw retryErr;
+		}
+	}
 }
 
 /**
@@ -81,22 +81,22 @@ export async function getOpenLineDialog(
  * packages/bot-core/src/utils/bitrix/openline.ts (parseDialogCrmBindings).
  */
 export function parseCrmBindings(raw: string | undefined): {
-  contactId: string | null;
-  dealId: string | null;
-  leadId: string | null;
+	contactId: string | null;
+	dealId: string | null;
+	leadId: string | null;
 } {
-  const bindings: Record<string, number> = {};
-  const parts = (raw ?? "").split("|");
-  for (let i = 0; i + 1 < parts.length; i += 2) {
-    const type = parts[i];
-    const id = Number(parts[i + 1]);
-    if (type && Number.isFinite(id) && id > 0) bindings[type] = id;
-  }
-  return {
-    contactId: bindings.CONTACT ? String(bindings.CONTACT) : null,
-    dealId: bindings.DEAL ? String(bindings.DEAL) : null,
-    leadId: bindings.LEAD ? String(bindings.LEAD) : null,
-  };
+	const bindings: Record<string, number> = {};
+	const parts = (raw ?? "").split("|");
+	for (let i = 0; i + 1 < parts.length; i += 2) {
+		const type = parts[i];
+		const id = Number(parts[i + 1]);
+		if (type && Number.isFinite(id) && id > 0) bindings[type] = id;
+	}
+	return {
+		contactId: bindings.CONTACT ? String(bindings.CONTACT) : null,
+		dealId: bindings.DEAL ? String(bindings.DEAL) : null,
+		leadId: bindings.LEAD ? String(bindings.LEAD) : null,
+	};
 }
 
 /**
@@ -109,37 +109,37 @@ export function parseCrmBindings(raw: string | undefined): {
  * диалог с этим userId.
  */
 export async function resolvePersonalDialog(
-  api: BitrixApi,
-  messenger: "telegram-personal" | "whatsapp-personal" | "max-personal",
-  memberId: string | null,
-  userId: string,
+	api: BitrixApi,
+	messenger: "telegram-personal" | "whatsapp-personal" | "max-personal",
+	memberId: string | null,
+	userId: string,
 ): Promise<OpenLineDialogRaw | null> {
-  if (!memberId) return null;
-  const accounts =
-    messenger === "telegram-personal"
-      ? await listTelegramPersonalAccounts(memberId)
-      : messenger === "whatsapp-personal"
-        ? await listWhatsappPersonalAccounts(memberId)
-        : await listMaxPersonalAccounts(memberId);
+	if (!memberId) return null;
+	const accounts =
+		messenger === "telegram-personal"
+			? await listTelegramPersonalAccounts(memberId)
+			: messenger === "whatsapp-personal"
+				? await listWhatsappPersonalAccounts(memberId)
+				: await listMaxPersonalAccounts(memberId);
 
-  for (const account of accounts.filter((a) => a.status === "connected")) {
-    const userCode = `${account.connectorId}|${account.openLineId}|${userId}|${userId}`;
-    const dialog = await getOpenLineDialog(api, messenger, userCode);
-    if (dialog?.id) return dialog;
-  }
-  return null;
+	for (const account of accounts.filter((a) => a.status === "connected")) {
+		const userCode = `${account.connectorId}|${account.openLineId}|${userId}|${userId}`;
+		const dialog = await getOpenLineDialog(api, messenger, userCode);
+		if (dialog?.id) return dialog;
+	}
+	return null;
 }
 
 export interface CrmBindings {
-  contactId: string | null;
-  dealId: string | null;
-  leadId: string | null;
+	contactId: string | null;
+	dealId: string | null;
+	leadId: string | null;
 }
 
 const EMPTY_CRM_BINDINGS: CrmBindings = {
-  contactId: null,
-  dealId: null,
-  leadId: null,
+	contactId: null,
+	dealId: null,
+	leadId: null,
 };
 
 /**
@@ -161,52 +161,58 @@ const EMPTY_CRM_BINDINGS: CrmBindings = {
  * контакт не «теряется» после слияния с каналом, у которого своей привязки нет.
  */
 export async function resolveDialogCrmBindings(
-  api: BitrixApi,
-  memberId: string | null,
-  messenger: InboxMessenger,
-  userId: string,
+	api: BitrixApi,
+	memberId: string | null,
+	messenger: InboxMessenger,
+	userId: string,
 ): Promise<CrmBindings> {
-  const identities = await listGroupIdentities(messenger, userId);
-  for (const identity of identities) {
-    const link = await getBitrixCrmLink(identity.messenger, identity.userId).catch(
-      () => null,
-    );
-    if (link) {
-      return {
-        contactId: link.contactId,
-        dealId: link.dealId ?? null,
-        leadId: null,
-      };
-    }
-  }
+	const identities = await listGroupIdentities(messenger, userId);
+	for (const identity of identities) {
+		const link = await getBitrixCrmLink(
+			identity.messenger,
+			identity.userId,
+		).catch(() => null);
+		if (link) {
+			return {
+				contactId: link.contactId,
+				dealId: link.dealId ?? null,
+				leadId: null,
+			};
+		}
+	}
 
-  if (
-    messenger === "telegram-personal" ||
-    messenger === "whatsapp-personal" ||
-    messenger === "max-personal"
-  ) {
-    const dialog = await resolvePersonalDialog(api, messenger, memberId, userId);
-    return dialog?.id
-      ? parseCrmBindings(dialog.entity_data_2)
-      : EMPTY_CRM_BINDINGS;
-  }
+	if (
+		messenger === "telegram-personal" ||
+		messenger === "whatsapp-personal" ||
+		messenger === "max-personal"
+	) {
+		const dialog = await resolvePersonalDialog(
+			api,
+			messenger,
+			memberId,
+			userId,
+		);
+		return dialog?.id
+			? parseCrmBindings(dialog.entity_data_2)
+			: EMPTY_CRM_BINDINGS;
+	}
 
-  const connector = await getBotConnector(messenger);
-  if (!connector) return EMPTY_CRM_BINDINGS;
-  const userCode = `${connector.connectorId}|${connector.openLineId}|${userId}|${userId}`;
-  const dialog = await getOpenLineDialog(api, messenger, userCode);
-  return dialog?.id
-    ? parseCrmBindings(dialog.entity_data_2)
-    : EMPTY_CRM_BINDINGS;
+	const connector = await getBotConnector(messenger);
+	if (!connector) return EMPTY_CRM_BINDINGS;
+	const userCode = `${connector.connectorId}|${connector.openLineId}|${userId}|${userId}`;
+	const dialog = await getOpenLineDialog(api, messenger, userCode);
+	return dialog?.id
+		? parseCrmBindings(dialog.entity_data_2)
+		: EMPTY_CRM_BINDINGS;
 }
 
 interface RawDeal {
-  CONTACT_ID?: string | number | null;
+	CONTACT_ID?: string | number | null;
 }
 
 interface RawContact {
-  NAME?: string;
-  LAST_NAME?: string;
+	NAME?: string;
+	LAST_NAME?: string;
 }
 
 /**
@@ -218,34 +224,34 @@ interface RawContact {
  * оставляет текущий фолбэк.
  */
 export async function resolveCrmContactName(
-  api: BitrixApi,
-  memberId: string | null,
-  messenger: InboxMessenger,
-  userId: string,
+	api: BitrixApi,
+	memberId: string | null,
+	messenger: InboxMessenger,
+	userId: string,
 ): Promise<string | null> {
-  try {
-    let { contactId, dealId } = await resolveDialogCrmBindings(
-      api,
-      memberId,
-      messenger,
-      userId,
-    );
+	try {
+		let { contactId, dealId } = await resolveDialogCrmBindings(
+			api,
+			memberId,
+			messenger,
+			userId,
+		);
 
-    if (!contactId && dealId) {
-      const deal = await api
-        .call<RawDeal>("crm.deal.get", { id: dealId })
-        .catch(() => null);
-      contactId = deal?.CONTACT_ID ? String(deal.CONTACT_ID) : null;
-    }
+		if (!contactId && dealId) {
+			const deal = await api
+				.call<RawDeal>("crm.deal.get", { id: dealId })
+				.catch(() => null);
+			contactId = deal?.CONTACT_ID ? String(deal.CONTACT_ID) : null;
+		}
 
-    if (!contactId) return null;
+		if (!contactId) return null;
 
-    const contact = await api.call<RawContact>("crm.contact.get", {
-      id: contactId,
-    });
-    const name = [contact?.NAME, contact?.LAST_NAME].filter(Boolean).join(" ");
-    return name || null;
-  } catch {
-    return null;
-  }
+		const contact = await api.call<RawContact>("crm.contact.get", {
+			id: contactId,
+		});
+		const name = [contact?.NAME, contact?.LAST_NAME].filter(Boolean).join(" ");
+		return name || null;
+	} catch {
+		return null;
+	}
 }

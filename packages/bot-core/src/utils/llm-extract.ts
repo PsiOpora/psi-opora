@@ -6,15 +6,15 @@ import { OPENROUTER_FALLBACK_MODELS } from "./openrouter";
 import { hasPhoneNumber } from "./validation";
 
 const ExtractedContactSchema = z.object({
-  name: z.string().nullable(),
-  phone: z.string().nullable(),
-  email: z.string().nullable(),
+	name: z.string().nullable(),
+	phone: z.string().nullable(),
+	email: z.string().nullable(),
 });
 
 export interface ExtractedContact {
-  name: string;
-  phone?: string;
-  email?: string;
+	name: string;
+	phone?: string;
+	email?: string;
 }
 
 const EXTRACTION_TIMEOUT_MS = 8_000;
@@ -26,14 +26,14 @@ const EXTRACTION_TIMEOUT_MS = 8_000;
  * имени вставил сразу блок контактов (частый кейс копипаста из анкеты).
  */
 function looksLikePlainName(text: string): boolean {
-  const trimmed = text.trim();
-  return (
-    trimmed.length > 0 &&
-    trimmed.length <= 60 &&
-    !trimmed.includes("\n") &&
-    !trimmed.includes("@") &&
-    !hasPhoneNumber(trimmed)
-  );
+	const trimmed = text.trim();
+	return (
+		trimmed.length > 0 &&
+		trimmed.length <= 60 &&
+		!trimmed.includes("\n") &&
+		!trimmed.includes("@") &&
+		!hasPhoneNumber(trimmed)
+	);
 }
 
 // Резервные модели на случай, если основная (env.OPENROUTER_MODEL) вернёт
@@ -47,26 +47,26 @@ let cachedClient: OpenRouterClient | null = null;
 const cachedModels = new Map<string, OpenRouterModel>();
 
 function getClient() {
-  if (!env.OPENROUTER_API_KEY) return null;
-  if (!cachedClient) {
-    cachedClient = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY });
-  }
-  return cachedClient;
+	if (!env.OPENROUTER_API_KEY) return null;
+	if (!cachedClient) {
+		cachedClient = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY });
+	}
+	return cachedClient;
 }
 
 function getModels(): OpenRouterModel[] {
-  const client = getClient();
-  if (!client) return [];
+	const client = getClient();
+	if (!client) return [];
 
-  const modelNames = [env.OPENROUTER_MODEL, ...OPENROUTER_FALLBACK_MODELS];
-  return modelNames.map((name) => {
-    let model = cachedModels.get(name);
-    if (!model) {
-      model = client.chat(name);
-      cachedModels.set(name, model);
-    }
-    return model;
-  });
+	const modelNames = [env.OPENROUTER_MODEL, ...OPENROUTER_FALLBACK_MODELS];
+	return modelNames.map((name) => {
+		let model = cachedModels.get(name);
+		if (!model) {
+			model = client.chat(name);
+			cachedModels.set(name, model);
+		}
+		return model;
+	});
 }
 
 /**
@@ -78,44 +78,44 @@ function getModels(): OpenRouterModel[] {
  * обрабатывает текст как раньше, вручную: весь ввод становится именем.
  */
 export async function extractContactInfo(
-  text: string,
+	text: string,
 ): Promise<ExtractedContact | null> {
-  if (looksLikePlainName(text)) return null;
+	if (looksLikePlainName(text)) return null;
 
-  const models = getModels();
-  if (models.length === 0) return null;
+	const models = getModels();
+	if (models.length === 0) return null;
 
-  for (const model of models) {
-    try {
-      const { object } = await generateObject({
-        model,
-        schema: ExtractedContactSchema,
-        abortSignal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS),
-        system:
-          "Ты извлекаешь контактные данные из сообщения клиента психологического " +
-          "центра. Клиент отвечал на вопрос «Как вас зовут?», но мог прислать " +
-          "сразу имя, телефон и email одним сообщением (например, скопировал из " +
-          "анкеты или визитки). Верни null для полей, которых в тексте нет. " +
-          "Телефон и email возвращай как есть, без изменения формата. В поле " +
-          "имени — только ФИО/имя, без лишних слов и подписей.",
-        prompt: text,
-      });
+	for (const model of models) {
+		try {
+			const { object } = await generateObject({
+				model,
+				schema: ExtractedContactSchema,
+				abortSignal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS),
+				system:
+					"Ты извлекаешь контактные данные из сообщения клиента психологического " +
+					"центра. Клиент отвечал на вопрос «Как вас зовут?», но мог прислать " +
+					"сразу имя, телефон и email одним сообщением (например, скопировал из " +
+					"анкеты или визитки). Верни null для полей, которых в тексте нет. " +
+					"Телефон и email возвращай как есть, без изменения формата. В поле " +
+					"имени — только ФИО/имя, без лишних слов и подписей.",
+				prompt: text,
+			});
 
-      const name = object.name?.trim();
-      if (!name) return null;
+			const name = object.name?.trim();
+			if (!name) return null;
 
-      return {
-        name,
-        phone: object.phone?.trim() || undefined,
-        email: object.email?.trim() || undefined,
-      };
-    } catch (err) {
-      logger.error("bot.name_extraction.failed", err as Error, {
-        textLength: text.length,
-        model: model.modelId,
-      });
-    }
-  }
+			return {
+				name,
+				phone: object.phone?.trim() || undefined,
+				email: object.email?.trim() || undefined,
+			};
+		} catch (err) {
+			logger.error("bot.name_extraction.failed", err as Error, {
+				textLength: text.length,
+				model: model.modelId,
+			});
+		}
+	}
 
-  return null;
+	return null;
 }

@@ -11,22 +11,22 @@ import { BotConnectorWidgetClient } from "./bot-connector-widget-client";
  * номера — вводить нечего, окно само активирует линию и настраивает вебхук.
  */
 export default function BotConnectorWidgetPage() {
-  return (
-    <Suspense fallback={null}>
-      <BotConnectorWidgetPageContent />
-    </Suspense>
-  );
+	return (
+		<Suspense fallback={null}>
+			<BotConnectorWidgetPageContent />
+		</Suspense>
+	);
 }
 
 function BotConnectorWidgetPageContent() {
-  const searchParams = useSearchParams();
-  const messenger =
-    searchParams.get("messenger") === "max" ? "max" : "telegram";
-  const lineId = searchParams.get("line") ?? "";
+	const searchParams = useSearchParams();
+	const messenger =
+		searchParams.get("messenger") === "max" ? "max" : "telegram";
+	const lineId = searchParams.get("line") ?? "";
 
-  return (
-    <div className="p-2">
-      <BotConnectorWidgetClient messenger={messenger} lineId={lineId} />
-    </div>
-  );
+	return (
+		<div className="p-2">
+			<BotConnectorWidgetClient messenger={messenger} lineId={lineId} />
+		</div>
+	);
 }

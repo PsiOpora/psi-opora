@@ -12,39 +12,39 @@ export const dynamic = "force-dynamic";
  * та же модель, что и раздача аватаров через /api/avatar-file.
  */
 export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
+	request: Request,
+	{ params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const { id } = await params;
-  const url = new URL(request.url);
-  const expires = Number(url.searchParams.get("expires"));
-  const signature = url.searchParams.get("signature") ?? "";
-  if (!verifyMessageMediaSignature(id, expires, signature)) {
-    return new Response("Доступ запрещён", {
-      status: 403,
-      headers: { "Cache-Control": "no-store" },
-    });
-  }
+	const { id } = await params;
+	const url = new URL(request.url);
+	const expires = Number(url.searchParams.get("expires"));
+	const signature = url.searchParams.get("signature") ?? "";
+	if (!verifyMessageMediaSignature(id, expires, signature)) {
+		return new Response("Доступ запрещён", {
+			status: 403,
+			headers: { "Cache-Control": "no-store" },
+		});
+	}
 
-  const media = await getBotMessageMedia(id);
-  if (!media) return new Response("Вложение не найдено", { status: 404 });
+	const media = await getBotMessageMedia(id);
+	if (!media) return new Response("Вложение не найдено", { status: 404 });
 
-  try {
-    const { stream, contentLength, contentType } = await getAvatarStream(
-      media.mediaS3Key,
-    );
-    return new Response(stream, {
-      headers: {
-        "Content-Type": contentType || media.mediaMimeType || "audio/ogg",
-        ...(contentLength ? { "Content-Length": String(contentLength) } : {}),
-        "Cache-Control": "private, max-age=900",
-        "X-Content-Type-Options": "nosniff",
-      },
-    });
-  } catch (err) {
-    console.error(
-      `[message-media] раздача не удалась: ${(err as Error).message}`,
-    );
-    return new Response("Вложение временно недоступно", { status: 502 });
-  }
+	try {
+		const { stream, contentLength, contentType } = await getAvatarStream(
+			media.mediaS3Key,
+		);
+		return new Response(stream, {
+			headers: {
+				"Content-Type": contentType || media.mediaMimeType || "audio/ogg",
+				...(contentLength ? { "Content-Length": String(contentLength) } : {}),
+				"Cache-Control": "private, max-age=900",
+				"X-Content-Type-Options": "nosniff",
+			},
+		});
+	} catch (err) {
+		console.error(
+			`[message-media] раздача не удалась: ${(err as Error).message}`,
+		);
+		return new Response("Вложение временно недоступно", { status: 502 });
+	}
 }

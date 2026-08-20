@@ -14,16 +14,16 @@ import { index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
  * не зависящий от настроек трекера.
  */
 export const bitrixCrmLinks = pgTable(
-  "bitrix_crm_links",
-  {
-    id: text("id").primaryKey(),
-    messenger: text("messenger").notNull(),
-    userId: text("user_id").notNull(),
-    contactId: text("contact_id").notNull(),
-    dealId: text("deal_id"),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => [
-    index("bitrix_crm_links_dialog_idx").on(table.messenger, table.userId),
-  ],
+	"bitrix_crm_links",
+	{
+		id: text("id").primaryKey(),
+		messenger: text("messenger").notNull(),
+		userId: text("user_id").notNull(),
+		contactId: text("contact_id").notNull(),
+		dealId: text("deal_id"),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("bitrix_crm_links_dialog_idx").on(table.messenger, table.userId),
+	],
 );

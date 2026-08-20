@@ -1,6 +1,6 @@
 import {
-  listGroupIdentities,
-  markConversationRead,
+	listGroupIdentities,
+	markConversationRead,
 } from "@psi-opora/db/queries";
 import { bitrixProcedure } from "../../orpc";
 import { clientThreadSchema } from "../../schemas/messages";
@@ -13,13 +13,13 @@ import { clientThreadSchema } from "../../schemas/messages";
  * непрочитанных не погаснет для сообщений, пришедших по другому каналу.
  */
 export const markRead = bitrixProcedure
-  .input(clientThreadSchema)
-  .handler(async ({ input }): Promise<{ ok: true }> => {
-    const identities = await listGroupIdentities(input.messenger, input.userId);
-    await Promise.all(
-      identities.map((identity) =>
-        markConversationRead(identity.messenger, identity.userId),
-      ),
-    );
-    return { ok: true };
-  });
+	.input(clientThreadSchema)
+	.handler(async ({ input }): Promise<{ ok: true }> => {
+		const identities = await listGroupIdentities(input.messenger, input.userId);
+		await Promise.all(
+			identities.map((identity) =>
+				markConversationRead(identity.messenger, identity.userId),
+			),
+		);
+		return { ok: true };
+	});

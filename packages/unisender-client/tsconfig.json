@@ -1,11 +1,11 @@
 {
-  "extends": "@psi-opora/tsconfig/compiled-package.json",
-  "compilerOptions": {
-    "rootDir": "./src",
-    "types": ["node"],
-    "noEmit": false,
-    "emitDeclarationOnly": false
-  },
-  "include": ["src"],
-  "exclude": ["node_modules", "**/*.test.ts"]
+	"extends": "@psi-opora/tsconfig/compiled-package.json",
+	"compilerOptions": {
+		"rootDir": "./src",
+		"types": ["node"],
+		"noEmit": false,
+		"emitDeclarationOnly": false
+	},
+	"include": ["src"],
+	"exclude": ["node_modules", "**/*.test.ts"]
 }

@@ -6,10 +6,10 @@
  * мессенджер, настраивать нечего, фиксируем константой.
  */
 export const CONNECTOR_IDS = {
-  telegram: "psiopora_tg_bot",
-  max: "psiopora_max_bot",
+	telegram: "psiopora_tg_bot",
+	max: "psiopora_max_bot",
 } as const;
 
 export function connectorId(messenger: "telegram" | "max"): string {
-  return CONNECTOR_IDS[messenger];
+	return CONNECTOR_IDS[messenger];
 }

@@ -7,19 +7,19 @@ import type { GuideFile } from "../scenario/texts";
  * отправку — гайд уже ушёл в чат.
  */
 export async function sendGuideEmail(
-  to: string,
-  guide: GuideFile,
-  subject: string,
-  body: string,
+	to: string,
+	guide: GuideFile,
+	subject: string,
+	body: string,
 ): Promise<void> {
-  const fileRes = await fetch(guide.url);
-  if (!fileRes.ok) throw new Error(`гайд недоступен: HTTP ${fileRes.status}`);
-  const bytes = new Uint8Array(await fileRes.arrayBuffer());
+	const fileRes = await fetch(guide.url);
+	if (!fileRes.ok) throw new Error(`гайд недоступен: HTTP ${fileRes.status}`);
+	const bytes = new Uint8Array(await fileRes.arrayBuffer());
 
-  await sendEmail({
-    to: [to],
-    subject,
-    react: GuideEmail({ subject, body }),
-    attachments: [{ filename: guide.name, content: Buffer.from(bytes) }],
-  });
+	await sendEmail({
+		to: [to],
+		subject,
+		react: GuideEmail({ subject, body }),
+		attachments: [{ filename: guide.name, content: Buffer.from(bytes) }],
+	});
 }

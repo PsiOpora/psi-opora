@@ -10,14 +10,14 @@ import { sendConsultationReminders } from "../consultation-reminders";
  * См. sendConsultationReminders в consultation-reminders.ts.
  */
 export const consultationReminders = CreateTaskWorkflow({
-  name: "consultation-reminders",
-  on: { cron: "*/5 * * * *" },
-  retries: 0,
-  executionTimeout: "5m",
-  fn: async () => {
-    const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
-    if (!api) throw new Error("Bitrix24 не подключён");
-    const redis = createRedisClient();
-    return { ...(await sendConsultationReminders(api, redis)) };
-  },
+	name: "consultation-reminders",
+	on: { cron: "*/5 * * * *" },
+	retries: 0,
+	executionTimeout: "5m",
+	fn: async () => {
+		const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
+		if (!api) throw new Error("Bitrix24 не подключён");
+		const redis = createRedisClient();
+		return { ...(await sendConsultationReminders(api, redis)) };
+	},
 });

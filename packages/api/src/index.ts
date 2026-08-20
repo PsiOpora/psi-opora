@@ -21,65 +21,65 @@ type RouterInputs = InferRouterInputs<AppRouter>;
 type RouterOutputs = InferRouterOutputs<AppRouter>;
 
 export {
-  type AdCampaign,
-  type AdStatsResult,
-  fetchAdStats,
-  getCachedAdStats,
+	type AdCampaign,
+	type AdStatsResult,
+	fetchAdStats,
+	getCachedAdStats,
 } from "./ads-stats";
 export type {
-  BroadcastChannel,
-  BroadcastRecipient,
-  BroadcastReport,
+	BroadcastChannel,
+	BroadcastRecipient,
+	BroadcastReport,
 } from "./broadcast-send";
 export { getAvatarStream } from "./avatar-storage";
 export type { CostEntry } from "./costs-store";
 export type {
-  EmailRecipient,
-  EmailRecipientsReport,
+	EmailRecipient,
+	EmailRecipientsReport,
 } from "./email-campaign-collect";
 export {
-  type GuideUploadResult,
-  getGuidePdfStream,
-  handleGuideUpload,
-  MAX_GUIDE_SIZE,
+	type GuideUploadResult,
+	getGuidePdfStream,
+	handleGuideUpload,
+	MAX_GUIDE_SIZE,
 } from "./guide-storage";
 export { createORPCContext } from "./orpc";
 export { type AppRouter, appRouter } from "./routers";
 export type { BotConnectorView } from "./routers/bot-connector";
 export type {
-  BroadcastActionResult,
-  RecentBroadcastInfo,
+	BroadcastActionResult,
+	RecentBroadcastInfo,
 } from "./routers/broadcast";
 export type {
-  EmailCampaignActionResult,
-  RecentEmailCampaignInfo,
+	EmailCampaignActionResult,
+	RecentEmailCampaignInfo,
 } from "./routers/email-broadcast";
 export type {
-  CampaignTemplateFieldDef,
-  CampaignTemplateSummary,
+	CampaignTemplateFieldDef,
+	CampaignTemplateSummary,
 } from "./routers/email-templates";
 export type {
-  ClientGuideItem,
-  ClientListItem,
-  ClientMessageItem,
-  ClientNoteItem,
-  ClientProfile,
-  CrmContactLink,
-  CrmDealLink,
-  CrmLeadLink,
-  CrmLinksResult,
-  InboxMessenger,
-  MessageDeliveryStatus,
-  QuickReplyItem,
+	ClientGuideItem,
+	ClientListItem,
+	ClientMessageItem,
+	ClientNoteItem,
+	ClientProfile,
+	CrmContactLink,
+	CrmDealLink,
+	CrmLeadLink,
+	CrmLinksResult,
+	InboxMessenger,
+	MessageDeliveryStatus,
+	QuickReplyItem,
 } from "./routers/messages";
 export type { TelegramPersonalAccountView } from "./routers/telegram-personal";
 export type { MaxPersonalAccountView } from "./routers/max-personal";
 export type { WhatsappPersonalAccountView } from "./routers/whatsapp-personal";
 export type {
-  WidgetChannel,
-  WidgetEntity,
-  WidgetHistoryItem,
-  WidgetRecipient,
+	WidgetChannel,
+	WidgetEntity,
+	WidgetHistoryItem,
+	WidgetRecipient,
 } from "./routers/widget-message";
 export { type AdCredentialsInput, adCredentialsSchema } from "./schemas/ads";
 export type { RouterInputs, RouterOutputs };

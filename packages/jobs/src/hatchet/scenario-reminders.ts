@@ -1,18 +1,18 @@
 import { CreateTaskWorkflow } from "@hatchet-dev/typescript-sdk/v1";
 import {
-  type ConsultationSession,
-  createRedisClient,
-  createRedisStorage,
-  type ReminderRunResult,
-  runScenarioReminders,
-  type ScenarioMessage,
+	type ConsultationSession,
+	createRedisClient,
+	createRedisStorage,
+	type ReminderRunResult,
+	runScenarioReminders,
+	type ScenarioMessage,
 } from "@psi-opora/bot-core";
 import { type Messenger, sendMessengerMessage } from "../messenger";
 
 function toButtons(message: ScenarioMessage) {
-  return message.buttons?.map((row) =>
-    row.map((button) => ({ text: button.label, payload: button.action })),
-  );
+	return message.buttons?.map((row) =>
+		row.map((button) => ({ text: button.label, payload: button.action })),
+	);
 }
 
 /**
@@ -24,31 +24,31 @@ function toButtons(message: ScenarioMessage) {
  * лимит по кронам (2 шт., только раз в день).
  */
 export const scenarioReminders = CreateTaskWorkflow({
-  name: "scenario-reminders",
-  on: { cron: "*/15 * * * *" },
-  retries: 0,
-  executionTimeout: "10m",
-  fn: async () => {
-    const redis = createRedisClient();
-    const storage = createRedisStorage<ConsultationSession>(redis);
+	name: "scenario-reminders",
+	on: { cron: "*/15 * * * *" },
+	retries: 0,
+	executionTimeout: "10m",
+	fn: async () => {
+		const redis = createRedisClient();
+		const storage = createRedisStorage<ConsultationSession>(redis);
 
-    const results: Partial<Record<Messenger, ReminderRunResult>> = {};
-    for (const messenger of ["telegram", "max"] as const) {
-      results[messenger] = await runScenarioReminders({
-        redis,
-        messenger,
-        storage,
-        send: async (sessionKey, message) => {
-          await sendMessengerMessage(
-            messenger,
-            sessionKey,
-            message.text,
-            toButtons(message),
-          );
-        },
-      });
-    }
+		const results: Partial<Record<Messenger, ReminderRunResult>> = {};
+		for (const messenger of ["telegram", "max"] as const) {
+			results[messenger] = await runScenarioReminders({
+				redis,
+				messenger,
+				storage,
+				send: async (sessionKey, message) => {
+					await sendMessengerMessage(
+						messenger,
+						sessionKey,
+						message.text,
+						toButtons(message),
+					);
+				},
+			});
+		}
 
-    console.info("[scenario-reminders] завершено", results);
-  },
+		console.info("[scenario-reminders] завершено", results);
+	},
 });

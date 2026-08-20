@@ -6,7 +6,7 @@ import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
  * value — переопределение; отсутствие строки означает текст по умолчанию.
  */
 export const botTexts = pgTable("bot_texts", {
-  key: text("key").primaryKey(),
-  value: text("value").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+	key: text("key").primaryKey(),
+	value: text("value").notNull(),
+	updatedAt: timestamp("updated_at").defaultNow(),
 });
