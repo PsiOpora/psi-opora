@@ -7,7 +7,9 @@ import type {
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -40,9 +42,12 @@ const STATUS_BADGE: Record<
 	error: { label: "Ошибка", variant: "destructive" },
 };
 
+const RECIPIENTS_PAGE_SIZE = 50;
+
 export default function EmailCampaignDetailsPage() {
 	const params = useParams<{ id: string }>();
 	const id = params.id;
+	const [pageIndex, setPageIndex] = useState(0);
 
 	const { data, isLoading, isError } = useQuery({
 		queryKey: emailCampaignDetailKey(id),
@@ -56,6 +61,33 @@ export default function EmailCampaignDetailsPage() {
 		},
 	});
 
+	const recipients = useMemo(() => data?.recipients ?? [], [data]);
+
+	const counts = useMemo(() => {
+		const result = { imported: 0, pending: 0, skipped: 0, failed: 0 };
+		for (const r of recipients) {
+			if (r.status === "imported") result.imported++;
+			else if (r.status === "pending") result.pending++;
+			else if (r.status === "skipped") result.skipped++;
+			else if (r.status === "error") result.failed++;
+		}
+		return result;
+	}, [recipients]);
+
+	const pageCount = Math.max(
+		1,
+		Math.ceil(recipients.length / RECIPIENTS_PAGE_SIZE),
+	);
+	const clampedPageIndex = Math.min(pageIndex, pageCount - 1);
+	const pageRecipients = useMemo(
+		() =>
+			recipients.slice(
+				clampedPageIndex * RECIPIENTS_PAGE_SIZE,
+				clampedPageIndex * RECIPIENTS_PAGE_SIZE + RECIPIENTS_PAGE_SIZE,
+			),
+		[recipients, clampedPageIndex],
+	);
+
 	if (isLoading) {
 		return <p className="text-sm text-muted-foreground">Загрузка…</p>;
 	}
@@ -63,14 +95,7 @@ export default function EmailCampaignDetailsPage() {
 		return <p className="text-sm text-destructive">Рассылка не найдена.</p>;
 	}
 
-	const { campaign, recipients } = data;
-
-	const counts = {
-		imported: recipients.filter((r) => r.status === "imported").length,
-		pending: recipients.filter((r) => r.status === "pending").length,
-		skipped: recipients.filter((r) => r.status === "skipped").length,
-		failed: recipients.filter((r) => r.status === "error").length,
-	};
+	const { campaign } = data;
 	const isRunning =
 		campaign.status === "queued" || campaign.status === "running";
 
@@ -176,7 +201,7 @@ export default function EmailCampaignDetailsPage() {
 									</TableRow>
 								</TableHeader>
 								<TableBody>
-									{recipients.map((r) => {
+									{pageRecipients.map((r) => {
 										const badge = STATUS_BADGE[r.status] ?? {
 											label: r.status,
 											variant: "outline" as const,
@@ -205,6 +230,41 @@ export default function EmailCampaignDetailsPage() {
 									})}
 								</TableBody>
 							</Table>
+						)}
+						{recipients.length > RECIPIENTS_PAGE_SIZE && (
+							<div className="flex items-center justify-between gap-4 pt-3 text-sm text-muted-foreground">
+								<span>
+									{clampedPageIndex * RECIPIENTS_PAGE_SIZE + 1}–
+									{Math.min(
+										recipients.length,
+										(clampedPageIndex + 1) * RECIPIENTS_PAGE_SIZE,
+									)}{" "}
+									из {recipients.length}
+								</span>
+								<div className="flex items-center gap-2">
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
+										disabled={clampedPageIndex === 0}
+									>
+										Назад
+									</Button>
+									<span className="tabular-nums">
+										{clampedPageIndex + 1} / {pageCount}
+									</span>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() =>
+											setPageIndex((i) => Math.min(pageCount - 1, i + 1))
+										}
+										disabled={clampedPageIndex >= pageCount - 1}
+									>
+										Вперёд
+									</Button>
+								</div>
+							</div>
 						)}
 					</CardContent>
 				</Card>
