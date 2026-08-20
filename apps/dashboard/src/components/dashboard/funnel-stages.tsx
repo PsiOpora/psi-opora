@@ -2,6 +2,7 @@ import {
 	CheckCircle2Icon,
 	CircleDotIcon,
 	CircleXIcon,
+	HelpCircleIcon,
 	Layers3Icon,
 } from "lucide-react";
 
@@ -15,10 +16,55 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { FunnelStage } from "@/lib/analytics/types";
+import { dealListUrl } from "@/lib/deal-url";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 
-export function FunnelStages({ stages }: { stages: FunnelStage[] }) {
+/** Иконка-вопросик с расшифровкой метрики и (опционально) ссылкой на отфильтрованный список в CRM. */
+function HelpHint({ text, href }: { text: string; href?: string | null }) {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				{href ? (
+					<a
+						href={href}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="text-muted-foreground hover:text-foreground"
+						aria-label="Открыть отфильтрованный список в CRM"
+					>
+						<HelpCircleIcon className="size-3.5" />
+					</a>
+				) : (
+					<span className="text-muted-foreground">
+						<HelpCircleIcon className="size-3.5" />
+					</span>
+				)}
+			</TooltipTrigger>
+			<TooltipContent>
+				{text}
+				{href && " Клик — открыть в CRM."}
+			</TooltipContent>
+		</Tooltip>
+	);
+}
+
+export function FunnelStages({
+	stages,
+	categoryId,
+	dealDomain,
+}: {
+	stages: FunnelStage[];
+	/** ID воронки CRM — для ссылок с фильтром на список сделок. */
+	categoryId?: string;
+	/** Домен портала Bitrix24 — если известен, иконки-подсказки ведут в CRM. */
+	dealDomain?: string | null;
+}) {
 	const activeStages = stages.filter((stage) => stage.status === "in_progress");
 	const wonStages = stages.filter((stage) => stage.status === "won");
 	const lostStages = stages.filter((stage) => stage.status === "lost");
@@ -43,6 +89,8 @@ export function FunnelStages({ stages }: { stages: FunnelStage[] }) {
 	const conversionRate = closedDeals > 0 ? wonDeals / closedDeals : 0;
 	const activeMax = Math.max(...activeStages.map((stage) => stage.deals), 1);
 
+	const allUrl = dealDomain ? dealListUrl(dealDomain, { categoryId }) : null;
+
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -51,18 +99,24 @@ export function FunnelStages({ stages }: { stages: FunnelStage[] }) {
 					value={formatNumber(totalDeals)}
 					description="за выбранный период"
 					icon={Layers3Icon}
+					hint="Все сделки CRM этой воронки, созданные в выбранном периоде — источник: Bitrix24 crm.deal.list."
+					href={allUrl}
 				/>
 				<MetricCard
 					label="Сейчас в работе"
 					value={formatNumber(activeDeals)}
 					description={formatMoney(activeSum)}
 					icon={CircleDotIcon}
+					hint="Сделки на промежуточных стадиях воронки — ещё не выиграны и не проиграны."
+					href={allUrl}
 				/>
 				<MetricCard
 					label="Выиграно"
 					value={formatNumber(wonDeals)}
 					description={formatMoney(wonSum)}
 					icon={CheckCircle2Icon}
+					hint="Сделки со стадией в статусе «Успешно» (semantic STAGE_SEMANTIC_ID = S)."
+					href={allUrl}
 				/>
 				<MetricCard
 					label="Конверсия в победу"
@@ -73,6 +127,7 @@ export function FunnelStages({ stages }: { stages: FunnelStage[] }) {
 							: "закрытых сделок пока нет"
 					}
 					icon={CircleDotIcon}
+					hint="Выиграно ÷ (выиграно + проиграно) — доля успешных среди закрытых сделок."
 				/>
 			</div>
 
@@ -103,7 +158,20 @@ export function FunnelStages({ stages }: { stages: FunnelStage[] }) {
 										<div className="flex min-w-0 flex-col gap-2">
 											<div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
 												<div className="min-w-0">
-													<p className="truncate font-medium">{stage.label}</p>
+													<p className="flex items-center gap-1.5 truncate font-medium">
+														{stage.label}
+														<HelpHint
+															text={`Сделки этой воронки на стадии «${stage.label}» — источник: Bitrix24 crm.deal.list.`}
+															href={
+																dealDomain
+																	? dealListUrl(dealDomain, {
+																			categoryId,
+																			stageId: stage.stageId,
+																		})
+																	: null
+															}
+														/>
+													</p>
 													<p className="text-xs text-muted-foreground">
 														{formatPercent(
 															activeDeals > 0 ? stage.deals / activeDeals : 0,
@@ -203,16 +271,23 @@ function MetricCard({
 	value,
 	description,
 	icon: Icon,
+	hint,
+	href,
 }: {
 	label: string;
 	value: string;
 	description: string;
 	icon: typeof Layers3Icon;
+	hint?: string;
+	href?: string | null;
 }) {
 	return (
 		<Card size="sm">
 			<CardHeader>
-				<CardTitle className="text-muted-foreground">{label}</CardTitle>
+				<CardTitle className="flex items-center gap-1.5 text-muted-foreground">
+					{label}
+					{hint && <HelpHint text={hint} href={href} />}
+				</CardTitle>
 				<CardAction>
 					<Icon aria-hidden="true" className="text-muted-foreground" />
 				</CardAction>

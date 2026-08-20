@@ -28,6 +28,7 @@ function FunnelPageContent() {
 		"deals",
 		"stageNames",
 		"categoryNames",
+		"dealDomain",
 	]);
 
 	if (isLoading) {
@@ -45,6 +46,7 @@ function FunnelPageContent() {
 	const deals = data.deals ?? [];
 	const stageNames = data.stageNames ?? new Map();
 	const categoryNames = data.categoryNames ?? new Map();
+	const dealDomain = data.dealDomain ?? null;
 	const byCategory = [...groupDealsByCategory(deals).entries()].sort(
 		([, a], [, b]) => b.length - a.length,
 	);
@@ -84,7 +86,11 @@ function FunnelPageContent() {
 
 				{byCategory.map(([categoryId, categoryDeals]) => (
 					<TabsContent key={categoryId} value={categoryId}>
-						<FunnelStages stages={funnelByStage(categoryDeals, stageNames)} />
+						<FunnelStages
+							stages={funnelByStage(categoryDeals, stageNames)}
+							categoryId={categoryId}
+							dealDomain={dealDomain}
+						/>
 					</TabsContent>
 				))}
 			</Tabs>
