@@ -380,7 +380,18 @@ export function applyScenarioAction(
 			if (action !== "sc_skip_email") return null;
 			if (state.flow === "consult")
 				return submitConsultLead(state, undefined, t);
-			return askForPhone(state, t);
+			// Кампания требует email — кнопки пропуска в её вопросе нет (см.
+			// questions.ts: campaign.emailQuestion шлётся без buttons), сюда
+			// дойти нельзя, но не обходим правило «материал только за email».
+			if (state.campaignId) return askForPhone(state, t);
+			// Email не оставил — гайд всё равно выдаём прямо в чат (иначе
+			// клиент остаётся вообще без материала, см. lead_magnet_no_email).
+			return askForPhone(
+				state,
+				t,
+				[{ text: t.lead_magnet_no_email, guide: true }],
+				["email"],
+			);
 		}
 
 		case "phone": {
@@ -524,8 +535,14 @@ export async function applyScenarioText(
 						{ text: t.guide_campaign_email_invalid_final },
 					]);
 				}
-				// Не мучаем пользователя — продолжаем без email
-				return askForPhone({ ...state, emailAttempts: attempts }, t);
+				// Не мучаем пользователя дальнейшими попытками, но материал
+				// всё равно отдаём в чат — без него клиент остаётся ни с чем.
+				return askForPhone(
+					{ ...state, emailAttempts: attempts },
+					t,
+					[{ text: t.lead_magnet_no_email, guide: true }],
+					["email"],
+				);
 			}
 			return output({ ...state, emailAttempts: attempts, reminded: false }, [
 				{ text: t.email_invalid },

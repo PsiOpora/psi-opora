@@ -3,7 +3,7 @@ import {
   upsertBotGuideDelivery,
 } from "@psi-opora/db/queries";
 import type { RedisClient } from "../storage/redis";
-import { appendDealComment } from "../utils/bitrix";
+import { appendDealComment, createBitrixTask } from "../utils/bitrix";
 import {
   submitBitrixContact,
   submitConsultationDeal,
@@ -79,6 +79,32 @@ function describeGuideHandout(handout: GuideHandout): string {
   }
 
   return lines.join("\n");
+}
+
+/** true — материал ушёл без письма на почту (не оставил email или отправка не удалась). */
+function guideHandoutNeedsEmailEscalation(handout: GuideHandout): boolean {
+  return !handout.email || Boolean(handout.emailError);
+}
+
+/**
+ * Заводит в Bitrix24 задачу ответственному менеджеру: бот не смог отправить
+ * материал на email, значит клиенту нужно написать/позвонить и уточнить
+ * адрес или прислать материал другим способом. Без этого шага о проблеме
+ * узнают только случайно, при просмотре переписки (см. describeGuideHandout).
+ */
+async function escalateMissingGuideEmail(
+  deps: ScenarioDispatchDeps,
+  dealId: number,
+  comment: string,
+): Promise<void> {
+  const client = [deps.userName, deps.userId ? `id ${deps.userId}` : undefined]
+    .filter(Boolean)
+    .join(", ");
+  await createBitrixTask(deps.messenger, {
+    title: `Уточнить email для гайда${client ? ` — ${client}` : ""}`,
+    description: comment,
+    dealId,
+  });
 }
 
 /**
@@ -245,10 +271,15 @@ export async function dispatchScenarioOutput(
   // после телефона — иначе факт выдачи в CRM не попал бы вообще.
   const handoutComment = handout ? describeGuideHandout(handout) : null;
   if (handoutComment) {
+    const needsEscalation = handout ? guideHandoutNeedsEmailEscalation(handout) : false;
     if (out.state.dealId) {
       await appendDealComment(deps.messenger, out.state.dealId, handoutComment);
+      if (needsEscalation) {
+        await escalateMissingGuideEmail(deps, out.state.dealId, handoutComment);
+      }
     } else {
       out.state.pendingGuideComment = handoutComment;
+      out.state.pendingGuideEmailMissing = needsEscalation;
     }
   } else if (out.state.dealId && out.state.pendingGuideComment) {
     await appendDealComment(
@@ -256,7 +287,15 @@ export async function dispatchScenarioOutput(
       out.state.dealId,
       out.state.pendingGuideComment,
     );
+    if (out.state.pendingGuideEmailMissing) {
+      await escalateMissingGuideEmail(
+        deps,
+        out.state.dealId,
+        out.state.pendingGuideComment,
+      );
+    }
     out.state.pendingGuideComment = undefined;
+    out.state.pendingGuideEmailMissing = undefined;
   }
 
   if (out.contact) {

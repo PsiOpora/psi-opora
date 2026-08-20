@@ -68,6 +68,12 @@ export interface ScenarioState {
    * только после телефона (см. dispatchScenarioOutput).
    */
   pendingGuideComment?: string;
+  /**
+   * Вместе с pendingGuideComment: материал выдан без email (не оставил или
+   * письмо не ушло) — когда появится dealId, нужно ещё и завести задачу
+   * ответственному менеджеру (см. dispatchScenarioOutput).
+   */
+  pendingGuideEmailMissing?: boolean;
   /** Явное согласие на рекламную рассылку (отдельное от согласия на обработку ПДн). */
   marketingConsent?: boolean;
   /**

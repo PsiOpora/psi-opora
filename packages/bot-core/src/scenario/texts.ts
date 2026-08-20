@@ -289,6 +289,17 @@ export const SCENARIO_TEXT_DEFS = [
       "https://psi-opora.ru/guide-parents.pdf",
   },
   {
+    key: "lead_magnet_no_email",
+    label: "Гайд без email",
+    hint: "Отправляется, если клиент так и не указал email (нажал «Продолжить без email» или трижды ввёл некорректный адрес) — письмо не уходит, поэтому текст не должен упоминать отправку на почту.",
+    group: "Гайд про ребёнка: email и выдача",
+    multiline: true,
+    defaultValue:
+      "Хорошо, пришлю гайд прямо сюда — без письма на почту:\n\n" +
+      "📎 *«3 фразы, которые нельзя говорить ребенку»*\n" +
+      "https://psi-opora.ru/guide-parents.pdf",
+  },
+  {
     key: "email_subject",
     label: "Тема письма с гайдом",
     group: "Гайд про ребёнка: email и выдача",

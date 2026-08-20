@@ -293,7 +293,7 @@ describe("флоу гайда: ветка «трудности с ребенко
     expect(out.contact).toEqual({ email: "parent@example.com" });
   });
 
-  test("кнопка «без email» ведёт сразу к телефону", async () => {
+  test("кнопка «без email» всё равно выдаёт гайд в чат перед вопросом о телефоне", async () => {
     const out = await run([
       { action: "sc_guide" },
       { action: "consent_agree" },
@@ -303,10 +303,15 @@ describe("флоу гайда: ветка «трудности с ребенко
       { action: "sc_skip_email" },
     ]);
     expect(out.state.step).toBe("phone");
-    expect(out.messages.map((m) => m.text)).toEqual([t.phone_question]);
+    expect(out.state.email).toBeUndefined();
+    expect(out.messages.map((m) => m.text)).toEqual([
+      t.lead_magnet_no_email,
+      t.phone_question,
+    ]);
+    expect(out.messages[0]?.guide).toBe(true);
   });
 
-  test("после 3 нераспознанных email — переход к телефону без гайда", async () => {
+  test("после 3 нераспознанных email — гайд всё равно уходит в чат, дальше телефон", async () => {
     const out = await run([
       { action: "sc_guide" },
       { action: "consent_agree" },
@@ -319,7 +324,11 @@ describe("флоу гайда: ветка «трудности с ребенко
     ]);
     expect(out.state.step).toBe("phone");
     expect(out.state.email).toBeUndefined();
-    expect(out.messages.map((m) => m.text)).toEqual([t.phone_question]);
+    expect(out.messages.map((m) => m.text)).toEqual([
+      t.lead_magnet_no_email,
+      t.phone_question,
+    ]);
+    expect(out.messages[0]?.guide).toBe(true);
   });
 });
 

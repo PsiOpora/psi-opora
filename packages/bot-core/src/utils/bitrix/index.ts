@@ -19,4 +19,5 @@ export {
 	listBitrixSources,
 	registerBitrixSource,
 } from "./sources";
+export { createBitrixTask } from "./tasks";
 export type { BitrixApiLike, ContactData, DealData } from "./types";
