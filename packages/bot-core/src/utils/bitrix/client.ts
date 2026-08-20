@@ -37,6 +37,7 @@ export async function bitrixPost<T = unknown>(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30000),
   });
   const json = (await res.json()) as Record<string, unknown>;
   if (json.error) {
