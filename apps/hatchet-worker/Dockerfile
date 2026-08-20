@@ -1,5 +1,6 @@
 FROM oven/bun:1-alpine AS base
-RUN apk add --no-cache libc6-compat
+# bufferutil (транзитивная зависимость ws) требует node-gyp → Python и компилятор.
+RUN apk add --no-cache libc6-compat python3 g++ make
 WORKDIR /app
 
 FROM base AS prepare

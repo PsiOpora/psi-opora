@@ -4,10 +4,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const FOCUS_REFRESH_DELAY = 30 * 1000; // 30 секунд после возвращения фокуса
+const FOCUS_REFRESH_DELAY = 60 * 1000; // 1 минута после возвращения фокуса
 
 interface UseDataRefreshOptions {
-	/** Минимальный интервал между обновлениями (мс). По умолчанию 30 сек. */
+	/** Минимальный интервал между обновлениями (мс). По умолчанию 1 минута. */
 	minInterval?: number;
 	/** Включить автоматическое обновление при фокусе. По умолчанию true. */
 	refreshOnFocus?: boolean;

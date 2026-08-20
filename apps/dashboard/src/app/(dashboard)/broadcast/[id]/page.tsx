@@ -4,7 +4,9 @@ import type { Broadcast, BroadcastRecipientRow } from "@psi-opora/db/queries";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -45,9 +47,12 @@ const STATUS_BADGE: Record<
 	error: { label: "Ошибка", variant: "destructive" },
 };
 
+const RECIPIENTS_PAGE_SIZE = 50;
+
 export default function BroadcastDetailsPage() {
 	const params = useParams<{ id: string }>();
 	const id = params.id;
+	const [pageIndex, setPageIndex] = useState(0);
 
 	const { data, isLoading, isError } = useQuery({
 		queryKey: broadcastDetailKey(id),
@@ -61,6 +66,38 @@ export default function BroadcastDetailsPage() {
 		},
 	});
 
+	const recipients = useMemo(() => data?.recipients ?? [], [data]);
+
+	// Пока задача выполняется, счётчики в строке broadcasts ещё не обновлены —
+	// считаем по фактическим статусам получателей. Рассылка на большую стадию
+	// CRM может насчитывать тысячи получателей, а пока идёт отправка, страница
+	// переопрашивается каждые 3 сек (см. AutoRefresh) — один проход вместо
+	// четырёх отдельных .filter() и пагинация таблицы ниже держат это дешёвым.
+	const counts = useMemo(() => {
+		const result = { sent: 0, pending: 0, skipped: 0, failed: 0 };
+		for (const r of recipients) {
+			if (r.status === "sent") result.sent++;
+			else if (r.status === "pending") result.pending++;
+			else if (r.status === "skipped") result.skipped++;
+			else if (r.status === "error") result.failed++;
+		}
+		return result;
+	}, [recipients]);
+
+	const pageCount = Math.max(
+		1,
+		Math.ceil(recipients.length / RECIPIENTS_PAGE_SIZE),
+	);
+	const clampedPageIndex = Math.min(pageIndex, pageCount - 1);
+	const pageRecipients = useMemo(
+		() =>
+			recipients.slice(
+				clampedPageIndex * RECIPIENTS_PAGE_SIZE,
+				clampedPageIndex * RECIPIENTS_PAGE_SIZE + RECIPIENTS_PAGE_SIZE,
+			),
+		[recipients, clampedPageIndex],
+	);
+
 	if (isLoading) {
 		return <p className="text-sm text-muted-foreground">Загрузка…</p>;
 	}
@@ -68,16 +105,7 @@ export default function BroadcastDetailsPage() {
 		return <p className="text-sm text-destructive">Рассылка не найдена.</p>;
 	}
 
-	const { broadcast, recipients } = data;
-
-	// Пока задача выполняется, счётчики в строке broadcasts ещё не обновлены —
-	// считаем по фактическим статусам получателей.
-	const counts = {
-		sent: recipients.filter((r) => r.status === "sent").length,
-		pending: recipients.filter((r) => r.status === "pending").length,
-		skipped: recipients.filter((r) => r.status === "skipped").length,
-		failed: recipients.filter((r) => r.status === "error").length,
-	};
+	const { broadcast } = data;
 	const isRunning = broadcast.status === "running";
 
 	return (
@@ -152,7 +180,7 @@ export default function BroadcastDetailsPage() {
 									</TableRow>
 								</TableHeader>
 								<TableBody>
-									{recipients.map((r) => {
+									{pageRecipients.map((r) => {
 										const badge = STATUS_BADGE[r.status] ?? {
 											label: r.status,
 											variant: "outline" as const,
@@ -190,6 +218,41 @@ export default function BroadcastDetailsPage() {
 									})}
 								</TableBody>
 							</Table>
+						)}
+						{recipients.length > RECIPIENTS_PAGE_SIZE && (
+							<div className="flex items-center justify-between gap-4 pt-3 text-sm text-muted-foreground">
+								<span>
+									{clampedPageIndex * RECIPIENTS_PAGE_SIZE + 1}–
+									{Math.min(
+										recipients.length,
+										(clampedPageIndex + 1) * RECIPIENTS_PAGE_SIZE,
+									)}{" "}
+									из {recipients.length}
+								</span>
+								<div className="flex items-center gap-2">
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
+										disabled={clampedPageIndex === 0}
+									>
+										Назад
+									</Button>
+									<span className="tabular-nums">
+										{clampedPageIndex + 1} / {pageCount}
+									</span>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() =>
+											setPageIndex((i) => Math.min(pageCount - 1, i + 1))
+										}
+										disabled={clampedPageIndex >= pageCount - 1}
+									>
+										Вперёд
+									</Button>
+								</div>
+							</div>
 						)}
 					</CardContent>
 				</Card>

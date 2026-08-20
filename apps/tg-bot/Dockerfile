@@ -1,5 +1,6 @@
 FROM oven/bun:1-alpine AS base
-RUN apk add --no-cache libc6-compat git
+# bufferutil (транзитивная зависимость ws) требует node-gyp → Python и компилятор.
+RUN apk add --no-cache libc6-compat git python3 g++ make
 WORKDIR /app
 
 # --- Prepare: вырезаем из монорепо только то, что нужно для tg-bot ---
