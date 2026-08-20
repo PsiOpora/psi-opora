@@ -20,8 +20,6 @@ import {
 } from "@/components/ui/popover";
 import { formatDateParam } from "@/lib/analytics/date-range";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 const PRESETS: { label: string; range: () => { from: Date; to: Date } }[] = [
 	{
 		label: "Текущая неделя",
@@ -43,24 +41,33 @@ const PRESETS: { label: string; range: () => { from: Date; to: Date } }[] = [
 	},
 	{
 		label: "Последние 7 дней",
-		range: () => ({
-			from: new Date(Date.now() - 7 * DAY_MS),
-			to: endOfDay(new Date()),
-		}),
+		range: () => {
+			const now = new Date();
+			const from = new Date(now);
+			from.setDate(from.getDate() - 6);
+			from.setHours(0, 0, 0, 0);
+			return { from, to: endOfDay(now) };
+		},
 	},
 	{
 		label: "Последние 30 дней",
-		range: () => ({
-			from: new Date(Date.now() - 30 * DAY_MS),
-			to: endOfDay(new Date()),
-		}),
+		range: () => {
+			const now = new Date();
+			const from = new Date(now);
+			from.setDate(from.getDate() - 29);
+			from.setHours(0, 0, 0, 0);
+			return { from, to: endOfDay(now) };
+		},
 	},
 	{
 		label: "Последние 90 дней",
-		range: () => ({
-			from: new Date(Date.now() - 90 * DAY_MS),
-			to: endOfDay(new Date()),
-		}),
+		range: () => {
+			const now = new Date();
+			const from = new Date(now);
+			from.setDate(from.getDate() - 89);
+			from.setHours(0, 0, 0, 0);
+			return { from, to: endOfDay(now) };
+		},
 	},
 ];
 
@@ -68,9 +75,11 @@ function currentRange(searchParams: URLSearchParams): { from: Date; to: Date } {
 	const toParam = searchParams.get("to");
 	const fromParam = searchParams.get("from");
 	const to = toParam ? new Date(toParam) : new Date();
-	const from = fromParam
-		? new Date(fromParam)
-		: new Date(to.getTime() - 30 * DAY_MS);
+	if (fromParam) {
+		return { from: new Date(fromParam), to };
+	}
+	const from = new Date(to);
+	from.setDate(from.getDate() - 29);
 	return { from, to };
 }
 
