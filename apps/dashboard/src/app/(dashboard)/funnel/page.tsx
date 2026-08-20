@@ -31,11 +31,15 @@ export default function FunnelPage() {
 function FunnelPageContent() {
 	const reportFilter = useDashboardRange();
 	const [mode, setMode] = useState<FunnelMode>("created");
+	// openDeals (crm.deal.list с CLOSED=N) не ограничен диапазоном дат — на
+	// CRM с историей это может быть заметно больше, чем deals за период.
+	// Подгружаем его только когда реально открыта вкладка «Активно сейчас»,
+	// а не на каждый заход на страницу воронки.
 	const { data, isLoading, isError } = useBitrixData([
 		"deals",
-		"openDeals",
 		"stageNames",
 		"categoryNames",
+		...(mode === "active" ? (["openDeals"] as const) : []),
 	]);
 
 	const deals = (mode === "created" ? data?.deals : data?.openDeals) ?? [];
