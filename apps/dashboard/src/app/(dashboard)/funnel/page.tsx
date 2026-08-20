@@ -11,7 +11,10 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useBitrixData } from "@/hooks/use-bitrix-data";
+import {
+	useBitrixData,
+	useDashboardRange,
+} from "@/hooks/use-bitrix-data";
 import { funnelByStage, groupDealsByCategory } from "@/lib/analytics/aggregate";
 import { formatNumber } from "@/lib/format";
 
@@ -24,6 +27,7 @@ export default function FunnelPage() {
 }
 
 function FunnelPageContent() {
+	const reportFilter = useDashboardRange();
 	const { data, isLoading, isError } = useBitrixData([
 		"deals",
 		"stageNames",
@@ -90,6 +94,7 @@ function FunnelPageContent() {
 							stages={funnelByStage(categoryDeals, stageNames)}
 							categoryId={categoryId}
 							dealDomain={dealDomain}
+							reportFilter={reportFilter}
 						/>
 					</TabsContent>
 				))}

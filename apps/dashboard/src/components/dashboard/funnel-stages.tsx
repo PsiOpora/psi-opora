@@ -21,7 +21,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { FunnelStage } from "@/lib/analytics/types";
+import type { DateRange, FunnelStage } from "@/lib/analytics/types";
+import { formatDateParam } from "@/lib/analytics/date-range";
 import { dealListUrl } from "@/lib/deal-url";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 
@@ -41,9 +42,13 @@ function HelpHint({ text, href }: { text: string; href?: string | null }) {
 						<HelpCircleIcon className="size-3.5" />
 					</a>
 				) : (
-					<span className="text-muted-foreground">
+					<button
+						type="button"
+						className="text-muted-foreground"
+						aria-label="Пояснение"
+					>
 						<HelpCircleIcon className="size-3.5" />
-					</span>
+					</button>
 				)}
 			</TooltipTrigger>
 			<TooltipContent>
@@ -58,12 +63,15 @@ export function FunnelStages({
 	stages,
 	categoryId,
 	dealDomain,
+	reportFilter,
 }: {
 	stages: FunnelStage[];
 	/** ID воронки CRM — для ссылок с фильтром на список сделок. */
 	categoryId?: string;
 	/** Домен портала Bitrix24 — если известен, иконки-подсказки ведут в CRM. */
 	dealDomain?: string | null;
+	/** Фильтр отчёта (период) — для передачи в CRM-ссылки. */
+	reportFilter?: DateRange;
 }) {
 	const activeStages = stages.filter((stage) => stage.status === "in_progress");
 	const wonStages = stages.filter((stage) => stage.status === "won");
@@ -89,7 +97,23 @@ export function FunnelStages({
 	const conversionRate = closedDeals > 0 ? wonDeals / closedDeals : 0;
 	const activeMax = Math.max(...activeStages.map((stage) => stage.deals), 1);
 
-	const allUrl = dealDomain ? dealListUrl(dealDomain, { categoryId }) : null;
+	// Формируем базовый фильтр с периодом для всех метрик
+	const baseFilter = {
+		categoryId,
+		...(reportFilter && {
+			dateFrom: formatDateParam(reportFilter.from),
+			dateTo: formatDateParam(reportFilter.to),
+		}),
+	};
+
+	// URL для метрики "Создано сделок" — все сделки воронки за период
+	const allUrl = dealDomain ? dealListUrl(dealDomain, baseFilter) : null;
+
+	// URL для метрики "Сейчас в работе" — только активные статусы (CRM не поддерживает фильтр по семантике напрямую)
+	const activeUrl = null; // CRM не поддерживает фильтр по статусу in_progress
+
+	// URL для метрики "Выиграно" — только успешные (STAGE_SEMANTIC_ID = S)
+	const wonUrl = null; // CRM не поддерживает фильтр по STAGE_SEMANTIC_ID через URL
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -108,7 +132,7 @@ export function FunnelStages({
 					description={formatMoney(activeSum)}
 					icon={CircleDotIcon}
 					hint="Сделки на промежуточных стадиях воронки — ещё не выиграны и не проиграны."
-					href={allUrl}
+					href={activeUrl}
 				/>
 				<MetricCard
 					label="Выиграно"
@@ -116,7 +140,7 @@ export function FunnelStages({
 					description={formatMoney(wonSum)}
 					icon={CheckCircle2Icon}
 					hint="Сделки со стадией в статусе «Успешно» (semantic STAGE_SEMANTIC_ID = S)."
-					href={allUrl}
+					href={wonUrl}
 				/>
 				<MetricCard
 					label="Конверсия в победу"
@@ -165,7 +189,7 @@ export function FunnelStages({
 															href={
 																dealDomain
 																	? dealListUrl(dealDomain, {
-																			categoryId,
+																			...baseFilter,
 																			stageId: stage.stageId,
 																		})
 																	: null
