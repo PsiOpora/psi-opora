@@ -12,6 +12,12 @@ export {
 	sendConsultationReminders,
 } from "./consultation-reminders";
 export {
+	removeSyncedDeal,
+	syncAllDeals,
+	syncChangedDeals,
+	syncOneDeal,
+} from "./deals-sync";
+export {
 	type SendDiagnosticRemindersResult,
 	sendDiagnosticReminders,
 } from "./diagnostic-reminders";
@@ -33,6 +39,7 @@ export {
 	crmBackup,
 	crmBackupSchedule,
 } from "./hatchet/crm-backup";
+export { dealsSync } from "./hatchet/deals-sync";
 export { diagnosticReminders } from "./hatchet/diagnostic-reminders";
 export {
 	type DeliverEmailCampaignPayload,

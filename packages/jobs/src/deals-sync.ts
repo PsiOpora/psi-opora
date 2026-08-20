@@ -1,0 +1,168 @@
+import type { BitrixApi } from "@psi-opora/bitrix-client";
+import {
+	deleteDeal,
+	getSyncWatermark,
+	type NewDeal,
+	upsertDeals,
+} from "@psi-opora/db/queries";
+
+/**
+ * Поля/нормализация сделки для локального зеркала (packages/db, таблица
+ * deals) — 1:1 повторяют apps/dashboard/src/lib/analytics/deals.ts
+ * (DEAL_SELECT/normalizeDeal/statusOf/decodeUtmValue), плюс DATE_MODIFY —
+ * курсор для инкрементальной сверки (см. syncChangedDeals).
+ */
+const DEAL_SYNC_SELECT = [
+	"ID",
+	"TITLE",
+	"STAGE_ID",
+	"CATEGORY_ID",
+	"CLOSED",
+	"OPPORTUNITY",
+	"CURRENCY_ID",
+	"DATE_CREATE",
+	"CLOSEDATE",
+	"DATE_MODIFY",
+	"SOURCE_ID",
+	"UTM_SOURCE",
+	"UTM_MEDIUM",
+	"UTM_CAMPAIGN",
+	"UTM_CONTENT",
+	"UTM_TERM",
+];
+
+interface RawSyncDeal {
+	ID: string;
+	TITLE: string;
+	STAGE_ID: string;
+	CATEGORY_ID: string;
+	CLOSED: "Y" | "N";
+	OPPORTUNITY: string;
+	CURRENCY_ID: string;
+	DATE_CREATE: string;
+	CLOSEDATE?: string;
+	DATE_MODIFY: string;
+	SOURCE_ID?: string;
+	UTM_SOURCE?: string;
+	UTM_MEDIUM?: string;
+	UTM_CAMPAIGN?: string;
+	UTM_CONTENT?: string;
+	UTM_TERM?: string;
+}
+
+/** Рекламные площадки иногда передают UTM percent-encoded — декодируем для читаемости. */
+function decodeUtm(value?: string): string | null {
+	if (!value) return null;
+	if (!/%[0-9A-Fa-f]{2}/.test(value)) return value;
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
+}
+
+/**
+ * Bitrix24 не отдаёт единый флаг "сделка выиграна" — только STAGE_ID.
+ * Стадии успеха/провала всегда содержат WON/LOSE в коде.
+ */
+function statusOf(deal: RawSyncDeal): "won" | "lost" | "in_progress" {
+	if (deal.CLOSED !== "Y") return "in_progress";
+	if (deal.STAGE_ID.includes("WON")) return "won";
+	if (deal.STAGE_ID.includes("LOSE")) return "lost";
+	return "won";
+}
+
+function normalizeSyncDeal(raw: RawSyncDeal): NewDeal {
+	return {
+		id: raw.ID,
+		title: raw.TITLE,
+		stageId: raw.STAGE_ID,
+		categoryId: raw.CATEGORY_ID,
+		status: statusOf(raw),
+		opportunity: Math.round(Number(raw.OPPORTUNITY) || 0),
+		currency: raw.CURRENCY_ID || null,
+		sourceId: raw.SOURCE_ID || null,
+		utmSource: decodeUtm(raw.UTM_SOURCE),
+		utmMedium: decodeUtm(raw.UTM_MEDIUM),
+		utmCampaign: decodeUtm(raw.UTM_CAMPAIGN),
+		utmContent: decodeUtm(raw.UTM_CONTENT),
+		utmTerm: decodeUtm(raw.UTM_TERM),
+		dateCreate: new Date(raw.DATE_CREATE),
+		closeDate: raw.CLOSEDATE ? new Date(raw.CLOSEDATE) : null,
+		dateModify: new Date(raw.DATE_MODIFY),
+	};
+}
+
+/**
+ * Периодическая сверка (packages/jobs/src/hatchet/deals-sync.ts, cron):
+ * подтягивает сделки, изменённые после последнего известного DATE_MODIFY —
+ * подстраховка на случай недоставленного вебхука. Если таблица ещё пуста
+ * (watermark отсутствует) — не тянет всю историю (это уронило бы Bitrix REST
+ * лимит), а ждёт разового бэкафилла (scripts/backfill-deals.ts).
+ */
+export async function syncChangedDeals(
+	api: BitrixApi,
+): Promise<{ synced: number; skipped?: "no_watermark" }> {
+	const watermark = await getSyncWatermark();
+	if (!watermark) return { synced: 0, skipped: "no_watermark" };
+
+	// Запас на рассинхрон часов/задержку между DATE_MODIFY в Bitrix и коммитом в БД.
+	const since = new Date(watermark.getTime() - 5 * 60 * 1000);
+	const raw = await api.list<RawSyncDeal>("crm.deal.list", {
+		select: DEAL_SYNC_SELECT,
+		filter: { ">DATE_MODIFY": since.toISOString() },
+		order: { DATE_MODIFY: "ASC" },
+	});
+	const rows = raw.map(normalizeSyncDeal);
+	await upsertDeals(rows);
+	return { synced: rows.length };
+}
+
+/**
+ * Апсерт одной сделки по id — обработчик вебхуков OnCrmDealAdd/OnCrmDealUpdate
+ * (apps/bitrix-webhook). Если сделка уже недоступна (например, её удалили
+ * между событием и обработкой) — убирает её из зеркала вместо падения.
+ */
+export async function syncOneDeal(
+	api: BitrixApi,
+	dealId: string,
+): Promise<{ synced: boolean }> {
+	const raw = await api.call<RawSyncDeal | false>("crm.deal.get", {
+		id: dealId,
+	});
+	if (!raw) {
+		await deleteDeal(dealId);
+		return { synced: false };
+	}
+	await upsertDeals([normalizeSyncDeal(raw)]);
+	return { synced: true };
+}
+
+/** Удаление сделки из зеркала — обработчик вебхука OnCrmDealDelete. */
+export async function removeSyncedDeal(dealId: string): Promise<void> {
+	await deleteDeal(dealId);
+}
+
+const BACKFILL_BATCH_SIZE = 500;
+
+/**
+ * Полная синхронизация — весь список сделок, без фильтра по дате/DATE_MODIFY.
+ * Разовый бэкафилл (scripts/backfill-deals.ts) перед первым включением
+ * периодической сверки (syncChangedDeals полагается на непустую таблицу).
+ */
+export async function syncAllDeals(
+	api: BitrixApi,
+	onProgress?: (synced: number, total: number) => void,
+): Promise<{ synced: number }> {
+	const raw = await api.list<RawSyncDeal>("crm.deal.list", {
+		select: DEAL_SYNC_SELECT,
+		order: { ID: "ASC" },
+	});
+	const rows = raw.map(normalizeSyncDeal);
+	for (let i = 0; i < rows.length; i += BACKFILL_BATCH_SIZE) {
+		const batch = rows.slice(i, i + BACKFILL_BATCH_SIZE);
+		await upsertDeals(batch);
+		onProgress?.(Math.min(i + BACKFILL_BATCH_SIZE, rows.length), rows.length);
+	}
+	return { synced: rows.length };
+}
