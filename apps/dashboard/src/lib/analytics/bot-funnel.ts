@@ -36,6 +36,9 @@ export const STEP_LABELS: Record<FunnelStep, string> = {
   subscribe: "Согласились на рассылку",
 };
 
+/** Суффикс тестовой кампании: `vk_ads1_test`, `some_source_test` и т.п. — не учитывается в отчёте. */
+const TEST_CAMPAIGN_SUFFIX = "_test";
+
 export async function fetchBotFunnelEvents(
   range: DateRange,
 ): Promise<BotFunnelEvent[]> {
@@ -46,6 +49,7 @@ export async function fetchBotFunnelEvents(
 
   return rows
     .filter((row) => (FUNNEL_STEPS as readonly string[]).includes(row.step))
+    .filter((row) => !row.campaign.endsWith(TEST_CAMPAIGN_SUFFIX))
     .map((row) => ({
       day: row.day,
       messenger: row.messenger,

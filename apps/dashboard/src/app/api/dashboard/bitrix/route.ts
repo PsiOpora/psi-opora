@@ -4,6 +4,7 @@ import type { DateRange } from "@/lib/analytics/types";
 import {
   fetchCategoryNames,
   fetchDeals,
+  fetchOpenDeals,
   fetchSourceNames,
   fetchStageNames,
 } from "@/lib/analytics/deals";
@@ -27,7 +28,7 @@ function rangeFromParams(url: URL): DateRange {
  * заменяет прямой вызов getBitrixApi()/fetchDeals() из серверных компонентов
  * страниц (см. CONTEXT в задаче про клиентские страницы). `need` — список
  * через запятую: deals, previousDeals, sourceNames, categoryNames,
- * stageNames, dealDomain.
+ * stageNames, dealDomain, openDeals.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -43,23 +44,31 @@ export async function GET(request: Request) {
   const range = rangeFromParams(url);
 
   try {
-    const [deals, previousDeals, sourceNames, categoryNames, stageNames, dealDomain] =
-      await Promise.all([
-        need.has("deals") ? fetchDeals(api, range) : Promise.resolve(undefined),
-        need.has("previousDeals")
-          ? fetchDeals(api, previousRange(range))
-          : Promise.resolve(undefined),
-        need.has("sourceNames")
-          ? fetchSourceNames(api)
-          : Promise.resolve(undefined),
-        need.has("categoryNames")
-          ? fetchCategoryNames(api)
-          : Promise.resolve(undefined),
-        need.has("stageNames") ? fetchStageNames(api) : Promise.resolve(undefined),
-        need.has("dealDomain")
-          ? getBitrixPortalDomain()
-          : Promise.resolve(undefined),
-      ]);
+    const [
+      deals,
+      previousDeals,
+      sourceNames,
+      categoryNames,
+      stageNames,
+      dealDomain,
+      openDeals,
+    ] = await Promise.all([
+      need.has("deals") ? fetchDeals(api, range) : Promise.resolve(undefined),
+      need.has("previousDeals")
+        ? fetchDeals(api, previousRange(range))
+        : Promise.resolve(undefined),
+      need.has("sourceNames")
+        ? fetchSourceNames(api)
+        : Promise.resolve(undefined),
+      need.has("categoryNames")
+        ? fetchCategoryNames(api)
+        : Promise.resolve(undefined),
+      need.has("stageNames") ? fetchStageNames(api) : Promise.resolve(undefined),
+      need.has("dealDomain")
+        ? getBitrixPortalDomain()
+        : Promise.resolve(undefined),
+      need.has("openDeals") ? fetchOpenDeals(api) : Promise.resolve(undefined),
+    ]);
 
     return NextResponse.json({
       connected: true,
@@ -69,6 +78,7 @@ export async function GET(request: Request) {
       categoryNames: categoryNames ? [...categoryNames.entries()] : undefined,
       stageNames: stageNames ? [...stageNames.entries()] : undefined,
       dealDomain,
+      openDeals,
     });
   } catch (error) {
     if (

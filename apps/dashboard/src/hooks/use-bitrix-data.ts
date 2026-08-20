@@ -13,7 +13,8 @@ export type BitrixNeed =
   | "sourceNames"
   | "categoryNames"
   | "stageNames"
-  | "dealDomain";
+  | "dealDomain"
+  | "openDeals";
 
 interface BitrixDataResult {
   connected: boolean;
@@ -23,6 +24,7 @@ interface BitrixDataResult {
   categoryNames?: Map<string, string>;
   stageNames?: Map<string, StageInfo>;
   dealDomain?: string | null;
+  openDeals?: DealRecord[];
 }
 
 /** Диапазон дат из ?from=&to= — как раньше в серверных страницах, но на клиенте. */
@@ -65,6 +67,9 @@ export function useBitrixData(need: BitrixNeed[]) {
           ? new Map<string, StageInfo>(json.stageNames)
           : undefined,
         dealDomain: json.dealDomain ?? null,
+        openDeals: json.openDeals
+          ? reviveDeals(json.openDeals as WireDeal[])
+          : undefined,
       };
     },
   });

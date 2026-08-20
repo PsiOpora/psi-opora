@@ -21,57 +21,34 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { DateRange, FunnelStage } from "@/lib/analytics/types";
-import { formatDateParam } from "@/lib/analytics/date-range";
-import { dealListUrl } from "@/lib/deal-url";
+import type { FunnelStage } from "@/lib/analytics/types";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 
-/** Иконка-вопросик с расшифровкой метрики и (опционально) ссылкой на отфильтрованный список в CRM. */
-function HelpHint({ text, href }: { text: string; href?: string | null }) {
+/** Иконка-вопросик с расшифровкой метрики. */
+function HelpHint({ text }: { text: string }) {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				{href ? (
-					<a
-						href={href}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="text-muted-foreground hover:text-foreground"
-						aria-label="Открыть отфильтрованный список в CRM"
-					>
-						<HelpCircleIcon className="size-3.5" />
-					</a>
-				) : (
-					<button
-						type="button"
-						className="text-muted-foreground"
-						aria-label="Пояснение"
-					>
-						<HelpCircleIcon className="size-3.5" />
-					</button>
-				)}
+				<button
+					type="button"
+					className="text-muted-foreground"
+					aria-label="Пояснение"
+				>
+					<HelpCircleIcon className="size-3.5" />
+				</button>
 			</TooltipTrigger>
-			<TooltipContent>
-				{text}
-				{href && " Клик — открыть в CRM."}
-			</TooltipContent>
+			<TooltipContent>{text}</TooltipContent>
 		</Tooltip>
 	);
 }
 
 export function FunnelStages({
 	stages,
-	categoryId,
-	dealDomain,
-	reportFilter,
+	mode,
 }: {
 	stages: FunnelStage[];
-	/** ID воронки CRM — для ссылок с фильтром на список сделок. */
-	categoryId?: string;
-	/** Домен портала Bitrix24 — если известен, иконки-подсказки ведут в CRM. */
-	dealDomain?: string | null;
-	/** Фильтр отчёта (период) — для передачи в CRM-ссылки. */
-	reportFilter?: DateRange;
+	/** Режим выборки сделок — влияет только на подписи. */
+	mode: "created" | "active";
 }) {
 	const activeStages = stages.filter((stage) => stage.status === "in_progress");
 	const wonStages = stages.filter((stage) => stage.status === "won");
@@ -97,34 +74,22 @@ export function FunnelStages({
 	const conversionRate = closedDeals > 0 ? wonDeals / closedDeals : 0;
 	const activeMax = Math.max(...activeStages.map((stage) => stage.deals), 1);
 
-	// Формируем базовый фильтр с периодом для всех метрик
-	const baseFilter = {
-		categoryId,
-		...(reportFilter && {
-			dateFrom: formatDateParam(reportFilter.from),
-			dateTo: formatDateParam(reportFilter.to),
-		}),
-	};
-
-	// URL для метрики "Создано сделок" — все сделки воронки за период
-	const allUrl = dealDomain ? dealListUrl(dealDomain, baseFilter) : null;
-
-	// URL для метрики "Сейчас в работе" — только активные статусы (CRM не поддерживает фильтр по семантике напрямую)
-	const activeUrl = null; // CRM не поддерживает фильтр по статусу in_progress
-
-	// URL для метрики "Выиграно" — только успешные (STAGE_SEMANTIC_ID = S)
-	const wonUrl = null; // CRM не поддерживает фильтр по STAGE_SEMANTIC_ID через URL
+	const createdLabel =
+		mode === "created" ? "за выбранный период" : "сейчас не закрыто";
 
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 				<MetricCard
-					label="Создано сделок"
+					label={mode === "created" ? "Создано сделок" : "Всего в работе"}
 					value={formatNumber(totalDeals)}
-					description="за выбранный период"
+					description={createdLabel}
 					icon={Layers3Icon}
-					hint="Все сделки CRM этой воронки, созданные в выбранном периоде — источник: Bitrix24 crm.deal.list."
-					href={allUrl}
+					hint={
+						mode === "created"
+							? "Все сделки CRM этой воронки, созданные в выбранном периоде, — источник: Bitrix24 crm.deal.list."
+							: "Все сделки CRM этой воронки, которые сейчас не закрыты, — источник: Bitrix24 crm.deal.list."
+					}
 				/>
 				<MetricCard
 					label="Сейчас в работе"
@@ -132,7 +97,6 @@ export function FunnelStages({
 					description={formatMoney(activeSum)}
 					icon={CircleDotIcon}
 					hint="Сделки на промежуточных стадиях воронки — ещё не выиграны и не проиграны."
-					href={activeUrl}
 				/>
 				<MetricCard
 					label="Выиграно"
@@ -140,7 +104,6 @@ export function FunnelStages({
 					description={formatMoney(wonSum)}
 					icon={CheckCircle2Icon}
 					hint="Сделки со стадией в статусе «Успешно» (semantic STAGE_SEMANTIC_ID = S)."
-					href={wonUrl}
 				/>
 				<MetricCard
 					label="Конверсия в победу"
@@ -160,7 +123,9 @@ export function FunnelStages({
 					<CardHeader>
 						<CardTitle>Активные этапы</CardTitle>
 						<CardDescription>
-							Где сейчас находятся сделки, созданные за выбранный период
+							{mode === "created"
+								? "Где сейчас находятся сделки, созданные за выбранный период"
+								: "Где сейчас находятся сделки, которые ещё не закрыты"}
 						</CardDescription>
 						<CardAction>
 							<Badge variant="secondary">
@@ -186,14 +151,6 @@ export function FunnelStages({
 														{stage.label}
 														<HelpHint
 															text={`Сделки этой воронки на стадии «${stage.label}» — источник: Bitrix24 crm.deal.list.`}
-															href={
-																dealDomain
-																	? dealListUrl(dealDomain, {
-																			...baseFilter,
-																			stageId: stage.stageId,
-																		})
-																	: null
-															}
 														/>
 													</p>
 													<p className="text-xs text-muted-foreground">
@@ -296,21 +253,19 @@ function MetricCard({
 	description,
 	icon: Icon,
 	hint,
-	href,
 }: {
 	label: string;
 	value: string;
 	description: string;
 	icon: typeof Layers3Icon;
 	hint?: string;
-	href?: string | null;
 }) {
 	return (
 		<Card size="sm">
 			<CardHeader>
 				<CardTitle className="flex items-center gap-1.5 text-muted-foreground">
 					{label}
-					{hint && <HelpHint text={hint} href={href} />}
+					{hint && <HelpHint text={hint} />}
 				</CardTitle>
 				<CardAction>
 					<Icon aria-hidden="true" className="text-muted-foreground" />

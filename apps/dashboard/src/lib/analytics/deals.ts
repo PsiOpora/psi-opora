@@ -102,6 +102,20 @@ export async function fetchDeals(
   return raw.map(normalizeDeal);
 }
 
+/**
+ * Сделки, которые сейчас находятся в работе (не закрыты), без фильтра по
+ * дате создания — снэпшот текущего состояния воронки, как в канбане Bitrix24
+ * по умолчанию.
+ */
+export async function fetchOpenDeals(api: BitrixApi): Promise<DealRecord[]> {
+  const raw = await api.list<RawDeal>("crm.deal.list", {
+    select: DEAL_SELECT,
+    filter: { CLOSED: "N" },
+    order: { DATE_CREATE: "ASC" },
+  });
+  return raw.map(normalizeDeal);
+}
+
 export interface SourceName {
   id: string;
   name: string;
