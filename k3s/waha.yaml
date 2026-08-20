@@ -51,6 +51,42 @@ spec:
           envFrom:
             - secretRef:
                 name: psi-opora-env
+          # Без лимитов контейнер мог занять произвольно много CPU/RAM ноды
+          # и остаться без предупреждения — сейчас держит ~380Mi в простое,
+          # запас даём на пики при массовых сообщениях/переподключениях.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          # /ping не требует X-Api-Key (в отличие от /health) — пробы не
+          # умеют брать заголовок из Secret, а хардкодить ключ в манифесте
+          # не хотим. Задача проб — заметить зависший процесс, а не то, что
+          # WA-сессии подключены (это отслеживается отдельно, через
+          # session.status в вебхуке).
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: 3000
+            # WHATSAPP_RESTART_ALL_SESSIONS поднимает все сохранённые сессии
+            # последовательно при старте — даём до 5 минут, прежде чем
+            # считать под зависшим.
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 3000
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 3000
+            periodSeconds: 10
+            failureThreshold: 3
           volumeMounts:
             - name: sessions
               mountPath: /app/.sessions
