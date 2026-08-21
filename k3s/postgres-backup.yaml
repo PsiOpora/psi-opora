@@ -39,11 +39,19 @@ spec:
           containers:
             - name: pg-backup
               image: postgres:18.4-trixie
+              securityContext:
+                runAsNonRoot: false
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
               env:
                 - name: PGHOST
                   value: postgres
                 - name: PGPORT
                   value: "5432"
+                - name: PGCONNECT_TIMEOUT
+                  value: "10"
                 - name: PGDATABASE
                   valueFrom:
                     secretKeyRef:
