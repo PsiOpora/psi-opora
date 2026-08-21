@@ -1,4 +1,3 @@
-import { z } from "zod";
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import {
 	getSyncCursor,
@@ -6,6 +5,7 @@ import {
 	type NewDealStageHistoryEvent,
 	setSyncCursor,
 } from "@psi-opora/db/queries";
+import { z } from "zod";
 
 const DEAL_ENTITY_TYPE_ID = 2;
 
@@ -25,10 +25,9 @@ const rawStageHistoryEventSchema = z.object({
 	STAGE_ID: z.string(),
 	STAGE_SEMANTIC_ID: z.string(),
 	CATEGORY_ID: z.coerce.string(),
-	CREATED_TIME: z.string().refine(
-		(v) => !Number.isNaN(Date.parse(v)),
-		{ message: "Invalid CREATED_TIME date" },
-	),
+	CREATED_TIME: z.string().refine((v) => !Number.isNaN(Date.parse(v)), {
+		message: "Invalid CREATED_TIME date",
+	}),
 });
 
 /** Zod schema для envelope ответа API */
@@ -65,15 +64,12 @@ export async function syncStageHistory(
 	let synced = 0;
 
 	for (;;) {
-		const raw = await api.call(
-			"crm.stagehistory.list",
-			{
-				entityTypeId: DEAL_ENTITY_TYPE_ID,
-				filter: { ">ID": cursor },
-				order: { ID: "ASC" },
-				select: STAGE_HISTORY_SELECT,
-			},
-		);
+		const raw = await api.call("crm.stagehistory.list", {
+			entityTypeId: DEAL_ENTITY_TYPE_ID,
+			filter: { ">ID": cursor },
+			order: { ID: "ASC" },
+			select: STAGE_HISTORY_SELECT,
+		});
 
 		// Validate and coerce API response
 		const validated = stageHistoryListResponseSchema.parse(raw);

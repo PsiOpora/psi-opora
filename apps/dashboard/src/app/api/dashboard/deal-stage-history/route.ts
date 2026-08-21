@@ -17,10 +17,7 @@ export async function GET(request: Request) {
 	const params = url.searchParams;
 	const categoryId = params.get("category");
 	if (!categoryId) {
-		return NextResponse.json(
-			{ error: "category обязателен" },
-			{ status: 400 },
-		);
+		return NextResponse.json({ error: "category обязателен" }, { status: 400 });
 	}
 
 	try {
