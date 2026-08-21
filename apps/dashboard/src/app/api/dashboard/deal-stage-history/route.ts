@@ -1,6 +1,7 @@
 import { getStageReachCounts } from "@psi-opora/db/queries";
 import { NextResponse } from "next/server";
 import { parseDateRange } from "@/lib/analytics/date-range";
+import { validateDateRange, zodBadRequest } from "@/lib/api/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,15 @@ export async function GET(request: Request) {
 			{ status: 400 },
 		);
 	}
+
+	try {
+		validateDateRange(params);
+	} catch (err) {
+		const res = zodBadRequest(err);
+		if (res) return res;
+		throw err;
+	}
+
 	const range = parseDateRange(Object.fromEntries(params));
 
 	try {

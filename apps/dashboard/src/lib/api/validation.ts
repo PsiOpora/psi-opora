@@ -2,13 +2,13 @@ import { z } from "zod";
 
 /**
  * Positive integer coercion — парсит строку в целое ≥ 1.
- * Невалидные значения (NaN, Infinity, дробные, ≤ 0) отклоняются.
+ * Невалидные значения (NaN, Infinity, дробные, ≤ 0, небезопасные) отклоняются.
  */
 const positiveInt = z
 	.string()
 	.transform((v) => Number(v))
-	.refine((n) => Number.isFinite(n) && Number.isInteger(n) && n >= 1, {
-		message: "Must be a finite positive integer",
+	.refine((n) => Number.isSafeInteger(n) && n >= 1, {
+		message: "Must be a safe positive integer",
 	});
 
 /** Pagination params (page & pageSize) с дефолтами и потолком. */
@@ -38,22 +38,59 @@ export function parsePagination(
 		.parse({ page: rawPage, pageSize: rawPageSize });
 
 	const pageSize = Math.min(parsed.pageSize, maxPageSize);
+
+	// Validate that page offset calculation stays within safe integer range
+	const offset = (parsed.page - 1) * pageSize;
+	if (!Number.isSafeInteger(offset)) {
+		throw new z.ZodError([
+			{
+				code: "custom",
+				path: ["page"],
+				message: "Page offset exceeds safe integer range",
+			},
+		]);
+	}
+
 	return { page: parsed.page, pageSize };
 }
 
 /**
  * Валидация ISO-date строк from/to для диапазона дат.
- * Проверяет, что строка парсится в валидную Date.
+ * Требует точный формат YYYY-MM-DD и валидирует, что компоненты календаря
+ * совпадают с входом (отклоняет несуществующие даты вроде 31 февраля).
  */
 const isoDateString = z
 	.string()
-	.refine((v) => !Number.isNaN(Date.parse(v)), { message: "Invalid date" });
+	.refine(
+		(v) => {
+			const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+			if (!match) return false;
+			const [, year, month, day] = match;
+			const parsed = new Date(v);
+			if (Number.isNaN(parsed.getTime())) return false;
+			// Verify calendar components match input (rejects nonexistent dates)
+			return (
+				parsed.getFullYear() === Number(year) &&
+				parsed.getMonth() + 1 === Number(month) &&
+				parsed.getDate() === Number(day)
+			);
+		},
+		{ message: "Must be a valid date in YYYY-MM-DD format" },
+	);
 
-/** Схема range-параметров (from, to) — обе опциональны. */
-export const dateRangeSchema = z.object({
-	from: isoDateString.optional(),
-	to: isoDateString.optional(),
-});
+/** Схема range-параметров (from, to) — обе опциональны, with cross-field validation. */
+export const dateRangeSchema = z
+	.object({
+		from: isoDateString.optional(),
+		to: isoDateString.optional(),
+	})
+	.refine(
+		(data) => {
+			if (!data.from || !data.to) return true;
+			return new Date(data.from) <= new Date(data.to);
+		},
+		{ message: "'from' must not be later than 'to'" },
+	);
 
 /**
  * Валидация параметра previous (должен быть "1" или отсутствовать).

@@ -32,12 +32,15 @@ export async function getSyncCursor(): Promise<string | null> {
 
 export async function setSyncCursor(lastSyncedId: string): Promise<void> {
 	if (!db) return;
+	// Conditional update: only advance cursor if new ID is lexicographically greater
+	// (monotonic across portal). Prevents parallel syncs from writing stale cursor.
 	await db
 		.insert(dealStageHistorySync)
 		.values({ id: SYNC_SINGLETON_ID, lastSyncedId, updatedAt: new Date() })
 		.onConflictDoUpdate({
 			target: dealStageHistorySync.id,
 			set: { lastSyncedId, updatedAt: new Date() },
+			where: sql`${dealStageHistorySync.lastSyncedId} IS NULL OR ${dealStageHistorySync.lastSyncedId} < ${lastSyncedId}`,
 		});
 }
 
