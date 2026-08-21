@@ -385,10 +385,21 @@ export async function handleConsultationDealUpdate(
 	const token = crypto.randomUUID();
 	const acquired = await redis.set(key, token, { px: LOCK_TTL_MS, nx: true });
 	if (!acquired) {
+		console.log(`[consultation-reminder] deal-update dealId=${dealId} action=skip reason=locked`);
 		return { action: "skip", reason: "locked" };
 	}
 	try {
-		return await handleConsultationDealUpdateLocked(api, redis, dealId);
+		const result = await handleConsultationDealUpdateLocked(api, redis, dealId);
+		// Единая точка логирования всех исходов вебхука (включая "тихие" skip) —
+		// раньше расследование пропавших уведомлений требовало вручную сверять
+		// таймлайн и активности сделки в Bitrix, т.к. успешные и часть
+		// пропущенных веток не оставляли следа в логах пода.
+		console.log(
+			`[consultation-reminder] deal-update dealId=${dealId} action=${result.action}${
+				"reason" in result && result.reason ? ` reason=${result.reason}` : ""
+			}`,
+		);
+		return result;
 	} finally {
 		await releaseLock(redis, key, token);
 	}
@@ -511,6 +522,11 @@ async function handleConsultationDealUpdateLocked(
 		oldConsultationAt,
 	);
 	if (!oldActivity) {
+		// Старая CRM-задача не найдена среди незавершённых (например, менеджер
+		// уже закрыл её вручную после несостоявшейся встречи) — раньше в этом
+		// случае перенос консультации молча проходил без уведомления клиента:
+		// календарь и Redis обновлялись, а sendConsultationBookedNotification
+		// не вызывался вовсе.
 		const calendarEventId = await safeSyncConsultationCalendarEvent({
 			api,
 			dealId,
@@ -527,6 +543,20 @@ async function handleConsultationDealUpdateLocked(
 			reminderSentAt: null,
 			updatedAt: now,
 		});
+		if (calendarEventId) {
+			await appendReminderSentComment(
+				api,
+				dealId,
+				`📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${calendarEventId}.`,
+			);
+		}
+		await sendConsultationBookedNotification(
+			api,
+			dealId,
+			deal,
+			contactId,
+			newConsultationAt,
+		);
 		return { action: "skip", reason: "no_active_activity_found" };
 	}
 
