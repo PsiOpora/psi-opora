@@ -151,6 +151,7 @@ export type {
 export type { BotText } from "./bot-texts";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
 export * from "./broadcast";
+export * from "./deals";
 export type {
 	ClientIdentity,
 	ClientIdentityLink,
