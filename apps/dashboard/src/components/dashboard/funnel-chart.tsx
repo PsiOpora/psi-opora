@@ -1,9 +1,16 @@
-import type { BotFunnelStepStats } from "@/lib/analytics/bot-funnel";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+export interface FunnelStepStats {
+	step: string;
+	label: string;
+	count: number;
+	shareOfStart: number;
+	stepConversion: number;
+}
+
 interface FunnelChartProps {
-	steps: BotFunnelStepStats[];
+	steps: FunnelStepStats[];
 	/** "Все мессенджеры" или название мессенджера */
 	title?: string;
 	className?: string;

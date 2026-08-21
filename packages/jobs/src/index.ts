@@ -11,6 +11,7 @@ export {
 	type SendConsultationRemindersResult,
 	sendConsultationReminders,
 } from "./consultation-reminders";
+export { syncStageHistory } from "./deal-stage-history-sync";
 export {
 	removeSyncedDeal,
 	syncAllDeals,
@@ -39,6 +40,7 @@ export {
 	crmBackup,
 	crmBackupSchedule,
 } from "./hatchet/crm-backup";
+export { dealStageHistorySync } from "./hatchet/deal-stage-history-sync";
 export { dealsSync } from "./hatchet/deals-sync";
 export { diagnosticReminders } from "./hatchet/diagnostic-reminders";
 export {

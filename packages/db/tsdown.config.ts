@@ -15,5 +15,5 @@ export default defineConfig({
 	dts: true,
 	clean: true,
 	outDir: "dist",
-	bundle: false,
+	unbundle: true,
 });
