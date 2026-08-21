@@ -287,6 +287,13 @@
       "when": 1787245707098,
       "tag": "0040_wild_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787299242814,
+      "tag": "0041_spicy_boomer",
+      "breakpoints": true
     }
   ]
 }

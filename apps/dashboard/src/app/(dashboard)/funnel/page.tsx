@@ -1,7 +1,9 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { InfoIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { FunnelChart } from "@/components/dashboard/funnel-chart";
 import { FunnelStages } from "@/components/dashboard/funnel-stages";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { PageSuspense } from "@/components/dashboard/page-suspense";
@@ -16,9 +18,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBitrixData, useDashboardRange } from "@/hooks/use-bitrix-data";
 import { funnelByStage, groupDealsByCategory } from "@/lib/analytics/aggregate";
 import { formatDateParam } from "@/lib/analytics/date-range";
+import {
+	type StageReachCount,
+	stageReachFunnel,
+} from "@/lib/analytics/deal-stage-history";
+import type { StageInfo } from "@/lib/analytics/deals";
+import type { DateRange } from "@/lib/analytics/types";
 import { formatNumber } from "@/lib/format";
 
-type FunnelMode = "created" | "active";
+type FunnelMode = "created" | "active" | "reached";
 
 export default function FunnelPage() {
 	return (
@@ -42,7 +50,7 @@ function FunnelPageContent() {
 		...(mode === "active" ? (["openDeals"] as const) : []),
 	]);
 
-	const deals = (mode === "created" ? data?.deals : data?.openDeals) ?? [];
+	const deals = (mode === "active" ? data?.openDeals : data?.deals) ?? [];
 	const stageNames = data?.stageNames ?? new Map();
 	const categoryNames = data?.categoryNames ?? new Map();
 	const byCategory = useMemo(
@@ -70,7 +78,9 @@ function FunnelPageContent() {
 	const modeDescription =
 		mode === "created"
 			? `Сделки, созданные с ${formatDateParam(reportFilter.from)} по ${formatDateParam(reportFilter.to)} (поле DATE_CREATE), сгруппированные по их сегодняшней стадии — включая уже выигранные и проигранные.`
-			: "Снэпшот сделок, которые прямо сейчас не закрыты — без фильтра по дате создания. Это ближе всего к тому, что вы видите в канбане воронки в Bitrix24 по умолчанию.";
+			: mode === "active"
+				? "Снэпшот сделок, которые прямо сейчас не закрыты — без фильтра по дате создания. Это ближе всего к тому, что вы видите в канбане воронки в Bitrix24 по умолчанию."
+				: `Уникальные сделки, побывавшие на каждом этапе хотя бы раз с ${formatDateParam(reportFilter.from)} по ${formatDateParam(reportFilter.to)} — в отличие от других режимов, здесь считается сам факт прохождения этапа, а не текущее положение сделки.`;
 
 	return (
 		<div className="flex flex-col gap-5">
@@ -89,6 +99,7 @@ function FunnelPageContent() {
 				<TabsList>
 					<TabsTrigger value="created">Создано за период</TabsTrigger>
 					<TabsTrigger value="active">Активно сейчас</TabsTrigger>
+					<TabsTrigger value="reached">Достигли этапа</TabsTrigger>
 				</TabsList>
 			</Tabs>
 
@@ -102,9 +113,9 @@ function FunnelPageContent() {
 					<CardHeader>
 						<CardTitle>Воронка продаж</CardTitle>
 						<CardDescription>
-							{mode === "created"
-								? "Нет сделок за выбранный период"
-								: "Нет сделок, которые сейчас в работе"}
+							{mode === "active"
+								? "Нет сделок, которые сейчас в работе"
+								: "Нет сделок за выбранный период"}
 						</CardDescription>
 					</CardHeader>
 				</Card>
@@ -123,16 +134,79 @@ function FunnelPageContent() {
 
 					{byCategory.map(([categoryId, categoryDeals]) => (
 						<TabsContent key={categoryId} value={categoryId}>
-							<FunnelStages
-								stages={funnelByStage(categoryDeals, stageNames)}
-								mode={mode}
-								categoryId={categoryId}
-								reportFilter={reportFilter}
-							/>
+							{mode === "reached" ? (
+								<StageReachPanel
+									categoryId={categoryId}
+									stageNames={stageNames}
+									reportFilter={reportFilter}
+								/>
+							) : (
+								<FunnelStages
+									stages={funnelByStage(categoryDeals, stageNames)}
+									mode={mode}
+									categoryId={categoryId}
+									reportFilter={reportFilter}
+								/>
+							)}
 						</TabsContent>
 					))}
 				</Tabs>
 			)}
 		</div>
 	);
+}
+
+/**
+ * Историческая воронка для одной категории (packages/db, таблица
+ * deal_stage_history) — отдельный запрос от useBitrixData, т.к. источник
+ * данных не live Bitrix, а локальный Postgres.
+ */
+function StageReachPanel({
+	categoryId,
+	stageNames,
+	reportFilter,
+}: {
+	categoryId: string;
+	stageNames: Map<string, StageInfo>;
+	reportFilter: DateRange;
+}) {
+	const { data, isLoading, isError } = useQuery({
+		queryKey: [
+			"deal-stage-history",
+			categoryId,
+			formatDateParam(reportFilter.from),
+			formatDateParam(reportFilter.to),
+		],
+		queryFn: async () => {
+			const params = new URLSearchParams({
+				category: categoryId,
+				from: formatDateParam(reportFilter.from),
+				to: formatDateParam(reportFilter.to),
+			});
+			const res = await fetch(`/api/dashboard/deal-stage-history?${params}`);
+			if (!res.ok) throw new Error("Не удалось загрузить историю стадий");
+			return (await res.json()) as { rows: StageReachCount[] };
+		},
+	});
+
+	if (isLoading) {
+		return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+	}
+	if (isError || !data) {
+		return (
+			<p className="text-sm text-destructive">
+				Не удалось загрузить данные. Попробуйте обновить страницу.
+			</p>
+		);
+	}
+
+	const steps = stageReachFunnel(data.rows, stageNames);
+	if (steps.length === 0) {
+		return (
+			<p className="text-sm text-muted-foreground">
+				Нет данных об истории стадий за выбранный период.
+			</p>
+		);
+	}
+	return <FunnelChart steps={steps} />;
 }
