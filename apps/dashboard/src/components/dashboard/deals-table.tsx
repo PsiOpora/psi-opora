@@ -1,27 +1,16 @@
 "use client";
 
-import type { DealStatus } from "@psi-opora/db/queries";
 import { useQuery } from "@tanstack/react-query";
 import {
-	type ColumnDef,
 	flexRender,
 	getCoreRowModel,
 	type PaginationState,
 	type SortingState,
 	useReactTable,
 } from "@tanstack/react-table";
-import {
-	ArrowDownIcon,
-	ArrowUpDownIcon,
-	ArrowUpIcon,
-	FilterXIcon,
-	InfoIcon,
-	Loader2Icon,
-	SearchIcon,
-} from "lucide-react";
+import { InfoIcon, SearchIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Empty,
@@ -31,15 +20,6 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import {
 	Table,
 	TableBody,
@@ -49,15 +29,15 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useDashboardRange } from "@/hooks/use-bitrix-data";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { formatDateParam } from "@/lib/analytics/date-range";
 import type { StageInfo } from "@/lib/analytics/deals";
-import { STATUS_LABEL } from "@/lib/analytics/status-label";
-import { type DealRowDTO, DealsResponseSchema } from "@/lib/api/deals-schema";
-import { dealUrl } from "@/lib/deal-url";
-import { formatMoney, formatNumber } from "@/lib/format";
+import { DealsResponseSchema } from "@/lib/api/deals-schema";
+import { buildColumns } from "./deals-table-columns";
+import { ALL, DealsTableFilters } from "./deals-table-filters";
+import { DealsTablePagination } from "./deals-table-pagination";
 
 const PAGE_SIZE = 20;
-const ALL = "__all";
 /** Задержка перед отправкой запроса на сервер после ввода в поиск — без неё
  * каждое нажатие клавиши гоняло бы отдельный HTTP-запрос. */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -80,141 +60,6 @@ interface DealsTableProps {
 	 * приходит с историческую воронки (funnel/page.tsx, режим "Достигли этапа").
 	 */
 	reachedStage?: { stageId: string; categoryId: string; stageLabel: string };
-}
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-	const [debounced, setDebounced] = useState(value);
-	useEffect(() => {
-		const timer = setTimeout(() => setDebounced(value), delayMs);
-		return () => clearTimeout(timer);
-	}, [value, delayMs]);
-	return debounced;
-}
-
-function sortableHeader(label: string) {
-	return function Header({
-		column,
-	}: {
-		column: {
-			toggleSorting: (desc?: boolean) => void;
-			getIsSorted: () => false | "asc" | "desc";
-		};
-	}) {
-		const direction = column.getIsSorted();
-		const SortIcon =
-			direction === "asc"
-				? ArrowUpIcon
-				: direction === "desc"
-					? ArrowDownIcon
-					: ArrowUpDownIcon;
-
-		return (
-			<Button
-				variant="ghost"
-				size="sm"
-				className="-ml-3"
-				onClick={() => column.toggleSorting(direction === "asc")}
-			>
-				{label}
-				<SortIcon data-icon="inline-end" />
-			</Button>
-		);
-	};
-}
-
-function buildColumns({
-	sourceNames,
-	categoryNames,
-	stageNames,
-	dealDomain,
-}: Omit<DealsTableProps, "deals">): ColumnDef<DealRowDTO>[] {
-	return [
-		{
-			accessorKey: "title",
-			header: sortableHeader("Сделка"),
-			cell: ({ row }) => {
-				const deal = row.original;
-				const title = dealDomain ? (
-					<a
-						href={dealUrl(dealDomain, deal.id)}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="inline-flex max-w-72 items-center gap-1 font-medium hover:underline"
-					>
-						<span className="truncate">{deal.title}</span>
-					</a>
-				) : (
-					<span className="block max-w-72 truncate font-medium">
-						{deal.title}
-					</span>
-				);
-
-				return (
-					<div className="flex flex-col gap-0.5">
-						{title}
-						{deal.utmCampaign && (
-							<span className="max-w-72 truncate text-xs text-muted-foreground">
-								{deal.utmCampaign}
-							</span>
-						)}
-					</div>
-				);
-			},
-		},
-		{
-			accessorKey: "status",
-			header: sortableHeader("Статус"),
-			cell: ({ getValue }) => {
-				const info = STATUS_LABEL[getValue<DealStatus>()];
-				return <Badge variant={info.variant}>{info.label}</Badge>;
-			},
-		},
-		{
-			id: "stage",
-			header: "Стадия",
-			accessorFn: (deal) => stageNames?.get(deal.stageId)?.name ?? deal.stageId,
-		},
-		{
-			id: "category",
-			header: "Воронка",
-			accessorFn: (deal) =>
-				categoryNames?.get(deal.categoryId) ?? `Воронка ${deal.categoryId}`,
-		},
-		{
-			id: "source",
-			header: "Источник",
-			accessorFn: (deal) =>
-				sourceNames?.get(deal.sourceId ?? "") ?? deal.sourceId ?? "",
-			cell: ({ row, getValue }) => (
-				<div className="flex flex-col gap-0.5">
-					<span>{getValue<string>()}</span>
-					{row.original.utmSource && (
-						<span className="text-xs text-muted-foreground">
-							UTM: {row.original.utmSource}
-						</span>
-					)}
-				</div>
-			),
-		},
-		{
-			accessorKey: "opportunity",
-			header: sortableHeader("Сумма"),
-			cell: ({ row }) => (
-				<span className="tabular-nums">
-					{formatMoney(
-						row.original.opportunity,
-						row.original.currency ?? undefined,
-					)}
-				</span>
-			),
-		},
-		{
-			accessorKey: "dateCreate",
-			header: sortableHeader("Создана"),
-			cell: ({ getValue }) =>
-				new Date(getValue<string>()).toLocaleDateString("ru-RU"),
-		},
-	];
 }
 
 export function DealsTable({
@@ -246,10 +91,12 @@ export function DealsTable({
 	const [source, setSource] = useState(initialSource ?? ALL);
 
 	// Reset pagination when range changes
-	// biome-ignore lint/correctness/useExhaustiveDependencies: range is intentionally used only to trigger the reset, not read inside the effect
+	const rangeFrom = formatDateParam(range.from);
+	const rangeTo = formatDateParam(range.to);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: rangeFrom/rangeTo are intentionally used only to trigger the reset, not read inside the effect
 	useEffect(() => {
 		setPagination((current) => ({ ...current, pageIndex: 0 }));
-	}, [range]);
+	}, [rangeFrom, rangeTo]);
 
 	const columns = useMemo(
 		() => buildColumns({ sourceNames, categoryNames, stageNames, dealDomain }),
@@ -412,106 +259,28 @@ export function DealsTable({
 					</p>
 				</div>
 			)}
-			<div className="flex flex-wrap items-center gap-2">
-				<div className="relative min-w-56 flex-1">
-					<SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						aria-label="Поиск сделок"
-						placeholder="Название, UTM, стадия или источник…"
-						value={searchInput}
-						onChange={(event) => {
-							setSearchInput(event.target.value);
-							setPagination((current) => ({ ...current, pageIndex: 0 }));
-						}}
-						className="pl-8"
-					/>
-				</div>
-				<Select
-					value={status}
-					onValueChange={(value) => updateFilter(setStatus, value)}
-				>
-					<SelectTrigger aria-label="Фильтр по статусу" className="min-w-36">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectGroup>
-							<SelectItem value={ALL}>Все статусы</SelectItem>
-							{(
-								Object.entries(STATUS_LABEL) as Array<
-									[DealStatus, (typeof STATUS_LABEL)[DealStatus]]
-								>
-							).map(([value, info]) => (
-								<SelectItem key={value} value={value}>
-									{info.label}
-								</SelectItem>
-							))}
-						</SelectGroup>
-					</SelectContent>
-				</Select>
-				<Select
-					value={category}
-					onValueChange={(value) => updateFilter(setCategory, value)}
-				>
-					<SelectTrigger aria-label="Фильтр по воронке" className="min-w-40">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectGroup>
-							<SelectItem value={ALL}>Все воронки</SelectItem>
-							{categoryOptions.map((option) => (
-								<SelectItem key={option.id} value={option.id}>
-									{option.label}
-								</SelectItem>
-							))}
-						</SelectGroup>
-					</SelectContent>
-				</Select>
-				<Select
-					value={stage}
-					onValueChange={(value) => updateFilter(setStage, value)}
-				>
-					<SelectTrigger aria-label="Фильтр по стадии" className="min-w-40">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectGroup>
-							<SelectItem value={ALL}>Все стадии</SelectItem>
-							{stageOptions.map((option) => (
-								<SelectItem key={option.id} value={option.id}>
-									{option.label}
-								</SelectItem>
-							))}
-						</SelectGroup>
-					</SelectContent>
-				</Select>
-				<Select
-					value={source}
-					onValueChange={(value) => updateFilter(setSource, value)}
-				>
-					<SelectTrigger aria-label="Фильтр по источнику" className="min-w-40">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectGroup>
-							<SelectItem value={ALL}>Все источники</SelectItem>
-							{sourceOptions.map((option) => (
-								<SelectItem key={option.id} value={option.id}>
-									{option.label}
-								</SelectItem>
-							))}
-						</SelectGroup>
-					</SelectContent>
-				</Select>
-				{hasFilters && (
-					<Button variant="ghost" size="sm" onClick={resetFilters}>
-						<FilterXIcon data-icon="inline-start" />
-						Сбросить
-					</Button>
-				)}
-				{isFetching && !isLoading && (
-					<Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-				)}
-			</div>
+			<DealsTableFilters
+				searchInput={searchInput}
+				onSearchInputChange={(value) => {
+					setSearchInput(value);
+					setPagination((current) => ({ ...current, pageIndex: 0 }));
+				}}
+				status={status}
+				onStatusChange={(value) => updateFilter(setStatus, value)}
+				category={category}
+				onCategoryChange={(value) => updateFilter(setCategory, value)}
+				categoryOptions={categoryOptions}
+				stage={stage}
+				onStageChange={(value) => updateFilter(setStage, value)}
+				stageOptions={stageOptions}
+				source={source}
+				onSourceChange={(value) => updateFilter(setSource, value)}
+				sourceOptions={sourceOptions}
+				hasFilters={hasFilters}
+				onReset={resetFilters}
+				isFetching={isFetching}
+				isLoading={isLoading}
+			/>
 
 			{!isLoading && total === 0 ? (
 				<Empty className="border">
@@ -578,32 +347,20 @@ export function DealsTable({
 						</Table>
 					</div>
 
-					<div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-						<span>
-							{formatNumber(from)}–{formatNumber(to)} из {formatNumber(total)}
-						</span>
-						<div className="flex items-center gap-2">
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => table.previousPage()}
-								disabled={!table.getCanPreviousPage()}
-							>
-								Назад
-							</Button>
-							<span className="tabular-nums">
-								{pageIndex + 1} / {Math.max(pageCount, 1)}
-							</span>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => table.nextPage()}
-								disabled={!table.getCanNextPage()}
-							>
-								Вперёд
-							</Button>
-						</div>
-					</div>
+					<DealsTablePagination
+						pageIndex={pageIndex}
+						pageCount={Math.max(pageCount, 1)}
+						pageSize={pagination.pageSize}
+						from={from}
+						to={to}
+						total={total}
+						canPreviousPage={table.getCanPreviousPage()}
+						canNextPage={table.getCanNextPage()}
+						onPageChange={(index) => table.setPageIndex(index)}
+						onPageSizeChange={(size) =>
+							setPagination({ pageIndex: 0, pageSize: size })
+						}
+					/>
 				</>
 			)}
 		</div>
