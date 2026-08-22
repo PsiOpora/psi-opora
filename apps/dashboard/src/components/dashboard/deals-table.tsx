@@ -19,6 +19,7 @@ import {
 	Loader2Icon,
 	SearchIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -228,6 +229,7 @@ export function DealsTable({
 	initialSearch,
 	reachedStage,
 }: DealsTableProps) {
+	const router = useRouter();
 	const range = useDashboardRange();
 	const [sorting, setSorting] = useState<SortingState>([
 		{ id: "dateCreate", desc: true },
@@ -356,6 +358,9 @@ export function DealsTable({
 		setStage(ALL);
 		setSource(ALL);
 		setPagination((current) => ({ ...current, pageIndex: 0 }));
+		if (reachedStage) {
+			router.push("/deals");
+		}
 	};
 	const updateFilter = (setter: (value: string) => void, value: string) => {
 		setter(value);
@@ -371,7 +376,8 @@ export function DealsTable({
 		status !== ALL ||
 		category !== ALL ||
 		stage !== ALL ||
-		source !== ALL;
+		source !== ALL ||
+		reachedStage !== undefined;
 
 	if (isError) {
 		return (

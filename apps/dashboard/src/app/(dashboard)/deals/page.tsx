@@ -112,7 +112,10 @@ function DealsPageContent() {
 	const reachedStageInfo =
 		rawReachedStage && enrichmentData.stageNames?.get(rawReachedStage);
 	const initialReachedStage =
-		rawReachedStage && rawReachedCategory && reachedStageInfo
+		rawReachedStage &&
+		rawReachedCategory &&
+		reachedStageInfo &&
+		enrichmentData.categoryNames?.has(rawReachedCategory)
 			? {
 					stageId: rawReachedStage,
 					categoryId: rawReachedCategory,

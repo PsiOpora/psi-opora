@@ -74,6 +74,20 @@ export async function GET(request: Request) {
 	// применяем их как фильтр по dateCreate ниже.
 	const reachedStageId = params.get("reachedStage");
 	const reachedCategoryId = params.get("reachedCategory");
+	const hasReachedStageId = reachedStageId !== null;
+	const hasReachedCategoryId = reachedCategoryId !== null;
+	const hasPartialReachedFilter =
+		(hasReachedStageId || hasReachedCategoryId) &&
+		!(reachedStageId && reachedCategoryId && range);
+	if (hasPartialReachedFilter) {
+		return NextResponse.json(
+			{
+				error:
+					"reachedStage, reachedCategory, from, and to must all be provided together",
+			},
+			{ status: 400 },
+		);
+	}
 	const reachedStage =
 		reachedStageId && reachedCategoryId && range
 			? {
