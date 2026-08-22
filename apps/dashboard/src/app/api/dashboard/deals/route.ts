@@ -68,15 +68,32 @@ export async function GET(request: Request) {
     ? parseDateRange(Object.fromEntries(params))
     : undefined;
 
+  // "Достигли этапа" (историческая воронка, apps/dashboard/src/app/(dashboard)/funnel):
+  // from/to здесь — не dateCreate, а окно даты входа в reachedStage (см.
+  // ListDealsOptions.reachedStage) — поэтому при заданном reachedStage не
+  // применяем их как фильтр по dateCreate ниже.
+  const reachedStageId = params.get("reachedStage");
+  const reachedCategoryId = params.get("reachedCategory");
+  const reachedStage =
+    reachedStageId && reachedCategoryId && range
+      ? {
+          stageId: reachedStageId,
+          categoryId: reachedCategoryId,
+          from: range.from,
+          to: range.to,
+        }
+      : undefined;
+
   const { rows, total } = await listDeals({
-    from: range?.from,
-    to: range?.to,
+    from: reachedStage ? undefined : range?.from,
+    to: reachedStage ? undefined : range?.to,
     status: parseStatus(params.get("status")),
     categoryId: params.get("category") ?? undefined,
     stageId: params.get("stage") ?? undefined,
     sourceId: params.get("source") ?? undefined,
     utmSource: params.get("utmSource") ?? undefined,
     search: params.get("search") ?? undefined,
+    reachedStage,
     sort: parseSort(params.get("sort")),
     sortDir: params.get("sortDir") === "asc" ? "asc" : "desc",
     limit: pageSize,

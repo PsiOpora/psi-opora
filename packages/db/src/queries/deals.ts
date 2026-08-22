@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, lte, type SQL, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "../client";
+import { dealStageHistory } from "../schema/deal-stage-history";
 import { deals } from "../schema/deals";
 
 export type DealRow = typeof deals.$inferSelect;
@@ -81,6 +82,14 @@ export interface ListDealsOptions {
   utmMedium?: FilterValue<string>;
   utmCampaign?: FilterValue<string>;
   search?: string;
+  /**
+   * Сделки, у которых был переход на stageId (в рамках categoryId на момент
+   * перехода) с датой входа между from/to — источник: packages/db, таблица
+   * deal_stage_history (см. apps/dashboard/src/lib/analytics/deal-stage-history.ts).
+   * Независимый фильтр от categoryId/stageId выше (те — про ТЕКУЩУЮ стадию
+   * сделки): сделка может сейчас быть на другом этапе или в другой воронке.
+   */
+  reachedStage?: { stageId: string; categoryId: string; from: Date; to: Date };
   sort?: "title" | "status" | "opportunity" | "dateCreate";
   sortDir?: "asc" | "desc";
   limit?: number;
@@ -119,6 +128,7 @@ function dealsWhere(
     | "utmMedium"
     | "utmCampaign"
     | "search"
+    | "reachedStage"
   >,
 ): SQL | undefined {
   const clauses: SQL[] = [];
@@ -149,6 +159,16 @@ function dealsWhere(
       or ${deals.utmCampaign} ilike ${term}
       or ${deals.utmContent} ilike ${term}
       or ${deals.utmTerm} ilike ${term}
+    )`);
+  }
+  if (options.reachedStage) {
+    const { stageId, categoryId, from, to } = options.reachedStage;
+    clauses.push(sql`${deals.id} in (
+      select ${dealStageHistory.dealId} from ${dealStageHistory}
+      where ${dealStageHistory.stageId} = ${stageId}
+        and ${dealStageHistory.categoryId} = ${categoryId}
+        and ${dealStageHistory.enteredAt} >= ${from}
+        and ${dealStageHistory.enteredAt} <= ${to}
     )`);
   }
   return clauses.length > 0 ? and(...clauses) : undefined;

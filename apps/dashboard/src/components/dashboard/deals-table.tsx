@@ -15,6 +15,7 @@ import {
   ArrowUpDownIcon,
   ArrowUpIcon,
   FilterXIcon,
+  InfoIcon,
   Loader2Icon,
   SearchIcon,
 } from "lucide-react";
@@ -71,6 +72,13 @@ interface DealsTableProps {
   initialStage?: string;
   initialSource?: string;
   initialSearch?: string;
+  /**
+   * Показать сделки, у которых была история входа на конкретный этап
+   * (packages/db, таблица deal_stage_history) в текущем диапазоне дат
+   * (общий DateRangePicker), а не отфильтрованные по дате создания. Ссылка
+   * приходит с историческую воронки (funnel/page.tsx, режим "Достигли этапа").
+   */
+  reachedStage?: { stageId: string; categoryId: string; stageLabel: string };
 }
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
@@ -214,6 +222,7 @@ export function DealsTable({
   initialStage,
   initialSource,
   initialSearch,
+  reachedStage,
 }: DealsTableProps) {
   const range = useDashboardRange();
   const [sorting, setSorting] = useState<SortingState>([
@@ -282,6 +291,8 @@ export function DealsTable({
     sort?.desc,
     pagination.pageIndex,
     pagination.pageSize,
+    reachedStage?.stageId,
+    reachedStage?.categoryId,
   ];
 
   const { data, isLoading, isFetching, isError, refetch } = useQuery({
@@ -300,6 +311,10 @@ export function DealsTable({
       if (source !== ALL) params.set("source", source);
       if (search.trim()) params.set("search", search.trim());
       if (sortField) params.set("sort", sortField);
+      if (reachedStage) {
+        params.set("reachedStage", reachedStage.stageId);
+        params.set("reachedCategory", reachedStage.categoryId);
+      }
 
       const res = await fetch(`/api/dashboard/deals?${params}`);
       if (!res.ok) throw new Error("Не удалось загрузить сделки");
@@ -366,6 +381,21 @@ export function DealsTable({
 
   return (
     <div className="flex flex-col gap-4">
+      {reachedStage && (
+        <div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+          <InfoIcon className="mt-0.5 size-4 shrink-0" />
+          <p>
+            Показаны сделки, у которых был переход на этап «
+            <span className="font-medium text-foreground">
+              {reachedStage.stageLabel}
+            </span>
+            » с {formatDateParam(range.from)} по {formatDateParam(range.to)} —
+            независимо от того, в какой стадии сделка находится сейчас, и без
+            учёта даты её создания. Сделка, заходившая на этап несколько раз,
+            показана один раз.
+          </p>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-56 flex-1">
           <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />

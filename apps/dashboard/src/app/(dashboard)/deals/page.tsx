@@ -100,6 +100,21 @@ function DealsPageContent() {
 			? rawSource
 			: undefined;
 
+	// Ссылка из исторической воронки (funnel/page.tsx, режим "Достигли этапа") —
+	// отдельный от initialStage/initialCategory фильтр по истории стадий.
+	const rawReachedStage = searchParams.get("reachedStage");
+	const rawReachedCategory = searchParams.get("reachedCategory");
+	const reachedStageInfo =
+		rawReachedStage && enrichmentData.stageNames?.get(rawReachedStage);
+	const initialReachedStage =
+		rawReachedStage && rawReachedCategory && reachedStageInfo
+			? {
+					stageId: rawReachedStage,
+					categoryId: rawReachedCategory,
+					stageLabel: reachedStageInfo.name,
+				}
+			: undefined;
+
 	return (
 		<Card>
 			<CardHeader>
@@ -116,6 +131,7 @@ function DealsPageContent() {
 					initialCategory={initialCategory}
 					initialStage={initialStage}
 					initialSource={initialSource}
+					reachedStage={initialReachedStage}
 				/>
 			</CardContent>
 		</Card>
