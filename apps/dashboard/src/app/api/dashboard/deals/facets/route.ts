@@ -28,10 +28,14 @@ export async function GET(request: Request) {
 	const range = parseDateRange(Object.fromEntries(params));
 
 	const api = await getBitrixApi();
+	// Названия категорий/источников — необязательное украшение (иначе просто
+	// сырые id); недоступность/нехватка прав у Bitrix-клиента (например,
+	// dev-вебхука без нужного скоупа) не должна валить весь ответ фасетов.
+	const emptyNames = () => new Map<string, string>();
 	const [facets, categoryNames, sourceNames] = await Promise.all([
 		getFilterFacets(range),
-		api ? fetchCategoryNames(api) : Promise.resolve(new Map<string, string>()),
-		api ? fetchSourceNames(api) : Promise.resolve(new Map<string, string>()),
+		api ? fetchCategoryNames(api).catch(emptyNames) : Promise.resolve(emptyNames()),
+		api ? fetchSourceNames(api).catch(emptyNames) : Promise.resolve(emptyNames()),
 	]);
 
 	return NextResponse.json({
