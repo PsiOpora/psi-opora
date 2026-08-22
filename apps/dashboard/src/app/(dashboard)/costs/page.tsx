@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { useBitrixData, useDashboardRange } from "@/hooks/use-bitrix-data";
 import { fetchAllDealsReportRows } from "@/hooks/use-deals-report";
+import { formatDateParam } from "@/lib/analytics/date-range";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { monthIntersectsRange } from "@/lib/marketing/costs";
 import { orpc } from "@/lib/orpc/client";
@@ -133,8 +134,8 @@ function CostsPageContent() {
 	const { data: utmCampaignRows = [] } = useQuery({
 		queryKey: [
 			"dashboard-costs-utm-campaign-rows",
-			range.from.toISOString(),
-			range.to.toISOString(),
+			formatDateParam(range.from),
+			formatDateParam(range.to),
 		],
 		queryFn: () => fetchAllDealsReportRows("utmCampaign", range),
 	});

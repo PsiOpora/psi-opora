@@ -3,6 +3,7 @@
 import type { DealGroupDimension, DealStatus } from "@psi-opora/db/queries";
 import { useQuery } from "@tanstack/react-query";
 import type { GroupStatsRow } from "@/components/dashboard/group-stats-table";
+import { formatDateParam } from "@/lib/analytics/date-range";
 import type { DateRange } from "@/lib/analytics/types";
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -74,8 +75,10 @@ function reportUrl(
 ): string {
 	const params = new URLSearchParams({
 		dimension,
+		// YYYY-MM-DD — валидатор на сервере (lib/api/validation.ts::isoDateString)
+		// принимает только этот формат, не полный ISO datetime.
 		...(range
-			? { from: range.from.toISOString(), to: range.to.toISOString() }
+			? { from: formatDateParam(range.from), to: formatDateParam(range.to) }
 			: {}),
 		...extra,
 	});
@@ -118,8 +121,8 @@ export function useDealsReport({
 		queryKey: [
 			"dashboard-deals-report",
 			dimension,
-			range?.from.toISOString(),
-			range?.to.toISOString(),
+			range && formatDateParam(range.from),
+			range && formatDateParam(range.to),
 			page,
 			pageSize,
 			sort,

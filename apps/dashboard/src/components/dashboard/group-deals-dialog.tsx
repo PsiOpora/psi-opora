@@ -34,8 +34,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import type { DateRange } from "@/lib/analytics/types";
+import { formatDateParam } from "@/lib/analytics/date-range";
 import { STATUS_LABEL } from "@/lib/analytics/status-label";
+import type { DateRange } from "@/lib/analytics/types";
 import { dealUrl } from "@/lib/deal-url";
 import { formatMoney, formatNumber } from "@/lib/format";
 
@@ -165,8 +166,8 @@ export function GroupDealsDialog({
 			"dashboard-group-deals",
 			selection?.dimension,
 			selection?.key,
-			range.from.toISOString(),
-			range.to.toISOString(),
+			formatDateParam(range.from),
+			formatDateParam(range.to),
 			search,
 			sortField,
 			sort?.desc,
@@ -177,8 +178,8 @@ export function GroupDealsDialog({
 			const params = new URLSearchParams({
 				dimension: selection.dimension,
 				key: selection.key,
-				from: range.from.toISOString(),
-				to: range.to.toISOString(),
+				from: formatDateParam(range.from),
+				to: formatDateParam(range.to),
 				page: String(pagination.pageIndex + 1),
 				pageSize: String(pagination.pageSize),
 				sortDir: sort?.desc === false ? "asc" : "desc",

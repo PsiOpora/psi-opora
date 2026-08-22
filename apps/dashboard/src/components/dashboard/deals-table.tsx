@@ -47,6 +47,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDashboardRange } from "@/hooks/use-bitrix-data";
+import { formatDateParam } from "@/lib/analytics/date-range";
 import type { StageInfo } from "@/lib/analytics/deals";
 import { STATUS_LABEL } from "@/lib/analytics/status-label";
 import { dealUrl } from "@/lib/deal-url";
@@ -263,8 +264,8 @@ export function DealsTable({
 
   const queryKey = [
     "dashboard-deals",
-    range.from.toISOString(),
-    range.to.toISOString(),
+    formatDateParam(range.from),
+    formatDateParam(range.to),
     status,
     category,
     stage,
@@ -280,8 +281,8 @@ export function DealsTable({
     queryKey,
     queryFn: async () => {
       const params = new URLSearchParams({
-        from: range.from.toISOString(),
-        to: range.to.toISOString(),
+        from: formatDateParam(range.from),
+        to: formatDateParam(range.to),
         page: String(pagination.pageIndex + 1),
         pageSize: String(pagination.pageSize),
         sortDir: sort?.desc === false ? "asc" : "desc",

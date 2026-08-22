@@ -2,6 +2,7 @@
 
 import type { DealsSummary, DealsTrendPoint } from "@psi-opora/db/queries";
 import { useQuery } from "@tanstack/react-query";
+import { formatDateParam } from "@/lib/analytics/date-range";
 import type { DateRange } from "@/lib/analytics/types";
 import type { DealsReportFilters } from "./use-deals-report";
 
@@ -40,15 +41,15 @@ export function useDealsSummary({
 	return useQuery({
 		queryKey: [
 			"dashboard-deals-summary",
-			range.from.toISOString(),
-			range.to.toISOString(),
+			formatDateParam(range.from),
+			formatDateParam(range.to),
 			previous,
 			JSON.stringify(filters),
 		],
 		queryFn: async () => {
 			const params = new URLSearchParams({
-				from: range.from.toISOString(),
-				to: range.to.toISOString(),
+				from: formatDateParam(range.from),
+				to: formatDateParam(range.to),
 				...(previous ? { previous: "1" } : {}),
 			});
 			appendFilters(params, filters);
