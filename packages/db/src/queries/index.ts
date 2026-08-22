@@ -22,6 +22,7 @@ import {
 	type ConversationAssignment,
 } from "./bot-conversations";
 import {
+	getBotFunnelDropReasonsByDateRange as _getBotFunnelDropReasonsByDateRange,
 	getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
 	getBotFunnelStepClients as _getBotFunnelStepClients,
 	getBotFunnelUniqueStepCountsByDateRange as _getBotFunnelUniqueStepCountsByDateRange,
@@ -122,6 +123,7 @@ export type {
 	ConversationAssignment,
 } from "./bot-conversations";
 export type {
+	BotFunnelDropReasonCount,
 	BotFunnelEvent,
 	BotFunnelStepClient,
 	BotFunnelUniqueStepCount,
@@ -326,6 +328,13 @@ export async function getBotFunnelUniqueStepCountsByDateRange(
 	toDate: string,
 ) {
 	return _getBotFunnelUniqueStepCountsByDateRange(db, fromDate, toDate);
+}
+
+export async function getBotFunnelDropReasonsByDateRange(
+	fromDate: string,
+	toDate: string,
+) {
+	return _getBotFunnelDropReasonsByDateRange(db, fromDate, toDate);
 }
 
 export async function getBotFunnelStepClients(

@@ -1,8 +1,20 @@
 import type { RedisClient, StorageAdapter } from "../storage/redis";
 import type { ConsultationSession } from "../types/context";
+import { type FunnelStep, trackFunnelStep } from "../utils/funnel";
 import { logBotMessage } from "../utils/message-log";
+import { isBotBlockedError } from "../utils/messenger-errors";
 import { buildReminder, type ScenarioMessage } from "./engine";
 import { getScenarioTexts } from "./texts";
+import type { ScenarioStep } from "./types";
+
+/** Шаги сценария, не входящие в воронку напрямую: entry (ещё не выбрал
+ * ветку — таймаут здесь считаем несостоявшимся стартом) и done (сценарий уже
+ * завершён, до цикла напоминаний не доходит). */
+function scenarioStepToFunnelStep(step: ScenarioStep): FunnelStep | null {
+	if (step === "entry") return "start";
+	if (step === "done") return null;
+	return step;
+}
 
 /**
  * Напоминания «вы не закончили диалог»: если пользователь молчит дольше
@@ -72,8 +84,13 @@ export async function runScenarioReminders({
 
 	for (const sessionKey of due) {
 		// Текст напоминания нужен и в catch — чтобы записать в историю
-		// неудачную попытку отправки (см. ниже).
+		// неудачную попытку отправки (см. ниже). Шаг/ветку/источник тоже нужно
+		// знать в catch — там пишем причину отвала "blocked".
 		let attemptedText: string | undefined;
+		let funnelStep: FunnelStep | null = null;
+		let funnelFlow: string | undefined;
+		let funnelSource: string | undefined;
+		let funnelCampaign: string | undefined;
 		try {
 			const session = await storage.read(sessionKey);
 			const state = session?.scenario;
@@ -83,12 +100,28 @@ export async function runScenarioReminders({
 				continue;
 			}
 
+			funnelStep = scenarioStepToFunnelStep(state.step);
+			funnelFlow = state.flow;
+			funnelSource = session.source;
+			funnelCampaign = session.campaign;
+
 			if (state.reminded) {
-				// Напоминание не помогло — тихо завершаем сценарий
+				// Напоминание не помогло — тихо завершаем сценарий, но фиксируем
+				// в воронке шаг и причину (см. дашборд "Причины отвала").
 				state.step = "done";
 				await storage.write(sessionKey, session);
 				await redis.zrem(key, sessionKey);
 				result.expired++;
+				if (funnelStep) {
+					await trackFunnelStep(funnelStep, {
+						messenger,
+						source: funnelSource,
+						campaign: funnelCampaign,
+						userId: sessionKey,
+						flow: funnelFlow,
+						reason: "timeout",
+					});
+				}
 				continue;
 			}
 
@@ -116,8 +149,9 @@ export async function runScenarioReminders({
 			// чтобы не зациклиться на одном пользователе. Сам факт неудачной
 			// попытки пишем в историю со статусом "failed": в инбоксе это видно
 			// как «не доставлено», иначе напоминание пропадало бы бесследно.
+			const message = (err as Error).message;
 			console.error(
-				`[reminder] ${messenger} sessionKey=${sessionKey}: ${(err as Error).message}`,
+				`[reminder] ${messenger} sessionKey=${sessionKey}: ${message}`,
 			);
 			if (attemptedText) {
 				await logBotMessage({
@@ -127,6 +161,16 @@ export async function runScenarioReminders({
 					source: "reminder",
 					text: attemptedText,
 					status: "failed",
+				});
+			}
+			if (funnelStep) {
+				await trackFunnelStep(funnelStep, {
+					messenger,
+					source: funnelSource,
+					campaign: funnelCampaign,
+					userId: sessionKey,
+					flow: funnelFlow,
+					reason: isBotBlockedError(message) ? "blocked" : "send_failed",
 				});
 			}
 			await redis.zrem(key, sessionKey).catch(() => {});

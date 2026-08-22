@@ -82,7 +82,13 @@ export async function submitConsultationDeal(
 		issue,
 	} = params;
 
-	const funnelCtx: FunnelEventContext = { messenger, source, campaign, userId };
+	const funnelCtx: FunnelEventContext = {
+		messenger,
+		source,
+		campaign,
+		userId,
+		flow,
+	};
 
 	try {
 		// Профиль мессенджера (bot_users), собранный ботом на /start —

@@ -118,6 +118,13 @@ export interface ScenarioContact {
 	email: string;
 }
 
+/** Причина, по которой пользователь не пошёл дальше конкретного шага
+ * воронки — не прогресс, а явный отказ/тупик сценария (см. FunnelEventContext.reason). */
+export interface ScenarioDropReason {
+	step: FunnelStep;
+	reason: string;
+}
+
 export interface ScenarioOutput {
 	state: ScenarioState;
 	messages: ScenarioMessage[];
@@ -131,4 +138,7 @@ export interface ScenarioOutput {
 	subscribeChoice?: "yes" | "no";
 	/** true — ждём ответа пользователя (при молчании сработает напоминание). */
 	awaitingInput: boolean;
+	/** Пользователь явно отказался продолжать на этом шаге (не молчание) —
+	 * см. дашборд "Причины отвала". */
+	dropReason?: ScenarioDropReason;
 }

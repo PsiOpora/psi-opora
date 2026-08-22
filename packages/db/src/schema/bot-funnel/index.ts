@@ -33,10 +33,16 @@ export const botFunnelEvents = pgTable(
 /**
  * Один и тот же пользователь мессенджера дошёл до шага воронки в конкретный
  * день — строка добавляется не более одного раза за день (id включает day,
- * messenger, userId, step), поэтому повторные /start от одного человека в
- * один день не размножают запись. За произвольный диапазон дат это даёт
- * настоящие уникальные значения через COUNT(DISTINCT user_id) — см.
+ * messenger, userId, step, reason), поэтому повторные /start от одного
+ * человека в один день не размножают запись. За произвольный диапазон дат
+ * это даёт настоящие уникальные значения через COUNT(DISTINCT user_id) — см.
  * getBotFunnelUniqueStepCounts / getBotFunnelStepClients.
+ *
+ * reason = "-" — обычное успешное прохождение шага. Любое другое значение
+ * ("declined", "timeout", "blocked" и т.п.) — это не прогресс, а фиксация
+ * причины, по которой пользователь застрял/ушёл именно на этом шаге (см.
+ * getBotFunnelDropReasonsByDateRange). flow — ветка сценария ("consult" |
+ * "guide"), "-" для шага start, где ветка ещё не выбрана.
  */
 export const botFunnelUserSteps = pgTable(
 	"bot_funnel_user_steps",
@@ -46,6 +52,8 @@ export const botFunnelUserSteps = pgTable(
 		messenger: text("messenger").notNull(),
 		userId: text("user_id").notNull(),
 		step: text("step").notNull(),
+		flow: text("flow").notNull().default("-"),
+		reason: text("reason").notNull().default("-"),
 		source: text("source").notNull().default("-"),
 		campaign: text("campaign").notNull().default("-"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),

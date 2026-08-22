@@ -6,6 +6,9 @@ import { botUsers } from "../schema/bot-users";
 export type BotFunnelEvent = typeof botFunnelEvents.$inferSelect;
 export type NewBotFunnelEvent = typeof botFunnelEvents.$inferInsert;
 
+/** "-" — обычный успешный шаг, не причина отвала (см. botFunnelUserSteps). */
+const NO_REASON = "-";
+
 function makeId(
 	day: string,
 	messenger: string,
@@ -21,8 +24,9 @@ function makeUserStepId(
 	messenger: string,
 	userId: string,
 	step: string,
+	reason: string,
 ): string {
-	return `${day}:${messenger}:${userId}:${step}`;
+	return `${day}:${messenger}:${userId}:${step}:${reason}`;
 }
 
 export async function upsertBotFunnelEvent(
@@ -36,6 +40,12 @@ export async function upsertBotFunnelEvent(
 		/** ID пользователя мессенджера — если задан, шаг также фиксируется в
 		 * bot_funnel_user_steps для подсчёта уникальных пользователей. */
 		userId?: string | number;
+		/** Ветка сценария ("consult" | "guide") — "-" до выбора ветки (шаг start). */
+		flow?: string;
+		/** "-" (по умолчанию) — обычное прохождение шага. Другое значение —
+		 * это не прогресс, а причина, по которой пользователь застрял/ушёл
+		 * именно на этом шаге ("declined", "timeout", "blocked" и т.п.). */
+		reason?: string;
 	},
 ): Promise<void> {
 	if (!db) return;
@@ -65,11 +75,14 @@ export async function upsertBotFunnelEvent(
 
 	if (data.userId === undefined) return;
 
+	const flow = data.flow || "-";
+	const reason = data.reason || NO_REASON;
 	const userStepId = makeUserStepId(
 		data.day,
 		data.messenger,
 		String(data.userId),
 		data.step,
+		reason,
 	);
 	await db
 		.insert(botFunnelUserSteps)
@@ -79,6 +92,8 @@ export async function upsertBotFunnelEvent(
 			messenger: data.messenger,
 			userId: String(data.userId),
 			step: data.step,
+			flow,
+			reason,
 			source,
 			campaign,
 		})
@@ -107,6 +122,7 @@ export async function getBotFunnelEventsByDateRange(
 export interface BotFunnelUniqueStepCount {
 	messenger: string;
 	step: string;
+	flow: string;
 	source: string;
 	campaign: string;
 	/** Число уникальных пользователей мессенджера, дошедших до шага хотя бы
@@ -117,7 +133,9 @@ export interface BotFunnelUniqueStepCount {
 
 /** Уникальные (по user_id) счётчики шагов воронки за диапазон дат — то, что
  * должно показываться в отчёте вместо "сырых" bot_funnel_events, которые
- * инкрементируются на каждое событие без дедупликации по пользователю. */
+ * инкрементируются на каждое событие без дедупликации по пользователю.
+ * Считает только обычный прогресс (reason = "-"), без событий-причин
+ * отвала — см. getBotFunnelDropReasonsByDateRange. */
 export async function getBotFunnelUniqueStepCountsByDateRange(
 	db: Database,
 	fromDate: string,
@@ -129,19 +147,68 @@ export async function getBotFunnelUniqueStepCountsByDateRange(
 		.select({
 			messenger: botFunnelUserSteps.messenger,
 			step: botFunnelUserSteps.step,
+			flow: botFunnelUserSteps.flow,
 			source: botFunnelUserSteps.source,
 			campaign: botFunnelUserSteps.campaign,
 			uniqueUsers: sql<number>`count(distinct ${botFunnelUserSteps.userId})`,
 		})
 		.from(botFunnelUserSteps)
 		.where(
-			sql`${botFunnelUserSteps.day} >= ${fromDate} AND ${botFunnelUserSteps.day} <= ${toDate}`,
+			and(
+				eq(botFunnelUserSteps.reason, NO_REASON),
+				sql`${botFunnelUserSteps.day} >= ${fromDate} AND ${botFunnelUserSteps.day} <= ${toDate}`,
+			),
 		)
 		.groupBy(
 			botFunnelUserSteps.messenger,
 			botFunnelUserSteps.step,
+			botFunnelUserSteps.flow,
 			botFunnelUserSteps.source,
 			botFunnelUserSteps.campaign,
+		);
+
+	return rows.map((row) => ({ ...row, uniqueUsers: Number(row.uniqueUsers) }));
+}
+
+export interface BotFunnelDropReasonCount {
+	messenger: string;
+	step: string;
+	flow: string;
+	reason: string;
+	/** Уникальные пользователи, у которых на этом шаге зафиксирована эта
+	 * причина остановки, за диапазон дат. */
+	uniqueUsers: number;
+}
+
+/** Причины, по которым пользователи не пошли дальше конкретного шага —
+ * declined/timeout/blocked и т.п. (reason <> "-"), см. botFunnelUserSteps. */
+export async function getBotFunnelDropReasonsByDateRange(
+	db: Database,
+	fromDate: string,
+	toDate: string,
+): Promise<BotFunnelDropReasonCount[]> {
+	if (!db) return [];
+
+	const rows = await db
+		.select({
+			messenger: botFunnelUserSteps.messenger,
+			step: botFunnelUserSteps.step,
+			flow: botFunnelUserSteps.flow,
+			reason: botFunnelUserSteps.reason,
+			uniqueUsers: sql<number>`count(distinct ${botFunnelUserSteps.userId})`,
+		})
+		.from(botFunnelUserSteps)
+		.where(
+			and(
+				sql`${botFunnelUserSteps.reason} <> ${NO_REASON}`,
+				sql`${botFunnelUserSteps.day} >= ${fromDate} AND ${botFunnelUserSteps.day} <= ${toDate}`,
+			),
+		)
+		.groupBy(
+			botFunnelUserSteps.messenger,
+			botFunnelUserSteps.step,
+			botFunnelUserSteps.flow,
+			botFunnelUserSteps.reason,
 		);
 
 	return rows.map((row) => ({ ...row, uniqueUsers: Number(row.uniqueUsers) }));
@@ -156,16 +223,20 @@ export interface BotFunnelStepClient {
 	username: string | null;
 	source: string;
 	campaign: string;
-	/** Первый и последний день в диапазоне, когда пользователь дошёл до шага. */
+	flow: string;
+	reason: string;
+	/** Первый и последний день в диапазоне, когда пользователь дошёл до шага
+	 * (при фильтре по reason — когда была зафиксирована эта причина). */
 	firstDay: string;
 	lastDay: string;
 }
 
 /**
- * Список уникальных клиентов, дошедших до конкретного шага воронки за
- * диапазон дат — данные для drill-down при клике на число в отчёте.
- * source/campaign берутся с первого дня, когда пользователь дошёл до шага
- * (в диапазоне могут отличаться по дням, если менялась атрибуция).
+ * Список уникальных клиентов, дошедших до конкретного шага воронки (или
+ * остановившихся на нём по конкретной причине) за диапазон дат — данные для
+ * drill-down при клике на число в отчёте. source/campaign/flow берутся с
+ * первого дня в диапазоне (в диапазоне могут отличаться по дням, если
+ * менялась атрибуция).
  */
 export async function getBotFunnelStepClients(
 	db: Database,
@@ -176,12 +247,17 @@ export async function getBotFunnelStepClients(
 		messenger?: string;
 		source?: string;
 		campaign?: string;
+		flow?: string;
+		/** Если не задан — обычные (успешные) прохождения шага (reason = "-").
+		 * Если задан — конкретная причина отвала на этом шаге. */
+		reason?: string;
 	},
 ): Promise<BotFunnelStepClient[]> {
 	if (!db) return [];
 
 	const conditions = [
 		eq(botFunnelUserSteps.step, params.step),
+		eq(botFunnelUserSteps.reason, params.reason || NO_REASON),
 		sql`${botFunnelUserSteps.day} >= ${params.fromDate} AND ${botFunnelUserSteps.day} <= ${params.toDate}`,
 	];
 	if (params.messenger)
@@ -190,6 +266,7 @@ export async function getBotFunnelStepClients(
 		conditions.push(eq(botFunnelUserSteps.source, params.source));
 	if (params.campaign)
 		conditions.push(eq(botFunnelUserSteps.campaign, params.campaign));
+	if (params.flow) conditions.push(eq(botFunnelUserSteps.flow, params.flow));
 
 	const rows = await db
 		.select({
@@ -198,6 +275,8 @@ export async function getBotFunnelStepClients(
 			day: botFunnelUserSteps.day,
 			source: botFunnelUserSteps.source,
 			campaign: botFunnelUserSteps.campaign,
+			flow: botFunnelUserSteps.flow,
+			reason: botFunnelUserSteps.reason,
 		})
 		.from(botFunnelUserSteps)
 		.where(and(...conditions))
@@ -210,6 +289,8 @@ export async function getBotFunnelStepClients(
 			userId: string;
 			source: string;
 			campaign: string;
+			flow: string;
+			reason: string;
 			firstDay: string;
 			lastDay: string;
 		}
@@ -223,6 +304,8 @@ export async function getBotFunnelStepClients(
 				userId: row.userId,
 				source: row.source,
 				campaign: row.campaign,
+				flow: row.flow,
+				reason: row.reason,
 				firstDay: row.day,
 				lastDay: row.day,
 			});
@@ -257,6 +340,8 @@ export async function getBotFunnelStepClients(
 				username: profile?.username ?? null,
 				source: g.source,
 				campaign: g.campaign,
+				flow: g.flow,
+				reason: g.reason,
 				firstDay: g.firstDay,
 				lastDay: g.lastDay,
 			};

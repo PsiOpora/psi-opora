@@ -26,6 +26,8 @@ export async function GET(request: Request) {
 	const messenger = url.searchParams.get("messenger") || undefined;
 	const source = url.searchParams.get("source") || undefined;
 	const campaign = url.searchParams.get("campaign") || undefined;
+	const flow = url.searchParams.get("flow") || undefined;
+	const reason = url.searchParams.get("reason") || undefined;
 
 	const clients = await getBotFunnelStepClients({
 		step,
@@ -34,6 +36,8 @@ export async function GET(request: Request) {
 		messenger,
 		source,
 		campaign,
+		flow,
+		reason,
 	});
 
 	return NextResponse.json({ clients });

@@ -25,21 +25,24 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDashboardRange } from "@/hooks/use-bitrix-data";
 import {
+	type BotFunnelDropReasonRow,
+	type BotFunnelFlowStats,
 	type BotFunnelSourceRow,
-	type BotFunnelStepStats,
 	MESSENGER_LABELS,
 } from "@/lib/analytics/bot-funnel";
 import { formatDateParam } from "@/lib/analytics/date-range";
 import { formatNumber, formatPercent } from "@/lib/format";
 
 interface BotFunnelResponse {
-	steps: BotFunnelStepStats[];
-	byMessenger: Array<{ messenger: string; steps: BotFunnelStepStats[] }>;
+	flows: BotFunnelFlowStats[];
+	byMessenger: Array<{ messenger: string; flows: BotFunnelFlowStats[] }>;
 	bySource: BotFunnelSourceRow[];
+	dropReasons: BotFunnelDropReasonRow[];
 }
 
-/** Ссылка на список уникальных клиентов, дошедших до шага, — см.
- * /bot-funnel/clients и api/dashboard/bot-funnel/clients. */
+/** Ссылка на список уникальных клиентов, дошедших до шага (или
+ * остановившихся на нём по причине reason), — см. /bot-funnel/clients
+ * и api/dashboard/bot-funnel/clients. */
 function clientsHref(params: {
 	step: string;
 	from: Date;
@@ -47,6 +50,8 @@ function clientsHref(params: {
 	messenger?: string;
 	source?: string;
 	campaign?: string;
+	flow?: string;
+	reason?: string;
 }): string {
 	const search = new URLSearchParams({
 		step: params.step,
@@ -57,6 +62,8 @@ function clientsHref(params: {
 		search.set("messenger", params.messenger);
 	if (params.source) search.set("source", params.source);
 	if (params.campaign) search.set("campaign", params.campaign);
+	if (params.flow) search.set("flow", params.flow);
+	if (params.reason) search.set("reason", params.reason);
 	return `/bot-funnel/clients?${search.toString()}`;
 }
 
@@ -98,10 +105,11 @@ function BotFunnelPageContent() {
 		);
 	}
 
-	const steps = data?.steps ?? [];
+	const flows = data?.flows ?? [];
 	const byMessenger = data?.byMessenger ?? [];
 	const bySource = data?.bySource ?? [];
-	const isEmpty = steps.every((s) => s.count === 0);
+	const dropReasons = data?.dropReasons ?? [];
+	const isEmpty = flows.every((f) => f.steps.every((s) => s.count === 0));
 
 	if (isEmpty) {
 		return (
@@ -121,13 +129,13 @@ function BotFunnelPageContent() {
 	const messengerTabs: Array<{
 		value: string;
 		label: string;
-		data: BotFunnelStepStats[];
+		flows: BotFunnelFlowStats[];
 	}> = [
-		{ value: "all", label: "Все мессенджеры", data: steps },
-		...byMessenger.map(({ messenger, steps: ms }) => ({
+		{ value: "all", label: "Все мессенджеры", flows },
+		...byMessenger.map(({ messenger, flows: ms }) => ({
 			value: messenger,
 			label: MESSENGER_LABELS[messenger] ?? messenger,
-			data: ms,
+			flows: ms,
 		})),
 	];
 
@@ -138,10 +146,12 @@ function BotFunnelPageContent() {
 					<CardTitle>Воронка бота</CardTitle>
 					<CardDescription>
 						Путь пользователя от запуска бота до заявки в CRM за выбранный
-						период. Число на каждом шаге — уникальные пользователи мессенджера
-						(по их ID): если один и тот же человек несколько раз нажал /start,
-						он всё равно посчитан один раз. Клик по числу открывает список этих
-						клиентов.
+						период, отдельно по веткам «Консультация» и «Гайд» — после /start
+						пользователь выбирает одну из них, поэтому шаги одной ветки не
+						сравнимы с шагами другой. Число на каждом шаге — уникальные
+						пользователи мессенджера (по их ID): если один и тот же человек
+						несколько раз нажал /start, он всё равно посчитан один раз. Клик по
+						числу открывает список этих клиентов.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -154,21 +164,45 @@ function BotFunnelPageContent() {
 							))}
 						</TabsList>
 						{messengerTabs.map((tab) => (
-							<TabsContent key={tab.value} value={tab.value}>
-								<FunnelChart
-									steps={tab.data}
-									stepHref={(step) =>
-										clientsHref({
-											step: step.step,
-											from: range.from,
-											to: range.to,
-											messenger: tab.value,
-										})
-									}
-								/>
+							<TabsContent
+								key={tab.value}
+								value={tab.value}
+								className="flex flex-col gap-6"
+							>
+								{tab.flows.map((flow) => (
+									<FunnelChart
+										key={flow.flow}
+										title={flow.label}
+										steps={flow.steps}
+										stepHref={(step) =>
+											clientsHref({
+												step: step.step,
+												from: range.from,
+												to: range.to,
+												messenger: tab.value,
+												flow: flow.flow,
+											})
+										}
+									/>
+								))}
 							</TabsContent>
 						))}
 					</Tabs>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Причины отвала</CardTitle>
+					<CardDescription>
+						Не молчание вообще, а конкретная причина, зафиксированная в момент
+						события: явный отказ, исчерпанные попытки, истёкшее без ответа
+						напоминание или заблокированный бот. Клик по числу — список этих
+						клиентов.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<DropReasonsTable rows={dropReasons} range={range} />
 				</CardContent>
 			</Card>
 
@@ -212,6 +246,66 @@ function BotFunnelPageContent() {
 					<SourceTable rows={bySource} range={range} />
 				</CardContent>
 			</Card>
+		</div>
+	);
+}
+
+function DropReasonsTable({
+	rows,
+	range,
+}: {
+	rows: BotFunnelDropReasonRow[];
+	range: { from: Date; to: Date };
+}) {
+	if (rows.length === 0) {
+		return (
+			<p className="text-sm text-muted-foreground py-4">
+				За выбранный период причин отвала не зафиксировано.
+			</p>
+		);
+	}
+	return (
+		<div className="overflow-x-auto">
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead>Шаг</TableHead>
+						<TableHead>Причина</TableHead>
+						<TableHead>Мессенджер</TableHead>
+						<TableHead className="text-right">Клиентов</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{rows.map((row) => (
+						<TableRow key={row.key}>
+							<TableCell className="font-medium">{row.stepLabel}</TableCell>
+							<TableCell className="text-muted-foreground">
+								{row.reasonLabel}
+							</TableCell>
+							<TableCell>
+								<Badge variant="secondary">
+									{MESSENGER_LABELS[row.messenger] ?? row.messenger}
+								</Badge>
+							</TableCell>
+							<TableCell className="text-right tabular-nums font-medium">
+								<Link
+									className="hover:underline underline-offset-2"
+									href={clientsHref({
+										step: row.step,
+										from: range.from,
+										to: range.to,
+										messenger: row.messenger,
+										flow: row.flow !== "-" ? row.flow : undefined,
+										reason: row.reason,
+									})}
+								>
+									{formatNumber(row.count)}
+								</Link>
+							</TableCell>
+						</TableRow>
+					))}
+				</TableBody>
+			</Table>
 		</div>
 	);
 }
