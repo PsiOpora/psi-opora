@@ -163,6 +163,8 @@ export async function fetchAllDealsReportRows(
 			reportUrl(dimension, range, filters, {
 				page: String(page),
 				pageSize: String(REPORT_MAX_PAGE_SIZE),
+				sort: "key",
+				sortDir: "asc",
 			}),
 		);
 		if (!res.ok) throw new Error("Не удалось загрузить отчёт");

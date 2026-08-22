@@ -115,6 +115,15 @@ function FunnelPageContent() {
 				(stageNames.get(b.stageId)?.sort ?? Number.MAX_SAFE_INTEGER),
 		);
 
+	// Check for stageReport errors (when enabled) - mode "reached" has separate handling
+	if (mode !== "reached" && stageReport.isError) {
+		return (
+			<p className="text-sm text-destructive">
+				Не удалось загрузить данные стадий. Попробуйте обновить страницу.
+			</p>
+		);
+	}
+
 	const modeDescription =
 		mode === "created"
 			? `Сделки, созданные с ${formatDateParam(reportFilter.from)} по ${formatDateParam(reportFilter.to)} (поле DATE_CREATE), сгруппированные по их сегодняшней стадии — включая уже выигранные и проигранные.`

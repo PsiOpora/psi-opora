@@ -83,6 +83,23 @@ function DealsPageContent() {
 			? rawStatus
 			: undefined;
 
+	// Validate category, stage, and source against loaded dictionaries
+	const rawCategory = searchParams.get("category");
+	const initialCategory =
+		rawCategory && enrichmentData.categoryNames?.has(rawCategory)
+			? rawCategory
+			: undefined;
+
+	const rawStage = searchParams.get("stage");
+	const initialStage =
+		rawStage && enrichmentData.stageNames?.has(rawStage) ? rawStage : undefined;
+
+	const rawSource = searchParams.get("source");
+	const initialSource =
+		rawSource && enrichmentData.sourceNames?.has(rawSource)
+			? rawSource
+			: undefined;
+
 	return (
 		<Card>
 			<CardHeader>
@@ -96,9 +113,9 @@ function DealsPageContent() {
 					stageNames={enrichmentData.stageNames}
 					dealDomain={enrichmentData.dealDomain}
 					initialStatus={initialStatus}
-					initialCategory={searchParams.get("category") ?? undefined}
-					initialStage={searchParams.get("stage") ?? undefined}
-					initialSource={searchParams.get("source") ?? undefined}
+					initialCategory={initialCategory}
+					initialStage={initialStage}
+					initialSource={initialSource}
 				/>
 			</CardContent>
 		</Card>

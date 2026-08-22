@@ -1,6 +1,6 @@
 "use client";
 
-import type { DealRow, DealStatus } from "@psi-opora/db/queries";
+import type { DealStatus } from "@psi-opora/db/queries";
 import { useQuery } from "@tanstack/react-query";
 import {
   type ColumnDef,
@@ -50,6 +50,7 @@ import { useDashboardRange } from "@/hooks/use-bitrix-data";
 import { formatDateParam } from "@/lib/analytics/date-range";
 import type { StageInfo } from "@/lib/analytics/deals";
 import { STATUS_LABEL } from "@/lib/analytics/status-label";
+import { DealsResponseSchema, type DealRowDTO } from "@/lib/api/deals-schema";
 import { dealUrl } from "@/lib/deal-url";
 import { formatMoney, formatNumber } from "@/lib/format";
 
@@ -117,7 +118,7 @@ function buildColumns({
   categoryNames,
   stageNames,
   dealDomain,
-}: Omit<DealsTableProps, "deals">): ColumnDef<DealRow>[] {
+}: Omit<DealsTableProps, "deals">): ColumnDef<DealRowDTO>[] {
   return [
     {
       accessorKey: "title",
@@ -229,6 +230,12 @@ export function DealsTable({
   const [stage, setStage] = useState(initialStage ?? ALL);
   const [source, setSource] = useState(initialSource ?? ALL);
 
+  // Reset pagination when range changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: range is intentionally used only to trigger the reset, not read inside the effect
+  useEffect(() => {
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
+  }, [range]);
+
   const columns = useMemo(
     () => buildColumns({ sourceNames, categoryNames, stageNames, dealDomain }),
     [sourceNames, categoryNames, stageNames, dealDomain],
@@ -296,7 +303,8 @@ export function DealsTable({
 
       const res = await fetch(`/api/dashboard/deals?${params}`);
       if (!res.ok) throw new Error("Не удалось загрузить сделки");
-      return (await res.json()) as { rows: DealRow[]; total: number };
+      const json = await res.json();
+      return DealsResponseSchema.parse(json);
     },
   });
 

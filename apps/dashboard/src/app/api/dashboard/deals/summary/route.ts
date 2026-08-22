@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
   const [summary, trend, previousSummary] = await Promise.all([
     getDealsSummary({ ...range, ...filters }),
-    getDealsTrendByDay(range),
+    getDealsTrendByDay({ ...range, ...filters }),
     params.get("previous") === "1"
       ? getDealsSummary({ ...previousRange(range), ...filters })
       : Promise.resolve(undefined),

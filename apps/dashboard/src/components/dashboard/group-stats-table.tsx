@@ -95,7 +95,7 @@ export function GroupStatsTable({
 					{isLoading ? (
 						<TableRow>
 							<TableCell
-								colSpan={showOpportunity ? 6 : 4}
+								colSpan={showOpportunity ? 7 : 5}
 								className="h-24 text-center text-muted-foreground"
 							>
 								Загрузка…
@@ -103,21 +103,25 @@ export function GroupStatsTable({
 						</TableRow>
 					) : (
 						data.map((row) => (
-							<TableRow
-								key={row.key}
-								className="cursor-pointer"
-								onClick={() =>
-									setSelection({
-										dimension,
-										key: row.key,
-										label: row.label,
-										deals: row.deals,
-										won: row.won,
-										wonSum: row.wonSum,
-									})
-								}
-							>
-								<TableCell className="font-medium">{row.label}</TableCell>
+							<TableRow key={row.key}>
+								<TableCell className="font-medium">
+									<button
+										type="button"
+										className="w-full text-left hover:underline focus:outline-none focus:underline"
+										onClick={() =>
+											setSelection({
+												dimension,
+												key: row.key,
+												label: row.label,
+												deals: row.deals,
+												won: row.won,
+												wonSum: row.wonSum,
+											})
+										}
+									>
+										{row.label}
+									</button>
+								</TableCell>
 								<TableCell className="text-right tabular-nums">
 									{formatNumber(row.deals)}
 								</TableCell>

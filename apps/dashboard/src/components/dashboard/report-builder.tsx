@@ -170,6 +170,12 @@ export function ReportBuilder() {
 	);
 	const [pageIndex, setPageIndex] = useState(0);
 
+	// Reset pagination when range changes
+	// biome-ignore lint/correctness/useExhaustiveDependencies: range is intentionally used only to trigger the reset, not read inside the effect
+	useEffect(() => {
+		setPageIndex(0);
+	}, [range]);
+
 	useEffect(() => {
 		// history.replaceState вместо router.replace — без перезапроса серверной страницы
 		const params = new URLSearchParams(window.location.search);
@@ -573,6 +579,16 @@ export function ReportBuilder() {
 										className="py-8 text-center text-muted-foreground"
 									>
 										Загрузка…
+									</TableCell>
+								</TableRow>
+							) : table.isError ? (
+								<TableRow>
+									<TableCell
+										colSpan={6}
+										className="py-8 text-center text-destructive"
+									>
+										Не удалось загрузить данные таблицы. Попробуйте обновить
+										страницу.
 									</TableCell>
 								</TableRow>
 							) : tableRows.length === 0 ? (

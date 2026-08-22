@@ -161,7 +161,12 @@ export function GroupDealsDialog({
 			? sort.id
 			: undefined;
 
-	const { data, isLoading } = useQuery({
+	const {
+		data,
+		isLoading,
+		isError,
+		refetch,
+	} = useQuery({
 		queryKey: [
 			"dashboard-group-deals",
 			selection?.dimension,
@@ -274,6 +279,23 @@ export function GroupDealsDialog({
 										className="h-24 text-center text-muted-foreground"
 									>
 										Загрузка…
+									</TableCell>
+								</TableRow>
+							) : isError ? (
+								<TableRow>
+									<TableCell colSpan={columns.length} className="h-24 text-center">
+										<div className="flex flex-col items-center gap-2">
+											<p className="text-sm text-destructive">
+												Не удалось загрузить сделки группы.
+											</p>
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => void refetch()}
+											>
+												Попробовать снова
+											</Button>
+										</div>
 									</TableCell>
 								</TableRow>
 							) : rows.length === 0 ? (

@@ -121,6 +121,31 @@ function UtmReportPageContent() {
 	if (!data?.connected) return <NotConnected />;
 	if (!active) return null;
 
+	if (chartByDeals.isError) {
+		return (
+			<p className="text-sm text-destructive">
+				Не удалось загрузить данные графика сделок. Попробуйте обновить
+				страницу.
+			</p>
+		);
+	}
+
+	if (chartByOpportunity.isError) {
+		return (
+			<p className="text-sm text-destructive">
+				Не удалось загрузить данные графика суммы. Попробуйте обновить страницу.
+			</p>
+		);
+	}
+
+	if (table.isError) {
+		return (
+			<p className="text-sm text-destructive">
+				Не удалось загрузить данные таблицы. Попробуйте обновить страницу.
+			</p>
+		);
+	}
+
 	const dealDomain = data.dealDomain ?? null;
 
 	return (

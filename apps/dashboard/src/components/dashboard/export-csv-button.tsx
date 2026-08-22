@@ -7,7 +7,12 @@ import { Button } from "@/components/ui/button";
 
 function escapeCell(value: string | number): string {
 	const text = String(value);
-	return /[";\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+	// CSV formula injection protection: prefix strings starting with =, +, -, @ with apostrophe
+	const needsPrefix = typeof value === "string" && /^[=+\-@]/.test(text);
+	const prefixed = needsPrefix ? `'${text}` : text;
+	return /[";\n]/.test(prefixed)
+		? `"${prefixed.replace(/"/g, '""')}"`
+		: prefixed;
 }
 
 export function ExportCsvButton({

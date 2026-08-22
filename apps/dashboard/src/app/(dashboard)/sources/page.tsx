@@ -55,6 +55,22 @@ function SourcesPageContent() {
 
 	const dealDomain = data.dealDomain ?? null;
 
+	if (chart.isError) {
+		return (
+			<p className="text-sm text-destructive">
+				Не удалось загрузить данные графика. Попробуйте обновить страницу.
+			</p>
+		);
+	}
+
+	if (table.isError) {
+		return (
+			<p className="text-sm text-destructive">
+				Не удалось загрузить данные таблицы. Попробуйте обновить страницу.
+			</p>
+		);
+	}
+
 	return (
 		<div className="flex flex-col gap-4">
 			<GroupBarChart
