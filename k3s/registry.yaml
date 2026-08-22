@@ -38,6 +38,9 @@ data:
               "keepTags": [
                 {
                   "patterns": ["^latest$"]
+                },
+                {
+                  "patterns": ["^[0-9a-f]{40}$"]
                 }
               ]
             }
