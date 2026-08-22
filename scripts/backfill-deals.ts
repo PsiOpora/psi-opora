@@ -7,9 +7,14 @@
  * Запуск (из корня репозитория, с доступом к POSTGRES_URL и BITRIX_MEMBER_ID):
  *   bun --env-file=.env run scripts/backfill-deals.ts
  */
-import { resolveBitrixApi } from "@psi-opora/bitrix-client";
-import { env } from "@psi-opora/config";
-import { syncAllDeals } from "@psi-opora/jobs";
+// scripts/ не зарегистрирован как workspace-пакет (нет node_modules/@psi-opora/*
+// в корне под него) — импортируем исходники пакетов напрямую по относительному
+// пути, как и другие скрипты в этой папке (см. backfill-start-utm.ts). Их
+// собственные внутренние импорты @psi-opora/* резолвятся нормально — каждый
+// пакет уже хранит свои зависимости в собственном node_modules.
+import { resolveBitrixApi } from "../packages/bitrix-client/src/client";
+import { env } from "../packages/config/src/env";
+import { syncAllDeals } from "../packages/jobs/src/deals-sync";
 
 async function main() {
 	const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);

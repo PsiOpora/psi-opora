@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import type { DealGroupDimension } from "@psi-opora/db/queries";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,44 +12,66 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import type { GroupStats } from "@/lib/analytics/types";
+import type { DateRange } from "@/lib/analytics/types";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
-import { GroupDealsDialog } from "./group-deals-dialog";
+import {
+	GroupDealsDialog,
+	type GroupDealsSelection,
+} from "./group-deals-dialog";
 
-const PAGE_SIZE = 20;
+export interface GroupStatsRow {
+	key: string;
+	label: string;
+	deals: number;
+	dealsWithAmount: number;
+	won: number;
+	opportunitySum: number;
+	wonSum: number;
+	conversionRate: number;
+}
 
+/**
+ * Презентационная таблица — данные (текущая страница), сортировку и
+ * пагинацию тянет вызывающая страница из /api/dashboard/deals/report
+ * (packages/db/src/queries/deals.ts::groupDealsBy — SQL GROUP BY, а не JS
+ * в браузере). Клик по строке открывает GroupDealsDialog со своим
+ * пагинированным запросом сделок этой группы.
+ */
 export function GroupStatsTable({
 	columnLabel,
 	data,
+	total,
+	page,
+	pageSize,
+	onPageChange,
+	dimension,
+	range,
 	dealDomain,
 	showOpportunity = false,
+	isLoading = false,
+	showPagination = true,
 }: {
 	columnLabel: string;
-	data: GroupStats[];
+	data: GroupStatsRow[];
+	total: number;
+	page: number;
+	pageSize: number;
+	onPageChange: (page: number) => void;
+	dimension: DealGroupDimension;
+	range: DateRange;
 	/** Домен портала Bitrix24 — если известен, диалог со сделками ведёт на карточку CRM. */
 	dealDomain?: string | null;
 	/** Показывать сумму всех сделок и долю сделок, где она заполнена. */
 	showOpportunity?: boolean;
+	isLoading?: boolean;
+	/** Выключить пагинацию — для карточек «топ-N», где показывается только первая страница. */
+	showPagination?: boolean;
 }) {
-	const [selectedKey, setSelectedKey] = useState<string | null>(null);
-	const [pageIndex, setPageIndex] = useState(0);
-	const selected = data.find((row) => row.key === selectedKey) ?? null;
+	const [selection, setSelection] = useState<GroupDealsSelection | null>(null);
 
-	// При большом количестве уникальных значений разреза (utm_term/utm_content
-	// на CRM с большим объёмом сделок легко доходят до сотен строк) рендер всей
-	// таблицы разом ощутимо нагружает DOM/скрипт-поток браузера — пагинируем.
-	const pageCount = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
-	const clampedPageIndex = Math.min(pageIndex, pageCount - 1);
-	const page = useMemo(
-		() =>
-			data.slice(
-				clampedPageIndex * PAGE_SIZE,
-				clampedPageIndex * PAGE_SIZE + PAGE_SIZE,
-			),
-		[data, clampedPageIndex],
-	);
-	const from = data.length === 0 ? 0 : clampedPageIndex * PAGE_SIZE + 1;
-	const to = Math.min(data.length, (clampedPageIndex + 1) * PAGE_SIZE);
+	const pageCount = Math.max(1, Math.ceil(total / pageSize));
+	const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+	const to = Math.min(total, page * pageSize);
 
 	return (
 		<>
@@ -69,72 +92,87 @@ export function GroupStatsTable({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{page.map((row) => (
-						<TableRow
-							key={row.key}
-							className="cursor-pointer"
-							onClick={() => setSelectedKey(row.key)}
-						>
-							<TableCell className="font-medium">{row.label}</TableCell>
-							<TableCell className="text-right tabular-nums">
-								{formatNumber(row.deals)}
-							</TableCell>
-							{showOpportunity && (
-								<TableCell className="text-right">
-									<Badge variant="outline">
-										{formatNumber(
-											row.items.filter((deal) => deal.opportunity > 0).length,
-										)}{" "}
-										из {formatNumber(row.deals)}
-									</Badge>
-								</TableCell>
-							)}
-							<TableCell className="text-right tabular-nums">
-								{formatNumber(row.won)}
-							</TableCell>
-							<TableCell className="text-right">
-								<Badge variant="secondary">
-									{formatPercent(row.conversionRate)}
-								</Badge>
-							</TableCell>
-							{showOpportunity && (
-								<TableCell className="text-right tabular-nums">
-									{formatMoney(row.opportunitySum)}
-								</TableCell>
-							)}
-							<TableCell className="text-right tabular-nums">
-								{formatMoney(row.wonSum)}
+					{isLoading ? (
+						<TableRow>
+							<TableCell
+								colSpan={showOpportunity ? 6 : 4}
+								className="h-24 text-center text-muted-foreground"
+							>
+								Загрузка…
 							</TableCell>
 						</TableRow>
-					))}
+					) : (
+						data.map((row) => (
+							<TableRow
+								key={row.key}
+								className="cursor-pointer"
+								onClick={() =>
+									setSelection({
+										dimension,
+										key: row.key,
+										label: row.label,
+										deals: row.deals,
+										won: row.won,
+										wonSum: row.wonSum,
+									})
+								}
+							>
+								<TableCell className="font-medium">{row.label}</TableCell>
+								<TableCell className="text-right tabular-nums">
+									{formatNumber(row.deals)}
+								</TableCell>
+								{showOpportunity && (
+									<TableCell className="text-right">
+										<Badge variant="outline">
+											{formatNumber(row.dealsWithAmount)} из{" "}
+											{formatNumber(row.deals)}
+										</Badge>
+									</TableCell>
+								)}
+								<TableCell className="text-right tabular-nums">
+									{formatNumber(row.won)}
+								</TableCell>
+								<TableCell className="text-right">
+									<Badge variant="secondary">
+										{formatPercent(row.conversionRate)}
+									</Badge>
+								</TableCell>
+								{showOpportunity && (
+									<TableCell className="text-right tabular-nums">
+										{formatMoney(row.opportunitySum)}
+									</TableCell>
+								)}
+								<TableCell className="text-right tabular-nums">
+									{formatMoney(row.wonSum)}
+								</TableCell>
+							</TableRow>
+						))
+					)}
 				</TableBody>
 			</Table>
 
-			{data.length > PAGE_SIZE && (
+			{showPagination && total > pageSize && (
 				<div className="flex items-center justify-between gap-4 pt-3 text-sm text-muted-foreground">
 					<span>
-						{formatNumber(from)}–{formatNumber(to)} из{" "}
-						{formatNumber(data.length)}
+						{formatNumber(from)}–{formatNumber(to)} из {formatNumber(total)}
 					</span>
 					<div className="flex items-center gap-2">
 						<Button
 							variant="outline"
 							size="sm"
-							onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
-							disabled={clampedPageIndex === 0}
+							onClick={() => onPageChange(Math.max(1, page - 1))}
+							disabled={page <= 1}
 						>
 							Назад
 						</Button>
 						<span className="tabular-nums">
-							{clampedPageIndex + 1} / {pageCount}
+							{page} / {pageCount}
 						</span>
 						<Button
 							variant="outline"
 							size="sm"
-							onClick={() =>
-								setPageIndex((i) => Math.min(pageCount - 1, i + 1))
-							}
-							disabled={clampedPageIndex >= pageCount - 1}
+							onClick={() => onPageChange(Math.min(pageCount, page + 1))}
+							disabled={page >= pageCount}
 						>
 							Вперёд
 						</Button>
@@ -143,8 +181,9 @@ export function GroupStatsTable({
 			)}
 
 			<GroupDealsDialog
-				group={selected}
-				onOpenChange={(open) => !open && setSelectedKey(null)}
+				selection={selection}
+				range={range}
+				onOpenChange={(open) => !open && setSelection(null)}
 				dealDomain={dealDomain}
 			/>
 		</>

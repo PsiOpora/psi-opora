@@ -1,17 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import type {
+	DealGroupDimension,
+	DealRow,
+	DealStatus,
+} from "@psi-opora/db/queries";
+import { useQuery } from "@tanstack/react-query";
 import {
 	type ColumnDef,
-	type SortingState,
 	flexRender,
 	getCoreRowModel,
-	getFilteredRowModel,
-	getPaginationRowModel,
-	getSortedRowModel,
+	type PaginationState,
+	type SortingState,
 	useReactTable,
 } from "@tanstack/react-table";
 import { ArrowUpDownIcon, ExternalLinkIcon, SearchIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,12 +34,31 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import type { DateRange } from "@/lib/analytics/types";
 import { STATUS_LABEL } from "@/lib/analytics/status-label";
-import type { DealSummary, GroupStats } from "@/lib/analytics/types";
 import { dealUrl } from "@/lib/deal-url";
 import { formatMoney, formatNumber } from "@/lib/format";
 
 const PAGE_SIZE = 10;
+const SEARCH_DEBOUNCE_MS = 300;
+
+export interface GroupDealsSelection {
+	dimension: DealGroupDimension;
+	key: string;
+	label: string;
+	deals: number;
+	won: number;
+	wonSum: number;
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+	const [debounced, setDebounced] = useState(value);
+	useEffect(() => {
+		const timer = setTimeout(() => setDebounced(value), delayMs);
+		return () => clearTimeout(timer);
+	}, [value, delayMs]);
+	return debounced;
+}
 
 function sortableHeader(label: string) {
 	return function Header({
@@ -60,7 +83,7 @@ function sortableHeader(label: string) {
 	};
 }
 
-function buildColumns(dealDomain?: string | null): ColumnDef<DealSummary>[] {
+function buildColumns(dealDomain?: string | null): ColumnDef<DealRow>[] {
 	return [
 		{
 			accessorKey: "title",
@@ -88,7 +111,7 @@ function buildColumns(dealDomain?: string | null): ColumnDef<DealSummary>[] {
 			accessorKey: "status",
 			header: "Статус",
 			cell: ({ getValue }) => {
-				const info = STATUS_LABEL[getValue<DealSummary["status"]>()];
+				const info = STATUS_LABEL[getValue<DealStatus>()];
 				return <Badge variant={info.variant}>{info.label}</Badge>;
 			},
 		},
@@ -102,17 +125,20 @@ function buildColumns(dealDomain?: string | null): ColumnDef<DealSummary>[] {
 		{
 			accessorKey: "dateCreate",
 			header: sortableHeader("Создана"),
-			cell: ({ getValue }) => getValue<Date>().toLocaleDateString("ru-RU"),
+			cell: ({ getValue }) =>
+				new Date(getValue<string>()).toLocaleDateString("ru-RU"),
 		},
 	];
 }
 
 export function GroupDealsDialog({
-	group,
+	selection,
+	range,
 	onOpenChange,
 	dealDomain,
 }: {
-	group: GroupStats | null;
+	selection: GroupDealsSelection | null;
+	range: DateRange;
 	onOpenChange: (open: boolean) => void;
 	/** Домен портала Bitrix24 — если известен, названия сделок ведут на карточку CRM. */
 	dealDomain?: string | null;
@@ -120,47 +146,91 @@ export function GroupDealsDialog({
 	const [sorting, setSorting] = useState<SortingState>([
 		{ id: "dateCreate", desc: true },
 	]);
-	const [search, setSearch] = useState("");
+	const [pagination, setPagination] = useState<PaginationState>({
+		pageIndex: 0,
+		pageSize: PAGE_SIZE,
+	});
+	const [searchInput, setSearchInput] = useState("");
+	const search = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
 	const columns = useMemo(() => buildColumns(dealDomain), [dealDomain]);
 
-	const table = useReactTable({
-		data: group?.items ?? [],
-		columns,
-		state: { sorting, globalFilter: search },
-		onSortingChange: setSorting,
-		onGlobalFilterChange: setSearch,
-		globalFilterFn: "includesString",
-		getCoreRowModel: getCoreRowModel(),
-		getSortedRowModel: getSortedRowModel(),
-		getFilteredRowModel: getFilteredRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
-		initialState: { pagination: { pageSize: PAGE_SIZE } },
+	const sort = sorting[0];
+	const sortField =
+		sort?.id === "title" || sort?.id === "status" || sort?.id === "opportunity" || sort?.id === "dateCreate"
+			? sort.id
+			: undefined;
+
+	const { data, isLoading } = useQuery({
+		queryKey: [
+			"dashboard-group-deals",
+			selection?.dimension,
+			selection?.key,
+			range.from.toISOString(),
+			range.to.toISOString(),
+			search,
+			sortField,
+			sort?.desc,
+			pagination.pageIndex,
+		],
+		queryFn: async () => {
+			if (!selection) return { rows: [], total: 0 };
+			const params = new URLSearchParams({
+				dimension: selection.dimension,
+				key: selection.key,
+				from: range.from.toISOString(),
+				to: range.to.toISOString(),
+				page: String(pagination.pageIndex + 1),
+				pageSize: String(pagination.pageSize),
+				sortDir: sort?.desc === false ? "asc" : "desc",
+			});
+			if (search.trim()) params.set("search", search.trim());
+			if (sortField) params.set("sort", sortField);
+
+			const res = await fetch(`/api/dashboard/deals/group?${params}`);
+			if (!res.ok) throw new Error("Не удалось загрузить сделки группы");
+			return (await res.json()) as { rows: DealRow[]; total: number };
+		},
+		enabled: selection !== null,
 	});
 
-	const rows = table.getRowModel().rows;
-	const total = table.getFilteredRowModel().rows.length;
-	const pageIndex = table.getState().pagination.pageIndex;
+	const rows = data?.rows ?? [];
+	const total = data?.total ?? 0;
+
+	const table = useReactTable({
+		data: rows,
+		columns,
+		state: { sorting, pagination },
+		onSortingChange: setSorting,
+		onPaginationChange: setPagination,
+		manualSorting: true,
+		manualPagination: true,
+		manualFiltering: true,
+		pageCount: Math.max(1, Math.ceil(total / pagination.pageSize)),
+		getCoreRowModel: getCoreRowModel(),
+	});
+
+	const pageIndex = pagination.pageIndex;
 	const pageCount = table.getPageCount();
 	const from = total === 0 ? 0 : pageIndex * PAGE_SIZE + 1;
 	const to = Math.min(total, (pageIndex + 1) * PAGE_SIZE);
 
 	return (
 		<Dialog
-			open={group !== null}
+			open={selection !== null}
 			onOpenChange={(open) => {
 				onOpenChange(open);
 				if (!open) {
-					setSearch("");
-					table.setPageIndex(0);
+					setSearchInput("");
+					setPagination((current) => ({ ...current, pageIndex: 0 }));
 				}
 			}}
 		>
 			<DialogContent className="flex max-h-[85vh] flex-col gap-4 sm:max-w-3xl">
 				<DialogHeader>
-					<DialogTitle>{group?.label}</DialogTitle>
+					<DialogTitle>{selection?.label}</DialogTitle>
 					<DialogDescription>
-						{group &&
-							`${formatNumber(group.deals)} сделок · выиграно ${formatNumber(group.won)} на сумму ${formatMoney(group.wonSum)}`}
+						{selection &&
+							`${formatNumber(selection.deals)} сделок · выиграно ${formatNumber(selection.won)} на сумму ${formatMoney(selection.wonSum)}`}
 					</DialogDescription>
 				</DialogHeader>
 
@@ -168,8 +238,11 @@ export function GroupDealsDialog({
 					<SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						placeholder="Поиск по названию сделки…"
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
+						value={searchInput}
+						onChange={(e) => {
+							setSearchInput(e.target.value);
+							setPagination((current) => ({ ...current, pageIndex: 0 }));
+						}}
 						className="pl-8"
 					/>
 				</div>
@@ -193,7 +266,16 @@ export function GroupDealsDialog({
 							))}
 						</TableHeader>
 						<TableBody>
-							{rows.length === 0 ? (
+							{isLoading ? (
+								<TableRow>
+									<TableCell
+										colSpan={columns.length}
+										className="h-24 text-center text-muted-foreground"
+									>
+										Загрузка…
+									</TableCell>
+								</TableRow>
+							) : rows.length === 0 ? (
 								<TableRow>
 									<TableCell
 										colSpan={columns.length}
@@ -203,7 +285,7 @@ export function GroupDealsDialog({
 									</TableCell>
 								</TableRow>
 							) : (
-								rows.map((row) => (
+								table.getRowModel().rows.map((row) => (
 									<TableRow key={row.id}>
 										{row.getVisibleCells().map((cell) => (
 											<TableCell key={cell.id}>

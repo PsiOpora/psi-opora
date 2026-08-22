@@ -1,11 +1,11 @@
 "use client";
 
+import type { DealRow, DealStatus } from "@psi-opora/db/queries";
+import { useQuery } from "@tanstack/react-query";
 import {
   type ColumnDef,
   flexRender,
   getCoreRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
   type PaginationState,
   type SortingState,
   useReactTable,
@@ -15,9 +15,10 @@ import {
   ArrowUpDownIcon,
   ArrowUpIcon,
   FilterXIcon,
+  Loader2Icon,
   SearchIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,17 +46,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useDashboardRange } from "@/hooks/use-bitrix-data";
 import type { StageInfo } from "@/lib/analytics/deals";
 import { STATUS_LABEL } from "@/lib/analytics/status-label";
-import type { DealRecord, DealStatus } from "@/lib/analytics/types";
 import { dealUrl } from "@/lib/deal-url";
 import { formatMoney, formatNumber } from "@/lib/format";
 
 const PAGE_SIZE = 20;
 const ALL = "__all";
+/** Задержка перед отправкой запроса на сервер после ввода в поиск — без неё
+ * каждое нажатие клавиши гоняло бы отдельный HTTP-запрос. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 interface DealsTableProps {
-  deals: DealRecord[];
   sourceNames?: Map<string, string>;
   categoryNames?: Map<string, string>;
   stageNames?: Map<string, StageInfo>;
@@ -66,6 +69,15 @@ interface DealsTableProps {
   initialStage?: string;
   initialSource?: string;
   initialSearch?: string;
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+  return debounced;
 }
 
 function sortableHeader(label: string) {
@@ -104,7 +116,7 @@ function buildColumns({
   categoryNames,
   stageNames,
   dealDomain,
-}: Omit<DealsTableProps, "deals">): ColumnDef<DealRecord>[] {
+}: Omit<DealsTableProps, "deals">): ColumnDef<DealRow>[] {
   return [
     {
       accessorKey: "title",
@@ -129,7 +141,7 @@ function buildColumns({
         return (
           <div className="flex flex-col gap-0.5">
             {title}
-            {deal.utmCampaign !== "(не указано)" && (
+            {deal.utmCampaign && (
               <span className="max-w-72 truncate text-xs text-muted-foreground">
                 {deal.utmCampaign}
               </span>
@@ -141,11 +153,6 @@ function buildColumns({
     {
       accessorKey: "status",
       header: sortableHeader("Статус"),
-      sortingFn: (rowA, rowB, columnId) =>
-        STATUS_LABEL[rowA.getValue<DealStatus>(columnId)].label.localeCompare(
-          STATUS_LABEL[rowB.getValue<DealStatus>(columnId)].label,
-          "ru",
-        ),
       cell: ({ getValue }) => {
         const info = STATUS_LABEL[getValue<DealStatus>()];
         return <Badge variant={info.variant}>{info.label}</Badge>;
@@ -153,23 +160,24 @@ function buildColumns({
     },
     {
       id: "stage",
+      header: "Стадия",
       accessorFn: (deal) => stageNames?.get(deal.stageId)?.name ?? deal.stageId,
-      header: sortableHeader("Стадия"),
     },
     {
       id: "category",
+      header: "Воронка",
       accessorFn: (deal) =>
         categoryNames?.get(deal.categoryId) ?? `Воронка ${deal.categoryId}`,
-      header: sortableHeader("Воронка"),
     },
     {
       id: "source",
-      accessorFn: (deal) => sourceNames?.get(deal.sourceId) ?? deal.sourceId,
-      header: sortableHeader("Источник"),
+      header: "Источник",
+      accessorFn: (deal) =>
+        sourceNames?.get(deal.sourceId ?? "") ?? deal.sourceId ?? "",
       cell: ({ row, getValue }) => (
         <div className="flex flex-col gap-0.5">
           <span>{getValue<string>()}</span>
-          {row.original.utmSource !== "(не указано)" && (
+          {row.original.utmSource && (
             <span className="text-xs text-muted-foreground">
               UTM: {row.original.utmSource}
             </span>
@@ -182,43 +190,19 @@ function buildColumns({
       header: sortableHeader("Сумма"),
       cell: ({ row }) => (
         <span className="tabular-nums">
-          {formatMoney(row.original.opportunity, row.original.currency)}
+          {formatMoney(row.original.opportunity, row.original.currency ?? undefined)}
         </span>
       ),
     },
     {
       accessorKey: "dateCreate",
       header: sortableHeader("Создана"),
-      cell: ({ getValue }) => getValue<Date>().toLocaleDateString("ru-RU"),
+      cell: ({ getValue }) => new Date(getValue<string>()).toLocaleDateString("ru-RU"),
     },
   ];
 }
 
-function includesSearch(
-  deal: DealRecord,
-  search: string,
-  sourceNames?: Map<string, string>,
-  categoryNames?: Map<string, string>,
-  stageNames?: Map<string, StageInfo>,
-): boolean {
-  if (!search) return true;
-  const query = search.toLocaleLowerCase("ru-RU");
-  return [
-    deal.id,
-    deal.title,
-    deal.utmSource,
-    deal.utmMedium,
-    deal.utmCampaign,
-    deal.utmContent,
-    deal.utmTerm,
-    sourceNames?.get(deal.sourceId),
-    categoryNames?.get(deal.categoryId),
-    stageNames?.get(deal.stageId)?.name,
-  ].some((value) => value?.toLocaleLowerCase("ru-RU").includes(query));
-}
-
 export function DealsTable({
-  deals,
   sourceNames,
   categoryNames,
   stageNames,
@@ -229,6 +213,7 @@ export function DealsTable({
   initialSource,
   initialSearch,
 }: DealsTableProps) {
+  const range = useDashboardRange();
   const [sorting, setSorting] = useState<SortingState>([
     { id: "dateCreate", desc: true },
   ]);
@@ -236,7 +221,8 @@ export function DealsTable({
     pageIndex: 0,
     pageSize: PAGE_SIZE,
   });
-  const [search, setSearch] = useState(initialSearch ?? "");
+  const [searchInput, setSearchInput] = useState(initialSearch ?? "");
+  const search = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
   const [status, setStatus] = useState(initialStatus ?? ALL);
   const [category, setCategory] = useState(initialCategory ?? ALL);
   const [stage, setStage] = useState(initialStage ?? ALL);
@@ -247,73 +233,90 @@ export function DealsTable({
     [sourceNames, categoryNames, stageNames, dealDomain],
   );
 
-  const filteredDeals = useMemo(
-    () =>
-      deals.filter(
-        (deal) =>
-          (status === ALL || deal.status === status) &&
-          (category === ALL || deal.categoryId === category) &&
-          (stage === ALL || deal.stageId === stage) &&
-          (source === ALL || deal.sourceId === source) &&
-          includesSearch(
-            deal,
-            search.trim(),
-            sourceNames,
-            categoryNames,
-            stageNames,
-          ),
-      ),
-    [
-      deals,
-      status,
-      category,
-      stage,
-      source,
-      search,
-      sourceNames,
-      categoryNames,
-      stageNames,
-    ],
-  );
-
+  // Справочники Bitrix24 уже содержат ВСЕ категории/стадии/источники CRM
+  // (не только те, что попали в текущую страницу) — используем их напрямую
+  // вместо сканирования уже загруженных сделок.
   const categoryOptions = useMemo(
     () =>
-      [...new Set(deals.map((deal) => deal.categoryId))]
-        .map((id) => ({
-          id,
-          label: categoryNames?.get(id) ?? `Воронка ${id}`,
-        }))
+      [...(categoryNames ?? new Map()).entries()]
+        .map(([id, label]) => ({ id, label }))
         .sort((a, b) => a.label.localeCompare(b.label, "ru")),
-    [deals, categoryNames],
+    [categoryNames],
   );
   const stageOptions = useMemo(
     () =>
-      [...new Set(deals.map((deal) => deal.stageId))]
-        .map((id) => ({ id, label: stageNames?.get(id)?.name ?? id }))
+      [...(stageNames ?? new Map()).entries()]
+        .map(([id, info]) => ({ id, label: info.name }))
         .sort((a, b) => a.label.localeCompare(b.label, "ru")),
-    [deals, stageNames],
+    [stageNames],
   );
   const sourceOptions = useMemo(
     () =>
-      [...new Set(deals.map((deal) => deal.sourceId))]
-        .map((id) => ({ id, label: sourceNames?.get(id) ?? id }))
+      [...(sourceNames ?? new Map()).entries()]
+        .map(([id, label]) => ({ id, label }))
         .sort((a, b) => a.label.localeCompare(b.label, "ru")),
-    [deals, sourceNames],
+    [sourceNames],
   );
 
+  const sort = sorting[0];
+  const sortField = sort?.id === "opportunity" || sort?.id === "dateCreate" || sort?.id === "title" || sort?.id === "status" ? sort.id : undefined;
+
+  const queryKey = [
+    "dashboard-deals",
+    range.from.toISOString(),
+    range.to.toISOString(),
+    status,
+    category,
+    stage,
+    source,
+    search,
+    sortField,
+    sort?.desc,
+    pagination.pageIndex,
+    pagination.pageSize,
+  ];
+
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        from: range.from.toISOString(),
+        to: range.to.toISOString(),
+        page: String(pagination.pageIndex + 1),
+        pageSize: String(pagination.pageSize),
+        sortDir: sort?.desc === false ? "asc" : "desc",
+      });
+      if (status !== ALL) params.set("status", status);
+      if (category !== ALL) params.set("category", category);
+      if (stage !== ALL) params.set("stage", stage);
+      if (source !== ALL) params.set("source", source);
+      if (search.trim()) params.set("search", search.trim());
+      if (sortField) params.set("sort", sortField);
+
+      const res = await fetch(`/api/dashboard/deals?${params}`);
+      if (!res.ok) throw new Error("Не удалось загрузить сделки");
+      return (await res.json()) as { rows: DealRow[]; total: number };
+    },
+  });
+
+  const rows = data?.rows ?? [];
+  const total = data?.total ?? 0;
+
   const table = useReactTable({
-    data: filteredDeals,
+    data: rows,
     columns,
     state: { sorting, pagination },
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
+    manualSorting: true,
+    manualPagination: true,
+    manualFiltering: true,
+    pageCount: Math.max(1, Math.ceil(total / pagination.pageSize)),
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
   });
 
   const resetFilters = () => {
-    setSearch("");
+    setSearchInput("");
     setStatus(ALL);
     setCategory(ALL);
     setStage(ALL);
@@ -325,17 +328,32 @@ export function DealsTable({
     setPagination((current) => ({ ...current, pageIndex: 0 }));
   };
 
-  const rows = table.getRowModel().rows;
-  const pageIndex = table.getState().pagination.pageIndex;
+  const pageIndex = pagination.pageIndex;
   const pageCount = table.getPageCount();
-  const from = filteredDeals.length === 0 ? 0 : pageIndex * PAGE_SIZE + 1;
-  const to = Math.min(filteredDeals.length, (pageIndex + 1) * PAGE_SIZE);
+  const from = total === 0 ? 0 : pageIndex * pagination.pageSize + 1;
+  const to = Math.min(total, (pageIndex + 1) * pagination.pageSize);
   const hasFilters =
     search.length > 0 ||
     status !== ALL ||
     category !== ALL ||
     stage !== ALL ||
     source !== ALL;
+
+  if (isError) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyTitle>Не удалось загрузить сделки</EmptyTitle>
+          <EmptyDescription>Попробуйте обновить страницу.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>
+            Попробовать снова
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -345,8 +363,11 @@ export function DealsTable({
           <Input
             aria-label="Поиск сделок"
             placeholder="Название, UTM, стадия или источник…"
-            value={search}
-            onChange={(event) => updateFilter(setSearch, event.target.value)}
+            value={searchInput}
+            onChange={(event) => {
+              setSearchInput(event.target.value);
+              setPagination((current) => ({ ...current, pageIndex: 0 }));
+            }}
             className="pl-8"
           />
         </div>
@@ -432,9 +453,12 @@ export function DealsTable({
             Сбросить
           </Button>
         )}
+        {isFetching && !isLoading && (
+          <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+        )}
       </div>
 
-      {filteredDeals.length === 0 ? (
+      {!isLoading && total === 0 ? (
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -472,27 +496,36 @@ export function DealsTable({
                 ))}
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      Загрузка…
+                    </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id}>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
             <span>
-              {formatNumber(from)}–{formatNumber(to)} из{" "}
-              {formatNumber(filteredDeals.length)}
-              {hasFilters && ` · всего ${formatNumber(deals.length)}`}
+              {formatNumber(from)}–{formatNumber(to)} из {formatNumber(total)}
             </span>
             <div className="flex items-center gap-2">
               <Button

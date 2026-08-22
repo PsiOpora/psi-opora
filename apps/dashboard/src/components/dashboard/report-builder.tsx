@@ -1,17 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import {
-	Bar,
-	BarChart,
-	CartesianGrid,
-	Line,
-	LineChart,
-	XAxis,
-	YAxis,
-} from "recharts";
+import type { DealGroupDimension, DealStatus } from "@psi-opora/db/queries";
 import { ArrowUpDownIcon, ChevronDownIcon, RotateCcwIcon } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,10 +16,10 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import {
+	type ChartConfig,
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
-	type ChartConfig,
 } from "@/components/ui/chart";
 import {
 	DropdownMenu,
@@ -50,53 +43,20 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { useDashboardRange } from "@/hooks/use-bitrix-data";
+import type { DealFacets } from "@/hooks/use-deals-facets";
+import { useDealsFacets } from "@/hooks/use-deals-facets";
 import {
-	bucketBy,
-	computeGroupStats,
-	summarize,
-} from "@/lib/analytics/aggregate";
-import type { DealRecord, DealStatus, GroupStats } from "@/lib/analytics/types";
+	type DealsReportFilters,
+	type DealsReportSort,
+	fetchAllDealsReportRows,
+	useDealsReport,
+} from "@/hooks/use-deals-report";
+import { useDealsSummary } from "@/hooks/use-deals-summary";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { ExportCsvButton } from "./export-csv-button";
 
-export interface ReportDictionaries {
-	sources: Record<string, string>;
-	categories: Record<string, string>;
-	stages: Record<string, string>;
-}
-
-const STATUS_LABELS: Record<DealStatus, string> = {
-	won: "Выиграна",
-	lost: "Проиграна",
-	in_progress: "В работе",
-};
-
-function localDate(date: Date): string {
-	const month = String(date.getMonth() + 1).padStart(2, "0");
-	const day = String(date.getDate()).padStart(2, "0");
-	return `${date.getFullYear()}-${month}-${day}`;
-}
-
-function weekStart(date: Date): string {
-	const monday = new Date(date);
-	monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-	return localDate(monday);
-}
-
-type DimensionId =
-	| "utmSource"
-	| "utmMedium"
-	| "utmCampaign"
-	| "utmContent"
-	| "utmTerm"
-	| "source"
-	| "category"
-	| "stage"
-	| "day"
-	| "week"
-	| "month";
-
-const DIMENSIONS: Array<{ id: DimensionId; label: string; time?: boolean }> = [
+const DIMENSIONS: Array<{ id: DealGroupDimension; label: string; time?: boolean }> = [
 	{ id: "utmSource", label: "UTM source" },
 	{ id: "utmMedium", label: "UTM medium" },
 	{ id: "utmCampaign", label: "UTM campaign" },
@@ -110,66 +70,25 @@ const DIMENSIONS: Array<{ id: DimensionId; label: string; time?: boolean }> = [
 	{ id: "month", label: "По месяцам", time: true },
 ];
 
-function dimensionKey(deal: DealRecord, dimension: DimensionId): string {
-	switch (dimension) {
-		case "utmSource":
-			return deal.utmSource;
-		case "utmMedium":
-			return deal.utmMedium;
-		case "utmCampaign":
-			return deal.utmCampaign;
-		case "utmContent":
-			return deal.utmContent;
-		case "utmTerm":
-			return deal.utmTerm;
-		case "source":
-			return deal.sourceId;
-		case "category":
-			return deal.categoryId;
-		case "stage":
-			return deal.stageId;
-		case "day":
-			return localDate(deal.dateCreate);
-		case "week":
-			return weekStart(deal.dateCreate);
-		case "month":
-			return localDate(deal.dateCreate).slice(0, 7);
-	}
-}
+type MetricId = "deals" | "won" | "wonSum" | "opportunitySum" | "conversionRate";
 
-function dimensionLabel(
-	key: string,
-	dimension: DimensionId,
-	dicts: ReportDictionaries,
-): string {
-	if (dimension === "source") return dicts.sources[key] ?? key;
-	if (dimension === "category")
-		return dicts.categories[key] ?? `Воронка ${key}`;
-	if (dimension === "stage") return dicts.stages[key] ?? key;
-	return key;
-}
-
-type MetricId =
-	| "deals"
-	| "won"
-	| "wonSum"
-	| "opportunitySum"
-	| "conversionRate";
-
-const METRICS: Array<{
-	id: MetricId;
-	label: string;
-	money?: boolean;
-	percent?: boolean;
-}> = [
+const METRICS: Array<{ id: MetricId; label: string }> = [
 	{ id: "deals", label: "Сделки" },
 	{ id: "won", label: "Выиграно" },
-	{ id: "wonSum", label: "Сумма выигранных", money: true },
-	{ id: "opportunitySum", label: "Сумма в воронке", money: true },
-	{ id: "conversionRate", label: "Конверсия, %", percent: true },
+	{ id: "wonSum", label: "Сумма выигранных" },
+	{ id: "opportunitySum", label: "Сумма в воронке" },
+	{ id: "conversionRate", label: "Конверсия, %" },
 ];
 
-function metricValue(row: GroupStats, metric: MetricId): number {
+interface MetricRow {
+	deals: number;
+	won: number;
+	wonSum: number;
+	opportunitySum: number;
+	conversionRate: number;
+}
+
+function metricValue(row: MetricRow, metric: MetricId): number {
 	if (metric === "conversionRate")
 		return Number((row.conversionRate * 100).toFixed(1));
 	return row[metric];
@@ -183,38 +102,25 @@ type FilterId =
 	| "utmMedium"
 	| "utmCampaign";
 
-const FILTERS: Array<{
-	id: FilterId;
-	label: string;
-	valueOf: (deal: DealRecord) => string;
-}> = [
-	{ id: "status", label: "Статус", valueOf: (d) => d.status },
-	{ id: "category", label: "Воронка", valueOf: (d) => d.categoryId },
-	{ id: "source", label: "Источник CRM", valueOf: (d) => d.sourceId },
-	{ id: "utmSource", label: "UTM source", valueOf: (d) => d.utmSource },
-	{ id: "utmMedium", label: "UTM medium", valueOf: (d) => d.utmMedium },
-	{ id: "utmCampaign", label: "UTM campaign", valueOf: (d) => d.utmCampaign },
+const FILTERS: Array<{ id: FilterId; label: string }> = [
+	{ id: "status", label: "Статус" },
+	{ id: "category", label: "Воронка" },
+	{ id: "source", label: "Источник CRM" },
+	{ id: "utmSource", label: "UTM source" },
+	{ id: "utmMedium", label: "UTM medium" },
+	{ id: "utmCampaign", label: "UTM campaign" },
 ];
 
-function filterValueLabel(
-	filter: FilterId,
-	value: string,
-	dicts: ReportDictionaries,
-): string {
-	if (filter === "status") return STATUS_LABELS[value as DealStatus] ?? value;
-	if (filter === "category")
-		return dicts.categories[value] ?? `Воронка ${value}`;
-	if (filter === "source") return dicts.sources[value] ?? value;
-	return value;
-}
+const FACET_KEY: Record<FilterId, keyof DealFacets> = {
+	status: "status",
+	category: "categoryId",
+	source: "sourceId",
+	utmSource: "utmSource",
+	utmMedium: "utmMedium",
+	utmCampaign: "utmCampaign",
+};
 
-type SortKey =
-	| "label"
-	| "deals"
-	| "won"
-	| "conversionRate"
-	| "wonSum"
-	| "opportunitySum";
+type SortKey = "label" | "deals" | "won" | "conversionRate" | "wonSum" | "opportunitySum";
 
 const EMPTY_FILTERS: Record<FilterId, string[]> = {
 	status: [],
@@ -227,20 +133,23 @@ const EMPTY_FILTERS: Record<FilterId, string[]> = {
 
 const CHART_TOP_LIMIT = 12;
 const TABLE_PAGE_SIZE = 20;
+// Сервер клампит pageSize до 100 (apps/dashboard/.../deals/report/route.ts) —
+// для дневного/недельного/месячного разреза это разумный потолок точек графика.
+const CHART_TIME_PAGE_SIZE = 100;
 
-export function ReportBuilder({
-	deals,
-	dictionaries,
-}: {
-	deals: DealRecord[];
-	dictionaries: ReportDictionaries;
-}) {
-	// Настройки отчёта живут в URL (?g=, ?m=, ?ch=, ?f_*) — ссылкой можно поделиться
+/**
+ * Конструктор отчёта: группировка/метрика/фильтры/сортировка живут в URL и
+ * состоянии, сами данные (агрегация, фильтр-фасеты, сводка) — на сервере
+ * (packages/db/src/queries/deals.ts), а не проход по всем сделкам периода в
+ * браузере, как раньше (lib/analytics/aggregate.ts).
+ */
+export function ReportBuilder() {
+	const range = useDashboardRange();
 	const searchParams = useSearchParams();
-	const [dimension, setDimension] = useState<DimensionId>(() => {
+	const [dimension, setDimension] = useState<DealGroupDimension>(() => {
 		const value = searchParams.get("g");
 		return DIMENSIONS.some((d) => d.id === value)
-			? (value as DimensionId)
+			? (value as DealGroupDimension)
 			: "utmSource";
 	});
 	const [metric, setMetric] = useState<MetricId>(() => {
@@ -291,95 +200,61 @@ export function ReportBuilder({
 		DIMENSIONS.find((d) => d.id === dimension) ??
 		(DIMENSIONS[0] as (typeof DIMENSIONS)[number]);
 
-	// Варианты значений для каждого фильтра — по всем сделкам периода, с количеством
-	const filterOptions = useMemo(() => {
-		const options = new Map<
-			FilterId,
-			Array<{ value: string; label: string; count: number }>
-		>();
-		for (const filter of FILTERS) {
-			const counts = new Map<string, number>();
-			for (const deal of deals) {
-				const value = filter.valueOf(deal);
-				counts.set(value, (counts.get(value) ?? 0) + 1);
-			}
-			options.set(
-				filter.id,
-				[...counts.entries()]
-					.map(([value, count]) => ({
-						value,
-						label: filterValueLabel(filter.id, value, dictionaries),
-						count,
-					}))
-					.sort((a, b) => b.count - a.count),
-			);
-		}
-		return options;
-	}, [deals, dictionaries]);
+	const reportFilters: DealsReportFilters = {
+		status: filters.status.length > 0 ? (filters.status as DealStatus[]) : undefined,
+		categoryId: filters.category.length > 0 ? filters.category : undefined,
+		sourceId: filters.source.length > 0 ? filters.source : undefined,
+		utmSource: filters.utmSource.length > 0 ? filters.utmSource : undefined,
+		utmMedium: filters.utmMedium.length > 0 ? filters.utmMedium : undefined,
+		utmCampaign: filters.utmCampaign.length > 0 ? filters.utmCampaign : undefined,
+	};
 
-	const filtered = useMemo(
-		() =>
-			deals.filter((deal) =>
-				FILTERS.every((filter) => {
-					const selected = filters[filter.id];
-					return (
-						selected.length === 0 || selected.includes(filter.valueOf(deal))
-					);
-				}),
-			),
-		[deals, filters],
-	);
+	const facets = useDealsFacets(range);
+	const summaryQuery = useDealsSummary({ range, filters: reportFilters });
 
-	const summary = useMemo(() => summarize(filtered), [filtered]);
+	const sortField: DealsReportSort = sort
+		? sort.key === "label"
+			? "key"
+			: sort.key
+		: isTime
+			? "key"
+			: "deals";
+	const sortDir: "asc" | "desc" = sort
+		? sort.desc
+			? "desc"
+			: "asc"
+		: isTime
+			? "asc"
+			: "desc";
 
-	const groups = useMemo(
-		() =>
-			computeGroupStats(
-				bucketBy(filtered, (deal) => dimensionKey(deal, dimension)),
-				(key) => dimensionLabel(key, dimension, dictionaries),
-			),
-		[filtered, dimension, dictionaries],
-	);
+	const table = useDealsReport({
+		dimension,
+		range,
+		...reportFilters,
+		page: pageIndex + 1,
+		pageSize: TABLE_PAGE_SIZE,
+		sort: sortField,
+		sortDir,
+	});
+	const chart = useDealsReport({
+		dimension,
+		range,
+		...reportFilters,
+		page: 1,
+		pageSize: isTime ? CHART_TIME_PAGE_SIZE : CHART_TOP_LIMIT,
+		sort: isTime ? "key" : metric,
+		sortDir: isTime ? "asc" : "desc",
+	});
 
-	const tableRows = useMemo(() => {
-		const key = sort?.key ?? (isTime ? "label" : "deals");
-		const desc = sort ? sort.desc : !isTime;
-		return [...groups].sort((a, b) => {
-			const av = a[key];
-			const bv = b[key];
-			const cmp =
-				typeof av === "string"
-					? av.localeCompare(bv as string, "ru")
-					: av - (bv as number);
-			return desc ? -cmp : cmp;
-		});
-	}, [groups, sort, isTime]);
+	const tableRows = table.data?.rows ?? [];
+	const groupsTotal = table.data?.total ?? 0;
+	const pageCount = Math.max(1, Math.ceil(groupsTotal / TABLE_PAGE_SIZE));
+	const summary = summaryQuery.data?.summary;
 
-	// Группировка по дням/неделям за длинный период или разрез по utm_term/
-	// utm_content с большим числом уникальных значений легко даёт сотни строк —
-	// рендерим таблицу постранично, а не всю сразу.
-	const pageCount = Math.max(1, Math.ceil(tableRows.length / TABLE_PAGE_SIZE));
-	const clampedPageIndex = Math.min(pageIndex, pageCount - 1);
-	const pageRows = useMemo(
-		() =>
-			tableRows.slice(
-				clampedPageIndex * TABLE_PAGE_SIZE,
-				clampedPageIndex * TABLE_PAGE_SIZE + TABLE_PAGE_SIZE,
-			),
-		[tableRows, clampedPageIndex],
-	);
-
-	const chartRows = useMemo(() => {
-		const rows = isTime
-			? [...groups].sort((a, b) => a.key.localeCompare(b.key))
-			: [...groups]
-					.sort((a, b) => metricValue(b, metric) - metricValue(a, metric))
-					.slice(0, CHART_TOP_LIMIT);
-		return rows.map((row) => ({
-			label: row.label,
-			value: metricValue(row, metric),
-		}));
-	}, [groups, isTime, metric]);
+	const chartRows = (chart.data?.rows ?? []).map((row) => ({
+		label: row.label,
+		value: metricValue(row, metric),
+	}));
 
 	const chartConfig = {
 		value: { label: metricInfo.label, color: "var(--chart-1)" },
@@ -446,7 +321,7 @@ export function ReportBuilder({
 							<Select
 								value={dimension}
 								onValueChange={(v) => {
-									setDimension(v as DimensionId);
+									setDimension(v as DealGroupDimension);
 									setPageIndex(0);
 								}}
 							>
@@ -503,6 +378,7 @@ export function ReportBuilder({
 					<div className="flex flex-wrap items-center gap-2">
 						{FILTERS.map((filter) => {
 							const selected = filters[filter.id];
+							const options = facets.data?.[FACET_KEY[filter.id]] ?? [];
 							return (
 								<DropdownMenu key={filter.id}>
 									<DropdownMenuTrigger asChild>
@@ -518,7 +394,7 @@ export function ReportBuilder({
 										align="start"
 										className="max-h-72 overflow-y-auto"
 									>
-										{(filterOptions.get(filter.id) ?? []).map((option) => (
+										{options.map((option) => (
 											<DropdownMenuCheckboxItem
 												key={option.value}
 												checked={selected.includes(option.value)}
@@ -564,12 +440,10 @@ export function ReportBuilder({
 						{dimensionInfo.label}: {metricInfo.label}
 					</CardTitle>
 					<CardDescription>
-						{formatNumber(summary.totalDeals)} сделок · выиграно{" "}
-						{formatNumber(summary.wonDeals)} · конверсия{" "}
-						{formatPercent(summary.conversionRate)} · сумма выигранных{" "}
-						{formatMoney(summary.wonSum)}
+						{summary &&
+							`${formatNumber(summary.totalDeals)} сделок · выиграно ${formatNumber(summary.wonDeals)} · конверсия ${formatPercent(summary.conversionRate)} · сумма выигранных ${formatMoney(summary.wonSum)}`}
 						{!isTime &&
-							groups.length > CHART_TOP_LIMIT &&
+							groupsTotal > CHART_TOP_LIMIT &&
 							` · на графике топ-${CHART_TOP_LIMIT} групп`}
 					</CardDescription>
 				</CardHeader>
@@ -643,7 +517,7 @@ export function ReportBuilder({
 				<CardHeader>
 					<CardTitle>Таблица: {dimensionInfo.label}</CardTitle>
 					<CardDescription>
-						{formatNumber(groups.length)} групп — сортировка по клику на
+						{formatNumber(groupsTotal)} групп — сортировка по клику на
 						заголовок столбца
 					</CardDescription>
 					<CardAction>
@@ -657,14 +531,21 @@ export function ReportBuilder({
 								"Сумма выигранных",
 								"Сумма в воронке",
 							]}
-							rows={tableRows.map((row) => [
-								row.label,
-								row.deals,
-								row.won,
-								(row.conversionRate * 100).toFixed(1),
-								Math.round(row.wonSum),
-								Math.round(row.opportunitySum),
-							])}
+							getRows={async () => {
+								const rows = await fetchAllDealsReportRows(
+									dimension,
+									range,
+									reportFilters,
+								);
+								return rows.map((row) => [
+									row.label,
+									row.deals,
+									row.won,
+									(row.conversionRate * 100).toFixed(1),
+									Math.round(row.wonSum),
+									Math.round(row.opportunitySum),
+								]);
+							}}
 						/>
 					</CardAction>
 				</CardHeader>
@@ -685,7 +566,16 @@ export function ReportBuilder({
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{pageRows.length === 0 ? (
+							{table.isLoading ? (
+								<TableRow>
+									<TableCell
+										colSpan={6}
+										className="py-8 text-center text-muted-foreground"
+									>
+										Загрузка…
+									</TableCell>
+								</TableRow>
+							) : tableRows.length === 0 ? (
 								<TableRow>
 									<TableCell
 										colSpan={6}
@@ -695,7 +585,7 @@ export function ReportBuilder({
 									</TableCell>
 								</TableRow>
 							) : (
-								pageRows.map((row) => (
+								tableRows.map((row) => (
 									<TableRow key={row.key}>
 										<TableCell className="font-medium">{row.label}</TableCell>
 										<TableCell className="text-right tabular-nums">
@@ -721,29 +611,26 @@ export function ReportBuilder({
 						</TableBody>
 					</Table>
 
-					{tableRows.length > TABLE_PAGE_SIZE && (
+					{groupsTotal > TABLE_PAGE_SIZE && (
 						<div className="flex items-center justify-between gap-4 pt-3 text-sm text-muted-foreground">
 							<span>
-								{formatNumber(clampedPageIndex * TABLE_PAGE_SIZE + 1)}–
+								{formatNumber(pageIndex * TABLE_PAGE_SIZE + 1)}–
 								{formatNumber(
-									Math.min(
-										tableRows.length,
-										(clampedPageIndex + 1) * TABLE_PAGE_SIZE,
-									),
+									Math.min(groupsTotal, (pageIndex + 1) * TABLE_PAGE_SIZE),
 								)}{" "}
-								из {formatNumber(tableRows.length)}
+								из {formatNumber(groupsTotal)}
 							</span>
 							<div className="flex items-center gap-2">
 								<Button
 									variant="outline"
 									size="sm"
 									onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
-									disabled={clampedPageIndex === 0}
+									disabled={pageIndex === 0}
 								>
 									Назад
 								</Button>
 								<span className="tabular-nums">
-									{clampedPageIndex + 1} / {pageCount}
+									{pageIndex + 1} / {pageCount}
 								</span>
 								<Button
 									variant="outline"
@@ -751,7 +638,7 @@ export function ReportBuilder({
 									onClick={() =>
 										setPageIndex((i) => Math.min(pageCount - 1, i + 1))
 									}
-									disabled={clampedPageIndex >= pageCount - 1}
+									disabled={pageIndex >= pageCount - 1}
 								>
 									Вперёд
 								</Button>

@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { InfoIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { FunnelChart } from "@/components/dashboard/funnel-chart";
 import { FunnelStages } from "@/components/dashboard/funnel-stages";
 import { NotConnected } from "@/components/dashboard/not-connected";
@@ -16,17 +16,29 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBitrixData, useDashboardRange } from "@/hooks/use-bitrix-data";
-import { funnelByStage, groupDealsByCategory } from "@/lib/analytics/aggregate";
+import { useDealsReport } from "@/hooks/use-deals-report";
 import { formatDateParam } from "@/lib/analytics/date-range";
 import {
 	type StageReachCount,
 	stageReachFunnel,
 } from "@/lib/analytics/deal-stage-history";
 import type { StageInfo } from "@/lib/analytics/deals";
-import type { DateRange } from "@/lib/analytics/types";
+import type { DateRange, DealStatus, FunnelStage } from "@/lib/analytics/types";
 import { formatNumber } from "@/lib/format";
 
 type FunnelMode = "created" | "active" | "reached";
+
+const CATEGORY_PAGE_SIZE = 50;
+const STAGE_PAGE_SIZE = 50;
+
+/** Совпадает с priority WON→LOSE в normalizeDeal (packages/jobs/src/deals-sync.ts,
+ * ранее lib/analytics/deals.ts) — терминальные стадии Bitrix24 всегда содержат
+ * WON/LOSE в коде стадии. */
+function stageStatusOf(stageId: string): DealStatus {
+	if (stageId.includes("WON")) return "won";
+	if (stageId.includes("LOSE")) return "lost";
+	return "in_progress";
+}
 
 export default function FunnelPage() {
 	return (
@@ -39,32 +51,45 @@ export default function FunnelPage() {
 function FunnelPageContent() {
 	const reportFilter = useDashboardRange();
 	const [mode, setMode] = useState<FunnelMode>("created");
-	// openDeals (crm.deal.list с CLOSED=N) не ограничен диапазоном дат — на
-	// CRM с историей это может быть заметно больше, чем deals за период.
-	// Подгружаем его только когда реально открыта вкладка «Активно сейчас»,
-	// а не на каждый заход на страницу воронки.
-	const { data, isLoading, isError } = useBitrixData([
-		"deals",
-		"stageNames",
-		"categoryNames",
-		...(mode === "active" ? (["openDeals"] as const) : []),
-	]);
-
-	const deals = (mode === "active" ? data?.openDeals : data?.deals) ?? [];
-	const stageNames = data?.stageNames ?? new Map();
-	const categoryNames = data?.categoryNames ?? new Map();
-	const byCategory = useMemo(
-		() =>
-			[...groupDealsByCategory(deals).entries()].sort(
-				([, a], [, b]) => b.length - a.length,
-			),
-		[deals],
+	const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
+		null,
 	);
+	// stageNames нужны только за порядком стадий в воронке (SORT из Bitrix
+	// pipeline) — сами подписи groupDealsBy уже резолвит на сервере.
+	const { data, isLoading, isError } = useBitrixData(["stageNames"]);
+	const stageNames = data?.stageNames ?? new Map<string, StageInfo>();
 
-	if (isLoading) {
+	// "Активно сейчас" — снэпшот без фильтра по дате создания (как раньше
+	// fetchOpenDeals), поэтому range не передаём вовсе — не 30-дневный дефолт.
+	const range = mode === "active" ? undefined : reportFilter;
+	const status = mode === "active" ? ("in_progress" as const) : undefined;
+
+	const byCategory = useDealsReport({
+		dimension: "category",
+		range,
+		status,
+		page: 1,
+		pageSize: CATEGORY_PAGE_SIZE,
+		sort: "deals",
+	});
+	const categories = byCategory.data?.rows ?? [];
+	const selectedCategoryId = activeCategoryId ?? categories[0]?.key ?? null;
+
+	const stageReport = useDealsReport({
+		dimension: "stage",
+		range,
+		status,
+		categoryId: selectedCategoryId ?? undefined,
+		page: 1,
+		pageSize: STAGE_PAGE_SIZE,
+		sort: "deals",
+		enabled: selectedCategoryId !== null && mode !== "reached",
+	});
+
+	if (isLoading || byCategory.isLoading) {
 		return <p className="text-sm text-muted-foreground">Загрузка…</p>;
 	}
-	if (isError) {
+	if (isError || byCategory.isError) {
 		return (
 			<p className="text-sm text-destructive">
 				Не удалось загрузить данные. Попробуйте обновить страницу.
@@ -73,7 +98,22 @@ function FunnelPageContent() {
 	}
 	if (!data?.connected) return <NotConnected />;
 
-	const firstCategory = byCategory[0];
+	const selectedCategory = categories.find((c) => c.key === selectedCategoryId);
+	const categoryTotal = selectedCategory?.deals ?? 0;
+	const stages: FunnelStage[] = (stageReport.data?.rows ?? [])
+		.map((row) => ({
+			stageId: row.key,
+			label: row.label,
+			deals: row.deals,
+			opportunitySum: row.opportunitySum,
+			share: categoryTotal > 0 ? row.deals / categoryTotal : 0,
+			status: stageStatusOf(row.key),
+		}))
+		.sort(
+			(a, b) =>
+				(stageNames.get(a.stageId)?.sort ?? Number.MAX_SAFE_INTEGER) -
+				(stageNames.get(b.stageId)?.sort ?? Number.MAX_SAFE_INTEGER),
+		);
 
 	const modeDescription =
 		mode === "created"
@@ -108,7 +148,7 @@ function FunnelPageContent() {
 				<p>{modeDescription}</p>
 			</div>
 
-			{!firstCategory ? (
+			{categories.length === 0 ? (
 				<Card>
 					<CardHeader>
 						<CardTitle>Воронка продаж</CardTitle>
@@ -120,36 +160,39 @@ function FunnelPageContent() {
 					</CardHeader>
 				</Card>
 			) : (
-				<Tabs key={mode} defaultValue={firstCategory[0]}>
+				<Tabs
+					value={selectedCategoryId ?? undefined}
+					onValueChange={setActiveCategoryId}
+				>
 					<TabsList className="max-w-full justify-start overflow-x-auto">
-						{byCategory.map(([categoryId, categoryDeals]) => (
-							<TabsTrigger key={categoryId} value={categoryId}>
-								{categoryNames.get(categoryId) ?? `Воронка ${categoryId}`}
+						{categories.map((category) => (
+							<TabsTrigger key={category.key} value={category.key}>
+								{category.label}
 								<Badge variant="secondary">
-									{formatNumber(categoryDeals.length)}
+									{formatNumber(category.deals)}
 								</Badge>
 							</TabsTrigger>
 						))}
 					</TabsList>
 
-					{byCategory.map(([categoryId, categoryDeals]) => (
-						<TabsContent key={categoryId} value={categoryId}>
+					{selectedCategoryId && (
+						<TabsContent value={selectedCategoryId}>
 							{mode === "reached" ? (
 								<StageReachPanel
-									categoryId={categoryId}
+									categoryId={selectedCategoryId}
 									stageNames={stageNames}
 									reportFilter={reportFilter}
 								/>
 							) : (
 								<FunnelStages
-									stages={funnelByStage(categoryDeals, stageNames)}
+									stages={stages}
 									mode={mode}
-									categoryId={categoryId}
+									categoryId={selectedCategoryId}
 									reportFilter={reportFilter}
 								/>
 							)}
 						</TabsContent>
-					))}
+					)}
 				</Tabs>
 			)}
 		</div>
