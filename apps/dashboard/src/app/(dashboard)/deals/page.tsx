@@ -1,7 +1,7 @@
 "use client";
 
-import { AlertCircleIcon } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { AlertCircleIcon, ArrowLeftIcon } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DealsTable } from "@/components/dashboard/deals-table";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { PageSuspense } from "@/components/dashboard/page-suspense";
@@ -39,6 +39,7 @@ export default function DealsPage() {
 }
 
 function DealsPageContent() {
+	const router = useRouter();
 	const searchParams = useSearchParams();
 	// Справочники (имена источников/стадий/воронок, домен портала) по-прежнему
 	// живьём из Bitrix24 — дешёвые нефильтруемые запросы. Сами сделки теперь
@@ -126,7 +127,18 @@ function DealsPageContent() {
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>Сделки</CardTitle>
+				<div className="flex items-center gap-2">
+					<Button
+						variant="ghost"
+						size="icon"
+						className="size-8"
+						aria-label="Назад"
+						onClick={() => router.back()}
+					>
+						<ArrowLeftIcon />
+					</Button>
+					<CardTitle>Сделки</CardTitle>
+				</div>
 			</CardHeader>
 			<CardContent>
 				<DealsTable
