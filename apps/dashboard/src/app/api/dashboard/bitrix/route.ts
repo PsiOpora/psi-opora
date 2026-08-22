@@ -10,11 +10,14 @@ import { getBitrixApi } from "@/lib/bitrix/session";
 export const dynamic = "force-dynamic";
 
 /**
- * Справочники Bitrix24 (имена источников/стадий/воронок, домен портала) —
- * дешёвые нефильтруемые запросы, живьём. Сами сделки читаются из локального
- * зеркала (packages/db, таблица deals) через /api/dashboard/deals* —
- * см. hooks/use-deals-report.ts, use-deals-summary.ts. `need` — список
- * через запятую: sourceNames, categoryNames, stageNames, dealDomain.
+ * Справочники сделок (имена источников/стадий/воронок) — из локального
+ * зеркала (packages/db, таблица deal_dictionaries), синкается вместе со
+ * сделками (packages/jobs/src/deals-sync.ts). Сами сделки читаются оттуда же
+ * через /api/dashboard/deals* — см. hooks/use-deals-report.ts,
+ * use-deals-summary.ts. `connected`/`dealDomain` — единственное, что ещё
+ * зависит от live-подключения к Bitrix (для ссылок на карточки CRM и баннера
+ * "не подключено"). `need` — список через запятую: sourceNames,
+ * categoryNames, stageNames, dealDomain.
  */
 export async function GET(request: Request) {
 	const url = new URL(request.url);
@@ -31,14 +34,12 @@ export async function GET(request: Request) {
 		const [sourceNames, categoryNames, stageNames, dealDomain] =
 			await Promise.all([
 				need.has("sourceNames")
-					? fetchSourceNames(api)
+					? fetchSourceNames()
 					: Promise.resolve(undefined),
 				need.has("categoryNames")
-					? fetchCategoryNames(api)
+					? fetchCategoryNames()
 					: Promise.resolve(undefined),
-				need.has("stageNames")
-					? fetchStageNames(api)
-					: Promise.resolve(undefined),
+				need.has("stageNames") ? fetchStageNames() : Promise.resolve(undefined),
 				need.has("dealDomain")
 					? getBitrixPortalDomain()
 					: Promise.resolve(undefined),

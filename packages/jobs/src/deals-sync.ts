@@ -3,6 +3,8 @@ import {
 	deleteDeal,
 	getSyncWatermark,
 	type NewDeal,
+	type NewDealDictionaryEntry,
+	replaceDealDictionary,
 	upsertDeals,
 } from "@psi-opora/db/queries";
 
@@ -141,6 +143,56 @@ export async function syncOneDeal(
 /** Удаление сделки из зеркала — обработчик вебхука OnCrmDealDelete. */
 export async function removeSyncedDeal(dealId: string): Promise<void> {
 	await deleteDeal(dealId);
+}
+
+/**
+ * Справочники источников/стадий/воронок (packages/db, таблица deal_dictionaries) —
+ * подписи для отчётов дашборда читаются отсюда вместо live crm.status.list/
+ * crm.category.list на каждый просмотр (apps/dashboard/src/lib/analytics/deals.ts).
+ * Меняются редко, поэтому синкаются целиком (replace) вместе со сделками.
+ */
+export async function syncDealDictionaries(api: BitrixApi): Promise<void> {
+	const [statusRows, categoryResult] = await Promise.all([
+		api.list<{
+			ENTITY_ID: string;
+			STATUS_ID: string;
+			NAME: string;
+			SORT: string;
+		}>("crm.status.list", {
+			select: ["ENTITY_ID", "STATUS_ID", "NAME", "SORT"],
+		}),
+		api.call<{ categories: Array<{ id: number; name: string }> }>(
+			"crm.category.list",
+			{ entityTypeId: 2 },
+		),
+	]);
+
+	const sources: NewDealDictionaryEntry[] = [];
+	const stages: NewDealDictionaryEntry[] = [];
+	for (const row of statusRows) {
+		if (row.ENTITY_ID === "SOURCE") {
+			sources.push({ type: "source", id: row.STATUS_ID, name: row.NAME });
+		} else if (
+			row.ENTITY_ID === "DEAL_STAGE" ||
+			row.ENTITY_ID.startsWith("DEAL_STAGE_")
+		) {
+			stages.push({
+				type: "stage",
+				id: row.STATUS_ID,
+				name: row.NAME,
+				sort: Number(row.SORT) || 0,
+			});
+		}
+	}
+	const categories: NewDealDictionaryEntry[] = categoryResult.categories.map(
+		(c) => ({ type: "category", id: String(c.id), name: c.name }),
+	);
+
+	await Promise.all([
+		replaceDealDictionary("source", sources),
+		replaceDealDictionary("stage", stages),
+		replaceDealDictionary("category", categories),
+	]);
 }
 
 const BACKFILL_BATCH_SIZE = 500;

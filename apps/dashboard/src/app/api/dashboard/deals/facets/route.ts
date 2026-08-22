@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import { fetchCategoryNames, fetchSourceNames } from "@/lib/analytics/deals";
 import { STATUS_LABEL } from "@/lib/analytics/status-label";
-import { getBitrixApi } from "@/lib/bitrix/session";
 import { validateDateRange, zodBadRequest } from "@/lib/api/validation";
 
 export const dynamic = "force-dynamic";
@@ -27,21 +26,17 @@ export async function GET(request: Request) {
 
 	const range = parseDateRange(Object.fromEntries(params));
 
-	const api = await getBitrixApi();
-	// Названия категорий/источников — необязательное украшение (иначе просто
-	// сырые id); недоступность/нехватка прав у Bitrix-клиента (например,
-	// dev-вебхука без нужного скоупа) не должна валить весь ответ фасетов.
-	const emptyNames = () => new Map<string, string>();
 	const [facets, categoryNames, sourceNames] = await Promise.all([
 		getFilterFacets(range),
-		api ? fetchCategoryNames(api).catch(emptyNames) : Promise.resolve(emptyNames()),
-		api ? fetchSourceNames(api).catch(emptyNames) : Promise.resolve(emptyNames()),
+		fetchCategoryNames(),
+		fetchSourceNames(),
 	]);
 
 	return NextResponse.json({
 		status: facets.status.map((f) => ({
 			...f,
-			label: STATUS_LABEL[f.value as keyof typeof STATUS_LABEL]?.label ?? f.value,
+			label:
+				STATUS_LABEL[f.value as keyof typeof STATUS_LABEL]?.label ?? f.value,
 		})),
 		categoryId: facets.categoryId.map((f) => ({
 			...f,

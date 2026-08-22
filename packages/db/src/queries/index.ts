@@ -151,14 +151,15 @@ export type {
 export type { BotText } from "./bot-texts";
 export type { BotUser, BotUserProfileEntry, NewBotUser } from "./bot-users";
 export * from "./broadcast";
-export * from "./deal-stage-history";
-export * from "./deals";
 export type {
 	ClientIdentity,
 	ClientIdentityLink,
 	MergeClientIdentitiesEntry,
 } from "./client-identity-links";
 export type { ClientNote, NewClientNoteEntry } from "./client-notes";
+export * from "./deal-dictionaries";
+export * from "./deal-stage-history";
+export * from "./deals";
 export * from "./email-campaign";
 export * from "./email-provider";
 export * from "./email-templates";

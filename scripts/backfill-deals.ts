@@ -14,7 +14,10 @@
 // пакет уже хранит свои зависимости в собственном node_modules.
 import { resolveBitrixApi } from "../packages/bitrix-client/src/client";
 import { env } from "../packages/config/src/env";
-import { syncAllDeals } from "../packages/jobs/src/deals-sync";
+import {
+	syncAllDeals,
+	syncDealDictionaries,
+} from "../packages/jobs/src/deals-sync";
 
 async function main() {
 	const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
@@ -29,6 +32,10 @@ async function main() {
 		console.log(`  синхронизировано ${synced} из ${total}`);
 	});
 	console.log(`Готово: ${result.synced} сделок.`);
+
+	console.log("Синхронизация справочников (источники/стадии/воронки)…");
+	await syncDealDictionaries(api);
+	console.log("Готово.");
 }
 
 await main();
