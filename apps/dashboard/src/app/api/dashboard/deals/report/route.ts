@@ -78,10 +78,16 @@ async function resolveNames(
   }
   const api = await getBitrixApi();
   if (!api) return new Map();
-  if (dimension === "source") return fetchSourceNames(api);
-  if (dimension === "category") return fetchCategoryNames(api);
-  const stages = await fetchStageNames(api);
-  return new Map([...stages].map(([id, info]) => [id, info.name]));
+  // Названия — необязательное украшение (иначе просто сырые id); недоступность
+  // Bitrix-клиента не должна валить весь ответ отчёта.
+  try {
+    if (dimension === "source") return await fetchSourceNames(api);
+    if (dimension === "category") return await fetchCategoryNames(api);
+    const stages = await fetchStageNames(api);
+    return new Map([...stages].map(([id, info]) => [id, info.name]));
+  } catch {
+    return new Map();
+  }
 }
 
 function labelOf(
