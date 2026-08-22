@@ -1,13 +1,15 @@
 import { FUNNEL_STEPS, type FunnelStep } from "@psi-opora/bot-core";
-import { getBotFunnelEventsByDateRange } from "@psi-opora/db/queries";
+import { getBotFunnelUniqueStepCountsByDateRange } from "@psi-opora/db/queries";
 import type { DateRange } from "./types";
 
 export interface BotFunnelEvent {
-	day: string;
 	messenger: string;
 	step: FunnelStep;
 	source: string;
 	campaign: string;
+	/** Уникальные пользователи мессенджера, дошедшие до шага за период —
+	 * повторные /start одного и того же человека считаются один раз
+	 * (см. getBotFunnelUniqueStepCountsByDateRange). */
 	count: number;
 }
 
@@ -36,13 +38,19 @@ export const STEP_LABELS: Record<FunnelStep, string> = {
 	subscribe: "Согласились на рассылку",
 };
 
+export const MESSENGER_LABELS: Record<string, string> = {
+	telegram: "Telegram",
+	max: "MAX",
+	all: "Все мессенджеры",
+};
+
 /** Суффикс тестовой кампании: `vk_ads1_test`, `some_source_test` и т.п. — не учитывается в отчёте. */
 const TEST_CAMPAIGN_SUFFIX = "_test";
 
 export async function fetchBotFunnelEvents(
 	range: DateRange,
 ): Promise<BotFunnelEvent[]> {
-	const rows = await getBotFunnelEventsByDateRange(
+	const rows = await getBotFunnelUniqueStepCountsByDateRange(
 		range.from.toISOString().slice(0, 10),
 		range.to.toISOString().slice(0, 10),
 	);
@@ -51,12 +59,11 @@ export async function fetchBotFunnelEvents(
 		.filter((row) => (FUNNEL_STEPS as readonly string[]).includes(row.step))
 		.filter((row) => !row.campaign.endsWith(TEST_CAMPAIGN_SUFFIX))
 		.map((row) => ({
-			day: row.day,
 			messenger: row.messenger,
 			step: row.step as FunnelStep,
 			source: row.source,
 			campaign: row.campaign,
-			count: row.count,
+			count: row.uniqueUsers,
 		}));
 }
 
