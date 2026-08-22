@@ -66,10 +66,31 @@ import { dealUrl } from "@/lib/deal-url";
 import { formatMoney, formatNumber } from "@/lib/format";
 
 const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [20, 50, 100];
 const ALL = "__all";
 /** Задержка перед отправкой запроса на сервер после ввода в поиск — без неё
  * каждое нажатие клавиши гоняло бы отдельный HTTP-запрос. */
 const SEARCH_DEBOUNCE_MS = 300;
+
+/** Номера страниц с многоточиями вокруг текущей — вместо сплошного списка
+ * из сотен кнопок при большом количестве страниц. */
+function buildPageItems(
+	pageIndex: number,
+	pageCount: number,
+): Array<number | "ellipsis"> {
+	const current = pageIndex + 1;
+	const items = new Set<number>([1, pageCount, current - 1, current, current + 1]);
+	const sorted = [...items].filter((p) => p >= 1 && p <= pageCount).sort((a, b) => a - b);
+
+	const result: Array<number | "ellipsis"> = [];
+	let prev: number | undefined;
+	for (const page of sorted) {
+		if (prev !== undefined && page - prev > 1) result.push("ellipsis");
+		result.push(page);
+		prev = page;
+	}
+	return result;
+}
 
 interface DealsTableProps {
 	sourceNames?: Map<string, string>;
@@ -589,30 +610,91 @@ export function DealsTable({
 					</div>
 
 					<div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-						<span>
-							{formatNumber(from)}–{formatNumber(to)} из {formatNumber(total)}
-						</span>
-						<div className="flex items-center gap-2">
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => table.previousPage()}
-								disabled={!table.getCanPreviousPage()}
-							>
-								Назад
-							</Button>
-							<span className="tabular-nums">
-								{pageIndex + 1} / {Math.max(pageCount, 1)}
+						<div className="flex items-center gap-3">
+							<span>
+								{formatNumber(from)}–{formatNumber(to)} из {formatNumber(total)}
 							</span>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => table.nextPage()}
-								disabled={!table.getCanNextPage()}
+							<Select
+								value={String(pagination.pageSize)}
+								onValueChange={(value) =>
+									setPagination({ pageIndex: 0, pageSize: Number(value) })
+								}
 							>
-								Вперёд
-							</Button>
+								<SelectTrigger
+									aria-label="Строк на странице"
+									size="sm"
+									className="w-auto"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectGroup>
+										{PAGE_SIZE_OPTIONS.map((size) => (
+											<SelectItem key={size} value={String(size)}>
+												{size} на странице
+											</SelectItem>
+										))}
+									</SelectGroup>
+								</SelectContent>
+							</Select>
 						</div>
+						<Pagination className="mx-0 w-auto">
+							<PaginationContent>
+								<PaginationItem>
+									<PaginationPrevious
+										href="#"
+										text=""
+										aria-disabled={!table.getCanPreviousPage()}
+										className={
+											table.getCanPreviousPage()
+												? undefined
+												: "pointer-events-none opacity-50"
+										}
+										onClick={(event) => {
+											event.preventDefault();
+											table.previousPage();
+										}}
+									/>
+								</PaginationItem>
+								{buildPageItems(pageIndex, Math.max(pageCount, 1)).map((item, index) =>
+									item === "ellipsis" ? (
+										// biome-ignore lint/suspicious/noArrayIndexKey: ellipsis positions are stable within a single render
+										<PaginationItem key={`ellipsis-${index}`}>
+											<PaginationEllipsis />
+										</PaginationItem>
+									) : (
+										<PaginationItem key={item}>
+											<PaginationLink
+												href="#"
+												isActive={item === pageIndex + 1}
+												onClick={(event) => {
+													event.preventDefault();
+													table.setPageIndex(item - 1);
+												}}
+											>
+												{item}
+											</PaginationLink>
+										</PaginationItem>
+									),
+								)}
+								<PaginationItem>
+									<PaginationNext
+										href="#"
+										text=""
+										aria-disabled={!table.getCanNextPage()}
+										className={
+											table.getCanNextPage()
+												? undefined
+												: "pointer-events-none opacity-50"
+										}
+										onClick={(event) => {
+											event.preventDefault();
+											table.nextPage();
+										}}
+									/>
+								</PaginationItem>
+							</PaginationContent>
+						</Pagination>
 					</div>
 				</>
 			)}
