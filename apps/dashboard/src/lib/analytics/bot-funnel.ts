@@ -1,5 +1,6 @@
 import { FUNNEL_STEPS, type FunnelStep } from "@psi-opora/bot-core";
 import { getBotFunnelUniqueStepCountsByDateRange } from "@psi-opora/db/queries";
+import { formatDateParam } from "./date-range";
 import type { DateRange } from "./types";
 
 export interface BotFunnelEvent {
@@ -51,8 +52,8 @@ export async function fetchBotFunnelEvents(
 	range: DateRange,
 ): Promise<BotFunnelEvent[]> {
 	const rows = await getBotFunnelUniqueStepCountsByDateRange(
-		range.from.toISOString().slice(0, 10),
-		range.to.toISOString().slice(0, 10),
+		formatDateParam(range.from),
+		formatDateParam(range.to),
 	);
 
 	return rows

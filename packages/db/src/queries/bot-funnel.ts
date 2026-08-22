@@ -176,9 +176,12 @@ export async function getBotFunnelStepClients(
 		messenger?: string;
 		source?: string;
 		campaign?: string;
+		limit?: number;
 	},
 ): Promise<BotFunnelStepClient[]> {
 	if (!db) return [];
+
+	const limit = params.limit ?? 1000;
 
 	const conditions = [
 		eq(botFunnelUserSteps.step, params.step),
@@ -201,7 +204,8 @@ export async function getBotFunnelStepClients(
 		})
 		.from(botFunnelUserSteps)
 		.where(and(...conditions))
-		.orderBy(botFunnelUserSteps.day);
+		.orderBy(botFunnelUserSteps.day)
+		.limit(limit);
 
 	const byUser = new Map<
 		string,
