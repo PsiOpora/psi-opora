@@ -31,7 +31,7 @@ export type DealRowDTO = z.infer<typeof DealRowSchema>;
 /** Ответ /api/dashboard/deals (список с пагинацией). */
 export const DealsResponseSchema = z.object({
 	rows: z.array(DealRowSchema),
-	total: z.number(),
+	total: z.number().int().nonnegative(),
 	page: z.number().optional(),
 	pageSize: z.number().optional(),
 });
