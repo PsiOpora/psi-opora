@@ -43,9 +43,6 @@ spec:
                 runAsNonRoot: false
                 runAsUser: 0
                 allowPrivilegeEscalation: false
-                capabilities:
-                  drop:
-                    - ALL
               env:
                 - name: PGHOST
                   value: postgres
