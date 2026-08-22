@@ -46,7 +46,9 @@ export function FunnelChart({
 	showConversion = true,
 	hint,
 }: FunnelChartProps) {
-	const startCount = steps[0]?.count ?? 1;
+	const normalizationBase = showConversion
+		? (steps[0]?.count ?? 1)
+		: Math.max(...steps.map((s) => s.count), 1);
 
 	return (
 		<div className={cn("flex flex-col", className)}>
@@ -58,7 +60,7 @@ export function FunnelChart({
 			)}
 			<div className="flex flex-col gap-0">
 				{steps.map((step, i) => {
-					const widthPct = (step.count / startCount) * 100;
+					const widthPct = (step.count / normalizationBase) * 100;
 					const color = STEP_COLORS[i % STEP_COLORS.length];
 					const isLast = i === steps.length - 1;
 
