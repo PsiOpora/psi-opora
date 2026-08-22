@@ -173,12 +173,14 @@ function dealsWhere(
 	}
 	if (options.reachedStage) {
 		const { stageId, categoryId, from, to } = options.reachedStage;
+		// from/to как ISO-строки, не Date, — та же причина, что и у gte/lte выше:
+		// postgres.js не сериализует Date внутри sql``-интерполяции.
 		clauses.push(sql`${deals.id} in (
       select ${dealStageHistory.dealId} from ${dealStageHistory}
       where ${dealStageHistory.stageId} = ${stageId}
         and ${dealStageHistory.categoryId} = ${categoryId}
-        and ${dealStageHistory.enteredAt} >= ${from}
-        and ${dealStageHistory.enteredAt} <= ${to}
+        and ${dealStageHistory.enteredAt} >= ${from.toISOString()}
+        and ${dealStageHistory.enteredAt} <= ${to.toISOString()}
     )`);
 	}
 	return clauses.length > 0 ? and(...clauses) : undefined;
