@@ -219,6 +219,7 @@ export async function dispatchScenarioOutput(
 			messenger: deps.messenger,
 			source: deps.source,
 			campaign: deps.campaign,
+			userId: deps.userId,
 		});
 	}
 

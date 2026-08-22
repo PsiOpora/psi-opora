@@ -15,6 +15,7 @@ export type UpsertFunnelFn = (data: {
 	step: string;
 	source?: string;
 	campaign?: string;
+	userId?: string | number;
 }) => Promise<void>;
 
 /**
@@ -58,6 +59,9 @@ export interface FunnelEventContext {
 	messenger: string;
 	source?: string;
 	campaign?: string;
+	/** ID пользователя мессенджера — нужен для дедупликации: без него шаг
+	 * попадёт только в общий (неуникальный) счётчик bot_funnel_events. */
+	userId?: string | number;
 }
 
 const FIELD_SEP = "|";
@@ -116,6 +120,7 @@ export async function trackFunnelStep(
 			step,
 			source,
 			campaign,
+			userId: ctx.userId,
 		});
 	} catch (err) {
 		console.error(

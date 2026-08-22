@@ -5,7 +5,6 @@ import {
 	funnelBySourceCampaign,
 	funnelStepStats,
 } from "@/lib/analytics/bot-funnel";
-import { isRedisConfigured } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
@@ -24,22 +23,11 @@ export async function GET(request: Request) {
 		? new Date(fromParam)
 		: new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-	if (!isRedisConfigured()) {
-		return NextResponse.json({
-			events: [],
-			steps: [],
-			byMessenger: [],
-			bySource: [],
-			redisConfigured: false,
-		});
-	}
-
 	const events = await fetchBotFunnelEvents({ from, to });
 	return NextResponse.json({
 		events,
 		steps: funnelStepStats(events),
 		byMessenger: funnelByMessenger(events),
 		bySource: funnelBySourceCampaign(events),
-		redisConfigured: true,
 	});
 }

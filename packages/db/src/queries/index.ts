@@ -23,6 +23,8 @@ import {
 } from "./bot-conversations";
 import {
 	getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
+	getBotFunnelStepClients as _getBotFunnelStepClients,
+	getBotFunnelUniqueStepCountsByDateRange as _getBotFunnelUniqueStepCountsByDateRange,
 	upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
 import {
@@ -119,7 +121,12 @@ export type {
 	BotConversation,
 	ConversationAssignment,
 } from "./bot-conversations";
-export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
+export type {
+	BotFunnelEvent,
+	BotFunnelStepClient,
+	BotFunnelUniqueStepCount,
+	NewBotFunnelEvent,
+} from "./bot-funnel";
 export type {
 	BotGuideCampaign,
 	NewBotGuideCampaign,
@@ -312,6 +319,19 @@ export async function getBotFunnelEventsByDateRange(
 	toDate: string,
 ) {
 	return _getBotFunnelEventsByDateRange(db, fromDate, toDate);
+}
+
+export async function getBotFunnelUniqueStepCountsByDateRange(
+	fromDate: string,
+	toDate: string,
+) {
+	return _getBotFunnelUniqueStepCountsByDateRange(db, fromDate, toDate);
+}
+
+export async function getBotFunnelStepClients(
+	params: Parameters<typeof _getBotFunnelStepClients>[1],
+) {
+	return _getBotFunnelStepClients(db, params);
 }
 
 export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {

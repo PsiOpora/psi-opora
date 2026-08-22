@@ -7,9 +7,9 @@
 
 import { getBotUserProfile } from "@psi-opora/db/queries";
 import {
+	type ContactData,
 	createBitrixContact,
 	createBitrixDeal,
-	type ContactData,
 	type DealData,
 } from "./bitrix";
 import { type FunnelEventContext, trackFunnelStep } from "./funnel";
@@ -82,7 +82,7 @@ export async function submitConsultationDeal(
 		issue,
 	} = params;
 
-	const funnelCtx: FunnelEventContext = { messenger, source, campaign };
+	const funnelCtx: FunnelEventContext = { messenger, source, campaign, userId };
 
 	try {
 		// Профиль мессенджера (bot_users), собранный ботом на /start —

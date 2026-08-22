@@ -113,13 +113,29 @@ export function DealsTable({
 				.sort((a, b) => a.label.localeCompare(b.label, "ru")),
 		[categoryNames],
 	);
-	const stageOptions = useMemo(
-		() =>
-			[...(stageNames ?? new Map()).entries()]
-				.map(([id, info]) => ({ id, label: info.name }))
-				.sort((a, b) => a.label.localeCompare(b.label, "ru")),
-		[stageNames],
-	);
+	// У разных воронок нередко совпадают названия стадий (например, "Новая"
+	// или "Сделка провалена" в каждой воронке) — id стадии из Bitrix при этом
+	// разный (префикс "C{categoryId}:", без префикса — воронка по умолчанию).
+	// Без уточнения такие стадии выглядели бы в списке как дубли.
+	const stageOptions = useMemo(() => {
+		const entries = [...(stageNames ?? new Map()).entries()];
+		const nameCounts = new Map<string, number>();
+		for (const [, info] of entries) {
+			nameCounts.set(info.name, (nameCounts.get(info.name) ?? 0) + 1);
+		}
+		return entries
+			.map(([id, info]) => {
+				const isDuplicate = (nameCounts.get(info.name) ?? 0) > 1;
+				if (!isDuplicate) return { id, label: info.name };
+				const categoryId = /^C(\d+):/.exec(id)?.[1] ?? "0";
+				const categoryLabel = categoryNames?.get(categoryId);
+				return {
+					id,
+					label: categoryLabel ? `${info.name} · ${categoryLabel}` : info.name,
+				};
+			})
+			.sort((a, b) => a.label.localeCompare(b.label, "ru"));
+	}, [stageNames, categoryNames]);
 	const sourceOptions = useMemo(
 		() =>
 			[...(sourceNames ?? new Map()).entries()]
