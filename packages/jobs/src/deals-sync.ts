@@ -7,6 +7,7 @@ import {
 	replaceDealDictionary,
 	upsertDeals,
 } from "@psi-opora/db/queries";
+import { z } from "zod";
 
 /**
  * Поля/нормализация сделки для локального зеркала (packages/db, таблица
@@ -145,6 +146,22 @@ export async function removeSyncedDeal(dealId: string): Promise<void> {
 	await deleteDeal(dealId);
 }
 
+const statusRowSchema = z.object({
+	ENTITY_ID: z.string(),
+	STATUS_ID: z.string(),
+	NAME: z.string(),
+	SORT: z.string(),
+});
+
+const categoryResultSchema = z.object({
+	categories: z.array(
+		z.object({
+			id: z.number(),
+			name: z.string(),
+		}),
+	),
+});
+
 /**
  * Справочники источников/стадий/воронок (packages/db, таблица deal_dictionaries) —
  * подписи для отчётов дашборда читаются отсюда вместо live crm.status.list/
@@ -167,9 +184,21 @@ export async function syncDealDictionaries(api: BitrixApi): Promise<void> {
 		),
 	]);
 
+	// Validate responses before processing
+	const statusRowsValidation = z.array(statusRowSchema).safeParse(statusRows);
+	const categoryResultValidation =
+		categoryResultSchema.safeParse(categoryResult);
+
+	if (!statusRowsValidation.success || !categoryResultValidation.success) {
+		console.error(
+			"[syncDealDictionaries] Invalid API response structure, skipping sync to preserve existing dictionaries",
+		);
+		return;
+	}
+
 	const sources: NewDealDictionaryEntry[] = [];
 	const stages: NewDealDictionaryEntry[] = [];
-	for (const row of statusRows) {
+	for (const row of statusRowsValidation.data) {
 		if (row.ENTITY_ID === "SOURCE") {
 			sources.push({ type: "source", id: row.STATUS_ID, name: row.NAME });
 		} else if (
@@ -184,9 +213,20 @@ export async function syncDealDictionaries(api: BitrixApi): Promise<void> {
 			});
 		}
 	}
-	const categories: NewDealDictionaryEntry[] = categoryResult.categories.map(
-		(c) => ({ type: "category", id: String(c.id), name: c.name }),
-	);
+	const categories: NewDealDictionaryEntry[] =
+		categoryResultValidation.data.categories.map((c) => ({
+			type: "category",
+			id: String(c.id),
+			name: c.name,
+		}));
+
+	// Additional check: ensure we have at least some stages (most critical dictionary)
+	if (stages.length === 0) {
+		console.error(
+			"[syncDealDictionaries] No stages returned from API, skipping sync to preserve existing dictionaries",
+		);
+		return;
+	}
 
 	await Promise.all([
 		replaceDealDictionary("source", sources),

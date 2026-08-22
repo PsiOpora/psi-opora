@@ -26,9 +26,6 @@ export async function GET(request: Request) {
 	);
 
 	const api = await getBitrixApi();
-	if (!api) {
-		return NextResponse.json({ connected: false });
-	}
 
 	try {
 		const [sourceNames, categoryNames, stageNames, dealDomain] =
@@ -40,13 +37,13 @@ export async function GET(request: Request) {
 					? fetchCategoryNames()
 					: Promise.resolve(undefined),
 				need.has("stageNames") ? fetchStageNames() : Promise.resolve(undefined),
-				need.has("dealDomain")
+				api && need.has("dealDomain")
 					? getBitrixPortalDomain()
 					: Promise.resolve(undefined),
 			]);
 
 		return NextResponse.json({
-			connected: true,
+			connected: !!api,
 			sourceNames: sourceNames ? [...sourceNames.entries()] : undefined,
 			categoryNames: categoryNames ? [...categoryNames.entries()] : undefined,
 			stageNames: stageNames ? [...stageNames.entries()] : undefined,
