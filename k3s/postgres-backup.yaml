@@ -13,11 +13,11 @@ metadata:
   namespace: psi-opora
 type: Opaque
 stringData:
-  S3_ENDPOINT: "https://s3.example.com"   # TODO: заполнить
-  S3_BUCKET: "psi-opora-backups"          # TODO: заполнить
-  S3_REGION: "ru-central1"                # TODO: заполнить
-  AWS_ACCESS_KEY_ID: "CHANGE_ME"          # TODO: заполнить
-  AWS_SECRET_ACCESS_KEY: "CHANGE_ME"      # TODO: заполнить
+  S3_ENDPOINT: "https://storage.yandexcloud.net" # TODO: заполнить
+  S3_BUCKET: "dashboard.psi-opora.ru" # TODO: заполнить
+  S3_REGION: "ru-central1" # TODO: заполнить
+  AWS_ACCESS_KEY_ID: "YCAJE3TotSYXkAM7EJbe0BX5i" # TODO: заполнить
+  AWS_SECRET_ACCESS_KEY: "YCN27SgOGyNyoAnOPtZMeX7GFDOPNohdzLw35o7J" # TODO: заполнить
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -25,7 +25,7 @@ metadata:
   name: postgres-s3-backup
   namespace: psi-opora
 spec:
-  schedule: "0 3 * * *"  # каждый день в 03:00 UTC
+  schedule: "0 3 * * *" # каждый день в 03:00 UTC
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -41,6 +41,7 @@ spec:
               image: postgres:18.4-trixie
               securityContext:
                 runAsNonRoot: false
+                runAsUser: 0
                 allowPrivilegeEscalation: false
                 capabilities:
                   drop:
@@ -98,7 +99,7 @@ spec:
                 - |
                   set -euo pipefail
 
-                  apt-get update -qq && apt-get install -y -qq --no-install-recommends awscli >/dev/null
+                  apt-get -o APT::Sandbox::User=root update -qq && apt-get -o APT::Sandbox::User=root install -y -qq --no-install-recommends awscli >/dev/null
 
                   TIMESTAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
                   DUMP_FILE="/tmp/${PGDATABASE}-${TIMESTAMP}.sql.gz"

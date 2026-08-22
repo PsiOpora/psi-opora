@@ -11,6 +11,7 @@ spec:
 ---
 # Конфиг zot (JSON, не env-переменные, как у registry:2) — путь до htpasswd
 # ниже соответствует mountPath секрета registry-htpasswd в Deployment.
+# Retention: оставляет только тег latest, остальные теги удаляются при GC.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -25,7 +26,23 @@ data:
         "dedupe": true,
         "gc": true,
         "gcDelay": "1h",
-        "gcInterval": "24h"
+        "gcInterval": "24h",
+        "retention": {
+          "dryRun": false,
+          "delay": "24h",
+          "policies": [
+            {
+              "repositories": ["**"],
+              "deleteReferrers": true,
+              "deleteUntagged": true,
+              "keepTags": [
+                {
+                  "patterns": ["^latest$"]
+                }
+              ]
+            }
+          ]
+        }
       },
       "http": {
         "address": "0.0.0.0",

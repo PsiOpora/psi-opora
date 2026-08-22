@@ -24,6 +24,15 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+	Pagination,
+	PaginationContent,
+	PaginationEllipsis,
+	PaginationItem,
+	PaginationLink,
+	PaginationNext,
+	PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
 	Empty,
 	EmptyContent,
 	EmptyDescription,
@@ -246,10 +255,11 @@ export function DealsTable({
 	const [source, setSource] = useState(initialSource ?? ALL);
 
 	// Reset pagination when range changes
-	// biome-ignore lint/correctness/useExhaustiveDependencies: range is intentionally used only to trigger the reset, not read inside the effect
+	const rangeFrom = formatDateParam(range.from);
+	const rangeTo = formatDateParam(range.to);
 	useEffect(() => {
 		setPagination((current) => ({ ...current, pageIndex: 0 }));
-	}, [range]);
+	}, [rangeFrom, rangeTo]);
 
 	const columns = useMemo(
 		() => buildColumns({ sourceNames, categoryNames, stageNames, dealDomain }),
