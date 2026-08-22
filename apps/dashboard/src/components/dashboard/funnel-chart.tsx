@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { HelpHint } from "@/components/dashboard/funnel-stages";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,9 @@ interface FunnelChartProps {
 	showConversion?: boolean;
 	/** Пояснение "как считается" рядом с заголовком графика. */
 	hint?: string;
+	/** Ссылка для клика по числу на шаге — например, на таблицу сделок с
+	 * предзаполненным фильтром. Если не задана, число не кликабельно. */
+	stepHref?: (step: FunnelStepStats) => string;
 }
 
 const STEP_COLORS = [
@@ -45,6 +49,7 @@ export function FunnelChart({
 	className,
 	showConversion = true,
 	hint,
+	stepHref,
 }: FunnelChartProps) {
 	const normalizationBase = showConversion
 		? (steps[0]?.count ?? 1)
@@ -87,9 +92,18 @@ export function FunnelChart({
 														: "polygon(0 15%, 100% 0%, 100% 100%, 0 100%)",
 										}}
 									>
-										<span className="text-white text-xs font-medium truncate drop-shadow-sm">
-											{formatNumber(step.count)}
-										</span>
+										{stepHref ? (
+											<Link
+												href={stepHref(step)}
+												className="text-white text-xs font-medium truncate underline-offset-2 drop-shadow-sm hover:underline"
+											>
+												{formatNumber(step.count)}
+											</Link>
+										) : (
+											<span className="text-white text-xs font-medium truncate drop-shadow-sm">
+												{formatNumber(step.count)}
+											</span>
+										)}
 									</div>
 								</div>
 
