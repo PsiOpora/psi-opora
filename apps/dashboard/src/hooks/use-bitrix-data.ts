@@ -4,27 +4,19 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import type { StageInfo } from "@/lib/analytics/deals";
-import { reviveDeals, type WireDeal } from "@/lib/analytics/revive";
-import type { DealRecord } from "@/lib/analytics/types";
 
 export type BitrixNeed =
-	| "deals"
-	| "previousDeals"
 	| "sourceNames"
 	| "categoryNames"
 	| "stageNames"
-	| "dealDomain"
-	| "openDeals";
+	| "dealDomain";
 
 interface BitrixDataResult {
 	connected: boolean;
-	deals?: DealRecord[];
-	previousDeals?: DealRecord[];
 	sourceNames?: Map<string, string>;
 	categoryNames?: Map<string, string>;
 	stageNames?: Map<string, StageInfo>;
 	dealDomain?: string | null;
-	openDeals?: DealRecord[];
 }
 
 /** Диапазон дат из ?from=&to= — как раньше в серверных страницах, но на клиенте. */
@@ -34,8 +26,10 @@ export function useDashboardRange() {
 }
 
 /**
- * Данные Bitrix24 (сделки + справочники) через /api/dashboard/bitrix — замена
- * прямому getBitrixApi()/fetchDeals() в серверных компонентах страниц.
+ * Справочники Bitrix24 через /api/dashboard/bitrix (имена источников/стадий/
+ * воронок, домен портала — дешёвые нефильтруемые запросы, живьём). Сами
+ * сделки читаются из локального зеркала — см. hooks/use-deals-report.ts,
+ * use-deals-summary.ts.
  */
 export function useBitrixData(need: BitrixNeed[]) {
 	const range = useDashboardRange();
@@ -53,10 +47,6 @@ export function useBitrixData(need: BitrixNeed[]) {
 			if (!json.connected) return { connected: false };
 			return {
 				connected: true,
-				deals: json.deals ? reviveDeals(json.deals as WireDeal[]) : undefined,
-				previousDeals: json.previousDeals
-					? reviveDeals(json.previousDeals as WireDeal[])
-					: undefined,
 				sourceNames: json.sourceNames
 					? new Map<string, string>(json.sourceNames)
 					: undefined,
@@ -67,9 +57,6 @@ export function useBitrixData(need: BitrixNeed[]) {
 					? new Map<string, StageInfo>(json.stageNames)
 					: undefined,
 				dealDomain: json.dealDomain ?? null,
-				openDeals: json.openDeals
-					? reviveDeals(json.openDeals as WireDeal[])
-					: undefined,
 			};
 		},
 	});

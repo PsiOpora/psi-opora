@@ -22,7 +22,6 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@/components/ui/empty";
-import type { GroupStats } from "@/lib/analytics/types";
 import { InfoHint } from "./info-hint";
 
 const chartConfig = {
@@ -33,6 +32,19 @@ const chartConfig = {
 
 type GroupChartMetric = "deals" | "opportunitySum" | "wonSum";
 
+interface GroupChartRow {
+	key: string;
+	label: string;
+	deals: number;
+	opportunitySum: number;
+	wonSum: number;
+}
+
+/**
+ * Данные уже отсортированы и ограничены (топ-8 по нужной метрике) на
+ * сервере (см. hooks/use-deals-report.ts) — компонент только рендерит, без
+ * повторной сортировки/среза на клиенте.
+ */
 export function GroupBarChart({
 	title,
 	description,
@@ -43,13 +55,10 @@ export function GroupBarChart({
 	title: string;
 	description: string;
 	hint?: string;
-	data: GroupStats[];
+	data: GroupChartRow[];
 	metric?: GroupChartMetric;
 }) {
-	const top = [...data]
-		.filter((row) => metric === "deals" || row[metric] > 0)
-		.sort((a, b) => b[metric] - a[metric])
-		.slice(0, 8);
+	const top = data.filter((row) => metric === "deals" || row[metric] > 0);
 
 	return (
 		<Card>

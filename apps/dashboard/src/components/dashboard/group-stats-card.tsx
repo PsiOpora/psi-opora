@@ -1,3 +1,4 @@
+import type { DealGroupDimension } from "@psi-opora/db/queries";
 import {
 	Card,
 	CardAction,
@@ -6,9 +7,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import type { GroupStats } from "@/lib/analytics/types";
+import type { DateRange } from "@/lib/analytics/types";
 import { ExportCsvButton } from "./export-csv-button";
-import { GroupStatsTable } from "./group-stats-table";
+import { GroupStatsTable, type GroupStatsRow } from "./group-stats-table";
 import { InfoHint } from "./info-hint";
 
 export function GroupStatsCard({
@@ -18,18 +19,58 @@ export function GroupStatsCard({
 	columnLabel,
 	csvName,
 	data,
+	total,
+	page,
+	pageSize,
+	onPageChange,
+	dimension,
+	range,
 	dealDomain,
 	showOpportunity = false,
+	isLoading = false,
+	showPagination = true,
+	getAllRows,
 }: {
 	title: string;
 	description: string;
 	hint?: string;
 	columnLabel: string;
 	csvName: string;
-	data: GroupStats[];
+	data: GroupStatsRow[];
+	total: number;
+	page: number;
+	pageSize: number;
+	onPageChange: (page: number) => void;
+	dimension: DealGroupDimension;
+	range: DateRange;
 	dealDomain?: string | null;
 	showOpportunity?: boolean;
+	isLoading?: boolean;
+	showPagination?: boolean;
+	/** Загрузка всех строк разреза (без пагинации) — для CSV-экспорта по требованию. */
+	getAllRows: () => Promise<GroupStatsRow[]>;
 }) {
+	function toCsvRow(row: GroupStatsRow): Array<string | number> {
+		return showOpportunity
+			? [
+					row.label,
+					row.deals,
+					row.dealsWithAmount,
+					row.won,
+					(row.conversionRate * 100).toFixed(1),
+					Math.round(row.opportunitySum),
+					Math.round(row.wonSum),
+				]
+			: [
+					row.label,
+					row.deals,
+					row.won,
+					(row.conversionRate * 100).toFixed(1),
+					Math.round(row.wonSum),
+					Math.round(row.opportunitySum),
+				];
+	}
+
 	const csvHeaders = showOpportunity
 		? [
 				columnLabel,
@@ -49,27 +90,6 @@ export function GroupStatsCard({
 				"Сумма в воронке",
 			];
 
-	const csvRows = data.map((row) =>
-		showOpportunity
-			? [
-					row.label,
-					row.deals,
-					countDealsWithAmount(row),
-					row.won,
-					(row.conversionRate * 100).toFixed(1),
-					Math.round(row.opportunitySum),
-					Math.round(row.wonSum),
-				]
-			: [
-					row.label,
-					row.deals,
-					row.won,
-					(row.conversionRate * 100).toFixed(1),
-					Math.round(row.wonSum),
-					Math.round(row.opportunitySum),
-				],
-	);
-
 	return (
 		<Card>
 			<CardHeader>
@@ -82,7 +102,7 @@ export function GroupStatsCard({
 					<ExportCsvButton
 						filename={csvName}
 						headers={csvHeaders}
-						rows={csvRows}
+						getRows={async () => (await getAllRows()).map(toCsvRow)}
 					/>
 				</CardAction>
 			</CardHeader>
@@ -90,14 +110,18 @@ export function GroupStatsCard({
 				<GroupStatsTable
 					columnLabel={columnLabel}
 					data={data}
+					total={total}
+					page={page}
+					pageSize={pageSize}
+					onPageChange={onPageChange}
+					dimension={dimension}
+					range={range}
 					dealDomain={dealDomain}
 					showOpportunity={showOpportunity}
+					isLoading={isLoading}
+					showPagination={showPagination}
 				/>
 			</CardContent>
 		</Card>
 	);
-}
-
-function countDealsWithAmount(row: GroupStats): number {
-	return row.items.filter((deal) => deal.opportunity > 0).length;
 }

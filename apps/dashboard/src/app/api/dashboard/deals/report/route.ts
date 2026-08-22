@@ -3,7 +3,7 @@ import type {
   DealStatus,
   GroupDealsOptions,
 } from "@psi-opora/db/queries";
-import { groupDealsBy } from "@psi-opora/db/queries";
+import { DEAL_GROUP_DIMENSIONS, groupDealsBy } from "@psi-opora/db/queries";
 import { NextResponse } from "next/server";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import {
@@ -17,29 +17,12 @@ import {
   validateDateRange,
   zodBadRequest,
 } from "@/lib/api/validation";
+import { UTM_CAMPAIGN_KEY_SEPARATOR } from "@/lib/constants/separators";
 
 export const dynamic = "force-dynamic";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
-
-// Разделитель ключа utmCampaign (source+campaign) — совпадает с тем, что
-// использует SQL-выражение chr(0) в packages/db/src/queries/deals.ts::dimensionKeyExpr.
-const UTM_CAMPAIGN_KEY_SEPARATOR = String.fromCharCode(0);
-
-const DIMENSIONS: DealGroupDimension[] = [
-  "utmSource",
-  "utmMedium",
-  "utmCampaign",
-  "utmContent",
-  "utmTerm",
-  "source",
-  "category",
-  "stage",
-  "day",
-  "week",
-  "month",
-];
 
 const SORT_FIELDS = new Set<NonNullable<GroupDealsOptions["sort"]>>([
   "key",
@@ -51,7 +34,7 @@ const SORT_FIELDS = new Set<NonNullable<GroupDealsOptions["sort"]>>([
 ]);
 
 function parseDimension(value: string | null): DealGroupDimension {
-  return DIMENSIONS.includes(value as DealGroupDimension)
+  return DEAL_GROUP_DIMENSIONS.includes(value as DealGroupDimension)
     ? (value as DealGroupDimension)
     : "utmSource";
 }
@@ -62,10 +45,20 @@ function parseSort(value: string | null): GroupDealsOptions["sort"] {
     : undefined;
 }
 
-function parseStatus(value: string | null): DealStatus | undefined {
-  return value === "won" || value === "lost" || value === "in_progress"
-    ? value
-    : undefined;
+function isDealStatus(value: string): value is DealStatus {
+  return value === "won" || value === "lost" || value === "in_progress";
+}
+
+function parseStatus(values: string[]): DealStatus | DealStatus[] | undefined {
+  const valid = values.filter(isDealStatus);
+  if (valid.length === 0) return undefined;
+  return valid.length === 1 ? valid[0] : valid;
+}
+
+/** getAll() → undefined (нет параметра), одно значение или массив (несколько). */
+function parseMulti(values: string[]): string | string[] | undefined {
+  if (values.length === 0) return undefined;
+  return values.length === 1 ? values[0] : values;
 }
 
 /**
@@ -143,17 +136,25 @@ export async function GET(request: Request) {
     throw err;
   }
 
-  const range = parseDateRange(Object.fromEntries(params));
+  // Без from/to — например, "активные сейчас" сделки (снэпшот без фильтра
+  // по дате создания, как раньше fetchOpenDeals) — не подставляем дефолтный
+  // 30-дневный диапазон в этом случае.
+  const hasRange = params.has("from") || params.has("to");
+  const range = hasRange ? parseDateRange(Object.fromEntries(params)) : undefined;
 
   const [group, names] = await Promise.all([
     groupDealsBy(dimension, {
-      from: range.from,
-      to: range.to,
-      categoryId: params.get("category") ?? undefined,
-      stageId: params.get("stage") ?? undefined,
-      sourceId: params.get("source") ?? undefined,
-      utmSource: params.get("utmSource") ?? undefined,
-      status: parseStatus(params.get("status")),
+      from: range?.from,
+      to: range?.to,
+      categoryId: parseMulti(params.getAll("category")),
+      stageId: parseMulti(params.getAll("stage")),
+      sourceId: parseMulti(params.getAll("source")),
+      utmSource: parseMulti(params.getAll("utmSource")),
+      utmMedium: parseMulti(params.getAll("utmMedium")),
+      // utmCampaignFilter — фильтр по точному значению utm_campaign, не путать
+      // с dimension=utmCampaign (составной ключ utm_source+utm_campaign для группировки).
+      utmCampaign: parseMulti(params.getAll("utmCampaignFilter")),
+      status: parseStatus(params.getAll("status")),
       sort: parseSort(params.get("sort")),
       sortDir: params.get("sortDir") === "asc" ? "asc" : "desc",
       limit: pageSize,

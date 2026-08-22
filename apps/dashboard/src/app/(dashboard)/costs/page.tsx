@@ -4,6 +4,7 @@ import type { CostEntry } from "@psi-opora/api";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
+import type { GroupStatsRow } from "@/components/dashboard/group-stats-table";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { Badge } from "@/components/ui/badge";
@@ -24,10 +25,11 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useBitrixData, useDashboardRange } from "@/hooks/use-bitrix-data";
-import type { DealRecord } from "@/lib/analytics/types";
+import { fetchAllDealsReportRows } from "@/hooks/use-deals-report";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { monthIntersectsRange } from "@/lib/marketing/costs";
 import { orpc } from "@/lib/orpc/client";
+import { UTM_CAMPAIGN_KEY_SEPARATOR } from "@/lib/constants/separators";
 import { AddCostForm } from "./add-cost-form";
 import { DeleteCostButton } from "./delete-cost-button";
 
@@ -44,17 +46,23 @@ interface RoiRow {
 }
 
 function matchesEntry(
-	deal: DealRecord,
+	row: GroupStatsRow,
 	utmSource: string,
 	utmCampaign: string,
 ): boolean {
-	if (deal.utmSource !== utmSource) return false;
-	return utmCampaign === "" || deal.utmCampaign === utmCampaign;
+	const [rowSource, rowCampaign] = row.key.split(UTM_CAMPAIGN_KEY_SEPARATOR);
+	if (rowSource !== utmSource) return false;
+	return utmCampaign === "" || rowCampaign === utmCampaign;
 }
 
+/**
+ * Сопоставление расходов со сделками по utm_source(+utm_campaign) — join по
+ * уже агрегированным на сервере группам (groupDealsBy("utmCampaign", ...),
+ * см. use-deals-report.ts), а не построчный проход по всем сделкам периода в JS.
+ */
 function buildRoiRows(
 	costs: CostEntry[],
-	deals: DealRecord[],
+	utmCampaignRows: GroupStatsRow[],
 	from: Date,
 	to: Date,
 ): RoiRow[] {
@@ -76,19 +84,20 @@ function buildRoiRows(
 
 	return [...spendByKey.values()]
 		.map(({ utmSource, utmCampaign, spend }) => {
-			const matched = deals.filter((d) =>
-				matchesEntry(d, utmSource, utmCampaign),
+			const matched = utmCampaignRows.filter((row) =>
+				matchesEntry(row, utmSource, utmCampaign),
 			);
-			const won = matched.filter((d) => d.status === "won");
-			const revenue = won.reduce((sum, d) => sum + d.opportunity, 0);
+			const deals = matched.reduce((sum, row) => sum + row.deals, 0);
+			const won = matched.reduce((sum, row) => sum + row.won, 0);
+			const revenue = matched.reduce((sum, row) => sum + row.wonSum, 0);
 			return {
 				key: `${utmSource}|${utmCampaign}`,
 				utmSource,
 				utmCampaign,
 				spend,
-				deals: matched.length,
-				cpl: matched.length > 0 ? spend / matched.length : null,
-				won: won.length,
+				deals,
+				cpl: deals > 0 ? spend / deals : null,
+				won,
 				revenue,
 				romi: spend > 0 ? (revenue - spend) / spend : null,
 			};
@@ -106,9 +115,7 @@ export default function CostsPage() {
 
 function CostsPageContent() {
 	const range = useDashboardRange();
-	const { data: bitrixData, isLoading: bitrixLoading } = useBitrixData([
-		"deals",
-	]);
+	const { data: bitrixData, isLoading: bitrixLoading } = useBitrixData([]);
 	const { data: redisStatus } = useQuery({
 		queryKey: ["dashboard-redis-status"],
 		queryFn: async () => {
@@ -120,11 +127,22 @@ function CostsPageContent() {
 	const { data: costs = [], isLoading: costsLoading } = useQuery(
 		orpc.costs.list.queryOptions(),
 	);
+	const {
+		data: utmCampaignRows = [],
+		isLoading: utmLoading,
+		isError: utmError,
+	} = useQuery({
+		queryKey: [
+			"dashboard-costs-utm-campaign-rows",
+			range.from.toISOString(),
+			range.to.toISOString(),
+		],
+		queryFn: () => fetchAllDealsReportRows("utmCampaign", range),
+	});
 
-	const deals = bitrixData?.deals ?? [];
 	const roiRows = useMemo(
-		() => buildRoiRows(costs, deals, range.from, range.to),
-		[costs, deals, range.from, range.to],
+		() => buildRoiRows(costs, utmCampaignRows, range.from, range.to),
+		[costs, utmCampaignRows, range.from, range.to],
 	);
 
 	if (bitrixLoading) {
@@ -146,8 +164,16 @@ function CostsPageContent() {
 		);
 	}
 
-	if (costsLoading) {
+	if (costsLoading || utmLoading) {
 		return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+	}
+
+	if (utmError) {
+		return (
+			<p className="text-sm text-destructive">
+				Не удалось загрузить данные UTM. Попробуйте обновить страницу.
+			</p>
+		);
 	}
 
 	return (
