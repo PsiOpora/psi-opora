@@ -91,6 +91,7 @@ export async function runScenarioReminders({
 		let funnelFlow: string | undefined;
 		let funnelSource: string | undefined;
 		let funnelCampaign: string | undefined;
+		let sendSucceeded = false;
 		try {
 			const session = await storage.read(sessionKey);
 			const state = session?.scenario;
@@ -133,6 +134,7 @@ export async function runScenarioReminders({
 
 			attemptedText = message.text;
 			await send(sessionKey, message);
+			sendSucceeded = true;
 			await logBotMessage({
 				messenger,
 				userId: sessionKey,
@@ -163,7 +165,8 @@ export async function runScenarioReminders({
 					status: "failed",
 				});
 			}
-			if (funnelStep) {
+			// Only record funnel error if send() itself failed, not subsequent processing
+			if (!sendSucceeded && funnelStep) {
 				await trackFunnelStep(funnelStep, {
 					messenger,
 					source: funnelSource,

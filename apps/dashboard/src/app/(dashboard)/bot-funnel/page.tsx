@@ -109,7 +109,9 @@ function BotFunnelPageContent() {
 	const byMessenger = data?.byMessenger ?? [];
 	const bySource = data?.bySource ?? [];
 	const dropReasons = data?.dropReasons ?? [];
-	const isEmpty = flows.every((f) => f.steps.every((s) => s.count === 0));
+	const isEmpty =
+		flows.every((f) => f.steps.every((s) => s.count === 0)) &&
+		dropReasons.length === 0;
 
 	if (isEmpty) {
 		return (
@@ -295,7 +297,7 @@ function DropReasonsTable({
 										from: range.from,
 										to: range.to,
 										messenger: row.messenger,
-										flow: row.flow !== "-" ? row.flow : undefined,
+										flow: row.flow,
 										reason: row.reason,
 									})}
 								>
