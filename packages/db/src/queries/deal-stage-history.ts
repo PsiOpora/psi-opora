@@ -1,6 +1,9 @@
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "../client";
-import { dealStageHistory, dealStageHistorySync } from "../schema/deal-stage-history";
+import {
+	dealStageHistory,
+	dealStageHistorySync,
+} from "../schema/deal-stage-history";
 
 export type DealStageHistoryEvent = typeof dealStageHistory.$inferSelect;
 export type NewDealStageHistoryEvent = typeof dealStageHistory.$inferInsert;

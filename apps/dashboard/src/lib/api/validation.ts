@@ -78,19 +78,20 @@ const isoDateString = z
 		{ message: "Must be a valid date in YYYY-MM-DD format" },
 	);
 
+const dateRangeShape = {
+	from: isoDateString.optional(),
+	to: isoDateString.optional(),
+};
+
+const dateRangeRefinement = (data: { from?: string; to?: string }) => {
+	if (!data.from || !data.to) return true;
+	return new Date(data.from) <= new Date(data.to);
+};
+
 /** Схема range-параметров (from, to) — обе опциональны, with cross-field validation. */
-export const dateRangeSchema = z
-	.object({
-		from: isoDateString.optional(),
-		to: isoDateString.optional(),
-	})
-	.refine(
-		(data) => {
-			if (!data.from || !data.to) return true;
-			return new Date(data.from) <= new Date(data.to);
-		},
-		{ message: "'from' must not be later than 'to'" },
-	);
+export const dateRangeSchema = z.object(dateRangeShape).refine(dateRangeRefinement, {
+	message: "'from' must not be later than 'to'",
+});
 
 /**
  * Валидация параметра previous (должен быть "1" или отсутствовать).
@@ -102,7 +103,14 @@ export const previousSchema = z.object({
 /**
  * Объединённая схема для summary-эндпоинта: range + previous.
  */
-export const summaryParamsSchema = dateRangeSchema.merge(previousSchema);
+export const summaryParamsSchema = z
+	.object({
+		...dateRangeShape,
+		previous: z.enum(["1", "0"]).optional(),
+	})
+	.refine(dateRangeRefinement, {
+		message: "'from' must not be later than 'to'",
+	});
 
 /**
  * Парсит и валидирует date-range параметры из URLSearchParams.
