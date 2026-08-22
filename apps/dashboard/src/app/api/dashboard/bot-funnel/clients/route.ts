@@ -1,12 +1,12 @@
-import { FUNNEL_STEPS } from "@psi-opora/bot-core";
 import {
 	DASHBOARD_SESSION_COOKIE,
 	verifyBitrixSessionToken,
 } from "@psi-opora/bitrix-client";
+import { FUNNEL_STEPS } from "@psi-opora/bot-core";
 import { getBotFunnelStepClients } from "@psi-opora/db/queries";
-import { formatDateParam } from "@/lib/analytics/date-range";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { formatDateParam } from "@/lib/analytics/date-range";
 
 export const dynamic = "force-dynamic";
 
