@@ -17,15 +17,12 @@ import {
   validateDateRange,
   zodBadRequest,
 } from "@/lib/api/validation";
+import { UTM_CAMPAIGN_KEY_SEPARATOR } from "@/lib/constants/separators";
 
 export const dynamic = "force-dynamic";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
-
-// Разделитель ключа utmCampaign (source+campaign) — совпадает с тем, что
-// использует SQL-выражение chr(0) в packages/db/src/queries/deals.ts::dimensionKeyExpr.
-const UTM_CAMPAIGN_KEY_SEPARATOR = String.fromCharCode(0);
 
 const SORT_FIELDS = new Set<NonNullable<GroupDealsOptions["sort"]>>([
   "key",

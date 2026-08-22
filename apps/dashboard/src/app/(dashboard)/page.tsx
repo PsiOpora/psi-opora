@@ -25,7 +25,11 @@ export default function OverviewPage() {
 function OverviewPageContent() {
 	const range = useDashboardRange();
 	const { data, isLoading, isError } = useBitrixData(["dealDomain"]);
-	const { data: summaryData } = useDealsSummary({ range, previous: true });
+	const {
+		data: summaryData,
+		isLoading: summaryLoading,
+		isError: summaryError,
+	} = useDealsSummary({ range, previous: true });
 	const topUtm = useDealsReport({
 		dimension: "utmSource",
 		range,
@@ -57,7 +61,13 @@ function OverviewPageContent() {
 
 	return (
 		<div className="flex flex-col gap-4">
-			{summaryData && (
+			{summaryLoading ? (
+				<p className="text-sm text-muted-foreground">Загрузка сводки…</p>
+			) : summaryError ? (
+				<p className="text-sm text-destructive">
+					Не удалось загрузить сводку. Попробуйте обновить страницу.
+				</p>
+			) : summaryData ? (
 				<>
 					<KpiCards
 						summary={summaryData.summary}
@@ -65,7 +75,7 @@ function OverviewPageContent() {
 					/>
 					<TrendChart data={summaryData.trend} />
 				</>
-			)}
+			) : null}
 			<div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
 				<GroupStatsCard
 					title="Топ UTM-источников"

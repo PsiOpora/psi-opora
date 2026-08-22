@@ -29,6 +29,7 @@ import { fetchAllDealsReportRows } from "@/hooks/use-deals-report";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { monthIntersectsRange } from "@/lib/marketing/costs";
 import { orpc } from "@/lib/orpc/client";
+import { UTM_CAMPAIGN_KEY_SEPARATOR } from "@/lib/constants/separators";
 import { AddCostForm } from "./add-cost-form";
 import { DeleteCostButton } from "./delete-cost-button";
 
@@ -43,10 +44,6 @@ interface RoiRow {
 	revenue: number;
 	romi: number | null;
 }
-
-/** Совпадает с разделителем ключа utmCampaign в groupDealsBy
- * (packages/db/src/queries/deals.ts::dimensionKeyExpr — chr(0) в SQL). */
-const UTM_CAMPAIGN_KEY_SEPARATOR = String.fromCharCode(0);
 
 function matchesEntry(
 	row: GroupStatsRow,
@@ -130,7 +127,11 @@ function CostsPageContent() {
 	const { data: costs = [], isLoading: costsLoading } = useQuery(
 		orpc.costs.list.queryOptions(),
 	);
-	const { data: utmCampaignRows = [] } = useQuery({
+	const {
+		data: utmCampaignRows = [],
+		isLoading: utmLoading,
+		isError: utmError,
+	} = useQuery({
 		queryKey: [
 			"dashboard-costs-utm-campaign-rows",
 			range.from.toISOString(),
@@ -163,8 +164,16 @@ function CostsPageContent() {
 		);
 	}
 
-	if (costsLoading) {
+	if (costsLoading || utmLoading) {
 		return <p className="text-sm text-muted-foreground">Загрузка…</p>;
+	}
+
+	if (utmError) {
+		return (
+			<p className="text-sm text-destructive">
+				Не удалось загрузить данные UTM. Попробуйте обновить страницу.
+			</p>
+		);
 	}
 
 	return (

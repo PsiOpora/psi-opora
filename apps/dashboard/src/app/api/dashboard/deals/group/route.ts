@@ -1,4 +1,8 @@
-import type { DealGroupDimension, ListDealsOptions } from "@psi-opora/db/queries";
+import type {
+	DealGroupDimension,
+	DealStatus,
+	ListDealsOptions,
+} from "@psi-opora/db/queries";
 import { DEAL_GROUP_DIMENSIONS, listDealsInGroup } from "@psi-opora/db/queries";
 import { NextResponse } from "next/server";
 import { parseDateRange } from "@/lib/analytics/date-range";
@@ -30,6 +34,21 @@ function parseSort(value: string | null): ListDealsOptions["sort"] {
 	return SORT_FIELDS.has(value as never)
 		? (value as ListDealsOptions["sort"])
 		: undefined;
+}
+
+function isDealStatus(value: string): value is DealStatus {
+	return value === "won" || value === "lost" || value === "in_progress";
+}
+
+function parseStatus(values: string[]): DealStatus | DealStatus[] | undefined {
+	const valid = values.filter(isDealStatus);
+	if (valid.length === 0) return undefined;
+	return valid.length === 1 ? valid[0] : valid;
+}
+
+function parseMulti(values: string[]): string | string[] | undefined {
+	if (values.length === 0) return undefined;
+	return values.length === 1 ? values[0] : values;
 }
 
 /**
@@ -74,6 +93,13 @@ export async function GET(request: Request) {
 	const { rows, total } = await listDealsInGroup(dimension, key, {
 		from: range.from,
 		to: range.to,
+		status: parseStatus(params.getAll("status")),
+		categoryId: parseMulti(params.getAll("category")),
+		stageId: parseMulti(params.getAll("stage")),
+		sourceId: parseMulti(params.getAll("source")),
+		utmSource: parseMulti(params.getAll("utmSource")),
+		utmMedium: parseMulti(params.getAll("utmMedium")),
+		utmCampaign: parseMulti(params.getAll("utmCampaignFilter")),
 		search: params.get("search") ?? undefined,
 		sort: parseSort(params.get("sort")),
 		sortDir: params.get("sortDir") === "asc" ? "asc" : "desc",
