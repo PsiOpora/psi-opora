@@ -16,8 +16,8 @@ stringData:
   S3_ENDPOINT: "https://storage.yandexcloud.net" # TODO: заполнить
   S3_BUCKET: "dashboard.psi-opora.ru" # TODO: заполнить
   S3_REGION: "ru-central1" # TODO: заполнить
-  AWS_ACCESS_KEY_ID: "YCAJE3TotSYXkAM7EJbe0BX5i" # TODO: заполнить
-  AWS_SECRET_ACCESS_KEY: "YCN27SgOGyNyoAnOPtZMeX7GFDOPNohdzLw35o7J" # TODO: заполнить
+  AWS_ACCESS_KEY_ID: "" # TODO: заполнить
+  AWS_SECRET_ACCESS_KEY: "" # TODO: заполнить
 ---
 apiVersion: batch/v1
 kind: CronJob

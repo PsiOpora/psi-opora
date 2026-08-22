@@ -107,12 +107,15 @@ export function DealsTablePagination({
 							href="#"
 							text=""
 							aria-disabled={!canPreviousPage}
+							tabIndex={canPreviousPage ? undefined : -1}
 							className={
 								canPreviousPage ? undefined : "pointer-events-none opacity-50"
 							}
 							onClick={(event) => {
 								event.preventDefault();
-								onPageChange(pageIndex - 1);
+								if (canPreviousPage) {
+									onPageChange(pageIndex - 1);
+								}
 							}}
 						/>
 					</PaginationItem>
@@ -142,12 +145,15 @@ export function DealsTablePagination({
 							href="#"
 							text=""
 							aria-disabled={!canNextPage}
+							tabIndex={canNextPage ? undefined : -1}
 							className={
 								canNextPage ? undefined : "pointer-events-none opacity-50"
 							}
 							onClick={(event) => {
 								event.preventDefault();
-								onPageChange(pageIndex + 1);
+								if (canNextPage) {
+									onPageChange(pageIndex + 1);
+								}
 							}}
 						/>
 					</PaginationItem>
