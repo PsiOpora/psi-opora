@@ -247,13 +247,19 @@ export async function getBotFunnelStepClients(
 		messenger?: string;
 		source?: string;
 		campaign?: string;
+<<<<<<< HEAD
 		flow?: string;
 		/** Если не задан — обычные (успешные) прохождения шага (reason = "-").
 		 * Если задан — конкретная причина отвала на этом шаге. */
 		reason?: string;
+=======
+		limit?: number;
+>>>>>>> f4463754dde2cf495c16eaf32334afd15dbc236e
 	},
 ): Promise<BotFunnelStepClient[]> {
 	if (!db) return [];
+
+	const limit = params.limit ?? 1000;
 
 	const conditions = [
 		eq(botFunnelUserSteps.step, params.step),
@@ -280,7 +286,8 @@ export async function getBotFunnelStepClients(
 		})
 		.from(botFunnelUserSteps)
 		.where(and(...conditions))
-		.orderBy(botFunnelUserSteps.day);
+		.orderBy(botFunnelUserSteps.day)
+		.limit(limit);
 
 	const byUser = new Map<
 		string,
