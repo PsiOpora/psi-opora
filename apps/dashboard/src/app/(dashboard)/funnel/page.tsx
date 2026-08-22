@@ -51,9 +51,7 @@ export default function FunnelPage() {
 function FunnelPageContent() {
 	const reportFilter = useDashboardRange();
 	const [mode, setMode] = useState<FunnelMode>("created");
-	const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
-		null,
-	);
+	const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
 	// stageNames нужны только за порядком стадий в воронке (SORT из Bitrix
 	// pipeline) — сами подписи groupDealsBy уже резолвит на сервере.
 	const { data, isLoading, isError } = useBitrixData(["stageNames"]);
@@ -260,5 +258,12 @@ function StageReachPanel({
 			</p>
 		);
 	}
-	return <FunnelChart steps={steps} />;
+	return (
+		<FunnelChart
+			steps={steps}
+			title="Уникальные сделки по этапам"
+			showConversion={false}
+			hint="Как считается: для каждого этапа — количество уникальных сделок, у которых хотя бы раз был переход на этот этап с датой входа внутри выбранного периода (источник: история стадий Bitrix24, crm.stagehistory.list). Если сделка заходила на этап несколько раз, она всё равно считается один раз. Этапы посчитаны независимо друг от друга — это не последовательная воронка: сделка может быть учтена на позднем этапе, даже если на ранний этап она зашла до начала периода, поэтому конверсия и «потери» между этапами здесь не считаются."
+		/>
+	);
 }

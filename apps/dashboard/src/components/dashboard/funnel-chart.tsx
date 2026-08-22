@@ -1,3 +1,4 @@
+import { HelpHint } from "@/components/dashboard/funnel-stages";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,19 @@ interface FunnelChartProps {
 	/** "Все мессенджеры" или название мессенджера */
 	title?: string;
 	className?: string;
+	/**
+	 * Есть ли смысл в "% от старта"/конверсии между шагами/потерях. Эти
+	 * метрики корректны только для последовательной воронки, где одна и та же
+	 * совокупность сделок идёт по шагам друг за другом (например, воронка
+	 * бота). Для независимых по шагам подсчётов (например, "сколько уникальных
+	 * сделок дошло до каждого этапа хотя бы раз за период") шаги не вложены
+	 * друг в друга — конверсия между ними не определена и может дать
+	 * бессмысленные значения вроде 0% или >100%. По умолчанию включена, чтобы
+	 * не менять поведение уже существующих воронок.
+	 */
+	showConversion?: boolean;
+	/** Пояснение "как считается" рядом с заголовком графика. */
+	hint?: string;
 }
 
 const STEP_COLORS = [
@@ -25,19 +39,28 @@ const STEP_COLORS = [
 	"bg-emerald-500",
 ];
 
-export function FunnelChart({ steps, title, className }: FunnelChartProps) {
-	const startCount = steps[0]?.count ?? 1;
+export function FunnelChart({
+	steps,
+	title,
+	className,
+	showConversion = true,
+	hint,
+}: FunnelChartProps) {
+	const normalizationBase = showConversion
+		? (steps[0]?.count ?? 1)
+		: Math.max(...steps.map((s) => s.count), 1);
 
 	return (
 		<div className={cn("flex flex-col", className)}>
-			{title && (
-				<h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+			{(title || hint) && (
+				<h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
 					{title}
+					{hint && <HelpHint text={hint} />}
 				</h3>
 			)}
 			<div className="flex flex-col gap-0">
 				{steps.map((step, i) => {
-					const widthPct = (step.count / startCount) * 100;
+					const widthPct = (step.count / normalizationBase) * 100;
 					const color = STEP_COLORS[i % STEP_COLORS.length];
 					const isLast = i === steps.length - 1;
 
@@ -75,22 +98,28 @@ export function FunnelChart({ steps, title, className }: FunnelChartProps) {
 									<span className="text-sm font-medium leading-tight text-right">
 										{step.label}
 									</span>
-									<div className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap">
-										<span>{formatPercent(step.shareOfStart)} от старта</span>
-										{i > 0 && (
-											<>
-												<span className="text-muted-foreground/50">·</span>
-												<span className="font-medium text-foreground">
-													{formatPercent(step.stepConversion)} с шага
-												</span>
-											</>
-										)}
-									</div>
+									{showConversion ? (
+										<div className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap">
+											<span>{formatPercent(step.shareOfStart)} от старта</span>
+											{i > 0 && (
+												<>
+													<span className="text-muted-foreground/50">·</span>
+													<span className="font-medium text-foreground">
+														{formatPercent(step.stepConversion)} с шага
+													</span>
+												</>
+											)}
+										</div>
+									) : (
+										<span className="text-xs text-muted-foreground whitespace-nowrap">
+											уникальных сделок за период
+										</span>
+									)}
 								</div>
 							</div>
 
 							{/* Conversion arrow between steps */}
-							{!isLast && (
+							{showConversion && !isLast && (
 								<div className="flex items-center justify-start pl-4 pb-1">
 									<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
 										<svg
@@ -127,18 +156,23 @@ export function FunnelChart({ steps, title, className }: FunnelChartProps) {
 			</div>
 
 			{/* Summary footer */}
-			<div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-sm">
-				<span className="text-muted-foreground">Общая конверсия</span>
-				<div className="flex items-center gap-2">
-					<span className="font-semibold text-foreground">
-						{formatPercent(steps[steps.length - 1]?.shareOfStart ?? 0)}
+			{showConversion && (
+				<div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-sm">
+					<span className="flex items-center gap-1.5 text-muted-foreground">
+						Общая конверсия
+						<HelpHint text="Как считается: «% от старта» — доля сделок этого шага от количества на первом шаге воронки. «Конверсия с шага» — сколько сделок с предыдущего шага дошло до этого (сделки на шаге ÷ сделки на предыдущем шаге). «Потери» — сколько сделок не дошло с одного шага до следующего (разница в количестве). «Общая конверсия» — доля от первого шага, дошедшая до последнего." />
 					</span>
-					<span className="text-muted-foreground text-xs">
-						({formatNumber(steps[0]?.count ?? 0)} →{" "}
-						{formatNumber(steps[steps.length - 1]?.count ?? 0)})
-					</span>
+					<div className="flex items-center gap-2">
+						<span className="font-semibold text-foreground">
+							{formatPercent(steps[steps.length - 1]?.shareOfStart ?? 0)}
+						</span>
+						<span className="text-muted-foreground text-xs">
+							({formatNumber(steps[0]?.count ?? 0)} →{" "}
+							{formatNumber(steps[steps.length - 1]?.count ?? 0)})
+						</span>
+					</div>
 				</div>
-			</div>
+			)}
 		</div>
 	);
 }

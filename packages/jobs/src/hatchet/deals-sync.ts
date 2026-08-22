@@ -4,7 +4,7 @@ import {
 } from "@hatchet-dev/typescript-sdk/v1";
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
-import { syncChangedDeals } from "../deals-sync";
+import { syncChangedDeals, syncDealDictionaries } from "../deals-sync";
 
 /**
  * Периодическая сверка локального зеркала сделок (packages/db, таблица
@@ -28,6 +28,10 @@ export const dealsSync = CreateTaskWorkflow({
 	fn: async () => {
 		const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
 		if (!api) throw new Error("Bitrix24 не подключён");
-		return await syncChangedDeals(api);
+		const [deals] = await Promise.all([
+			syncChangedDeals(api),
+			syncDealDictionaries(api),
+		]);
+		return deals;
 	},
 });
