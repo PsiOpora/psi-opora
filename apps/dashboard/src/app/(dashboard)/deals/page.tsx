@@ -50,7 +50,12 @@ function DealsPageContent() {
 		isError,
 		isFetching,
 		refetch,
-	} = useBitrixData(["sourceNames", "categoryNames", "stageNames", "dealDomain"]);
+	} = useBitrixData([
+		"sourceNames",
+		"categoryNames",
+		"stageNames",
+		"dealDomain",
+	]);
 
 	if (isLoading) return <DealsPageSkeleton />;
 
