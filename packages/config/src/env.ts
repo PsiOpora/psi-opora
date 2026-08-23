@@ -50,14 +50,18 @@ export const env = createEnv({
 		// на время переезда с РФ-хостинга, пока прямые запросы к api.telegram.org
 		// с k3s ненадёжны. Тоггл отдельно от URL, чтобы выключить проксирование
 		// без передеплоя (просто убрать переменную/поставить false).
-		TG_API_PROXY_ENABLED: z.coerce.boolean().optional().default(false),
+		TG_API_PROXY_ENABLED: z
+			.string()
+			.optional()
+			.default("false")
+			.transform((val) => val === "true"),
 		// Базовый URL задеплоенного apps/tg-vercel-proxy, например
 		// https://tg-proxy.vercel.app — без хвостового слэша.
-		TG_API_PROXY_URL: z.string().optional(),
+		TG_API_PROXY_URL: z.string().min(1).optional(),
 		// Общий секрет с прокси (заголовок X-Proxy-Secret) — без него прокси,
 		// будучи публичным Vercel-URL, стал бы открытым релеем к Telegram для
 		// любого, кто узнает адрес.
-		TG_API_PROXY_SECRET: z.string().optional(),
+		TG_API_PROXY_SECRET: z.string().min(1).optional(),
 
 		// Redis. REDIS_URL удобен локально; в k3s host/port/password задаются
 		// раздельно, чтобы пароль не приходилось подставлять внутрь URL.

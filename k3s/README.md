@@ -39,13 +39,17 @@ LoadBalancer`, без отдельного L2Advertisement/IPAddressPool.
    сертификаты хранятся в `/data/acme.json` на `emptyDir`-томе пода — при
    пересоздании пода Traefik просто перевыпускает их заново). Статичные
    аргументы — в `k3s/traefik-values.yaml`, email для Let's Encrypt
-   передаётся отдельно (в git не попадает):
+   передаётся отдельно (в git не попадает).
+
+   Требуется Helm CLI версии 3.9.0 или новее. Проверьте установленную версию:
 
    ```bash
+   helm version --short
+
    helm repo add traefik https://traefik.github.io/charts
    helm repo update
 
-   export ACME_EMAIL=<email для Let's Encrypt>
+   export ACME_EMAIL=admin@example.com
    helm install traefik traefik/traefik --version 39.0.1 \
      --values k3s/traefik-values.yaml \
      --set-string additionalArguments[7]="--certificatesresolvers.letsencrypt.acme.email=$ACME_EMAIL"
@@ -83,7 +87,13 @@ ConfigMap), а не переменными окружения. Авториза�
 
 1. Направить DNS A-запись `registry.orixon.ru` на IP сервера с k3s.
 
-2. Создать htpasswd-секрет с пользователем `deploy` (файл с паролем в git не
+2. Создать namespace psi-opora (если ещё не создан):
+
+   ```bash
+   kubectl apply -f k3s/namespace.yaml
+   ```
+
+3. Создать htpasswd-секрет с пользователем `deploy` (файл с паролем в git не
    попадает — секрет создаётся вручную, один раз):
 
    ```bash
@@ -281,7 +291,24 @@ notes и миграции на тестовом окружении.
 ## 5. Применить манифесты приложений
 
 ```bash
-kubectl apply -f k3s/
+# Применить манифесты напрямую (traefik-values.yaml — это Helm values, не k8s манифест,
+# поэтому исключаем его из списка; hatchet/values.yaml и migrations/* применяются отдельно)
+kubectl apply -f k3s/namespace.yaml
+kubectl apply -f k3s/middleware.yaml
+kubectl apply -f k3s/regcred.yaml
+kubectl apply -f k3s/registry.yaml
+kubectl apply -f k3s/redis.yaml
+kubectl apply -f k3s/postgres.yaml
+kubectl apply -f k3s/waha.yaml
+kubectl apply -f k3s/tg-bot.yaml
+kubectl apply -f k3s/max-bot.yaml
+kubectl apply -f k3s/tg-userbot-worker.yaml
+kubectl apply -f k3s/max-userbot-worker.yaml
+kubectl apply -f k3s/hatchet-worker.yaml
+kubectl apply -f k3s/bitrix-webhook.yaml
+kubectl apply -f k3s/dashboard.yaml
+kubectl apply -f k3s/clients.yaml
+kubectl apply -f k3s/logging.yaml
 kubectl rollout status statefulset/postgres -n psi-opora --timeout=180s
 kubectl rollout status statefulset/redis -n psi-opora --timeout=120s
 kubectl rollout status deployment/hatchet-worker -n psi-opora --timeout=180s
@@ -432,10 +459,13 @@ Workflow [.github/workflows/deploy-k3s.yml](../.github/workflows/deploy-k3s.yml)
 на пуш в `main` (или вручную, `workflow_dispatch`, с выбором конкретного
 сервиса) собирает образ, пушит в свой реестр и обновляет запущенный Deployment
 через `kubectl set image` + `kubectl rollout status`. Раннер — обычный
-`ubuntu-latest`, подключается к API k3s напрямую по сети, поэтому порт `6443`
-на сервере должен быть доступен снаружи (тот же принцип, что и для NodePort
-сервисов выше — открывать порт наружу здесь неизбежно, т.к. self-hosted
-раннер или SSH-доступ не используются).
+`ubuntu-latest`, подключается к API k3s напрямую по сети.
+
+**ВАЖНО: Не используйте `/etc/rancher/k3s/k3s.yaml` и админский KUBECONFIG
+напрямую.** Вместо этого создайте отдельный ServiceAccount с минимальными
+RBAC-правами (deploy, get, list pods/deployments в namespace psi-opora).
+Доступ к API на порту 6443 ограничьте через VPN, SSH-туннель или используйте
+self-hosted runner.
 
 В репозитории (Settings → Secrets and variables → Actions) нужно завести:
 

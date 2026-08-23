@@ -237,6 +237,10 @@ export async function sendTelegramScenarioMessage(
  * в Открытую линию (message.files в imconnector.send.messages). Ссылка
  * держится ограниченное время — этого достаточно, чтобы оператор открыл её
  * вскоре после получения; постоянного хранилища для вложений бота нет.
+ *
+ * Всегда возвращает прямой URL api.telegram.org, даже если включён прокси —
+ * URL используется для передачи в Bitrix24, который не имеет доступа к
+ * защищённому прокси (нет x-proxy-secret заголовка).
  */
 async function resolveTelegramFileUrl(
 	api: Api,
@@ -246,7 +250,7 @@ async function resolveTelegramFileUrl(
 	try {
 		const file = await api.getFile(fileId);
 		if (!file.file_path) return null;
-		return `${telegramApiRoot}/file/bot${token}/${file.file_path}`;
+		return `https://api.telegram.org/file/bot${token}/${file.file_path}`;
 	} catch (err) {
 		console.error(
 			`[bitrix] не удалось получить ссылку на файл Telegram: ${(err as Error).message}`,

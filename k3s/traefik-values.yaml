@@ -7,11 +7,10 @@ ports:
     tls:
       enabled: true
 
+persistence:
+  enabled: true
+
 additionalArguments:
   - "--certificatesresolvers.letsencrypt.acme.httpChallenge.entryPoint=web"
   - "--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json"
   - "--certificatesresolvers.letsencrypt.acme.tlsChallenge=true"
-  - "--entrypoints.web.forwardedheaders.insecure=true"
-  - "--entrypoints.websecure.forwardedheaders.insecure=true"
-  - "--entrypoints.web.proxyprotocol.insecure=true"
-  - "--entrypoints.websecure.proxyprotocol.insecure=true"
