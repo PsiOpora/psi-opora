@@ -1,44 +1,44 @@
 {
-	"name": "@psi-opora/jobs",
-	"version": "0.0.1",
-	"type": "module",
-	"private": true,
-	"main": "./dist/index.mjs",
-	"types": "./dist/index.d.mts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.mts",
-			"default": "./dist/index.mjs"
-		}
-	},
-	"files": [
-		"dist"
-	],
-	"scripts": {
-		"build": "tsdown",
-		"clean": "git clean -xdf .cache .turbo dist node_modules",
-		"dev": "bun --env-file=../../.env --watch src/worker.ts",
-		"start": "bun --env-file=../../.env src/worker.ts",
-		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
-	},
-	"dependencies": {
-		"@psi-opora/storage": "workspace:*",
-		"@psi-opora/bitrix-client": "workspace:*",
-		"@psi-opora/bot-core": "workspace:*",
-		"@psi-opora/config": "workspace:*",
-		"@psi-opora/db": "workspace:*",
-		"@psi-opora/emails": "workspace:*",
-		"@psi-opora/rusender-client": "workspace:*",
-		"@psi-opora/unisender-client": "workspace:*",
-		"@hatchet-dev/typescript-sdk": "1.28.2",
-		"zod": "^3.24.1"
-	},
-	"devDependencies": {
-		"@psi-opora/tsconfig": "workspace:*",
-		"@types/node": "26.2.0",
-		"dotenv": "^17.4.2",
-		"esbuild": "^0.28.2",
-		"tsdown": "^0.22.14",
-		"typescript": "7.0.2"
-	}
+  "name": "@psi-opora/jobs",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "bun --env-file=../../.env --watch src/worker.ts",
+    "start": "bun --env-file=../../.env src/worker.ts",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@psi-opora/storage": "workspace:*",
+    "@psi-opora/bitrix-client": "workspace:*",
+    "@psi-opora/bot-core": "workspace:*",
+    "@psi-opora/config": "workspace:*",
+    "@psi-opora/db": "workspace:*",
+    "@psi-opora/emails": "workspace:*",
+    "@psi-opora/rusender-client": "workspace:*",
+    "@psi-opora/unisender-client": "workspace:*",
+    "@hatchet-dev/typescript-sdk": "1.28.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@psi-opora/tsconfig": "workspace:*",
+    "@types/node": "26.2.0",
+    "dotenv": "^17.4.2",
+    "esbuild": "^0.28.2",
+    "tsdown": "^0.22.14",
+    "typescript": "7.0.2"
+  }
 }

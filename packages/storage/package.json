@@ -1,30 +1,30 @@
 {
-	"name": "@psi-opora/storage",
-	"private": true,
-	"type": "module",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"default": "./src/index.ts"
-		}
-	},
-	"license": "MIT",
-	"scripts": {
-		"build": "rm -rf .cache dist && tsc",
-		"clean": "git clean -xdf .cache .turbo dist node_modules",
-		"dev": "tsc",
-		"format": "biome format .",
-		"lint": "biome lint .",
-		"check": "biome check .",
-		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
-	},
-	"dependencies": {
-		"@aws-sdk/client-s3": "^3.1114.0",
-		"@psi-opora/db": "workspace:*"
-	},
-	"devDependencies": {
-		"@psi-opora/tsconfig": "workspace:*",
-		"@types/node": "26.2.0",
-		"typescript": "7.0.2"
-	}
+  "name": "@psi-opora/storage",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "rm -rf .cache dist && tsc",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsc",
+    "format": "biome format .",
+    "lint": "biome lint .",
+    "check": "biome check .",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1116.0",
+    "@psi-opora/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@psi-opora/tsconfig": "workspace:*",
+    "@types/node": "26.2.0",
+    "typescript": "7.0.2"
+  }
 }
