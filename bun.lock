@@ -27,7 +27,7 @@
         "@psi-opora/storage": "workspace:*",
         "@psi-opora/tg-userbot": "workspace:*",
         "@psi-opora/waha": "workspace:*",
-        "hono": "^4.13.3",
+        "hono": "4.13.3",
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
@@ -146,7 +146,7 @@
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
         "@psi-opora/storage": "workspace:*",
-        "hono": "^4.13.3",
+        "hono": "4.13.3",
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
@@ -181,7 +181,7 @@
         "@psi-opora/db": "workspace:*",
         "@psi-opora/storage": "workspace:*",
         "grammy": "1.45.1",
-        "hono": "^4.13.3",
+        "hono": "4.13.3",
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
@@ -202,6 +202,10 @@
         "@types/node": "26.2.0",
         "typescript": "7.0.2",
       },
+    },
+    "apps/tg-vercel-proxy": {
+      "name": "@psi-opora/tg-vercel-proxy",
+      "version": "0.0.1",
     },
     "packages/api": {
       "name": "@psi-opora/api",
@@ -929,6 +933,8 @@
     "@psi-opora/tg-userbot": ["@psi-opora/tg-userbot@workspace:packages/tg-userbot"],
 
     "@psi-opora/tg-userbot-worker": ["@psi-opora/tg-userbot-worker@workspace:apps/tg-userbot-worker"],
+
+    "@psi-opora/tg-vercel-proxy": ["@psi-opora/tg-vercel-proxy@workspace:apps/tg-vercel-proxy"],
 
     "@psi-opora/tsconfig": ["@psi-opora/tsconfig@workspace:tooling/typescript"],
 
