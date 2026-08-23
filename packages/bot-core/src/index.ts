@@ -136,6 +136,10 @@ export {
 	logBotMessage,
 } from "./utils/message-log";
 export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes";
+export {
+	createTelegramFetch,
+	resolveTelegramApiRoot,
+} from "./utils/telegram-proxy";
 export { resolveMaxBotToken, resolveTelegramBotToken } from "./utils/token";
 export { type TriageMessage, triageOffScriptMessage } from "./utils/triage";
 export {

@@ -12,6 +12,7 @@ CRM/маркетинга и интеграция всей переписки с 
 | `apps/dashboard`              | Bitrix24-приложение: аналитика, рассылки, настройки интеграций          |
 | `apps/bitrix-webhook`         | Приём вебхуков от Bitrix24 (ответы оператора, обновления сделок)         |
 | `apps/tg-userbot-worker`      | Always-on процесс для личных номеров Telegram (см. ниже)                |
+| `apps/tg-vercel-proxy`        | Reverse-прокси к api.telegram.org на Vercel — на время переезда с РФ-хостинга |
 | `packages/waha`               | REST-клиент WAHA для личных номеров WhatsApp (см. ниже)                 |
 | `packages/bot-core`           | Общая логика сценария ботов, CRM-хелперы (webhook-транспорт)             |
 | `packages/bitrix-client`      | OAuth-клиент Bitrix24 (`resolveBitrixApi`) для методов, требующих app context |

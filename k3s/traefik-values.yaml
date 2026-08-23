@@ -1,0 +1,17 @@
+# Traefik ingress controller для single-node k3s. ACME certResolver
+# "letsencrypt" используется всеми IngressRoute в k3s/*.yaml (см. README.md,
+# раздел "Домены"). email для Let's Encrypt не хардкодим — передаётся
+# отдельным --set-string при helm install/upgrade (см. README.md).
+ports:
+  websecure:
+    tls:
+      enabled: true
+
+additionalArguments:
+  - "--certificatesresolvers.letsencrypt.acme.httpChallenge.entryPoint=web"
+  - "--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json"
+  - "--certificatesresolvers.letsencrypt.acme.tlsChallenge=true"
+  - "--entrypoints.web.forwardedheaders.insecure=true"
+  - "--entrypoints.websecure.forwardedheaders.insecure=true"
+  - "--entrypoints.web.proxyprotocol.insecure=true"
+  - "--entrypoints.websecure.proxyprotocol.insecure=true"

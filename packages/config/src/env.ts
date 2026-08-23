@@ -46,6 +46,19 @@ export const env = createEnv({
 		MAX_WEBHOOK_URL: z.string().optional(),
 		TG_WEBHOOK_URL: z.string().optional(),
 
+		// Прокси для Bot API Telegram (apps/tg-vercel-proxy, Vercel Edge Function) —
+		// на время переезда с РФ-хостинга, пока прямые запросы к api.telegram.org
+		// с k3s ненадёжны. Тоггл отдельно от URL, чтобы выключить проксирование
+		// без передеплоя (просто убрать переменную/поставить false).
+		TG_API_PROXY_ENABLED: z.coerce.boolean().optional().default(false),
+		// Базовый URL задеплоенного apps/tg-vercel-proxy, например
+		// https://tg-proxy.vercel.app — без хвостового слэша.
+		TG_API_PROXY_URL: z.string().optional(),
+		// Общий секрет с прокси (заголовок X-Proxy-Secret) — без него прокси,
+		// будучи публичным Vercel-URL, стал бы открытым релеем к Telegram для
+		// любого, кто узнает адрес.
+		TG_API_PROXY_SECRET: z.string().optional(),
+
 		// Redis. REDIS_URL удобен локально; в k3s host/port/password задаются
 		// раздельно, чтобы пароль не приходилось подставлять внутрь URL.
 		REDIS_URL: z.string().optional(),
@@ -168,6 +181,9 @@ export const env = createEnv({
 		AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
 		MAX_WEBHOOK_URL: process.env.MAX_WEBHOOK_URL,
 		TG_WEBHOOK_URL: process.env.TG_WEBHOOK_URL,
+		TG_API_PROXY_ENABLED: process.env.TG_API_PROXY_ENABLED,
+		TG_API_PROXY_URL: process.env.TG_API_PROXY_URL,
+		TG_API_PROXY_SECRET: process.env.TG_API_PROXY_SECRET,
 		REDIS_URL: process.env.REDIS_URL,
 		REDIS_HOST: process.env.REDIS_HOST,
 		REDIS_PORT: process.env.REDIS_PORT,

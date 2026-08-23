@@ -1,17 +1,71 @@
 # Деплой в k3s
 
 Манифесты — по одному файлу на сервис (Deployment + Service, где сервису нужен
-входящий трафик). `waha.yaml`, `minio.yaml`, `redis.yaml` и `postgres.yaml`
-дополнительно содержат постоянные тома (сессии WhatsApp / файлы MinIO /
-данные Redis / PostgreSQL) —
-без них данные пропадут при пересоздании пода.
+входящий трафик). `waha.yaml`, `redis.yaml` и `postgres.yaml`
+дополнительно содержат постоянные тома (сессии WhatsApp / данные Redis /
+PostgreSQL) — без них данные пропадут при пересоздании пода.
+
+MinIO в кластере не разворачивается: фича «Бэкап CRM» ходит напрямую во
+внешний S3 (сейчас — Яндекс.Облако, эндпоинт настраивается в UI), а MinIO —
+это заглушка только для локальной разработки (`docker-compose.yml`).
 
 Образы для tg-bot/max-bot/tg-userbot-worker/hatchet-worker/bitrix-webhook/dashboard/clients
 собираются и катятся в кластер через GitHub Actions ([.github/workflows/deploy-k3s.yml](../.github/workflows/deploy-k3s.yml)),
 в свой реестр (`registry.yaml`), поднятый в этом же кластере. Разделы ниже —
 разовая настройка перед первым деплоем.
 
-## 0. Свой реестр (registry.yaml, zot)
+## 0. k3s и Traefik на новый сервер
+
+Установка с нуля, когда k3s на сервере ещё нет вообще. Встроенный `traefik`
+в k3s отключён — вместо него ставится отдельный Traefik через Helm с ACME
+`certResolver: letsencrypt`, на который опираются все `IngressRoute` в этом
+репозитории (см. "Домены" ниже). Встроенный `servicelb` (klipper-lb) не
+трогаем — для одной ноды он и так делает то же самое, что MetalLB на
+multi-node bare metal: сам вешает внешний IP ноды на `Service type:
+LoadBalancer`, без отдельного L2Advertisement/IPAddressPool.
+
+1. Установить k3s:
+
+   ```bash
+   curl -sfL https://get.k3s.io | sh -s - --disable=traefik
+   sudo k3s kubectl get nodes
+   ```
+
+   Kubeconfig для работы с локальной машины и GitHub Actions — в
+   `/etc/rancher/k3s/k3s.yaml` (см. также "Настройка GitHub Actions" ниже, там
+   `server:` переписывается на реальный адрес).
+
+2. Поставить Traefik с ACME resolver `letsencrypt` (HTTP-01 challenge + TLS,
+   сертификаты хранятся в `/data/acme.json` на `emptyDir`-томе пода — при
+   пересоздании пода Traefik просто перевыпускает их заново). Статичные
+   аргументы — в `k3s/traefik-values.yaml`, email для Let's Encrypt
+   передаётся отдельно (в git не попадает):
+
+   ```bash
+   helm repo add traefik https://traefik.github.io/charts
+   helm repo update
+
+   export ACME_EMAIL=<email для Let's Encrypt>
+   helm install traefik traefik/traefik --version 39.0.1 \
+     --values k3s/traefik-values.yaml \
+     --set-string additionalArguments[7]="--certificatesresolvers.letsencrypt.acme.email=$ACME_EMAIL"
+
+   kubectl get svc traefik -w   # дождаться EXTERNAL-IP == внешний IP ноды
+   ```
+
+   На firewall сервера должны быть открыты `80` и `443` (ACME HTTP-01
+   челлендж и сам HTTPS-трафик), а также `6443` — для GitHub Actions и
+   удалённого `kubectl` (см. "Настройка GitHub Actions" ниже).
+
+Если хостер прописывает в `/etc/resolv.conf` ноды свой search-домен (как
+описано в `k3s/coredns-custom.yaml`) — проверьте, актуальна ли эта проблема
+на новом сервере, и примените `kubectl apply -f k3s/coredns-custom.yaml`
+(поправив домен хостера), иначе поды могут не резолвить внешние адреса.
+
+Дальше — обычные шаги деплоя приложений: 1) свой реестр, 2) образы,
+3) namespace и секреты, 4) Hatchet, 5) манифесты.
+
+## 1. Свой реестр (registry.yaml, zot)
 
 Реестр — [zot](https://zotregistry.dev) внутри кластера: в отличие от
 классического `registry:2` конфигурируется JSON-файлом (`registry-config`
@@ -43,7 +97,7 @@ ConfigMap), а не переменными окружения. Авториза�
 не трогая сами файлы — если применить манифест заново вручную, образ
 откатится на `:latest`, после чего просто перезапустите workflow.
 
-## 1. Собрать и загрузить образы (первый раз — вручную)
+## 2. Собрать и загрузить образы (первый раз — вручную)
 
 Перед первым `kubectl apply -f k3s/` реестр и сами приложения ещё не
 задеплоены — собрать образы и запушить в свой реестр можно локально:
@@ -62,9 +116,9 @@ done
 `registry.yaml`, дождитесь, пока под реестра станет Ready, и только потом
 собирайте и пушьте остальные образы.
 
-`waha`, `minio` и `redis` используют публичные образы — k3s подтянет их сам.
+`waha` и `redis` используют публичные образы — k3s подтянет их сам.
 
-## 2. Создать namespace и секрет с переменными окружения
+## 3. Создать namespace и секрет с переменными окружения
 
 ```bash
 kubectl apply -f k3s/namespace.yaml
@@ -162,10 +216,10 @@ kubectl rollout restart deployment -n psi-opora
 kubectl rollout restart statefulset/redis -n psi-opora
 ```
 
-## 3. Подключить Hatchet Cloud
+## 4. Подключить Hatchet Cloud
 
 Сейчас control plane работает в Hatchet Cloud, а `hatchet-worker` — внутри
-k3s рядом с приложениями и их Redis/MinIO. Создайте API token в Hatchet Cloud
+k3s рядом с приложениями и их Redis. Создайте API token в Hatchet Cloud
 (`Settings → API Tokens`) и добавьте его в общий `.env`:
 
 ```dotenv
@@ -224,7 +278,7 @@ kubectl port-forward -n psi-opora svc/hatchet-stack-frontend 8080:8080
 Версия chart закреплена намеренно: перед её обновлением проверьте release
 notes и миграции на тестовом окружении.
 
-## 4. Применить манифесты приложений
+## 5. Применить манифесты приложений
 
 ```bash
 kubectl apply -f k3s/
@@ -286,8 +340,7 @@ GitHub Actions) новый под должен полностью поднять
 секундный простой при пересоздании пода, а лишь не пускают трафик в под,
 который ещё не успел подняться.
 
-`minio`, `waha`, `tg-userbot-worker` — тоже `Recreate`, уже осознанно:
-`minio` — тот же RWO-диск; `waha` и `tg-userbot-worker` держат по одному
+`waha`, `tg-userbot-worker` — тоже `Recreate`, уже осознанно: держат по одному
 живому MTProto/WhatsApp-соединению на аккаунт, поднять второй под рядом со
 старым нельзя технически (см. раздел выше). Сообщения, пришедшие в короткое
 окно простоя при их рестарте, не теряются — Telegram/WhatsApp хранят их на
@@ -301,8 +354,6 @@ GitHub Actions) новый под должен полностью поднять
 | dashboard       | 30010    | 3000              |
 | bitrix-webhook  | 30020    | 3000              |
 | waha            | 30050    | 3000              |
-| minio (API)     | 30900    | 9000              |
-| minio (консоль) | 30901    | 9001              |
 | postgres (TLS)  | 30432    | 5432              |
 
 Grafana торчит через `IngressRoute` (см. "Домены" ниже), без NodePort.
@@ -310,7 +361,7 @@ Grafana торчит через `IngressRoute` (см. "Домены" ниже), 
 `tg-userbot-worker` без Service — ему не нужен входящий трафик (MTProto
 исходящий).
 
-`registry` — без NodePort, доступен через `IngressRoute` (см. шаг 0 и
+`registry` — без NodePort, доступен через `IngressRoute` (см. шаг 1 и
 раздел "Домены" ниже).
 
 ## Домены (IngressRoute)
@@ -394,7 +445,7 @@ Workflow [.github/workflows/deploy-k3s.yml](../.github/workflows/deploy-k3s.yml)
 
 **Secrets:**
 
-- `REGISTRY_USER`, `REGISTRY_PASSWORD` — логин/пароль из шага 0 выше (htpasswd).
+- `REGISTRY_USER`, `REGISTRY_PASSWORD` — логин/пароль из шага 1 выше (htpasswd).
 - `KUBECONFIG` — содержимое `/etc/rancher/k3s/k3s.yaml` в base64, с полем
   `server:` переписанным на реальный адрес сервера (по умолчанию там
   `https://127.0.0.1:6443`, что снаружи не резолвится):
