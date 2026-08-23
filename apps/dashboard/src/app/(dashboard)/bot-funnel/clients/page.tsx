@@ -21,7 +21,13 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { MESSENGER_LABELS, STEP_LABELS } from "@/lib/analytics/bot-funnel";
+import {
+	type BotFunnelFlow,
+	FLOW_LABELS,
+	MESSENGER_LABELS,
+	REASON_LABELS,
+	STEP_LABELS,
+} from "@/lib/analytics/bot-funnel";
 
 interface BotFunnelStepClient {
 	messenger: string;
@@ -32,6 +38,8 @@ interface BotFunnelStepClient {
 	username: string | null;
 	source: string;
 	campaign: string;
+	flow: string;
+	reason: string;
 	firstDay: string;
 	lastDay: string;
 }
@@ -60,6 +68,8 @@ function BotFunnelClientsPageContent() {
 	const messenger = searchParams.get("messenger") ?? undefined;
 	const source = searchParams.get("source") ?? undefined;
 	const campaign = searchParams.get("campaign") ?? undefined;
+	const flow = searchParams.get("flow") ?? undefined;
+	const reason = searchParams.get("reason") ?? undefined;
 
 	const { data, isLoading, isError } = useQuery({
 		queryKey: [
@@ -70,12 +80,16 @@ function BotFunnelClientsPageContent() {
 			messenger,
 			source,
 			campaign,
+			flow,
+			reason,
 		],
 		queryFn: async () => {
 			const params = new URLSearchParams({ step, from, to });
 			if (messenger) params.set("messenger", messenger);
 			if (source) params.set("source", source);
 			if (campaign) params.set("campaign", campaign);
+			if (flow) params.set("flow", flow);
+			if (reason) params.set("reason", reason);
 			const res = await fetch(`/api/dashboard/bot-funnel/clients?${params}`);
 			if (!res.ok) throw new Error("Не удалось загрузить список клиентов");
 			return (await res.json()) as { clients: BotFunnelStepClient[] };
@@ -85,14 +99,22 @@ function BotFunnelClientsPageContent() {
 
 	const clients = data?.clients ?? [];
 	const stepLabel = STEP_LABELS[step as FunnelStep] ?? step;
+	const reasonLabel = reason ? (REASON_LABELS[reason] ?? reason) : undefined;
 
 	return (
 		<div className="flex flex-col gap-4">
 			<Card>
 				<CardHeader>
-					<CardTitle>Клиенты: {stepLabel}</CardTitle>
+					<CardTitle>
+						{reasonLabel ? `Отвал: ${stepLabel}` : `Клиенты: ${stepLabel}`}
+					</CardTitle>
 					<CardDescription>
-						Уникальные пользователи, дошедшие до этого шага
+						{reasonLabel
+							? `Причина: «${reasonLabel}»`
+							: "Уникальные пользователи, дошедшие до этого шага"}
+						{flow
+							? ` в ветке «${FLOW_LABELS[flow as BotFunnelFlow] ?? flow}»`
+							: ""}
 						{messenger ? ` в ${MESSENGER_LABELS[messenger] ?? messenger}` : ""}
 						{source ? ` из источника «${source}»` : ""}
 						{campaign ? `, кампания «${campaign}»` : ""} за {from} — {to}.{" "}
@@ -110,7 +132,7 @@ function BotFunnelClientsPageContent() {
 						</p>
 					) : clients.length === 0 ? (
 						<p className="text-sm text-muted-foreground py-4">
-							За выбранный период и фильтры никто не дошёл до этого шага.
+							За выбранный период и фильтры никого не нашлось.
 						</p>
 					) : (
 						<div className="overflow-x-auto">

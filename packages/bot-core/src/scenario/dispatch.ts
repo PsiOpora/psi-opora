@@ -220,6 +220,18 @@ export async function dispatchScenarioOutput(
 			source: deps.source,
 			campaign: deps.campaign,
 			userId: deps.userId,
+			flow: out.state.flow,
+		});
+	}
+
+	if (out.dropReason) {
+		await trackFunnelStep(out.dropReason.step, {
+			messenger: deps.messenger,
+			source: deps.source,
+			campaign: deps.campaign,
+			userId: deps.userId,
+			flow: out.state.flow,
+			reason: out.dropReason.reason,
 		});
 	}
 

@@ -16,6 +16,8 @@ export type UpsertFunnelFn = (data: {
 	source?: string;
 	campaign?: string;
 	userId?: string | number;
+	flow?: string;
+	reason?: string;
 }) => Promise<void>;
 
 /**
@@ -62,6 +64,13 @@ export interface FunnelEventContext {
 	/** ID пользователя мессенджера — нужен для дедупликации: без него шаг
 	 * попадёт только в общий (неуникальный) счётчик bot_funnel_events. */
 	userId?: string | number;
+	/** Ветка сценария ("consult" | "guide") — не задана до её выбора (шаг start). */
+	flow?: string;
+	/** Не задано — обычное успешное прохождение шага. Задано — это не
+	 * прогресс, а причина, по которой пользователь остановился именно на
+	 * этом шаге ("declined", "timeout", "blocked" и т.п.), см. дашборд
+	 * "Причины отвала". */
+	reason?: string;
 }
 
 const FIELD_SEP = "|";
@@ -121,6 +130,8 @@ export async function trackFunnelStep(
 			source,
 			campaign,
 			userId: ctx.userId,
+			flow: ctx.flow,
+			reason: ctx.reason,
 		});
 	} catch (err) {
 		console.error(

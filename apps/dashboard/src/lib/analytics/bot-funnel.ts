@@ -1,11 +1,16 @@
 import { FUNNEL_STEPS, type FunnelStep } from "@psi-opora/bot-core";
-import { getBotFunnelUniqueStepCountsByDateRange } from "@psi-opora/db/queries";
+import {
+	getBotFunnelDropReasonsByDateRange,
+	getBotFunnelUniqueStepCountsByDateRange,
+} from "@psi-opora/db/queries";
 import { formatDateParam } from "./date-range";
 import type { DateRange } from "./types";
 
 export interface BotFunnelEvent {
 	messenger: string;
 	step: FunnelStep;
+	/** "consult" | "guide" | "-" (шаг start — ветка ещё не выбрана). */
+	flow: string;
 	source: string;
 	campaign: string;
 	/** Уникальные пользователи мессенджера, дошедшие до шага за период —
@@ -45,6 +50,57 @@ export const MESSENGER_LABELS: Record<string, string> = {
 	all: "Все мессенджеры",
 };
 
+export type BotFunnelFlow = "consult" | "guide";
+
+export const FLOW_LABELS: Record<BotFunnelFlow, string> = {
+	consult: "Консультация",
+	guide: "Гайд",
+};
+
+/**
+ * Шаги каждой ветки сценария в порядке прохождения (см. packages/bot-core/src/scenario/engine.ts) —
+ * считать конверсию "шаг за шагом" по объединённому списку FUNNEL_STEPS
+ * нельзя: после start ветки расходятся, и шаг из одной ветки не следует за
+ * шагом из другой. "start" — общий для обеих веток (выбор ветки ещё не сделан).
+ */
+export const FLOW_STEPS: Record<BotFunnelFlow, readonly FunnelStep[]> = {
+	consult: [
+		"start",
+		"consult_click",
+		"consent",
+		"marketing_consent",
+		"name",
+		"phone",
+		"deal",
+	],
+	guide: [
+		"start",
+		"guide_click",
+		"consent",
+		"marketing_consent",
+		"category",
+		"issue",
+		"email",
+		"phone",
+		"deal",
+		"subscribe",
+	],
+};
+
+/** Человекочитаемые причины, по которым пользователь не пошёл дальше шага —
+ * см. reason в bot_funnel_user_steps / packages/bot-core/src/scenario/engine.ts /reminders.ts. */
+export const REASON_LABELS: Record<string, string> = {
+	declined: "Отказался от согласия на обработку ПДн",
+	phone_skipped: "Пропустил вопрос о телефоне",
+	phone_invalid_exhausted: "Не смог продиктовать телефон (3 неверные попытки)",
+	phone_invalid: "Не смог продиктовать телефон — заявка не создана (3 попытки)",
+	email_invalid:
+		"Не смог указать email — материал кампании не выдан (3 попытки)",
+	timeout: "Не ответил вовремя (после напоминания)",
+	blocked: "Заблокировал бота",
+	send_failed: "Не удалось отправить сообщение (ошибка мессенджера)",
+};
+
 /** Суффикс тестовой кампании: `vk_ads1_test`, `some_source_test` и т.п. — не учитывается в отчёте. */
 const TEST_CAMPAIGN_SUFFIX = "_test";
 
@@ -62,29 +118,35 @@ export async function fetchBotFunnelEvents(
 		.map((row) => ({
 			messenger: row.messenger,
 			step: row.step as FunnelStep,
+			flow: row.flow,
 			source: row.source,
 			campaign: row.campaign,
 			count: row.uniqueUsers,
 		}));
 }
 
-function stepTotals(events: BotFunnelEvent[]): Map<FunnelStep, number> {
+/** Каскад конверсий для одной ветки сценария: "start" берётся из общего (ещё
+ * без ветки) счётчика, остальные шаги — только события этой ветки. */
+function flowCascade(
+	events: BotFunnelEvent[],
+	flow: BotFunnelFlow,
+): BotFunnelStepStats[] {
+	const steps = FLOW_STEPS[flow];
 	const totals = new Map<FunnelStep, number>();
 	for (const event of events) {
+		if (event.step === "start") {
+			totals.set("start", (totals.get("start") ?? 0) + event.count);
+			continue;
+		}
+		if (event.flow !== flow) continue;
 		totals.set(event.step, (totals.get(event.step) ?? 0) + event.count);
 	}
-	return totals;
-}
 
-export function funnelStepStats(
-	events: BotFunnelEvent[],
-): BotFunnelStepStats[] {
-	const totals = stepTotals(events);
 	const start = totals.get("start") ?? 0;
-	return FUNNEL_STEPS.map((step, i) => {
+	return steps.map((step, i) => {
 		const count = totals.get(step) ?? 0;
-		const prev =
-			i === 0 ? count : (totals.get(FUNNEL_STEPS[i - 1] ?? "start") ?? 0);
+		const prevStep = steps[i - 1];
+		const prev = i === 0 ? count : (totals.get(prevStep ?? "start") ?? 0);
 		return {
 			step,
 			label: STEP_LABELS[step],
@@ -93,6 +155,39 @@ export function funnelStepStats(
 			stepConversion: i === 0 ? 1 : prev > 0 ? count / prev : 0,
 		};
 	});
+}
+
+export interface BotFunnelFlowStats {
+	flow: BotFunnelFlow;
+	label: string;
+	steps: BotFunnelStepStats[];
+}
+
+export function funnelStepStatsByFlow(
+	events: BotFunnelEvent[],
+): BotFunnelFlowStats[] {
+	return (Object.keys(FLOW_LABELS) as BotFunnelFlow[]).map((flow) => ({
+		flow,
+		label: FLOW_LABELS[flow],
+		steps: flowCascade(events, flow),
+	}));
+}
+
+export function funnelByMessenger(
+	events: BotFunnelEvent[],
+): Array<{ messenger: string; flows: BotFunnelFlowStats[] }> {
+	const byMessenger = new Map<string, BotFunnelEvent[]>();
+	for (const event of events) {
+		const bucket = byMessenger.get(event.messenger);
+		if (bucket) bucket.push(event);
+		else byMessenger.set(event.messenger, [event]);
+	}
+	return [...byMessenger.entries()]
+		.map(([messenger, group]) => ({
+			messenger,
+			flows: funnelStepStatsByFlow(group),
+		}))
+		.sort((a, b) => a.messenger.localeCompare(b.messenger));
 }
 
 export interface BotFunnelSourceRow {
@@ -142,16 +237,38 @@ export function funnelBySourceCampaign(
 		.sort((a, b) => b.starts - a.starts);
 }
 
-export function funnelByMessenger(
-	events: BotFunnelEvent[],
-): Array<{ messenger: string; steps: BotFunnelStepStats[] }> {
-	const byMessenger = new Map<string, BotFunnelEvent[]>();
-	for (const event of events) {
-		const bucket = byMessenger.get(event.messenger);
-		if (bucket) bucket.push(event);
-		else byMessenger.set(event.messenger, [event]);
-	}
-	return [...byMessenger.entries()]
-		.map(([messenger, group]) => ({ messenger, steps: funnelStepStats(group) }))
-		.sort((a, b) => a.messenger.localeCompare(b.messenger));
+export interface BotFunnelDropReasonRow {
+	key: string;
+	messenger: string;
+	flow: string;
+	step: FunnelStep;
+	stepLabel: string;
+	reason: string;
+	reasonLabel: string;
+	count: number;
+}
+
+/** Причины, по которым пользователи не пошли дальше конкретного шага — для
+ * блока "Причины отвала" (см. getBotFunnelDropReasonsByDateRange). */
+export async function fetchBotFunnelDropReasons(
+	range: DateRange,
+): Promise<BotFunnelDropReasonRow[]> {
+	const rows = await getBotFunnelDropReasonsByDateRange(
+		formatDateParam(range.from),
+		formatDateParam(range.to),
+	);
+
+	return rows
+		.filter((row) => (FUNNEL_STEPS as readonly string[]).includes(row.step))
+		.map((row) => ({
+			key: `${row.messenger}|${row.flow}|${row.step}|${row.reason}`,
+			messenger: row.messenger,
+			flow: row.flow,
+			step: row.step as FunnelStep,
+			stepLabel: STEP_LABELS[row.step as FunnelStep],
+			reason: row.reason,
+			reasonLabel: REASON_LABELS[row.reason] ?? row.reason,
+			count: row.uniqueUsers,
+		}))
+		.sort((a, b) => b.count - a.count);
 }

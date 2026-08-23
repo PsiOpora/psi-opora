@@ -72,7 +72,10 @@ function output(
 	state: ScenarioState,
 	messages: ScenarioMessage[],
 	extra: Partial<
-		Pick<ScenarioOutput, "track" | "lead" | "contact" | "subscribeChoice">
+		Pick<
+			ScenarioOutput,
+			"track" | "lead" | "contact" | "subscribeChoice" | "dropReason"
+		>
 	> = {},
 ): ScenarioOutput {
 	return {
@@ -83,6 +86,7 @@ function output(
 		contact: extra.contact,
 		subscribeChoice: extra.subscribeChoice,
 		awaitingInput: state.step !== "done",
+		dropReason: extra.dropReason,
 	};
 }
 
@@ -225,15 +229,27 @@ function submitCampaignGuide(
  * Ветка «для себя» всё равно получает вопрос о рассылке — контакта может
  * не быть, но интерес к каналу бота остаётся; ветка «ребёнок» просто
  * завершает сценарий (лид-магнит уже отправлен на email).
+ *
+ * reason — "skipped" (нажал «Пропустить») или "invalid_exhausted" (3 раза
+ * прислал нераспознанный номер) — обе ветки фиксируются в воронке как отказ
+ * от телефона на шаге phone, см. дашборд "Причины отвала".
  */
-function declinePhone(state: ScenarioState, t: ScenarioTexts): ScenarioOutput {
+function declinePhone(
+	state: ScenarioState,
+	t: ScenarioTexts,
+	reason: "skipped" | "invalid_exhausted" = "skipped",
+): ScenarioOutput {
+	const dropReason = { step: "phone" as const, reason: `phone_${reason}` };
 	if (state.audience === "self") {
-		return output({ ...fresh(state), step: "subscribe" }, [
-			{ text: t.phone_declined },
-			subscribeQuestion(t),
-		]);
+		return output(
+			{ ...fresh(state), step: "subscribe" },
+			[{ text: t.phone_declined }, subscribeQuestion(t)],
+			{ dropReason },
+		);
 	}
-	return output({ ...state, step: "done" }, [{ text: t.phone_declined }]);
+	return output({ ...state, step: "done" }, [{ text: t.phone_declined }], {
+		dropReason,
+	});
 }
 
 /** Финал флоу консультации: сделка с именем и (опционально) email. */
@@ -289,9 +305,11 @@ export function applyScenarioAction(
 				);
 			}
 			if (action === "consent_decline") {
-				return output({ ...state, step: "done" }, [
-					{ text: t.consent_declined },
-				]);
+				return output(
+					{ ...state, step: "done" },
+					[{ text: t.consent_declined }],
+					{ dropReason: { step: "consent", reason: "declined" } },
+				);
 			}
 			return null;
 		}
@@ -531,9 +549,11 @@ export async function applyScenarioText(
 				// Кампания отдаёт материал только за email — без него дальше идти
 				// некуда (в отличие от обычного гайда, телефон здесь не спрашиваем).
 				if (state.campaignId) {
-					return output({ ...state, emailAttempts: attempts, step: "done" }, [
-						{ text: t.guide_campaign_email_invalid_final },
-					]);
+					return output(
+						{ ...state, emailAttempts: attempts, step: "done" },
+						[{ text: t.guide_campaign_email_invalid_final }],
+						{ dropReason: { step: "email", reason: "email_invalid" } },
+					);
 				}
 				// Не мучаем пользователя дальнейшими попытками, но материал
 				// всё равно отдаём в чат — без него клиент остаётся ни с чем.
@@ -564,11 +584,15 @@ export async function applyScenarioText(
 			const attempts = (state.phoneAttempts ?? 0) + 1;
 			if (attempts >= MAX_ATTEMPTS) {
 				if (state.flow === "consult") {
-					return output({ ...state, step: "done" }, [
-						{ text: t.consult_phone_invalid_final },
-					]);
+					// Три невалидных попытки — заявку так и не создали (в отличие от
+					// email, без телефона звонить/писать клиенту нечем).
+					return output(
+						{ ...state, step: "done" },
+						[{ text: t.consult_phone_invalid_final }],
+						{ dropReason: { step: "phone", reason: "phone_invalid" } },
+					);
 				}
-				return declinePhone(state, t);
+				return declinePhone(state, t, "invalid_exhausted");
 			}
 			return output({ ...state, phoneAttempts: attempts, reminded: false }, [
 				{ text: t.phone_invalid },
