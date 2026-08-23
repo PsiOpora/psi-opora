@@ -27,7 +27,7 @@ import {
 	MESSENGER_LABELS,
 	REASON_LABELS,
 	STEP_LABELS,
-} from "@/lib/analytics/bot-funnel";
+} from "@/lib/analytics/bot-funnel-shared";
 
 interface BotFunnelStepClient {
 	messenger: string;

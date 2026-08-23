@@ -16,7 +16,7 @@
     "@orpc/tanstack-query": "1.15.0",
     "@psi-opora/api": "workspace:*",
     "@psi-opora/bitrix-client": "workspace:*",
-    "@tanstack/react-query": "^5.101.4",
+    "@tanstack/react-query": "^5.102.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
