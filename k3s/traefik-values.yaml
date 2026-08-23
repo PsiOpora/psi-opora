@@ -2,11 +2,6 @@
 # "letsencrypt" используется всеми IngressRoute в k3s/*.yaml (см. README.md,
 # раздел "Домены"). email для Let's Encrypt не хардкодим — передаётся
 # отдельным --set-string при helm install/upgrade (см. README.md).
-ports:
-  websecure:
-    tls:
-      enabled: true
-
 persistence:
   enabled: true
 
@@ -14,3 +9,4 @@ additionalArguments:
   - "--certificatesresolvers.letsencrypt.acme.httpChallenge.entryPoint=web"
   - "--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json"
   - "--certificatesresolvers.letsencrypt.acme.tlsChallenge=true"
+  - "--certificatesresolvers.letsencrypt.acme.email=info@psi-opora.ru"

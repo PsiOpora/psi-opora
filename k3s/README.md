@@ -24,35 +24,34 @@ MinIO в кластере не разворачивается: фича «Бэк
 multi-node bare metal: сам вешает внешний IP ноды на `Service type:
 LoadBalancer`, без отдельного L2Advertisement/IPAddressPool.
 
-1. Установить k3s:
+1. Установить k3s. Этот шаг выполняется по SSH прямо на сервере — там
+   всегда bash/sh, PowerShell тут ни при чём:
 
    ```bash
    curl -sfL https://get.k3s.io | sh -s - --disable=traefik
    sudo k3s kubectl get nodes
    ```
 
-   Kubeconfig для работы с локальной машины и GitHub Actions — в
-   `/etc/rancher/k3s/k3s.yaml` (см. также "Настройка GitHub Actions" ниже, там
-   `server:` переписывается на реальный адрес).
+   Дальше все команды — уже с локальной машины (PowerShell), через
+   `kubectl`/`helm`, указывающие на этот кластер через `$env:KUBECONFIG`.
+   Kubeconfig для GitHub Actions — тоже из `/etc/rancher/k3s/k3s.yaml`
+   (см. "Настройка GitHub Actions" ниже, там `server:` переписывается на
+   реальный адрес).
 
 2. Поставить Traefik с ACME resolver `letsencrypt` (HTTP-01 challenge + TLS,
-   сертификаты хранятся в `/data/acme.json` на `emptyDir`-томе пода — при
-   пересоздании пода Traefik просто перевыпускает их заново). Статичные
-   аргументы — в `k3s/traefik-values.yaml`, email для Let's Encrypt
-   передаётся отдельно (в git не попадает).
+   сертификаты хранятся на PVC — `persistence.enabled: true` в
+   `k3s/traefik-values.yaml` — переживают пересоздание пода). Статичные
+   аргументы, включая email для Let's Encrypt, — в `k3s/traefik-values.yaml`.
 
    Требуется Helm CLI версии 3.9.0 или новее. Проверьте установленную версию:
 
-   ```bash
+   ```powershell
    helm version --short
 
    helm repo add traefik https://traefik.github.io/charts
    helm repo update
 
-   export ACME_EMAIL=admin@example.com
-   helm install traefik traefik/traefik --version 39.0.1 \
-     --values k3s/traefik-values.yaml \
-     --set-string additionalArguments[7]="--certificatesresolvers.letsencrypt.acme.email=$ACME_EMAIL"
+   helm install traefik traefik/traefik --values k3s/traefik-values.yaml
 
    kubectl get svc traefik -w   # дождаться EXTERNAL-IP == внешний IP ноды
    ```
@@ -66,8 +65,7 @@ LoadBalancer`, без отдельного L2Advertisement/IPAddressPool.
 на новом сервере, и примените `kubectl apply -f k3s/coredns-custom.yaml`
 (поправив домен хостера), иначе поды могут не резолвить внешние адреса.
 
-Дальше — обычные шаги деплоя приложений: 1) свой реестр, 2) образы,
-3) namespace и секреты, 4) Hatchet, 5) манифесты.
+Дальше — обычные шаги деплоя приложений: 1) свой реестр, 2) образы, 3) namespace и секреты, 4) Hatchet, 5) манифесты.
 
 ## 1. Свой реестр (registry.yaml, zot)
 
@@ -89,18 +87,22 @@ ConfigMap), а не переменными окружения. Авториза�
 
 2. Создать namespace psi-opora (если ещё не создан):
 
-   ```bash
+   ```powershell
    kubectl apply -f k3s/namespace.yaml
    ```
 
 3. Создать htpasswd-секрет с пользователем `deploy` (файл с паролем в git не
-   попадает — секрет создаётся вручную, один раз):
+   попадает — секрет создаётся вручную, один раз). Утилиты `htpasswd` в
+   Windows нет — используем образ `httpd` в Docker, хэш сразу уходит в
+   Secret без временного файла на диске:
 
-   ```bash
-   htpasswd -Bbn deploy '<пароль>' > /tmp/htpasswd
-   kubectl create secret generic registry-htpasswd --from-file=htpasswd=/tmp/htpasswd --namespace psi-opora
-   rm /tmp/htpasswd
+   ```powershell
+   $HtpasswdLine = docker run --rm httpd:2.4-alpine htpasswd -Bbn deploy '<пароль>'
+   kubectl create secret generic registry-htpasswd --from-literal=htpasswd="$HtpasswdLine" --namespace psi-opora
    ```
+
+   На Linux/macOS с установленным `apache2-utils`/`httpd-tools` подойдёт и
+   исходный вариант без Docker: `htpasswd -Bbn deploy '<пароль>' > /tmp/htpasswd`.
 
 Тег `:latest` в манифестах — только для самого первого `kubectl apply`.
 Дальнейшие деплои катит GitHub Actions через `kubectl set image` (см. ниже),
@@ -112,13 +114,13 @@ ConfigMap), а не переменными окружения. Авториза�
 Перед первым `kubectl apply -f k3s/` реестр и сами приложения ещё не
 задеплоены — собрать образы и запушить в свой реестр можно локально:
 
-```bash
-REGISTRY=registry.orixon.ru
-docker login "$REGISTRY" -u deploy -p '<пароль>'
-for app in tg-bot max-bot tg-userbot-worker hatchet-worker bitrix-webhook dashboard clients; do
-  docker build -t "$REGISTRY/psi-opora-$app:latest" -f "apps/$app/Dockerfile" .
-  docker push "$REGISTRY/psi-opora-$app:latest"
-done
+```powershell
+$Registry = "registry.orixon.ru"
+docker login $Registry -u deploy -p '<пароль>'
+foreach ($app in "tg-bot","max-bot","tg-userbot-worker","hatchet-worker","bitrix-webhook","dashboard","clients") {
+  docker build -t "$Registry/psi-opora-${app}:latest" -f "apps/$app/Dockerfile" .
+  docker push "$Registry/psi-opora-${app}:latest"
+}
 ```
 
 Если реестр ещё не поднят (курица и яйцо: registry.yaml тоже применяется
@@ -130,7 +132,7 @@ done
 
 ## 3. Создать namespace и секрет с переменными окружения
 
-```bash
+```powershell
 kubectl apply -f k3s/namespace.yaml
 # Перед созданием секрета добавьте в .env:
 # REDIS_PASSWORD=<случайный-длинный-пароль>
@@ -144,31 +146,41 @@ PostgreSQL хранит данные на PVC 20 Gi и доступен прил
 внешние подключения без TLS отклоняются.
 
 До первого `kubectl apply` создайте отдельный пароль и TLS-сертификат.
-Сертификат должен содержать IP или DNS-имя сервера в `subjectAltName`:
+Сертификат должен содержать IP или DNS-имя сервера в `subjectAltName`.
+Пароль генерируем средствами .NET (openssl не нужен), а для сертификата
+`openssl` всё же нужен — Git for Windows ставит его, но не кладёт в PATH,
+поэтому при отсутствии команды подхватываем его оттуда автоматически:
 
-```bash
-export POSTGRES_USER=psi_opora
-export POSTGRES_DB=psi_opora
-export POSTGRES_PASSWORD="$(openssl rand -base64 36 | tr -d '\n')"
-export SERVER_IP=38.49.213.197
+```powershell
+if (-not (Get-Command openssl -ErrorAction SilentlyContinue)) {
+  $env:PATH += ";C:\Program Files\Git\usr\bin"
+}
 
-openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
-  -keyout /tmp/postgres-tls.key -out k3s/postgres-ca.crt \
-  -subj "/CN=$SERVER_IP" \
+$POSTGRES_USER = "psi_opora"
+$POSTGRES_DB = "psi_opora"
+$PasswordBytes = New-Object byte[] 36
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($PasswordBytes)
+$POSTGRES_PASSWORD = [Convert]::ToBase64String($PasswordBytes)
+$SERVER_IP = "178.212.14.126"
+
+$KeyPath = Join-Path $env:TEMP "postgres-tls.key"
+openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes `
+  -keyout $KeyPath -out k3s/postgres-ca.crt `
+  -subj "/CN=$SERVER_IP" `
   -addext "subjectAltName=IP:$SERVER_IP"
 
-kubectl create secret generic postgres-tls -n psi-opora \
-  --from-file=tls.crt=k3s/postgres-ca.crt \
-  --from-file=tls.key=/tmp/postgres-tls.key
-rm /tmp/postgres-tls.key
+kubectl create secret generic postgres-tls -n psi-opora `
+  --from-file=tls.crt=k3s/postgres-ca.crt `
+  --from-file=tls.key=$KeyPath
+Remove-Item $KeyPath
 
-ENCODED_PASSWORD="$(printf '%s' "$POSTGRES_PASSWORD" | jq -sRr @uri)"
-INTERNAL_URL="postgresql://$POSTGRES_USER:$ENCODED_PASSWORD@postgres:5432/$POSTGRES_DB?sslmode=disable"
-kubectl create secret generic postgres-credentials -n psi-opora \
-  --from-literal=POSTGRES_USER="$POSTGRES_USER" \
-  --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-  --from-literal=POSTGRES_DB="$POSTGRES_DB" \
-  --from-literal=POSTGRES_URL="$INTERNAL_URL"
+$EncodedPassword = [System.Uri]::EscapeDataString($POSTGRES_PASSWORD)
+$InternalUrl = "postgresql://${POSTGRES_USER}:${EncodedPassword}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+kubectl create secret generic postgres-credentials -n psi-opora `
+  --from-literal=POSTGRES_USER="$POSTGRES_USER" `
+  --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" `
+  --from-literal=POSTGRES_DB="$POSTGRES_DB" `
+  --from-literal=POSTGRES_URL="$InternalUrl"
 
 kubectl apply -f k3s/postgres.yaml
 kubectl rollout status statefulset/postgres -n psi-opora --timeout=180s
@@ -177,7 +189,7 @@ kubectl rollout status statefulset/postgres -n psi-opora --timeout=180s
 Публичный URL для клиента:
 
 ```text
-postgresql://psi_opora:<URL_ENCODED_PASSWORD>@38.49.213.197:30432/psi_opora?sslmode=verify-full
+postgresql://psi_opora:<URL_ENCODED_PASSWORD>@178.212.14.126:30432/psi_opora?sslmode=verify-full
 ```
 
 Передавайте `k3s/postgres-ca.crt` клиенту как root certificate. Сам порт
@@ -189,16 +201,17 @@ postgresql://psi_opora:<URL_ENCODED_PASSWORD>@38.49.213.197:30432/psi_opora?sslm
 в БД. Исходный URL хранится только во временном Secret и после миграции
 удаляется:
 
-```bash
-kubectl scale deployment -n psi-opora \
-  tg-bot max-bot tg-userbot-worker hatchet-worker bitrix-webhook dashboard clients \
+```powershell
+kubectl scale deployment -n psi-opora `
+  tg-bot max-bot tg-userbot-worker hatchet-worker bitrix-webhook dashboard clients `
   --replicas=0
 
-kubectl create secret generic neon-migration-source -n psi-opora \
+$NEON_POSTGRES_URL = "<строка подключения к Neon>"
+kubectl create secret generic neon-migration-source -n psi-opora `
   --from-literal=POSTGRES_URL="$NEON_POSTGRES_URL"
 kubectl delete job neon-to-postgres -n psi-opora --ignore-not-found
 kubectl apply -f k3s/migrations/neon-to-postgres-job.yaml
-kubectl wait --for=condition=complete job/neon-to-postgres \
+kubectl wait --for=condition=complete job/neon-to-postgres `
   -n psi-opora --timeout=10m
 kubectl logs job/neon-to-postgres -n psi-opora
 kubectl delete secret neon-migration-source -n psi-opora
@@ -218,9 +231,9 @@ Neon не удаляйте до проверки таблиц, авториза�
 При обновлении `.env` примените секрет заново и перезапустите приложения.
 Если менялся пароль Redis, также перезапустите StatefulSet:
 
-```bash
-kubectl create secret generic psi-opora-env \
-  --from-env-file=.env --namespace psi-opora \
+```powershell
+kubectl create secret generic psi-opora-env `
+  --from-env-file=.env --namespace psi-opora `
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl rollout restart deployment -n psi-opora
 kubectl rollout restart statefulset/redis -n psi-opora
@@ -240,9 +253,9 @@ HATCHET_CLIENT_TOKEN=eyJhbGciOi...
 `HATCHET_CLIENT_API_URL` и `HATCHET_CLIENT_TLS_STRATEGY` для Cloud не нужны:
 адреса подключения содержатся в выданном токене.
 
-```bash
-kubectl create secret generic psi-opora-env \
-  --from-env-file=.env --namespace psi-opora \
+```powershell
+kubectl create secret generic psi-opora-env `
+  --from-env-file=.env --namespace psi-opora `
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
@@ -254,19 +267,19 @@ kubectl create secret generic psi-opora-env \
 тот же namespace. Values используют отдельный PostgreSQL на PVC 10 Gi как
 очередь сообщений и не поднимают RabbitMQ.
 
-```bash
+```powershell
 helm repo add hatchet https://hatchet-dev.github.io/hatchet-charts
 helm repo update
 
-export HATCHET_ADMIN_EMAIL=admin@example.com
-export HATCHET_ADMIN_PASSWORD='<длинный-случайный-пароль>'
+$HATCHET_ADMIN_EMAIL = "admin@example.com"
+$HATCHET_ADMIN_PASSWORD = "<длинный-случайный-пароль>"
 
-helm upgrade --install hatchet-stack hatchet/hatchet-stack \
-  --version 0.11.0 \
-  --namespace psi-opora \
-  --values k3s/hatchet/values.yaml \
-  --set-string sharedConfig.defaultAdminEmail="$HATCHET_ADMIN_EMAIL" \
-  --set-string sharedConfig.defaultAdminPassword="$HATCHET_ADMIN_PASSWORD" \
+helm upgrade --install hatchet-stack hatchet/hatchet-stack `
+  --version 0.11.0 `
+  --namespace psi-opora `
+  --values k3s/hatchet/values.yaml `
+  --set-string sharedConfig.defaultAdminEmail="$HATCHET_ADMIN_EMAIL" `
+  --set-string sharedConfig.defaultAdminPassword="$HATCHET_ADMIN_PASSWORD" `
   --wait --timeout=15m
 
 kubectl get secret hatchet-client-config -n psi-opora
@@ -280,7 +293,7 @@ Secret к dashboard, clients и hatchet-worker и задать им внутре
 
 Для просмотра UI без публичного Ingress:
 
-```bash
+```powershell
 kubectl port-forward -n psi-opora svc/hatchet-stack-frontend 8080:8080
 # открыть http://localhost:8080
 ```
@@ -290,7 +303,7 @@ notes и миграции на тестовом окружении.
 
 ## 5. Применить манифесты приложений
 
-```bash
+```powershell
 # Применить манифесты напрямую (traefik-values.yaml — это Helm values, не k8s манифест,
 # поэтому исключаем его из списка; hatchet/values.yaml и migrations/* применяются отдельно)
 kubectl apply -f k3s/namespace.yaml
@@ -322,7 +335,7 @@ PVC `data-redis-0` на 2 Gi. Это сохраняет данные при пе
 
 До переключения приложений экспортируйте облачную базу в RDB и восстановите
 её в новый Redis. Для Upstash экспорт создаётся в `Backups → Backup & Export`;
-официальная инструкция: https://upstash.com/docs/redis/howto/importexport.
+официальная инструкция: <https://upstash.com/docs/redis/howto/importexport>.
 На время финального экспорта остановите записи либо предусмотрите короткое
 окно обслуживания, иначе изменения после снимка потеряются. Облачную базу
 не удаляйте, пока не проверены OAuth-токены, активные сессии ботов и очереди.
@@ -375,13 +388,13 @@ GitHub Actions) новый под должен полностью поднять
 
 ## Порты (NodePort)
 
-| Сервис          | NodePort | Порт в контейнере |
-| --------------- | -------- | ----------------- |
-| clients         | 30005    | 3000              |
-| dashboard       | 30010    | 3000              |
-| bitrix-webhook  | 30020    | 3000              |
-| waha            | 30050    | 3000              |
-| postgres (TLS)  | 30432    | 5432              |
+| Сервис         | NodePort | Порт в контейнере |
+| -------------- | -------- | ----------------- |
+| clients        | 30005    | 3000              |
+| dashboard      | 30010    | 3000              |
+| bitrix-webhook | 30020    | 3000              |
+| waha           | 30050    | 3000              |
+| postgres (TLS) | 30432    | 5432              |
 
 Grafana торчит через `IngressRoute` (см. "Домены" ниже), без NodePort.
 
@@ -400,15 +413,15 @@ IngressRoute: на `web` (порт 80) с редиректом на https чер
 `Middleware` `redirect-to-https` (`k3s/middleware.yaml`), и на `websecure`
 (порт 443) с `tls.certResolver: letsencrypt`.
 
-| Сервис          | Домен                               |
-| --------------- | ------------------------------------ |
-| registry        | registry.orixon.ru                   |
-| clients         | psi-opora-clients.orixon.ru          |
-| dashboard       | psi-opora-dashboard.orixon.ru        |
-| bitrix-webhook  | psi-opora-bitrix-webhook.orixon.ru   |
-| tg-bot          | psi-opora-tg.orixon.ru               |
-| max-bot         | psi-opora-max.orixon.ru              |
-| grafana         | psi-opora-grafana.orixon.ru          |
+| Сервис         | Домен                              |
+| -------------- | ---------------------------------- |
+| registry       | registry.orixon.ru                 |
+| clients        | psi-opora-clients.orixon.ru        |
+| dashboard      | psi-opora-dashboard.orixon.ru      |
+| bitrix-webhook | psi-opora-bitrix-webhook.orixon.ru |
+| tg-bot         | psi-opora-tg.orixon.ru             |
+| max-bot        | psi-opora-max.orixon.ru            |
+| grafana        | psi-opora-grafana.orixon.ru        |
 
 Для каждого — направить DNS A-запись на IP сервера с k3s.
 
@@ -441,14 +454,14 @@ IngressRoute: на `web` (порт 80) с редиректом на https чер
 Перед первым `kubectl apply` нужно завести пароль администратора Grafana
 (в git не попадает, аналогично `registry-htpasswd`):
 
-```bash
-kubectl create secret generic grafana-admin \
+```powershell
+kubectl create secret generic grafana-admin `
   --from-literal=password='<пароль>' --namespace psi-opora
 ```
 
 ## Проверка
 
-```bash
+```powershell
 kubectl get pods -n psi-opora
 kubectl logs -n psi-opora deploy/tg-bot -f
 ```
@@ -478,12 +491,20 @@ self-hosted runner.
 - `REGISTRY_USER`, `REGISTRY_PASSWORD` — логин/пароль из шага 1 выше (htpasswd).
 - `KUBECONFIG` — содержимое `/etc/rancher/k3s/k3s.yaml` в base64, с полем
   `server:` переписанным на реальный адрес сервера (по умолчанию там
-  `https://127.0.0.1:6443`, что снаружи не резолвится):
+  `https://127.0.0.1:6443`, что снаружи не резолвится). Скопируйте файл на
+  локальную машину и правьте/кодируйте уже в PowerShell:
 
-  ```bash
-  sudo sed 's/127.0.0.1/<реальный адрес сервера>/' /etc/rancher/k3s/k3s.yaml \
-    | base64 -w0
+  ```powershell
+  scp root@<IP сервера>:/etc/rancher/k3s/k3s.yaml k3s\k3s.yml
+  (Get-Content k3s\k3s.yml) -replace '127\.0\.0\.1', '<реальный адрес сервера>' |
+    Set-Content k3s\k3s.yml
+
+  [Convert]::ToBase64String([IO.File]::ReadAllBytes('k3s\k3s.yml'))
   ```
+
+  Если `k3s/k3s.yml` в репозитории уже содержит нужный `server:` (как сейчас
+  для текущего кластера) — первые две команды не нужны, сразу берите
+  последнюю строку.
 
   Вывод команды целиком — значение секрета `KUBECONFIG`.
 
