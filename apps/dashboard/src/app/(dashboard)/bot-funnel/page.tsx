@@ -29,7 +29,7 @@ import {
 	type BotFunnelFlowStats,
 	type BotFunnelSourceRow,
 	MESSENGER_LABELS,
-} from "@/lib/analytics/bot-funnel";
+} from "@/lib/analytics/bot-funnel-shared";
 import { formatDateParam } from "@/lib/analytics/date-range";
 import { formatNumber, formatPercent } from "@/lib/format";
 

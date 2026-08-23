@@ -28,5 +28,8 @@
     "@types/node": "26.2.0",
     "turbo": "^2.10.11",
     "typescript": "7.0.2"
+  },
+  "overrides": {
+    "@tanstack/query-core": "5.102.0"
   }
 }
