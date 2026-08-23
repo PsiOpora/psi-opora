@@ -296,22 +296,26 @@ jobs:
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Build and push image
-        uses: docker/build-push-action@v6
+        # registry.orixon.ru стоит за внешним L4-балансировщиком с idle-timeout
+        # ~60s: если buildkit надолго "зависает" при заливке крупного слоя
+        # (типично для dashboard), балансировщик рвёт соединение и push падает
+        # с 499 Client Closed Request. Ретраим весь шаг — buildx кеширует уже
+        # собранные слои локально, повторная попытка почти сразу переходит к
+        # повторной заливке.
+        uses: nick-fields/retry@v3
         with:
-          context: .
-          file: apps/${{ matrix.service }}/Dockerfile
-          push: true
-          # POSTGRES_URL нужен на этапе `next build` (dashboard, clients,
-          # bitrix-webhook обращаются к БД при сборке страниц); для остальных
-          # сервисов ARG в Dockerfile просто не объявлен и значение игнорируется.
-          # NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL по той же причине — только
-          # dashboard объявляет этот ARG (see apps/dashboard/Dockerfile).
-          build-args: |
-            POSTGRES_URL=${{ secrets.POSTGRES_URL }}
-            NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL=${{ vars.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL }}
-          tags: |
-            ${{ vars.REGISTRY }}/psi-opora-${{ matrix.service }}:${{ github.sha }}
-            ${{ vars.REGISTRY }}/psi-opora-${{ matrix.service }}:latest
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: |
+            docker buildx build \
+              --push \
+              --file apps/${{ matrix.service }}/Dockerfile \
+              --build-arg POSTGRES_URL=${{ secrets.POSTGRES_URL }} \
+              --build-arg NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL=${{ vars.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL }} \
+              --tag ${{ vars.REGISTRY }}/psi-opora-${{ matrix.service }}:${{ github.sha }} \
+              --tag ${{ vars.REGISTRY }}/psi-opora-${{ matrix.service }}:latest \
+              .
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
