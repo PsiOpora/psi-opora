@@ -31,6 +31,10 @@ import {
 import { enrichCrmFromClientMessage } from "./utils/crm-enrichment";
 import { withUserLock } from "./utils/lock";
 import { logBotMessage } from "./utils/message-log";
+import {
+	createTelegramFetch,
+	resolveTelegramApiRoot,
+} from "./utils/telegram-proxy";
 import { triageOffScriptMessage } from "./utils/triage";
 import { upsertBotUserProfile } from "./utils/user-profile";
 import { decodeStartParam, formatUtmLog, parseUtmParams } from "./utils/utm";
@@ -38,6 +42,11 @@ import { decodeStartParam, formatUtmLog, parseUtmParams } from "./utils/utm";
 export const log = (msg: string) => {
 	console.log(`${new Date().toISOString()} ${msg}`);
 };
+
+// Вычисляются один раз при загрузке модуля — TG_API_PROXY_* не меняются на
+// лету, только через переменные окружения и передеплой (см. utils/telegram-proxy).
+const telegramApiRoot = resolveTelegramApiRoot();
+const telegramFetch = createTelegramFetch();
 
 function createInitialSession(): ConsultationSession {
 	return { step: "name" };
@@ -115,7 +124,7 @@ async function collectTelegramProfile(
 		try {
 			const url = await resolveTelegramFileUrl(ctx.api, token, photoFileId);
 			if (url) {
-				const res = await fetch(url);
+				const res = await telegramFetch(url);
 				if (res.ok) {
 					const bytes = new Uint8Array(await res.arrayBuffer());
 					const contentType = res.headers.get("content-type") || "image/jpeg";
@@ -228,6 +237,10 @@ export async function sendTelegramScenarioMessage(
  * в Открытую линию (message.files в imconnector.send.messages). Ссылка
  * держится ограниченное время — этого достаточно, чтобы оператор открыл её
  * вскоре после получения; постоянного хранилища для вложений бота нет.
+ *
+ * Всегда возвращает прямой URL api.telegram.org, даже если включён прокси —
+ * URL используется для передачи в Bitrix24, который не имеет доступа к
+ * защищённому прокси (нет x-proxy-secret заголовка).
  */
 async function resolveTelegramFileUrl(
 	api: Api,
@@ -257,10 +270,13 @@ export function createBot({
 	enrichCrm = enrichCrmFromClientMessage,
 }: BotOptions = {}) {
 	const resolvedToken = token || "";
-	const bot = new Bot<AppContext>(
-		resolvedToken,
-		client ? { client } : undefined,
-	);
+	const bot = new Bot<AppContext>(resolvedToken, {
+		client: {
+			apiRoot: telegramApiRoot,
+			fetch: telegramFetch,
+			...client,
+		},
+	});
 
 	// Сериализуем обработку апдейтов одного чата (см. utils/lock.ts) — без
 	// этого чтение и запись сессии двумя раздельными Redis-вызовами гонятся
@@ -652,7 +668,7 @@ export function createBot({
 			let mediaS3Key: string | undefined;
 			if (isVoice && uploadMedia && url) {
 				try {
-					const res = await fetch(url);
+					const res = await telegramFetch(url);
 					if (res.ok) {
 						const bytes = new Uint8Array(await res.arrayBuffer());
 						const uploaded = await uploadMedia({
