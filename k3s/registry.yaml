@@ -40,7 +40,8 @@ data:
                   "patterns": ["^latest$"]
                 },
                 {
-                  "patterns": ["^[0-9a-f]{40}$"]
+                  "patterns": ["^[0-9a-f]{40}$"],
+                  "pushedWithin": "168h"
                 }
               ]
             }

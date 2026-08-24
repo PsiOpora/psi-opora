@@ -28,9 +28,17 @@ LoadBalancer`, без отдельного L2Advertisement/IPAddressPool.
    всегда bash/sh, PowerShell тут ни при чём:
 
    ```bash
-   curl -sfL https://get.k3s.io | sh -s - --disable=traefik
+   curl -sfL https://get.k3s.io | sh -s - --disable=traefik \
+     --kubelet-arg=image-gc-high-threshold-percent=70 \
+     --kubelet-arg=image-gc-low-threshold-percent=60
    sudo k3s kubectl get nodes
    ```
+
+   Пороги image GC занижены с дефолтных 85%/80% — containerd на одной ноде
+   иначе чистит неиспользуемые образы слишком поздно, диск успевает
+   заполниться раньше, чем сработает уборка (так уже было один раз — под
+   `disk-pressure` legли новые деплои, пока реестр не мог выдать TLS-сертификат
+   и containerd копил неудачные попытки pull).
 
    Дальше все команды — уже с локальной машины (PowerShell), через
    `kubectl`/`helm`, указывающие на этот кластер через `$env:KUBECONFIG`.

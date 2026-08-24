@@ -1,5 +1,7 @@
 import {
+	createTelegramFetch,
 	resolveMaxBotToken,
+	resolveTelegramApiRoot,
 	resolveTelegramBotToken,
 } from "@psi-opora/bot-core";
 import { logger } from "@psi-opora/config";
@@ -7,6 +9,12 @@ import { RUSSIAN_TRUSTED_ROOT_CA } from "./certs/russian-trusted-ca";
 import { fetchWithCa } from "./fetch-with-ca";
 
 export type Messenger = "telegram" | "max";
+
+// Как и apps/tg-bot (packages/bot-core/src/bot.ts) — вычисляются один раз
+// при загрузке модуля, чтобы ответы операторов из apps/clients/apps/dashboard
+// тоже уходили через TG_API_PROXY_* (Vercel), когда он включён, а не мимо.
+const telegramApiRoot = resolveTelegramApiRoot();
+const telegramFetch = createTelegramFetch();
 
 /** Inline-кнопка: text — подпись, payload — callback data. */
 export interface MessengerButton {
@@ -57,8 +65,8 @@ async function sendTelegram(
 
 	let withMarkdown = true;
 	for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS + 1; attempt++) {
-		const res = await fetch(
-			`https://api.telegram.org/bot${token}/sendMessage`,
+		const res = await telegramFetch(
+			`${telegramApiRoot}/bot${token}/sendMessage`,
 			{
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -252,8 +260,8 @@ async function editTelegramMessage(
 
 	let withMarkdown = true;
 	for (let attempt = 1; attempt <= 2; attempt++) {
-		const res = await fetch(
-			`https://api.telegram.org/bot${token}/editMessageText`,
+		const res = await telegramFetch(
+			`${telegramApiRoot}/bot${token}/editMessageText`,
 			{
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -340,8 +348,8 @@ async function deleteTelegramMessage(
 	const token = await resolveTelegramBotToken();
 	if (!token) throw new Error("Токен Telegram-бота не задан в БД");
 
-	const res = await fetch(
-		`https://api.telegram.org/bot${token}/deleteMessage`,
+	const res = await telegramFetch(
+		`${telegramApiRoot}/bot${token}/deleteMessage`,
 		{
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -403,7 +411,7 @@ async function setTelegramWebhook(): Promise<void> {
 	if (!webhookUrl) throw new Error("TG_WEBHOOK_URL не задан");
 
 	const url = `${webhookUrl.replace(/\/$/, "")}`;
-	const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+	const res = await telegramFetch(`${telegramApiRoot}/bot${token}/setWebhook`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({ url, drop_pending_updates: true }),
@@ -453,7 +461,7 @@ async function fetchTelegramUsername(): Promise<string> {
 	const token = await resolveTelegramBotToken();
 	if (!token) throw new Error("Токен Telegram-бота не задан в БД");
 
-	const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+	const res = await telegramFetch(`${telegramApiRoot}/bot${token}/getMe`);
 	const json = (await res.json().catch(() => null)) as {
 		ok?: boolean;
 		description?: string;
