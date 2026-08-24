@@ -7,14 +7,53 @@ const TELEGRAM_API_ROOT = "https://api.telegram.org";
 // Файловая маршрутизация Vercel отдаёт функции путь с префиксом /api (сама
 // функция лежит в api/[...path].ts) — vercel.json переписывает сюда любой
 // путь верхнего уровня (см. rewrites), поэтому префикс нужно снять перед
-// пересылкой в Telegram.
+// дальнейшей маршрутизацией.
 const FUNCTION_PREFIX = "/api";
 // Пропускаем только пути реального Bot API Telegram (/bot<token>/<method> и
 // /file/bot<token>/<path>) — иначе публичный Vercel-URL превратился бы в
 // открытый прокси на произвольные адреса.
 const ALLOWED_PREFIXES = ["/bot", "/file/bot"];
 
+// Куда транслировать входящие вебхуки от Telegram — реальный apps/tg-bot в
+// k3s (см. k3s/tg-bot.yaml, IngressRoute Host psi-opora-tg.orixon.ru).
+// Переопределяемо через TG_BOT_ORIGIN_URL на случай смены адреса без
+// передеплоя кода прокси.
+const TG_BOT_ORIGIN =
+	process.env.TG_BOT_ORIGIN_URL ?? "https://psi-opora-tg.orixon.ru";
+
+function stripHopHeaders(headers: Headers): Headers {
+	const copy = new Headers(headers);
+	copy.delete("host");
+	copy.delete("x-proxy-secret");
+	return copy;
+}
+
 const app = new Hono();
+
+/**
+ * Транслирует входящий вебхук Telegram (POST /api/webhook — Vercel всегда
+ * отдаёт функции путь с префиксом /api, см. FUNCTION_PREFIX выше) на реальный
+ * apps/tg-bot в k3s — Telegram делает вебхук-запросы на этот Vercel-адрес
+ * (см. TG_WEBHOOK_URL), а не на psi-opora-tg.orixon.ru напрямую, на время
+ * переезда с РФ-хостинга, пока доставка входящих вебхуков туда ненадёжна.
+ */
+app.post("/api/webhook", async (c) => {
+	const response = await fetch(`${TG_BOT_ORIGIN}/api/webhook`, {
+		method: "POST",
+		headers: stripHopHeaders(c.req.raw.headers),
+		body: c.req.raw.body,
+		duplex: "half",
+	});
+
+	const responseHeaders = new Headers(response.headers);
+	responseHeaders.delete("content-encoding");
+	responseHeaders.delete("content-length");
+
+	return new Response(response.body, {
+		status: response.status,
+		headers: responseHeaders,
+	});
+});
 
 /**
  * Reverse-прокси к api.telegram.org для apps/tg-bot (см. TG_API_PROXY_* в
@@ -38,15 +77,11 @@ app.all("*", async (c) => {
 		return c.text("Unauthorized", 401);
 	}
 
-	const headers = new Headers(c.req.raw.headers);
-	headers.delete("host");
-	headers.delete("x-proxy-secret");
-
 	const hasBody = c.req.method !== "GET" && c.req.method !== "HEAD";
 	const search = new URL(c.req.url).search;
 	const response = await fetch(`${TELEGRAM_API_ROOT}${path}${search}`, {
 		method: c.req.method,
-		headers,
+		headers: stripHopHeaders(c.req.raw.headers),
 		body: hasBody ? c.req.raw.body : undefined,
 		duplex: hasBody ? "half" : undefined,
 	});
