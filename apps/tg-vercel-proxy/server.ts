@@ -38,10 +38,7 @@ const app = new Hono();
  */
 app.post("/webhook", async (c) => {
 	const secret = process.env.TG_WEBHOOK_SECRET;
-	if (
-		secret &&
-		c.req.header("x-telegram-bot-api-secret-token") !== secret
-	) {
+	if (secret && c.req.header("x-telegram-bot-api-secret-token") !== secret) {
 		return c.text("Unauthorized", 401);
 	}
 
