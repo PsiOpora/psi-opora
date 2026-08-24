@@ -1,7 +1,7 @@
 # tg-vercel-proxy
 
-Reverse-прокси к `api.telegram.org` на Vercel Edge Function — на время
-переезда с РФ-хостинга, пока прямые запросы к Bot API Telegram с k3s
+Reverse-прокси к `api.telegram.org` на Vercel Edge Function (Hono) — на
+время переезда с РФ-хостинга, пока прямые запросы к Bot API Telegram с k3s
 ненадёжны. Токен бота находится в полном URL запроса и проходит через
 Vercel Edge Function; прокси не извлекает и не сохраняет его отдельно,
 но Vercel является границей доверия.
@@ -9,6 +9,10 @@ Vercel Edge Function; прокси не извлекает и не сохран�
 Пропускает только пути реального Bot API: `/bot<token>/<method>` и
 `/file/bot<token>/<path>` — всё остальное отдаёт 404, чтобы публичный
 Vercel-URL не превратился в открытый прокси на произвольные адреса.
+
+Сама функция лежит в `api/[...path].ts` (маршрут Vercel — `/api/*`);
+`vercel.json` переписывает любой путь верхнего уровня в `/api/...`, поэтому
+клиенту (`TG_API_PROXY_URL`) не нужно самому дописывать `/api`.
 
 ## Деплой
 

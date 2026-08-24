@@ -1,11 +1,20 @@
+import { Hono } from "hono";
+import { handle } from "hono/vercel";
+
 export const config = { runtime: "edge" };
 
 const TELEGRAM_API_ROOT = "https://api.telegram.org";
-
+// Файловая маршрутизация Vercel отдаёт функции путь с префиксом /api (сама
+// функция лежит в api/[...path].ts) — vercel.json переписывает сюда любой
+// путь верхнего уровня (см. rewrites), поэтому префикс нужно снять перед
+// пересылкой в Telegram.
+const FUNCTION_PREFIX = "/api";
 // Пропускаем только пути реального Bot API Telegram (/bot<token>/<method> и
 // /file/bot<token>/<path>) — иначе публичный Vercel-URL превратился бы в
 // открытый прокси на произвольные адреса.
 const ALLOWED_PREFIXES = ["/bot", "/file/bot"];
+
+const app = new Hono();
 
 /**
  * Reverse-прокси к api.telegram.org для apps/tg-bot (см. TG_API_PROXY_* в
@@ -15,28 +24,30 @@ const ALLOWED_PREFIXES = ["/bot", "/file/bot"];
  * деплоя — без него любой, кто узнает URL, мог бы дёргать Telegram от имени
  * бота, если это вдруг попадёт в чужие руки.
  */
-export default async function handler(request: Request): Promise<Response> {
-	const url = new URL(request.url);
-	const path = url.pathname;
+app.all("*", async (c) => {
+	const path = c.req.path.startsWith(FUNCTION_PREFIX)
+		? c.req.path.slice(FUNCTION_PREFIX.length)
+		: c.req.path;
 
 	if (!ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix))) {
-		return new Response("Not found", { status: 404 });
+		return c.notFound();
 	}
 
 	const secret = process.env.PROXY_SECRET;
-	if (secret && request.headers.get("x-proxy-secret") !== secret) {
-		return new Response("Unauthorized", { status: 401 });
+	if (secret && c.req.header("x-proxy-secret") !== secret) {
+		return c.text("Unauthorized", 401);
 	}
 
-	const headers = new Headers(request.headers);
+	const headers = new Headers(c.req.raw.headers);
 	headers.delete("host");
 	headers.delete("x-proxy-secret");
 
-	const hasBody = request.method !== "GET" && request.method !== "HEAD";
-	const response = await fetch(`${TELEGRAM_API_ROOT}${path}${url.search}`, {
-		method: request.method,
+	const hasBody = c.req.method !== "GET" && c.req.method !== "HEAD";
+	const search = new URL(c.req.url).search;
+	const response = await fetch(`${TELEGRAM_API_ROOT}${path}${search}`, {
+		method: c.req.method,
 		headers,
-		body: hasBody ? request.body : undefined,
+		body: hasBody ? c.req.raw.body : undefined,
 		// @ts-expect-error duplex обязателен для потокового body в fetch на Edge Runtime
 		duplex: hasBody ? "half" : undefined,
 	});
@@ -51,4 +62,6 @@ export default async function handler(request: Request): Promise<Response> {
 		status: response.status,
 		headers: responseHeaders,
 	});
-}
+});
+
+export default handle(app);
