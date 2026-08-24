@@ -166,6 +166,22 @@ const categoryResultSchema = z.object({
 	),
 });
 
+const dealFieldsSchema = z.record(
+	z.string(),
+	z
+		.object({
+			items: z
+				.array(
+					z.object({
+						ID: z.string(),
+						VALUE: z.string(),
+					}),
+				)
+				.optional(),
+		})
+		.optional(),
+);
+
 /**
  * Справочники источников/стадий/воронок (packages/db, таблица deal_dictionaries) —
  * подписи для отчётов дашборда читаются отсюда вместо live crm.status.list/
@@ -196,11 +212,34 @@ export async function syncDealDictionaries(api: BitrixApi): Promise<void> {
 	const statusRowsValidation = z.array(statusRowSchema).safeParse(statusRows);
 	const categoryResultValidation =
 		categoryResultSchema.safeParse(categoryResult);
+	const dealFieldsValidation = dealFieldsSchema.safeParse(dealFields);
 
-	if (!statusRowsValidation.success || !categoryResultValidation.success) {
+	if (
+		!statusRowsValidation.success ||
+		!categoryResultValidation.success ||
+		!dealFieldsValidation.success
+	) {
 		console.error(
 			"[syncDealDictionaries] Invalid API response structure, skipping sync to preserve existing dictionaries",
 		);
+		if (!statusRowsValidation.success) {
+			console.error(
+				"Status rows validation error:",
+				statusRowsValidation.error,
+			);
+		}
+		if (!categoryResultValidation.success) {
+			console.error(
+				"Category result validation error:",
+				categoryResultValidation.error,
+			);
+		}
+		if (!dealFieldsValidation.success) {
+			console.error(
+				"Deal fields validation error:",
+				dealFieldsValidation.error,
+			);
+		}
 		return;
 	}
 
@@ -230,9 +269,15 @@ export async function syncDealDictionaries(api: BitrixApi): Promise<void> {
 
 	// Пункты списка поля "Причина провала" (UF_CRM_1779838990) — не отдаются
 	// через crm.status.list (это кастомное UF-поле, не системный справочник).
-	const failReasons: NewDealDictionaryEntry[] = (
-		dealFields?.UF_CRM_1779838990?.items ?? []
-	).map((item) => ({ type: "failReason", id: item.ID, name: item.VALUE }));
+	const validatedDealFields = dealFieldsValidation.data;
+	const failReasonItems = validatedDealFields?.UF_CRM_1779838990?.items;
+	const failReasons: NewDealDictionaryEntry[] = Array.isArray(failReasonItems)
+		? failReasonItems.map((item) => ({
+				type: "failReason",
+				id: item.ID,
+				name: item.VALUE,
+			}))
+		: [];
 
 	// Additional check: ensure we have at least some stages (most critical dictionary)
 	if (stages.length === 0) {

@@ -7,6 +7,7 @@ import { DEAL_GROUP_DIMENSIONS, listDealsInGroup } from "@psi-opora/db/queries";
 import { NextResponse } from "next/server";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import {
+	parseNonEmptyStrings,
 	parsePagination,
 	validateDateRange,
 	zodBadRequest,
@@ -90,6 +91,15 @@ export async function GET(request: Request) {
 
 	const range = parseDateRange(Object.fromEntries(params));
 
+	let failReasonId: string | string[] | undefined;
+	try {
+		failReasonId = parseNonEmptyStrings(params.getAll("failReason"));
+	} catch (err) {
+		const res = zodBadRequest(err);
+		if (res) return res;
+		throw err;
+	}
+
 	const { rows, total } = await listDealsInGroup(dimension, key, {
 		from: range.from,
 		to: range.to,
@@ -97,7 +107,7 @@ export async function GET(request: Request) {
 		categoryId: parseMulti(params.getAll("category")),
 		stageId: parseMulti(params.getAll("stage")),
 		sourceId: parseMulti(params.getAll("source")),
-		failReasonId: parseMulti(params.getAll("failReason")),
+		failReasonId,
 		utmSource: parseMulti(params.getAll("utmSource")),
 		utmMedium: parseMulti(params.getAll("utmMedium")),
 		utmCampaign: parseMulti(params.getAll("utmCampaignFilter")),

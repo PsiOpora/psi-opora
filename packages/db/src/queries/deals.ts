@@ -5,7 +5,9 @@ import {
 	eq,
 	gte,
 	inArray,
+	isNull,
 	lte,
+	or,
 	type SQL,
 	sql,
 } from "drizzle-orm";
@@ -18,6 +20,9 @@ export type DealRow = typeof deals.$inferSelect;
 export type NewDeal = typeof deals.$inferInsert;
 
 export type DealStatus = "won" | "lost" | "in_progress";
+
+/** Marker value for "not specified" failReasonId in filters and facets. */
+export const FAIL_REASON_NOT_SPECIFIED = "__NOT_SPECIFIED__";
 
 // ── Sync (бэкафилл, периодическая сверка, вебхуки) ──────────────────────────
 
@@ -127,6 +132,34 @@ function matchClause<T extends string>(
 	return eq(column, value);
 }
 
+/**
+ * Special match clause for failReasonId that translates FAIL_REASON_NOT_SPECIFIED to isNull.
+ */
+function matchFailReasonClause(
+	value: FilterValue<string> | undefined,
+): SQL | undefined {
+	if (value === undefined) return undefined;
+	if (Array.isArray(value)) {
+		if (value.length === 0) return undefined;
+		const hasNotSpecified = value.includes(FAIL_REASON_NOT_SPECIFIED);
+		const actualIds = value.filter((v) => v !== FAIL_REASON_NOT_SPECIFIED);
+		if (hasNotSpecified && actualIds.length > 0) {
+			return or(
+				isNull(deals.failReasonId),
+				inArray(deals.failReasonId, actualIds),
+			);
+		}
+		if (hasNotSpecified) {
+			return isNull(deals.failReasonId);
+		}
+		return inArray(deals.failReasonId, actualIds);
+	}
+	if (value === FAIL_REASON_NOT_SPECIFIED) {
+		return isNull(deals.failReasonId);
+	}
+	return eq(deals.failReasonId, value);
+}
+
 function dealsWhere(
 	options: Pick<
 		ListDealsOptions,
@@ -157,7 +190,7 @@ function dealsWhere(
 	if (stageId) clauses.push(stageId);
 	const sourceId = matchClause(deals.sourceId, options.sourceId);
 	if (sourceId) clauses.push(sourceId);
-	const failReasonId = matchClause(deals.failReasonId, options.failReasonId);
+	const failReasonId = matchFailReasonClause(options.failReasonId);
 	if (failReasonId) clauses.push(failReasonId);
 	const utmSource = matchClause(deals.utmSource, options.utmSource);
 	if (utmSource) clauses.push(utmSource);
@@ -292,7 +325,7 @@ function dimensionKeyExpr(dimension: DealGroupDimension): SQL<string> {
 		case "stage":
 			return sql<string>`${deals.stageId}`;
 		case "failReason":
-			return sql<string>`coalesce(${deals.failReasonId}, ${NOT_SPECIFIED})`;
+			return sql<string>`coalesce(${deals.failReasonId}, ${FAIL_REASON_NOT_SPECIFIED})`;
 		case "day":
 			return sql<string>`to_char(${deals.dateCreate}, 'YYYY-MM-DD')`;
 		case "week":
@@ -604,7 +637,7 @@ export async function getFilterFacets(
 		facet(deals.status),
 		facet(deals.categoryId),
 		facet(deals.sourceId, NOT_SPECIFIED),
-		facet(deals.failReasonId, NOT_SPECIFIED),
+		facet(deals.failReasonId, FAIL_REASON_NOT_SPECIFIED),
 		facet(deals.utmSource, NOT_SPECIFIED),
 		facet(deals.utmMedium, NOT_SPECIFIED),
 		facet(deals.utmCampaign, NOT_SPECIFIED),

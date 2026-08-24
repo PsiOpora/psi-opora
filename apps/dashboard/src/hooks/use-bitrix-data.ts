@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
+import { z } from "zod";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import type { StageInfo } from "@/lib/analytics/deals";
 
@@ -20,6 +21,26 @@ interface BitrixDataResult {
 	failReasonNames?: Map<string, string>;
 	dealDomain?: string | null;
 }
+
+const bitrixResponseSchema = z.object({
+	connected: z.boolean(),
+	sourceNames: z.array(z.tuple([z.string(), z.string()])).optional(),
+	categoryNames: z.array(z.tuple([z.string(), z.string()])).optional(),
+	stageNames: z
+		.array(
+			z.tuple([
+				z.string(),
+				z.object({
+					name: z.string(),
+					sort: z.number(),
+					categoryId: z.string(),
+				}),
+			]),
+		)
+		.optional(),
+	failReasonNames: z.array(z.tuple([z.string(), z.string()])).optional(),
+	dealDomain: z.string().nullable().optional(),
+});
 
 /** Диапазон дат из ?from=&to= — как раньше в серверных страницах, но на клиенте. */
 export function useDashboardRange() {
@@ -45,21 +66,58 @@ export function useBitrixData(need: BitrixNeed[]) {
 			const params = new URLSearchParams({ from, to, need: needKey });
 			const res = await fetch(`/api/dashboard/bitrix?${params}`);
 			if (!res.ok) throw new Error("Не удалось загрузить данные Bitrix24");
-			const json = await res.json();
+			const rawJson = await res.json();
+
+			// Validate response structure before processing
+			const validated = bitrixResponseSchema.safeParse(rawJson);
+			if (!validated.success) {
+				console.error(
+					"[useBitrixData] Invalid response structure:",
+					validated.error,
+				);
+				throw new Error("Некорректный формат данных от сервера");
+			}
+
+			const json = validated.data;
 			if (!json.connected) return { connected: false };
+
 			return {
 				connected: true,
 				sourceNames: json.sourceNames
-					? new Map<string, string>(json.sourceNames)
+					? new Map<string, string>(
+							json.sourceNames.filter(
+								(pair): pair is [string, string] =>
+									Array.isArray(pair) &&
+									pair.length === 2 &&
+									typeof pair[0] === "string" &&
+									typeof pair[1] === "string",
+							),
+						)
 					: undefined,
 				categoryNames: json.categoryNames
-					? new Map<string, string>(json.categoryNames)
+					? new Map<string, string>(
+							json.categoryNames.filter(
+								(pair): pair is [string, string] =>
+									Array.isArray(pair) &&
+									pair.length === 2 &&
+									typeof pair[0] === "string" &&
+									typeof pair[1] === "string",
+							),
+						)
 					: undefined,
 				stageNames: json.stageNames
 					? new Map<string, StageInfo>(json.stageNames)
 					: undefined,
 				failReasonNames: json.failReasonNames
-					? new Map<string, string>(json.failReasonNames)
+					? new Map<string, string>(
+							json.failReasonNames.filter(
+								(pair): pair is [string, string] =>
+									Array.isArray(pair) &&
+									pair.length === 2 &&
+									typeof pair[0] === "string" &&
+									typeof pair[1] === "string",
+							),
+						)
 					: undefined,
 				dealDomain: json.dealDomain ?? null,
 			};
