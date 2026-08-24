@@ -1,9 +1,9 @@
 {
-	"extends": "@psi-opora/tsconfig/base.json",
-	"compilerOptions": {
-		"lib": ["ES2022"],
-		"types": ["node"]
-	},
-	"include": ["api"],
-	"exclude": ["node_modules"]
+  "extends": "@psi-opora/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": ["api"],
+  "exclude": ["node_modules"]
 }
