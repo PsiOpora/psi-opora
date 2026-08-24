@@ -4,7 +4,6 @@
 		"lib": ["ES2022"],
 		"module": "Preserve",
 		"moduleResolution": "Bundler",
-		"types": ["node"],
 		"strict": true,
 		"skipLibCheck": true,
 		"esModuleInterop": true,
