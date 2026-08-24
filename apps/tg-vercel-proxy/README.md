@@ -1,7 +1,7 @@
 # tg-vercel-proxy
 
-Reverse-прокси к `api.telegram.org` на Vercel Edge Function — на время
-переезда с РФ-хостинга, пока прямые запросы к Bot API Telegram с k3s
+Reverse-прокси к `api.telegram.org` на Vercel Edge Function (Hono) — на
+время переезда с РФ-хостинга, пока прямые запросы к Bot API Telegram с k3s
 ненадёжны. Токен бота находится в полном URL запроса и проходит через
 Vercel Edge Function; прокси не извлекает и не сохраняет его отдельно,
 но Vercel является границей доверия.
@@ -10,17 +10,34 @@ Vercel Edge Function; прокси не извлекает и не сохран�
 `/file/bot<token>/<path>` — всё остальное отдаёт 404, чтобы публичный
 Vercel-URL не превратился в открытый прокси на произвольные адреса.
 
+Сама функция лежит в `api/[...path].ts` (маршрут Vercel — `/api/*`);
+`vercel.json` переписывает любой путь верхнего уровня в `/api/...`, поэтому
+клиенту (`TG_API_PROXY_URL`) не нужно самому дописывать `/api`.
+
+Помимо исходящих вызовов Bot API, прокси транслирует и входящие вебхуки:
+`POST /webhook` (он же `/api/webhook`) пересылается на реальный apps/tg-bot
+в k3s (`https://psi-opora-tg.orixon.ru/api/webhook` по умолчанию,
+переопределяется `TG_BOT_ORIGIN_URL`) — Telegram шлёт обновления на этот
+Vercel-адрес вместо k3s напрямую, на время переезда с РФ-хостинга.
+
 ## Деплой
 
 1. В Vercel: New Project → этот репозиторий → **Root Directory**:
    `apps/tg-vercel-proxy`. Framework Preset — "Other", build/install команды
    не нужны (обычный serverless-проект без сборки).
-2. Задайте переменную окружения `PROXY_SECRET` в настройках Vercel-проекта —
-   случайная строка (`openssl rand -base64 32`). Без неё прокси примет запрос
-   от кого угодно, кто узнает URL.
-3. После деплоя получите домен вида `https://tg-vercel-proxy.vercel.app`.
+2. Задайте переменные окружения в настройках Vercel-проекта:
+   - `PROXY_SECRET` — случайная строка (`openssl rand -base64 32`). Без неё прокси
+     примет запрос от кого угодно, кто узнает URL. Проверяется для исходящих вызовов
+     Bot API (`/bot<token>/...`).
+   - `TG_WEBHOOK_SECRET` — случайная строка для защиты входящего `/webhook`. Должна
+     совпадать с `secret_token`, переданным в `setWebhook` (см. ниже).
+3. Если реальный tg-bot переедет на другой адрес — задайте `TG_BOT_ORIGIN_URL`
+   (по умолчанию `https://psi-opora-tg.orixon.ru`).
+4. После деплоя получите домен вида `https://tg-vercel-proxy.vercel.app`.
 
 ## Включение в tg-bot
+
+### Исходящие запросы к Bot API
 
 В `.env` (или secret `psi-opora-env` в k3s — см. [k3s/README.md](../../k3s/README.md)):
 
@@ -33,3 +50,13 @@ TG_API_PROXY_SECRET=<то же значение, что PROXY_SECRET на Vercel
 Выключается обратно — `TG_API_PROXY_ENABLED=false` (или удалить переменную),
 без передеплоя кода бота. Логика подстановки — в
 `packages/bot-core/src/utils/telegram-proxy.ts`.
+
+### Входящие вебхуки
+
+Задайте `TG_WEBHOOK_URL=https://tg-vercel-proxy.vercel.app/api/webhook` и
+`TG_WEBHOOK_SECRET=<то же значение, что на Vercel>`, затем перерегистрируйте
+вебхук (`bun run --cwd apps/tg-bot set-webhook`) — Telegram начнёт слать
+обновления через прокси с `secret_token`, который пересылает их на k3s. Чтобы
+вернуть вебхук на прямой адрес k3s, поставьте
+`TG_WEBHOOK_URL=https://psi-opora-tg.orixon.ru/api/webhook` и запустите
+скрипт заново.
