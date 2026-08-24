@@ -38,6 +38,10 @@ type StreamingRequestInit = RequestInit & { duplex?: "half" };
 
 const app = new Hono();
 
+// Простой health-check — убедиться, что деплой вообще жив, до подключения
+// реального трафика Telegram.
+app.get("/", (c) => c.text("hello world"));
+
 /**
  * Транслирует входящий вебхук Telegram (POST /webhook) на реальный
  * apps/tg-bot в k3s — Telegram делает вебхук-запросы на этот Vercel-адрес
