@@ -209,6 +209,11 @@
       "dependencies": {
         "hono": "^4.13.3",
       },
+      "devDependencies": {
+        "@psi-opora/tsconfig": "workspace:*",
+        "@types/node": "26.2.0",
+        "typescript": "7.0.2",
+      },
     },
     "packages/api": {
       "name": "@psi-opora/api",

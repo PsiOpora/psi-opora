@@ -25,43 +25,42 @@ const app = new Hono();
  * бота, если это вдруг попадёт в чужие руки.
  */
 app.all("*", async (c) => {
-	const path = c.req.path.startsWith(FUNCTION_PREFIX)
-		? c.req.path.slice(FUNCTION_PREFIX.length)
-		: c.req.path;
+  const path = c.req.path.startsWith(FUNCTION_PREFIX)
+    ? c.req.path.slice(FUNCTION_PREFIX.length)
+    : c.req.path;
 
-	if (!ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix))) {
-		return c.notFound();
-	}
+  if (!ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+    return c.notFound();
+  }
 
-	const secret = process.env.PROXY_SECRET;
-	if (secret && c.req.header("x-proxy-secret") !== secret) {
-		return c.text("Unauthorized", 401);
-	}
+  const secret = process.env.PROXY_SECRET;
+  if (secret && c.req.header("x-proxy-secret") !== secret) {
+    return c.text("Unauthorized", 401);
+  }
 
-	const headers = new Headers(c.req.raw.headers);
-	headers.delete("host");
-	headers.delete("x-proxy-secret");
+  const headers = new Headers(c.req.raw.headers);
+  headers.delete("host");
+  headers.delete("x-proxy-secret");
 
-	const hasBody = c.req.method !== "GET" && c.req.method !== "HEAD";
-	const search = new URL(c.req.url).search;
-	const response = await fetch(`${TELEGRAM_API_ROOT}${path}${search}`, {
-		method: c.req.method,
-		headers,
-		body: hasBody ? c.req.raw.body : undefined,
-		// @ts-expect-error duplex обязателен для потокового body в fetch на Edge Runtime
-		duplex: hasBody ? "half" : undefined,
-	});
+  const hasBody = c.req.method !== "GET" && c.req.method !== "HEAD";
+  const search = new URL(c.req.url).search;
+  const response = await fetch(`${TELEGRAM_API_ROOT}${path}${search}`, {
+    method: c.req.method,
+    headers,
+    body: hasBody ? c.req.raw.body : undefined,
+    duplex: hasBody ? "half" : undefined,
+  });
 
-	const responseHeaders = new Headers(response.headers);
-	// Пересчитываются рантаймом при сборке Response — оставлять исходные
-	// значения от Telegram может рассинхронизировать их с реальным телом.
-	responseHeaders.delete("content-encoding");
-	responseHeaders.delete("content-length");
+  const responseHeaders = new Headers(response.headers);
+  // Пересчитываются рантаймом при сборке Response — оставлять исходные
+  // значения от Telegram может рассинхронизировать их с реальным телом.
+  responseHeaders.delete("content-encoding");
+  responseHeaders.delete("content-length");
 
-	return new Response(response.body, {
-		status: response.status,
-		headers: responseHeaders,
-	});
+  return new Response(response.body, {
+    status: response.status,
+    headers: responseHeaders,
+  });
 });
 
 export default handle(app);
