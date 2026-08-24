@@ -48,11 +48,17 @@ function buildProfileComment(data: ContactData): string | undefined {
 		: undefined;
 }
 
+// Ответственный по умолчанию для контактов/сделок из ботов — Евгения
+// Степанова (ID 18 в Bitrix24). Без этого поля Bitrix назначает ответственным
+// владельца вебхука, которым сейчас является техническая учётка Максима.
+export const DEFAULT_ASSIGNED_BY_ID = 18;
+
 export function buildContactFields(data: ContactData, imol?: string | null) {
 	const messenger = data.messenger ?? "telegram";
 	const profileComment = buildProfileComment(data);
 	return {
 		NAME: data.name,
+		ASSIGNED_BY_ID: DEFAULT_ASSIGNED_BY_ID,
 		...(data.phone
 			? { PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }] }
 			: {}),

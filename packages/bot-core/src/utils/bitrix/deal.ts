@@ -1,4 +1,5 @@
 import { bitrixPost, getBotId, getSourceId } from "./client";
+import { DEFAULT_ASSIGNED_BY_ID } from "./contact";
 import type { DealData } from "./types";
 
 // ID значений поля "Мессенджер" (UF_CRM_1779643796551) в Bitrix24.
@@ -46,6 +47,7 @@ export function buildDealFields(data: DealData, contactId: number) {
 	return {
 		TITLE: `Заявка (${[flowLabel, botId].filter(Boolean).join(", ")}): ${data.name}`,
 		CONTACT_IDS: [contactId],
+		ASSIGNED_BY_ID: DEFAULT_ASSIGNED_BY_ID,
 		SOURCE_ID: getSourceId(messenger),
 		SOURCE_DESCRIPTION: description || `${messenger} бот`,
 		UTM_SOURCE: data.source ?? messenger,
