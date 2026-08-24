@@ -7,11 +7,10 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"hono": "4.13.3"
+		"hono": "4.13.3",
+		"@types/node": "26.2.0"
 	},
 	"devDependencies": {
-		"@psi-opora/tsconfig": "workspace:*",
-		"@types/node": "26.2.0",
 		"typescript": "7.0.2"
 	}
 }
