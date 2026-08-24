@@ -62,6 +62,11 @@ export const env = createEnv({
 		// будучи публичным Vercel-URL, стал бы открытым релеем к Telegram для
 		// любого, кто узнает адрес.
 		TG_API_PROXY_SECRET: z.string().min(1).optional(),
+		// Секрет входящего вебхука Telegram (secret_token в setWebhook, сверяется
+		// с заголовком X-Telegram-Bot-Api-Secret-Token) — то же значение должно
+		// быть задано в env деплоя apps/tg-vercel-proxy как TG_WEBHOOK_SECRET.
+		// Без него /webhook на прокси принял бы запрос от кого угодно.
+		TG_WEBHOOK_SECRET: z.string().min(1).optional(),
 
 		// Redis. REDIS_URL удобен локально; в k3s host/port/password задаются
 		// раздельно, чтобы пароль не приходилось подставлять внутрь URL.
@@ -188,6 +193,7 @@ export const env = createEnv({
 		TG_API_PROXY_ENABLED: process.env.TG_API_PROXY_ENABLED,
 		TG_API_PROXY_URL: process.env.TG_API_PROXY_URL,
 		TG_API_PROXY_SECRET: process.env.TG_API_PROXY_SECRET,
+		TG_WEBHOOK_SECRET: process.env.TG_WEBHOOK_SECRET,
 		REDIS_URL: process.env.REDIS_URL,
 		REDIS_HOST: process.env.REDIS_HOST,
 		REDIS_PORT: process.env.REDIS_PORT,

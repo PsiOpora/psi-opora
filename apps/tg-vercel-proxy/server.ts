@@ -1,14 +1,11 @@
 import { Hono } from "hono";
-import { handle } from "hono/vercel";
 
-export const config = { runtime: "edge" };
+// Zero-config Hono на Vercel: файл на верхнем уровне (server.ts) с
+// `export default app` — Vercel сам превращает маршруты Hono в Vercel
+// Functions, без hono/vercel, без api/ и без vercel.json.
+// См. https://vercel.com/docs/frameworks/backend/hono
 
 const TELEGRAM_API_ROOT = "https://api.telegram.org";
-// Файловая маршрутизация Vercel отдаёт функции путь с префиксом /api (сама
-// функция лежит в api/[...path].ts) — vercel.json переписывает сюда любой
-// путь верхнего уровня (см. rewrites), поэтому префикс нужно снять перед
-// дальнейшей маршрутизацией.
-const FUNCTION_PREFIX = "/api";
 // Пропускаем только пути реального Bot API Telegram (/bot<token>/<method> и
 // /file/bot<token>/<path>) — иначе публичный Vercel-URL превратился бы в
 // открытый прокси на произвольные адреса.
@@ -31,13 +28,23 @@ function stripHopHeaders(headers: Headers): Headers {
 const app = new Hono();
 
 /**
- * Транслирует входящий вебхук Telegram (POST /api/webhook — Vercel всегда
- * отдаёт функции путь с префиксом /api, см. FUNCTION_PREFIX выше) на реальный
+ * Транслирует входящий вебхук Telegram (POST /webhook) на реальный
  * apps/tg-bot в k3s — Telegram делает вебхук-запросы на этот Vercel-адрес
  * (см. TG_WEBHOOK_URL), а не на psi-opora-tg.orixon.ru напрямую, на время
  * переезда с РФ-хостинга, пока доставка входящих вебхуков туда ненадёжна.
+ * Проверяет secret_token (см. TG_WEBHOOK_SECRET в setWebhook,
+ * apps/tg-bot/scripts/set-webhook.ts) — без него любой мог бы слать боту
+ * поддельные апдейты, зная только публичный URL.
  */
-app.post("/api/webhook", async (c) => {
+app.post("/webhook", async (c) => {
+	const secret = process.env.TG_WEBHOOK_SECRET;
+	if (
+		secret &&
+		c.req.header("x-telegram-bot-api-secret-token") !== secret
+	) {
+		return c.text("Unauthorized", 401);
+	}
+
 	const response = await fetch(`${TG_BOT_ORIGIN}/api/webhook`, {
 		method: "POST",
 		headers: stripHopHeaders(c.req.raw.headers),
@@ -64,9 +71,7 @@ app.post("/api/webhook", async (c) => {
  * бота, если это вдруг попадёт в чужие руки.
  */
 app.all("*", async (c) => {
-	const path = c.req.path.startsWith(FUNCTION_PREFIX)
-		? c.req.path.slice(FUNCTION_PREFIX.length)
-		: c.req.path;
+	const path = c.req.path;
 
 	if (!ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix))) {
 		return c.notFound();
@@ -98,4 +103,4 @@ app.all("*", async (c) => {
 	});
 });
 
-export default handle(app);
+export default app;
