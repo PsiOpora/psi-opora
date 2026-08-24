@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import {
 	fetchCategoryNames,
+	fetchFailReasonNames,
 	fetchSourceNames,
 	fetchStageNames,
 } from "@/lib/analytics/deals";
@@ -61,15 +62,16 @@ function parseMulti(values: string[]): string | string[] | undefined {
 }
 
 /**
- * Разрез по названиям — только для "source"/"category"/"stage" (справочники
- * из локального зеркала, packages/db/deal_dictionaries). Для остальных
- * измерений ключ группы из SQL (utm-значение, дата) уже человекочитаем.
+ * Разрез по названиям — только для "source"/"category"/"stage"/"failReason"
+ * (справочники из локального зеркала, packages/db/deal_dictionaries). Для
+ * остальных измерений ключ группы из SQL (utm-значение, дата) уже человекочитаем.
  */
 async function resolveNames(
 	dimension: DealGroupDimension,
 ): Promise<Map<string, string>> {
 	if (dimension === "source") return fetchSourceNames();
 	if (dimension === "category") return fetchCategoryNames();
+	if (dimension === "failReason") return fetchFailReasonNames();
 	if (dimension === "stage") {
 		const stages = await fetchStageNames();
 		return new Map([...stages].map(([id, info]) => [id, info.name]));
@@ -87,6 +89,8 @@ function labelOf(
 			return names.get(key) ?? key;
 		case "category":
 			return names.get(key) ?? `Воронка ${key}`;
+		case "failReason":
+			return names.get(key) ?? key;
 		case "stage":
 			return names.get(key) ?? key;
 		case "utmCampaign": {
@@ -144,6 +148,7 @@ export async function GET(request: Request) {
 			categoryId: parseMulti(params.getAll("category")),
 			stageId: parseMulti(params.getAll("stage")),
 			sourceId: parseMulti(params.getAll("source")),
+			failReasonId: parseMulti(params.getAll("failReason")),
 			utmSource: parseMulti(params.getAll("utmSource")),
 			utmMedium: parseMulti(params.getAll("utmMedium")),
 			// utmCampaignFilter — фильтр по точному значению utm_campaign, не путать

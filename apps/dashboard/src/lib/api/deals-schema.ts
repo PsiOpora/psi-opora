@@ -15,6 +15,7 @@ export const DealRowSchema = z.object({
 	opportunity: z.number(),
 	currency: z.string().nullable(),
 	sourceId: z.string().nullable(),
+	failReasonId: z.string().nullable(),
 	utmSource: z.string().nullable(),
 	utmMedium: z.string().nullable(),
 	utmCampaign: z.string().nullable(),

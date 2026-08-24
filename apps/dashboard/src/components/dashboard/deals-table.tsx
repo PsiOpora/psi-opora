@@ -46,12 +46,14 @@ interface DealsTableProps {
 	sourceNames?: Map<string, string>;
 	categoryNames?: Map<string, string>;
 	stageNames?: Map<string, StageInfo>;
+	failReasonNames?: Map<string, string>;
 	dealDomain?: string | null;
 	/** Начальные значения фильтров — например, при переходе из другого отчёта. */
 	initialStatus?: string;
 	initialCategory?: string;
 	initialStage?: string;
 	initialSource?: string;
+	initialFailReason?: string;
 	initialSearch?: string;
 	/**
 	 * Показать сделки, у которых была история входа на конкретный этап
@@ -66,11 +68,13 @@ export function DealsTable({
 	sourceNames,
 	categoryNames,
 	stageNames,
+	failReasonNames,
 	dealDomain,
 	initialStatus,
 	initialCategory,
 	initialStage,
 	initialSource,
+	initialFailReason,
 	initialSearch,
 	reachedStage,
 }: DealsTableProps) {
@@ -89,6 +93,7 @@ export function DealsTable({
 	const [category, setCategory] = useState(initialCategory ?? ALL);
 	const [stage, setStage] = useState(initialStage ?? ALL);
 	const [source, setSource] = useState(initialSource ?? ALL);
+	const [failReason, setFailReason] = useState(initialFailReason ?? ALL);
 
 	// Reset pagination when range changes
 	const rangeFrom = formatDateParam(range.from);
@@ -99,8 +104,15 @@ export function DealsTable({
 	}, [rangeFrom, rangeTo]);
 
 	const columns = useMemo(
-		() => buildColumns({ sourceNames, categoryNames, stageNames, dealDomain }),
-		[sourceNames, categoryNames, stageNames, dealDomain],
+		() =>
+			buildColumns({
+				sourceNames,
+				categoryNames,
+				stageNames,
+				failReasonNames,
+				dealDomain,
+			}),
+		[sourceNames, categoryNames, stageNames, failReasonNames, dealDomain],
 	);
 
 	// Справочники Bitrix24 уже содержат ВСЕ категории/стадии/источники CRM
@@ -143,6 +155,13 @@ export function DealsTable({
 				.sort((a, b) => a.label.localeCompare(b.label, "ru")),
 		[sourceNames],
 	);
+	const failReasonOptions = useMemo(
+		() =>
+			[...(failReasonNames ?? new Map()).entries()]
+				.map(([id, label]) => ({ id, label }))
+				.sort((a, b) => a.label.localeCompare(b.label, "ru")),
+		[failReasonNames],
+	);
 
 	const sort = sorting[0];
 	const sortField =
@@ -161,6 +180,7 @@ export function DealsTable({
 		category,
 		stage,
 		source,
+		failReason,
 		search,
 		sortField,
 		sort?.desc,
@@ -184,6 +204,7 @@ export function DealsTable({
 			if (category !== ALL) params.set("category", category);
 			if (stage !== ALL) params.set("stage", stage);
 			if (source !== ALL) params.set("source", source);
+			if (failReason !== ALL) params.set("failReason", failReason);
 			if (search.trim()) params.set("search", search.trim());
 			if (sortField) params.set("sort", sortField);
 			if (reachedStage) {
@@ -220,6 +241,7 @@ export function DealsTable({
 		setCategory(ALL);
 		setStage(ALL);
 		setSource(ALL);
+		setFailReason(ALL);
 		setPagination((current) => ({ ...current, pageIndex: 0 }));
 		if (reachedStage) {
 			router.push("/deals");
@@ -240,6 +262,7 @@ export function DealsTable({
 		category !== ALL ||
 		stage !== ALL ||
 		source !== ALL ||
+		failReason !== ALL ||
 		reachedStage !== undefined;
 
 	if (isError) {
@@ -292,6 +315,9 @@ export function DealsTable({
 				source={source}
 				onSourceChange={(value) => updateFilter(setSource, value)}
 				sourceOptions={sourceOptions}
+				failReason={failReason}
+				onFailReasonChange={(value) => updateFilter(setFailReason, value)}
+				failReasonOptions={failReasonOptions}
 				hasFilters={hasFilters}
 				onReset={resetFilters}
 				isFetching={isFetching}

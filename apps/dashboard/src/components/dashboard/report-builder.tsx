@@ -4,7 +4,15 @@ import type { DealGroupDimension, DealStatus } from "@psi-opora/db/queries";
 import { ArrowUpDownIcon, ChevronDownIcon, RotateCcwIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import {
+	Bar,
+	BarChart,
+	CartesianGrid,
+	Line,
+	LineChart,
+	XAxis,
+	YAxis,
+} from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,7 +64,11 @@ import { useDealsSummary } from "@/hooks/use-deals-summary";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { ExportCsvButton } from "./export-csv-button";
 
-const DIMENSIONS: Array<{ id: DealGroupDimension; label: string; time?: boolean }> = [
+const DIMENSIONS: Array<{
+	id: DealGroupDimension;
+	label: string;
+	time?: boolean;
+}> = [
 	{ id: "utmSource", label: "UTM source" },
 	{ id: "utmMedium", label: "UTM medium" },
 	{ id: "utmCampaign", label: "UTM campaign" },
@@ -65,12 +77,18 @@ const DIMENSIONS: Array<{ id: DealGroupDimension; label: string; time?: boolean 
 	{ id: "source", label: "Источник CRM" },
 	{ id: "category", label: "Воронка" },
 	{ id: "stage", label: "Стадия" },
+	{ id: "failReason", label: "Причина провала" },
 	{ id: "day", label: "По дням", time: true },
 	{ id: "week", label: "По неделям", time: true },
 	{ id: "month", label: "По месяцам", time: true },
 ];
 
-type MetricId = "deals" | "won" | "wonSum" | "opportunitySum" | "conversionRate";
+type MetricId =
+	| "deals"
+	| "won"
+	| "wonSum"
+	| "opportunitySum"
+	| "conversionRate";
 
 const METRICS: Array<{ id: MetricId; label: string }> = [
 	{ id: "deals", label: "Сделки" },
@@ -98,6 +116,7 @@ type FilterId =
 	| "status"
 	| "category"
 	| "source"
+	| "failReason"
 	| "utmSource"
 	| "utmMedium"
 	| "utmCampaign";
@@ -106,6 +125,7 @@ const FILTERS: Array<{ id: FilterId; label: string }> = [
 	{ id: "status", label: "Статус" },
 	{ id: "category", label: "Воронка" },
 	{ id: "source", label: "Источник CRM" },
+	{ id: "failReason", label: "Причина провала" },
 	{ id: "utmSource", label: "UTM source" },
 	{ id: "utmMedium", label: "UTM medium" },
 	{ id: "utmCampaign", label: "UTM campaign" },
@@ -115,17 +135,25 @@ const FACET_KEY: Record<FilterId, keyof DealFacets> = {
 	status: "status",
 	category: "categoryId",
 	source: "sourceId",
+	failReason: "failReasonId",
 	utmSource: "utmSource",
 	utmMedium: "utmMedium",
 	utmCampaign: "utmCampaign",
 };
 
-type SortKey = "label" | "deals" | "won" | "conversionRate" | "wonSum" | "opportunitySum";
+type SortKey =
+	| "label"
+	| "deals"
+	| "won"
+	| "conversionRate"
+	| "wonSum"
+	| "opportunitySum";
 
 const EMPTY_FILTERS: Record<FilterId, string[]> = {
 	status: [],
 	category: [],
 	source: [],
+	failReason: [],
 	utmSource: [],
 	utmMedium: [],
 	utmCampaign: [],
@@ -207,12 +235,16 @@ export function ReportBuilder() {
 		(DIMENSIONS[0] as (typeof DIMENSIONS)[number]);
 
 	const reportFilters: DealsReportFilters = {
-		status: filters.status.length > 0 ? (filters.status as DealStatus[]) : undefined,
+		status:
+			filters.status.length > 0 ? (filters.status as DealStatus[]) : undefined,
 		categoryId: filters.category.length > 0 ? filters.category : undefined,
 		sourceId: filters.source.length > 0 ? filters.source : undefined,
+		failReasonId:
+			filters.failReason.length > 0 ? filters.failReason : undefined,
 		utmSource: filters.utmSource.length > 0 ? filters.utmSource : undefined,
 		utmMedium: filters.utmMedium.length > 0 ? filters.utmMedium : undefined,
-		utmCampaign: filters.utmCampaign.length > 0 ? filters.utmCampaign : undefined,
+		utmCampaign:
+			filters.utmCampaign.length > 0 ? filters.utmCampaign : undefined,
 	};
 
 	const facets = useDealsFacets(range);
@@ -523,8 +555,8 @@ export function ReportBuilder() {
 				<CardHeader>
 					<CardTitle>Таблица: {dimensionInfo.label}</CardTitle>
 					<CardDescription>
-						{formatNumber(groupsTotal)} групп — сортировка по клику на
-						заголовок столбца
+						{formatNumber(groupsTotal)} групп — сортировка по клику на заголовок
+						столбца
 					</CardDescription>
 					<CardAction>
 						<ExportCsvButton

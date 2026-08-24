@@ -27,6 +27,7 @@ export interface DealsReportFilters {
 	categoryId?: MultiValue<string>;
 	stageId?: MultiValue<string>;
 	sourceId?: MultiValue<string>;
+	failReasonId?: MultiValue<string>;
 	utmSource?: MultiValue<string>;
 	utmMedium?: MultiValue<string>;
 	/** Точное значение utm_campaign (не путать с dimension="utmCampaign" —
@@ -50,6 +51,7 @@ const FILTER_PARAM_NAME: Record<keyof DealsReportFilters, string> = {
 	categoryId: "category",
 	stageId: "stage",
 	sourceId: "source",
+	failReasonId: "failReason",
 	utmSource: "utmSource",
 	utmMedium: "utmMedium",
 	utmCampaign: "utmCampaignFilter",
@@ -103,6 +105,7 @@ export function useDealsReport({
 	categoryId,
 	stageId,
 	sourceId,
+	failReasonId,
 	utmSource,
 	utmMedium,
 	utmCampaign,
@@ -113,6 +116,7 @@ export function useDealsReport({
 		categoryId,
 		stageId,
 		sourceId,
+		failReasonId,
 		utmSource,
 		utmMedium,
 		utmCampaign,

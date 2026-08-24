@@ -1,7 +1,11 @@
 import { getFilterFacets } from "@psi-opora/db/queries";
 import { NextResponse } from "next/server";
 import { parseDateRange } from "@/lib/analytics/date-range";
-import { fetchCategoryNames, fetchSourceNames } from "@/lib/analytics/deals";
+import {
+	fetchCategoryNames,
+	fetchFailReasonNames,
+	fetchSourceNames,
+} from "@/lib/analytics/deals";
 import { STATUS_LABEL } from "@/lib/analytics/status-label";
 import { validateDateRange, zodBadRequest } from "@/lib/api/validation";
 
@@ -26,11 +30,13 @@ export async function GET(request: Request) {
 
 	const range = parseDateRange(Object.fromEntries(params));
 
-	const [facets, categoryNames, sourceNames] = await Promise.all([
-		getFilterFacets(range),
-		fetchCategoryNames(),
-		fetchSourceNames(),
-	]);
+	const [facets, categoryNames, sourceNames, failReasonNames] =
+		await Promise.all([
+			getFilterFacets(range),
+			fetchCategoryNames(),
+			fetchSourceNames(),
+			fetchFailReasonNames(),
+		]);
 
 	return NextResponse.json({
 		status: facets.status.map((f) => ({
@@ -45,6 +51,10 @@ export async function GET(request: Request) {
 		sourceId: facets.sourceId.map((f) => ({
 			...f,
 			label: sourceNames.get(f.value) ?? f.value,
+		})),
+		failReasonId: facets.failReasonId.map((f) => ({
+			...f,
+			label: failReasonNames.get(f.value) ?? f.value,
 		})),
 		utmSource: facets.utmSource.map((f) => ({ ...f, label: f.value })),
 		utmMedium: facets.utmMedium.map((f) => ({ ...f, label: f.value })),

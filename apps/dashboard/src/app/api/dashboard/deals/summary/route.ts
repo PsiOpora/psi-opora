@@ -7,18 +7,18 @@ import { validateDateRange, zodBadRequest } from "@/lib/api/validation";
 export const dynamic = "force-dynamic";
 
 function isDealStatus(value: string): value is DealStatus {
-  return value === "won" || value === "lost" || value === "in_progress";
+	return value === "won" || value === "lost" || value === "in_progress";
 }
 
 function parseStatus(values: string[]): DealStatus | DealStatus[] | undefined {
-  const valid = values.filter(isDealStatus);
-  if (valid.length === 0) return undefined;
-  return valid.length === 1 ? valid[0] : valid;
+	const valid = values.filter(isDealStatus);
+	if (valid.length === 0) return undefined;
+	return valid.length === 1 ? valid[0] : valid;
 }
 
 function parseMulti(values: string[]): string | string[] | undefined {
-  if (values.length === 0) return undefined;
-  return values.length === 1 ? values[0] : values;
+	if (values.length === 0) return undefined;
+	return values.length === 1 ? values[0] : values;
 }
 
 /**
@@ -29,35 +29,36 @@ function parseMulti(values: string[]): string | string[] | undefined {
  * summary так же, как к таблице/графику — см. hooks/use-deals-report.ts.
  */
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const params = url.searchParams;
+	const url = new URL(request.url);
+	const params = url.searchParams;
 
-  try {
-    validateDateRange(params);
-  } catch (err) {
-    const res = zodBadRequest(err);
-    if (res) return res;
-    throw err;
-  }
+	try {
+		validateDateRange(params);
+	} catch (err) {
+		const res = zodBadRequest(err);
+		if (res) return res;
+		throw err;
+	}
 
-  const range = parseDateRange(Object.fromEntries(params));
-  const filters = {
-    status: parseStatus(params.getAll("status")),
-    categoryId: parseMulti(params.getAll("category")),
-    stageId: parseMulti(params.getAll("stage")),
-    sourceId: parseMulti(params.getAll("source")),
-    utmSource: parseMulti(params.getAll("utmSource")),
-    utmMedium: parseMulti(params.getAll("utmMedium")),
-    utmCampaign: parseMulti(params.getAll("utmCampaignFilter")),
-  };
+	const range = parseDateRange(Object.fromEntries(params));
+	const filters = {
+		status: parseStatus(params.getAll("status")),
+		categoryId: parseMulti(params.getAll("category")),
+		stageId: parseMulti(params.getAll("stage")),
+		sourceId: parseMulti(params.getAll("source")),
+		failReasonId: parseMulti(params.getAll("failReason")),
+		utmSource: parseMulti(params.getAll("utmSource")),
+		utmMedium: parseMulti(params.getAll("utmMedium")),
+		utmCampaign: parseMulti(params.getAll("utmCampaignFilter")),
+	};
 
-  const [summary, trend, previousSummary] = await Promise.all([
-    getDealsSummary({ ...range, ...filters }),
-    getDealsTrendByDay({ ...range, ...filters }),
-    params.get("previous") === "1"
-      ? getDealsSummary({ ...previousRange(range), ...filters })
-      : Promise.resolve(undefined),
-  ]);
+	const [summary, trend, previousSummary] = await Promise.all([
+		getDealsSummary({ ...range, ...filters }),
+		getDealsTrendByDay({ ...range, ...filters }),
+		params.get("previous") === "1"
+			? getDealsSummary({ ...previousRange(range), ...filters })
+			: Promise.resolve(undefined),
+	]);
 
-  return NextResponse.json({ summary, trend, previousSummary });
+	return NextResponse.json({ summary, trend, previousSummary });
 }

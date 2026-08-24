@@ -38,6 +38,7 @@ export async function upsertDeals(rows: NewDeal[]): Promise<void> {
 				opportunity: sql`excluded.opportunity`,
 				currency: sql`excluded.currency`,
 				sourceId: sql`excluded.source_id`,
+				failReasonId: sql`excluded.fail_reason_id`,
 				utmSource: sql`excluded.utm_source`,
 				utmMedium: sql`excluded.utm_medium`,
 				utmCampaign: sql`excluded.utm_campaign`,
@@ -88,6 +89,7 @@ export interface ListDealsOptions {
 	categoryId?: FilterValue<string>;
 	stageId?: FilterValue<string>;
 	sourceId?: FilterValue<string>;
+	failReasonId?: FilterValue<string>;
 	utmSource?: FilterValue<string>;
 	utmMedium?: FilterValue<string>;
 	utmCampaign?: FilterValue<string>;
@@ -134,6 +136,7 @@ function dealsWhere(
 		| "categoryId"
 		| "stageId"
 		| "sourceId"
+		| "failReasonId"
 		| "utmSource"
 		| "utmMedium"
 		| "utmCampaign"
@@ -154,6 +157,8 @@ function dealsWhere(
 	if (stageId) clauses.push(stageId);
 	const sourceId = matchClause(deals.sourceId, options.sourceId);
 	if (sourceId) clauses.push(sourceId);
+	const failReasonId = matchClause(deals.failReasonId, options.failReasonId);
+	if (failReasonId) clauses.push(failReasonId);
 	const utmSource = matchClause(deals.utmSource, options.utmSource);
 	if (utmSource) clauses.push(utmSource);
 	const utmMedium = matchClause(deals.utmMedium, options.utmMedium);
@@ -227,6 +232,7 @@ export type DealGroupDimension =
 	| "source"
 	| "category"
 	| "stage"
+	| "failReason"
 	| "day"
 	| "week"
 	| "month";
@@ -240,6 +246,7 @@ export const DEAL_GROUP_DIMENSIONS: DealGroupDimension[] = [
 	"source",
 	"category",
 	"stage",
+	"failReason",
 	"day",
 	"week",
 	"month",
@@ -284,6 +291,8 @@ function dimensionKeyExpr(dimension: DealGroupDimension): SQL<string> {
 			return sql<string>`${deals.categoryId}`;
 		case "stage":
 			return sql<string>`${deals.stageId}`;
+		case "failReason":
+			return sql<string>`coalesce(${deals.failReasonId}, ${NOT_SPECIFIED})`;
 		case "day":
 			return sql<string>`to_char(${deals.dateCreate}, 'YYYY-MM-DD')`;
 		case "week":
@@ -540,6 +549,7 @@ export interface DealFilterFacets {
 	status: FilterFacet[];
 	categoryId: FilterFacet[];
 	sourceId: FilterFacet[];
+	failReasonId: FilterFacet[];
 	utmSource: FilterFacet[];
 	utmMedium: FilterFacet[];
 	utmCampaign: FilterFacet[];
@@ -558,6 +568,7 @@ export async function getFilterFacets(
 		status: [],
 		categoryId: [],
 		sourceId: [],
+		failReasonId: [],
 		utmSource: [],
 		utmMedium: [],
 		utmCampaign: [],
@@ -581,15 +592,31 @@ export async function getFilterFacets(
 		);
 	}
 
-	const [status, categoryId, sourceId, utmSource, utmMedium, utmCampaign] =
-		await Promise.all([
-			facet(deals.status),
-			facet(deals.categoryId),
-			facet(deals.sourceId, NOT_SPECIFIED),
-			facet(deals.utmSource, NOT_SPECIFIED),
-			facet(deals.utmMedium, NOT_SPECIFIED),
-			facet(deals.utmCampaign, NOT_SPECIFIED),
-		]);
+	const [
+		status,
+		categoryId,
+		sourceId,
+		failReasonId,
+		utmSource,
+		utmMedium,
+		utmCampaign,
+	] = await Promise.all([
+		facet(deals.status),
+		facet(deals.categoryId),
+		facet(deals.sourceId, NOT_SPECIFIED),
+		facet(deals.failReasonId, NOT_SPECIFIED),
+		facet(deals.utmSource, NOT_SPECIFIED),
+		facet(deals.utmMedium, NOT_SPECIFIED),
+		facet(deals.utmCampaign, NOT_SPECIFIED),
+	]);
 
-	return { status, categoryId, sourceId, utmSource, utmMedium, utmCampaign };
+	return {
+		status,
+		categoryId,
+		sourceId,
+		failReasonId,
+		utmSource,
+		utmMedium,
+		utmCampaign,
+	};
 }

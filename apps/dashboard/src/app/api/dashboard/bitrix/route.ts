@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
 	fetchCategoryNames,
+	fetchFailReasonNames,
 	fetchSourceNames,
 	fetchStageNames,
 } from "@/lib/analytics/deals";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
  * use-deals-summary.ts. `connected`/`dealDomain` — единственное, что ещё
  * зависит от live-подключения к Bitrix (для ссылок на карточки CRM и баннера
  * "не подключено"). `need` — список через запятую: sourceNames,
- * categoryNames, stageNames, dealDomain.
+ * categoryNames, stageNames, failReasonNames, dealDomain.
  */
 export async function GET(request: Request) {
 	const url = new URL(request.url);
@@ -28,25 +29,34 @@ export async function GET(request: Request) {
 	const api = await getBitrixApi();
 
 	try {
-		const [sourceNames, categoryNames, stageNames, dealDomain] =
-			await Promise.all([
-				need.has("sourceNames")
-					? fetchSourceNames()
-					: Promise.resolve(undefined),
-				need.has("categoryNames")
-					? fetchCategoryNames()
-					: Promise.resolve(undefined),
-				need.has("stageNames") ? fetchStageNames() : Promise.resolve(undefined),
-				api && need.has("dealDomain")
-					? getBitrixPortalDomain()
-					: Promise.resolve(undefined),
-			]);
+		const [
+			sourceNames,
+			categoryNames,
+			stageNames,
+			failReasonNames,
+			dealDomain,
+		] = await Promise.all([
+			need.has("sourceNames") ? fetchSourceNames() : Promise.resolve(undefined),
+			need.has("categoryNames")
+				? fetchCategoryNames()
+				: Promise.resolve(undefined),
+			need.has("stageNames") ? fetchStageNames() : Promise.resolve(undefined),
+			need.has("failReasonNames")
+				? fetchFailReasonNames()
+				: Promise.resolve(undefined),
+			api && need.has("dealDomain")
+				? getBitrixPortalDomain()
+				: Promise.resolve(undefined),
+		]);
 
 		return NextResponse.json({
 			connected: !!api,
 			sourceNames: sourceNames ? [...sourceNames.entries()] : undefined,
 			categoryNames: categoryNames ? [...categoryNames.entries()] : undefined,
 			stageNames: stageNames ? [...stageNames.entries()] : undefined,
+			failReasonNames: failReasonNames
+				? [...failReasonNames.entries()]
+				: undefined,
 			dealDomain,
 		});
 	} catch (error) {

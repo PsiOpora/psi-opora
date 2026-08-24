@@ -17,6 +17,10 @@ export const deals = pgTable(
 		opportunity: integer("opportunity").notNull().default(0),
 		currency: text("currency"),
 		sourceId: text("source_id"),
+		// Значение поля "Причина провала" (UF_CRM_1779838990) — заполняется на
+		// стадии "Анализ причины провала" воронки. ID пункта списка Bitrix, имя —
+		// в deal_dictionaries (type=failReason).
+		failReasonId: text("fail_reason_id"),
 		utmSource: text("utm_source"),
 		utmMedium: text("utm_medium"),
 		utmCampaign: text("utm_campaign"),
@@ -34,6 +38,7 @@ export const deals = pgTable(
 		index("deals_stage_idx").on(table.stageId),
 		index("deals_category_idx").on(table.categoryId),
 		index("deals_source_idx").on(table.sourceId),
+		index("deals_fail_reason_idx").on(table.failReasonId),
 		index("deals_utm_source_idx").on(table.utmSource),
 		index("deals_date_modify_idx").on(table.dateModify),
 	],

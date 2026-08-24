@@ -14,6 +14,7 @@ export interface DealFacets {
 	status: DealFacetOption[];
 	categoryId: DealFacetOption[];
 	sourceId: DealFacetOption[];
+	failReasonId: DealFacetOption[];
 	utmSource: DealFacetOption[];
 	utmMedium: DealFacetOption[];
 	utmCampaign: DealFacetOption[];
@@ -23,7 +24,11 @@ export interface DealFacets {
  * текущей группировки/фильтров, только от периода, поэтому кэшируются отдельно. */
 export function useDealsFacets(range: DateRange) {
 	return useQuery({
-		queryKey: ["dashboard-deals-facets", formatDateParam(range.from), formatDateParam(range.to)],
+		queryKey: [
+			"dashboard-deals-facets",
+			formatDateParam(range.from),
+			formatDateParam(range.to),
+		],
 		queryFn: async () => {
 			const params = new URLSearchParams({
 				from: formatDateParam(range.from),

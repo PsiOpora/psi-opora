@@ -44,6 +44,7 @@ interface BuildColumnsParams {
 	sourceNames?: Map<string, string>;
 	categoryNames?: Map<string, string>;
 	stageNames?: Map<string, StageInfo>;
+	failReasonNames?: Map<string, string>;
 	dealDomain?: string | null;
 }
 
@@ -51,6 +52,7 @@ export function buildColumns({
 	sourceNames,
 	categoryNames,
 	stageNames,
+	failReasonNames,
 	dealDomain,
 }: BuildColumnsParams): ColumnDef<DealRowDTO>[] {
 	return [
@@ -120,6 +122,14 @@ export function buildColumns({
 					)}
 				</div>
 			),
+		},
+		{
+			id: "failReason",
+			header: "Причина провала",
+			accessorFn: (deal) =>
+				deal.failReasonId
+					? (failReasonNames?.get(deal.failReasonId) ?? deal.failReasonId)
+					: "",
 		},
 		{
 			accessorKey: "opportunity",

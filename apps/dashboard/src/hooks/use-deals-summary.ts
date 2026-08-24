@@ -11,6 +11,7 @@ const FILTER_PARAM_NAME: Record<keyof DealsReportFilters, string> = {
 	categoryId: "category",
 	stageId: "stage",
 	sourceId: "source",
+	failReasonId: "failReason",
 	utmSource: "utmSource",
 	utmMedium: "utmMedium",
 	utmCampaign: "utmCampaignFilter",

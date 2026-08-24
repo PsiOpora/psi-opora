@@ -2,7 +2,7 @@ import { and, eq, notInArray, sql } from "drizzle-orm";
 import { db } from "../client";
 import { dealDictionaries } from "../schema/deal-dictionaries";
 
-export type DealDictionaryType = "source" | "category" | "stage";
+export type DealDictionaryType = "source" | "category" | "stage" | "failReason";
 
 export interface NewDealDictionaryEntry {
 	type: DealDictionaryType;

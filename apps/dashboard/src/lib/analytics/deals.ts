@@ -22,6 +22,10 @@ export async function fetchCategoryNames(): Promise<Map<string, string>> {
 	return getDealDictionaryNames("category");
 }
 
+export async function fetchFailReasonNames(): Promise<Map<string, string>> {
+	return getDealDictionaryNames("failReason");
+}
+
 export async function fetchStageNames(): Promise<Map<string, StageInfo>> {
 	return getDealStageNames();
 }

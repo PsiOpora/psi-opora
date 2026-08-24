@@ -97,6 +97,7 @@ export async function GET(request: Request) {
 		categoryId: parseMulti(params.getAll("category")),
 		stageId: parseMulti(params.getAll("stage")),
 		sourceId: parseMulti(params.getAll("source")),
+		failReasonId: parseMulti(params.getAll("failReason")),
 		utmSource: parseMulti(params.getAll("utmSource")),
 		utmMedium: parseMulti(params.getAll("utmMedium")),
 		utmCampaign: parseMulti(params.getAll("utmCampaignFilter")),

@@ -105,6 +105,7 @@ export async function GET(request: Request) {
 		categoryId: params.get("category") ?? undefined,
 		stageId: params.get("stage") ?? undefined,
 		sourceId: params.get("source") ?? undefined,
+		failReasonId: params.get("failReason") ?? undefined,
 		utmSource: params.get("utmSource") ?? undefined,
 		search: params.get("search") ?? undefined,
 		reachedStage,

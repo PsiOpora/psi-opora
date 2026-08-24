@@ -27,6 +27,8 @@ const DEAL_SYNC_SELECT = [
 	"CLOSEDATE",
 	"DATE_MODIFY",
 	"SOURCE_ID",
+	// Поле "Причина провала" — заполняется на стадии "Анализ причины провала".
+	"UF_CRM_1779838990",
 	"UTM_SOURCE",
 	"UTM_MEDIUM",
 	"UTM_CAMPAIGN",
@@ -46,6 +48,7 @@ interface RawSyncDeal {
 	CLOSEDATE?: string;
 	DATE_MODIFY: string;
 	SOURCE_ID?: string;
+	UF_CRM_1779838990?: string | number | null;
 	UTM_SOURCE?: string;
 	UTM_MEDIUM?: string;
 	UTM_CAMPAIGN?: string;
@@ -85,6 +88,7 @@ function normalizeSyncDeal(raw: RawSyncDeal): NewDeal {
 		opportunity: Math.round(Number(raw.OPPORTUNITY) || 0),
 		currency: raw.CURRENCY_ID || null,
 		sourceId: raw.SOURCE_ID || null,
+		failReasonId: raw.UF_CRM_1779838990 ? String(raw.UF_CRM_1779838990) : null,
 		utmSource: decodeUtm(raw.UTM_SOURCE),
 		utmMedium: decodeUtm(raw.UTM_MEDIUM),
 		utmCampaign: decodeUtm(raw.UTM_CAMPAIGN),
@@ -169,7 +173,7 @@ const categoryResultSchema = z.object({
  * Меняются редко, поэтому синкаются целиком (replace) вместе со сделками.
  */
 export async function syncDealDictionaries(api: BitrixApi): Promise<void> {
-	const [statusRows, categoryResult] = await Promise.all([
+	const [statusRows, categoryResult, dealFields] = await Promise.all([
 		api.list<{
 			ENTITY_ID: string;
 			STATUS_ID: string;
@@ -181,6 +185,10 @@ export async function syncDealDictionaries(api: BitrixApi): Promise<void> {
 		api.call<{ categories: Array<{ id: number; name: string }> }>(
 			"crm.category.list",
 			{ entityTypeId: 2 },
+		),
+		api.call<Record<string, { items?: Array<{ ID: string; VALUE: string }> }>>(
+			"crm.deal.fields",
+			{},
 		),
 	]);
 
@@ -220,6 +228,12 @@ export async function syncDealDictionaries(api: BitrixApi): Promise<void> {
 			name: c.name,
 		}));
 
+	// Пункты списка поля "Причина провала" (UF_CRM_1779838990) — не отдаются
+	// через crm.status.list (это кастомное UF-поле, не системный справочник).
+	const failReasons: NewDealDictionaryEntry[] = (
+		dealFields?.UF_CRM_1779838990?.items ?? []
+	).map((item) => ({ type: "failReason", id: item.ID, name: item.VALUE }));
+
 	// Additional check: ensure we have at least some stages (most critical dictionary)
 	if (stages.length === 0) {
 		console.error(
@@ -232,6 +246,9 @@ export async function syncDealDictionaries(api: BitrixApi): Promise<void> {
 		replaceDealDictionary("source", sources),
 		replaceDealDictionary("stage", stages),
 		replaceDealDictionary("category", categories),
+		...(failReasons.length > 0
+			? [replaceDealDictionary("failReason", failReasons)]
+			: []),
 	]);
 }
 

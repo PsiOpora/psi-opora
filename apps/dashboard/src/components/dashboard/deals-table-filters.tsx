@@ -33,6 +33,9 @@ interface DealsTableFiltersProps {
 	source: string;
 	onSourceChange: (value: string) => void;
 	sourceOptions: Option[];
+	failReason: string;
+	onFailReasonChange: (value: string) => void;
+	failReasonOptions: Option[];
 	hasFilters: boolean;
 	onReset: () => void;
 	isFetching: boolean;
@@ -53,6 +56,9 @@ export function DealsTableFilters({
 	source,
 	onSourceChange,
 	sourceOptions,
+	failReason,
+	onFailReasonChange,
+	failReasonOptions,
 	hasFilters,
 	onReset,
 	isFetching,
@@ -127,6 +133,24 @@ export function DealsTableFilters({
 					<SelectGroup>
 						<SelectItem value={ALL}>Все источники</SelectItem>
 						{sourceOptions.map((option) => (
+							<SelectItem key={option.id} value={option.id}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectGroup>
+				</SelectContent>
+			</Select>
+			<Select value={failReason} onValueChange={onFailReasonChange}>
+				<SelectTrigger
+					aria-label="Фильтр по причине провала"
+					className="min-w-40"
+				>
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectGroup>
+						<SelectItem value={ALL}>Все причины провала</SelectItem>
+						{failReasonOptions.map((option) => (
 							<SelectItem key={option.id} value={option.id}>
 								{option.label}
 							</SelectItem>

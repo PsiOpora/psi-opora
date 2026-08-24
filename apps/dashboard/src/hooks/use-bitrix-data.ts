@@ -9,6 +9,7 @@ export type BitrixNeed =
 	| "sourceNames"
 	| "categoryNames"
 	| "stageNames"
+	| "failReasonNames"
 	| "dealDomain";
 
 interface BitrixDataResult {
@@ -16,6 +17,7 @@ interface BitrixDataResult {
 	sourceNames?: Map<string, string>;
 	categoryNames?: Map<string, string>;
 	stageNames?: Map<string, StageInfo>;
+	failReasonNames?: Map<string, string>;
 	dealDomain?: string | null;
 }
 
@@ -55,6 +57,9 @@ export function useBitrixData(need: BitrixNeed[]) {
 					: undefined,
 				stageNames: json.stageNames
 					? new Map<string, StageInfo>(json.stageNames)
+					: undefined,
+				failReasonNames: json.failReasonNames
+					? new Map<string, string>(json.failReasonNames)
 					: undefined,
 				dealDomain: json.dealDomain ?? null,
 			};

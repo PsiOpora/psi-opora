@@ -55,6 +55,7 @@ function DealsPageContent() {
 		"sourceNames",
 		"categoryNames",
 		"stageNames",
+		"failReasonNames",
 		"dealDomain",
 	]);
 
@@ -106,6 +107,12 @@ function DealsPageContent() {
 			? rawSource
 			: undefined;
 
+	const rawFailReason = searchParams.get("failReason");
+	const initialFailReason =
+		rawFailReason && enrichmentData.failReasonNames?.has(rawFailReason)
+			? rawFailReason
+			: undefined;
+
 	// Ссылка из исторической воронки (funnel/page.tsx, режим "Достигли этапа") —
 	// отдельный от initialStage/initialCategory фильтр по истории стадий.
 	const rawReachedStage = searchParams.get("reachedStage");
@@ -146,11 +153,13 @@ function DealsPageContent() {
 					sourceNames={enrichmentData.sourceNames}
 					categoryNames={enrichmentData.categoryNames}
 					stageNames={enrichmentData.stageNames}
+					failReasonNames={enrichmentData.failReasonNames}
 					dealDomain={enrichmentData.dealDomain}
 					initialStatus={initialStatus}
 					initialCategory={initialCategory}
 					initialStage={initialStage}
 					initialSource={initialSource}
+					initialFailReason={initialFailReason}
 					reachedStage={initialReachedStage}
 				/>
 			</CardContent>
