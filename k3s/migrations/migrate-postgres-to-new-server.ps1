@@ -66,7 +66,15 @@ if ((Get-Item $DumpPath).Length -eq 0) {
 Write-Host "Дамп сохранён: $DumpPath ($('{0:N1}' -f ((Get-Item $DumpPath).Length / 1MB)) MB)"
 
 Write-Host "== 4. Копирую дамп в под нового сервера и восстанавливаю ==" -ForegroundColor Cyan
-kubectl --kubeconfig $TargetKubeconfig cp $DumpPath "${Namespace}/postgres-0:/tmp/restore.dump"
+# kubectl cp определяет локальный/удалённый аргумент по наличию ":" в пути —
+# Windows-путь вида C:\... сам содержит ":", поэтому передаём только имя
+# файла и явно переходим в его папку.
+Push-Location (Split-Path $DumpPath -Parent)
+try {
+    kubectl --kubeconfig $TargetKubeconfig cp (Split-Path $DumpPath -Leaf) "${Namespace}/postgres-0:/tmp/restore.dump"
+} finally {
+    Pop-Location
+}
 Invoke-PgExec $TargetKubeconfig 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner --no-privileges /tmp/restore.dump'
 Invoke-PgExec $TargetKubeconfig 'rm -f /tmp/restore.dump'
 
