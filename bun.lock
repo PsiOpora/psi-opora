@@ -205,13 +205,12 @@
     },
     "apps/tg-vercel-proxy": {
       "name": "@psi-opora/tg-vercel-proxy",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "dependencies": {
+        "@types/node": "26.2.0",
         "hono": "4.13.3",
       },
       "devDependencies": {
-        "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.2.0",
         "typescript": "7.0.2",
       },
     },
