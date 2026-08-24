@@ -5,6 +5,12 @@ import { Hono } from "hono";
 // Functions, без hono/vercel, без api/ и без vercel.json.
 // См. https://vercel.com/docs/frameworks/backend/hono
 
+// Узкая локальная замена @types/node: сборка Vercel транслирует этот файл
+// собственным tsc в изолированном окружении, где резолвинг @types/node как
+// entry point типов ("types": ["node"] в tsconfig) не всегда стабилен
+// (TS2688) — process.env здесь единственное, что реально нужно от Node.
+declare const process: { env: Record<string, string | undefined> };
+
 const TELEGRAM_API_ROOT = "https://api.telegram.org";
 // Пропускаем только пути реального Bot API Telegram (/bot<token>/<method> и
 // /file/bot<token>/<path>) — иначе публичный Vercel-URL превратился бы в
@@ -25,6 +31,11 @@ function stripHopHeaders(headers: Headers): Headers {
 	return copy;
 }
 
+// lib.dom.d.ts, встроенный в TypeScript, ещё не знает про `duplex` (нужен для
+// потокового body в fetch) — @types/node сюда специально не подключаем (см.
+// declare const process выше), поэтому просто расширяем RequestInit локально.
+type StreamingRequestInit = RequestInit & { duplex?: "half" };
+
 const app = new Hono();
 
 /**
@@ -42,12 +53,13 @@ app.post("/webhook", async (c) => {
 		return c.text("Unauthorized", 401);
 	}
 
-	const response = await fetch(`${TG_BOT_ORIGIN}/api/webhook`, {
+	const init: StreamingRequestInit = {
 		method: "POST",
 		headers: stripHopHeaders(c.req.raw.headers),
 		body: c.req.raw.body,
 		duplex: "half",
-	});
+	};
+	const response = await fetch(`${TG_BOT_ORIGIN}/api/webhook`, init);
 
 	const responseHeaders = new Headers(response.headers);
 	responseHeaders.delete("content-encoding");
@@ -81,12 +93,13 @@ app.all("*", async (c) => {
 
 	const hasBody = c.req.method !== "GET" && c.req.method !== "HEAD";
 	const search = new URL(c.req.url).search;
-	const response = await fetch(`${TELEGRAM_API_ROOT}${path}${search}`, {
+	const init: StreamingRequestInit = {
 		method: c.req.method,
 		headers: stripHopHeaders(c.req.raw.headers),
 		body: hasBody ? c.req.raw.body : undefined,
 		duplex: hasBody ? "half" : undefined,
-	});
+	};
+	const response = await fetch(`${TELEGRAM_API_ROOT}${path}${search}`, init);
 
 	const responseHeaders = new Headers(response.headers);
 	// Пересчитываются рантаймом при сборке Response — оставлять исходные
