@@ -2,7 +2,11 @@ import type { DealStatus } from "@psi-opora/db/queries";
 import { getDealsSummary, getDealsTrendByDay } from "@psi-opora/db/queries";
 import { NextResponse } from "next/server";
 import { parseDateRange, previousRange } from "@/lib/analytics/date-range";
-import { validateDateRange, zodBadRequest } from "@/lib/api/validation";
+import {
+	parseNonEmptyStrings,
+	validateDateRange,
+	zodBadRequest,
+} from "@/lib/api/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -41,12 +45,22 @@ export async function GET(request: Request) {
 	}
 
 	const range = parseDateRange(Object.fromEntries(params));
+
+	let failReasonId: string | string[] | undefined;
+	try {
+		failReasonId = parseNonEmptyStrings(params.getAll("failReason"));
+	} catch (err) {
+		const res = zodBadRequest(err);
+		if (res) return res;
+		throw err;
+	}
+
 	const filters = {
 		status: parseStatus(params.getAll("status")),
 		categoryId: parseMulti(params.getAll("category")),
 		stageId: parseMulti(params.getAll("stage")),
 		sourceId: parseMulti(params.getAll("source")),
-		failReasonId: parseMulti(params.getAll("failReason")),
+		failReasonId,
 		utmSource: parseMulti(params.getAll("utmSource")),
 		utmMedium: parseMulti(params.getAll("utmMedium")),
 		utmCampaign: parseMulti(params.getAll("utmCampaignFilter")),

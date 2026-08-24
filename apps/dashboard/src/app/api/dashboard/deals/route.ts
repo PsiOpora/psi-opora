@@ -3,6 +3,7 @@ import { listDeals } from "@psi-opora/db/queries";
 import { NextResponse } from "next/server";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import {
+	nonEmptyString,
 	parsePagination,
 	validateDateRange,
 	zodBadRequest,
@@ -98,6 +99,19 @@ export async function GET(request: Request) {
 				}
 			: undefined;
 
+	let failReasonId: string | undefined;
+	const failReasonParam = params.get("failReason");
+	if (failReasonParam !== null) {
+		try {
+			nonEmptyString.parse(failReasonParam);
+			failReasonId = failReasonParam;
+		} catch (err) {
+			const res = zodBadRequest(err);
+			if (res) return res;
+			throw err;
+		}
+	}
+
 	const { rows, total } = await listDeals({
 		from: reachedStage ? undefined : range?.from,
 		to: reachedStage ? undefined : range?.to,
@@ -105,7 +119,7 @@ export async function GET(request: Request) {
 		categoryId: params.get("category") ?? undefined,
 		stageId: params.get("stage") ?? undefined,
 		sourceId: params.get("source") ?? undefined,
-		failReasonId: params.get("failReason") ?? undefined,
+		failReasonId,
 		utmSource: params.get("utmSource") ?? undefined,
 		search: params.get("search") ?? undefined,
 		reachedStage,

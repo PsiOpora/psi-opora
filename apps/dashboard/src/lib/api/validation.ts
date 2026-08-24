@@ -126,6 +126,29 @@ export function validateDateRange(params: URLSearchParams): void {
 }
 
 /**
+ * Non-empty string schema — для фильтров, где пустая строка недопустима.
+ */
+export const nonEmptyString = z
+	.string()
+	.min(1, { message: "Must not be empty" });
+
+/**
+ * Валидирует массив строк как массив непустых строк.
+ * Возвращает undefined при пустом массиве или если какая-либо строка пуста.
+ */
+export function parseNonEmptyStrings(
+	values: string[],
+): string | string[] | undefined {
+	if (values.length === 0) return undefined;
+	// Validate all values are non-empty
+	const validated = z.array(nonEmptyString).safeParse(values);
+	if (!validated.success) {
+		throw validated.error;
+	}
+	return values.length === 1 ? values[0] : values;
+}
+
+/**
  * Общий обработчик: обернуть валидацию и вернуть 400 при ZodError.
  */
 export function zodBadRequest(error: unknown): Response | null {

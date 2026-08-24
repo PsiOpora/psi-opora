@@ -13,6 +13,7 @@ import {
 	fetchStageNames,
 } from "@/lib/analytics/deals";
 import {
+	parseNonEmptyStrings,
 	parsePagination,
 	validateDateRange,
 	zodBadRequest,
@@ -141,6 +142,15 @@ export async function GET(request: Request) {
 		? parseDateRange(Object.fromEntries(params))
 		: undefined;
 
+	let failReasonId: string | string[] | undefined;
+	try {
+		failReasonId = parseNonEmptyStrings(params.getAll("failReason"));
+	} catch (err) {
+		const res = zodBadRequest(err);
+		if (res) return res;
+		throw err;
+	}
+
 	const [group, names] = await Promise.all([
 		groupDealsBy(dimension, {
 			from: range?.from,
@@ -148,7 +158,7 @@ export async function GET(request: Request) {
 			categoryId: parseMulti(params.getAll("category")),
 			stageId: parseMulti(params.getAll("stage")),
 			sourceId: parseMulti(params.getAll("source")),
-			failReasonId: parseMulti(params.getAll("failReason")),
+			failReasonId,
 			utmSource: parseMulti(params.getAll("utmSource")),
 			utmMedium: parseMulti(params.getAll("utmMedium")),
 			// utmCampaignFilter — фильтр по точному значению utm_campaign, не путать
