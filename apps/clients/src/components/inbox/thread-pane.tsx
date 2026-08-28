@@ -26,6 +26,10 @@ import {
 import { messengerLabel } from "@/components/inbox/messenger-meta";
 import { QuickReplies } from "@/components/inbox/quick-replies";
 import {
+	getSendResultError,
+	isSuccessfulSendResult,
+} from "@/components/inbox/send-result";
+import {
 	type ComposerAttachment,
 	MessageComposer,
 } from "@/components/messaging/message-composer";
@@ -408,8 +412,8 @@ export function ThreadPane({
 				operatorId: operator?.id,
 				operatorName: operator?.name,
 			});
-			if (result.error) {
-				setSendError(result.error);
+			if (!isSuccessfulSendResult(result)) {
+				setSendError(getSendResultError(result));
 				return;
 			}
 			setText("");
