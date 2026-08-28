@@ -162,11 +162,12 @@ export async function loadHistory(
 				channel.messenger,
 				channel.userId,
 				HISTORY_LIMIT,
+				channel.connectorId,
 			).catch(() => []);
 			return rows.map((row) => ({
 				id: row.id,
 				messenger: channel.messenger,
-				connectorId: channel.connectorId,
+				connectorId: row.connectorId ?? undefined,
 				direction: row.direction === "in" ? ("in" as const) : ("out" as const),
 				source: row.source,
 				text: row.text,
