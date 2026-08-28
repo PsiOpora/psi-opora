@@ -15,13 +15,16 @@ const MEDIA_PREFIX = "bot/media/";
 /** Голосовые WhatsApp обычно в пределах пары МБ — с запасом. */
 export const MAX_MEDIA_SIZE = 20 * 1024 * 1024;
 
-/** Скачивает и заливает аудио-вложение WhatsApp в S3, возвращает внутренний
- * ключ (публичный URL строится по id сообщения, см.
- * packages/api/routers/messages). */
+/** Скачивает и заливает вложение WhatsApp (голосовое/фото/файл) в S3,
+ * возвращает внутренний ключ (публичный URL строится по id сообщения, см.
+ * packages/api/routers/messages). fileName — только для kind="image"/"file"
+ * (см. bot_messages.media_file_name); голосовые по умолчанию пишутся с
+ * расширением .ogg, как раньше. */
 export async function uploadWahaMedia(params: {
 	bytes: Uint8Array;
 	contentType: string;
 	messageId: string;
+	fileName?: string;
 }): Promise<{ mediaS3Key: string }> {
 	if (
 		params.bytes.byteLength === 0 ||
@@ -33,7 +36,10 @@ export async function uploadWahaMedia(params: {
 	}
 
 	const { client, bucket } = await createS3Client();
-	const key = `${MEDIA_PREFIX}whatsapp-personal/${params.messageId}.ogg`;
+	const suffix = params.fileName
+		? params.fileName.replace(/[^\p{L}\p{N}._-]+/gu, "_")
+		: "voice.ogg";
+	const key = `${MEDIA_PREFIX}whatsapp-personal/${params.messageId}-${suffix}`;
 
 	await uploadObject({
 		client,

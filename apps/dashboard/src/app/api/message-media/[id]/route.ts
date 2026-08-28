@@ -37,6 +37,11 @@ export async function GET(
 			headers: {
 				"Content-Type": contentType || media.mediaMimeType || "audio/ogg",
 				...(contentLength ? { "Content-Length": String(contentLength) } : {}),
+				...(media.mediaFileName
+					? {
+							"Content-Disposition": `inline; filename="${encodeURIComponent(media.mediaFileName)}"`,
+						}
+					: {}),
 				"Cache-Control": "private, max-age=900",
 				"X-Content-Type-Options": "nosniff",
 			},

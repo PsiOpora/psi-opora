@@ -583,20 +583,24 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 	const { session, payload } = event;
 	const chatId = payload?.from;
 	const text = payload?.body?.trim();
+	const hasMedia = Boolean(payload?.hasMedia) && Boolean(payload?.media?.url);
 	const isAudio =
-		Boolean(payload?.hasMedia) &&
-		Boolean(payload?.media?.url) &&
-		(payload?.media?.mimetype?.startsWith("audio/") ?? false);
+		hasMedia && (payload?.media?.mimetype?.startsWith("audio/") ?? false);
+	const isImage =
+		hasMedia && (payload?.media?.mimetype?.startsWith("image/") ?? false);
 	// fromMe: и собственные сообщения оператора (мы сами их отправили через
 	// sendText — Bitrix уже показал их в чате), и сообщения владельца номера
 	// с телефона — их дублировать в линию нечем идентифицировать, пропускаем.
-	if (!session || !chatId || (!text && !isAudio) || payload?.fromMe) {
+	if (!session || !chatId || (!text && !hasMedia) || payload?.fromMe) {
 		return Response.json({ ok: true });
 	}
 	// Группы и статусы в Открытую линию не тащим: чат линии — диалог 1:1.
 	if (!chatId.endsWith("@c.us")) return Response.json({ ok: true });
 
-	const effectiveText = text || (isAudio ? "Голосовое сообщение" : "");
+	const mediaFileName = payload?.media?.filename ?? "file";
+	const effectiveText =
+		text ||
+		(isAudio ? "Голосовое сообщение" : hasMedia ? `[${mediaFileName}]` : "");
 
 	const account = await getWhatsappPersonalAccountBySession(session);
 	if (!account) {
@@ -621,10 +625,15 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 		payload?._data?.pushName ??
 		`WhatsApp ${senderPhone ?? chatId}`;
 
-	// Голосовое/аудио — перезаливаем в наше S3, чтобы инбокс «Клиенты»
-	// показывал плеер, а не просто заглушку.
+	// Голосовое/фото/файл — перезаливаем в наше S3, чтобы инбокс «Клиенты»
+	// показывал плеер/превью/ссылку на скачивание, а не просто заглушку.
 	let mediaS3Key: string | undefined;
-	if (isAudio && payload?.media?.url) {
+	const mediaKind: "voice" | "image" | "file" = isAudio
+		? "voice"
+		: isImage
+			? "image"
+			: "file";
+	if (hasMedia && payload?.media?.url) {
 		try {
 			const res = await fetch(
 				payload.media.url,
@@ -637,17 +646,18 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 				const contentType =
 					payload.media.mimetype ||
 					res.headers.get("content-type") ||
-					"audio/ogg";
+					(isAudio ? "audio/ogg" : "application/octet-stream");
 				const uploaded = await uploadWahaMedia({
 					bytes,
 					contentType,
 					messageId: payload?.id ?? `wa-personal-${Date.now()}`,
+					fileName: mediaKind === "file" ? mediaFileName : undefined,
 				});
 				mediaS3Key = uploaded.mediaS3Key;
 			}
 		} catch (err) {
 			console.error(
-				`[waha-webhook] не удалось перезалить аудио-вложение: ${(err as Error).message}`,
+				`[waha-webhook] не удалось перезалить вложение: ${(err as Error).message}`,
 			);
 		}
 	}
@@ -670,9 +680,10 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 			connectorId: account.connectorId,
 			...(mediaS3Key
 				? {
-						kind: "voice",
+						kind: mediaKind,
 						mediaS3Key,
 						mediaMimeType: payload?.media?.mimetype,
+						mediaFileName: mediaKind === "file" ? mediaFileName : undefined,
 					}
 				: {}),
 		});
@@ -698,12 +709,12 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 						id: payload?.id ?? `wa-personal-${Date.now()}`,
 						date: payload?.timestamp ?? Math.floor(Date.now() / 1000),
 						text: effectiveText,
-						...(isAudio && payload?.media?.url
+						...(hasMedia && payload?.media?.url
 							? {
 									files: [
 										{
 											url: payload.media.url,
-											name: payload.media.filename ?? "audio",
+											name: payload.media.filename ?? mediaKind,
 										},
 									],
 								}
@@ -740,7 +751,9 @@ async function verifyCrmWebhookForm(
 
 	const form = await request.formData().catch(() => null);
 	if (!form) return null;
-	if (!webhookTokens.includes(String(form.get("auth[application_token]") ?? ""))) {
+	if (
+		!webhookTokens.includes(String(form.get("auth[application_token]") ?? ""))
+	) {
 		return null;
 	}
 	return form;
@@ -821,7 +834,10 @@ async function handleDealSyncUpsert(request: Request): Promise<Response> {
 	} catch (err) {
 		console.error("[deal-sync] upsert error:", err);
 		return Response.json(
-			{ success: false, message: err instanceof Error ? err.message : String(err) },
+			{
+				success: false,
+				message: err instanceof Error ? err.message : String(err),
+			},
 			{ status: 500 },
 		);
 	}
@@ -843,7 +859,10 @@ async function handleDealSyncDelete(request: Request): Promise<Response> {
 	} catch (err) {
 		console.error("[deal-sync] delete error:", err);
 		return Response.json(
-			{ success: false, message: err instanceof Error ? err.message : String(err) },
+			{
+				success: false,
+				message: err instanceof Error ? err.message : String(err),
+			},
 			{ status: 500 },
 		);
 	}
@@ -915,10 +934,19 @@ app.post("/api/deal-sync-delete", (c) => handleDealSyncDelete(c.req.raw));
 const port = Number(process.env.PORT ?? 3000);
 const server = serve({ fetch: app.fetch, port }, (info) => {
 	console.log(`[bitrix-webhook] слушает на :${info.port}`);
-	void ensureCrmEventSubscription("OnCrmDealUpdate", CRM_DEAL_UPDATE_HANDLER_URL);
+	void ensureCrmEventSubscription(
+		"OnCrmDealUpdate",
+		CRM_DEAL_UPDATE_HANDLER_URL,
+	);
 	void ensureCrmEventSubscription("OnCrmDealAdd", DEAL_SYNC_UPSERT_HANDLER_URL);
-	void ensureCrmEventSubscription("OnCrmDealUpdate", DEAL_SYNC_UPSERT_HANDLER_URL);
-	void ensureCrmEventSubscription("OnCrmDealDelete", DEAL_SYNC_DELETE_HANDLER_URL);
+	void ensureCrmEventSubscription(
+		"OnCrmDealUpdate",
+		DEAL_SYNC_UPSERT_HANDLER_URL,
+	);
+	void ensureCrmEventSubscription(
+		"OnCrmDealDelete",
+		DEAL_SYNC_DELETE_HANDLER_URL,
+	);
 });
 
 // При rollout k8s шлёт SIGTERM до SIGKILL — дожидаемся завершения активных

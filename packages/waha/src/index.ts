@@ -294,6 +294,58 @@ export async function wahaSendText(
 	return { id: res?.id };
 }
 
+/**
+ * Отправка фото/файла в чат WhatsApp. Байты передаются как base64 в теле
+ * запроса (`file.data`) — в отличие от wahaSendText, здесь нет публичного
+ * URL, по которому WAHA могла бы сама скачать вложение (оно только что
+ * загружено оператором в наше S3, см. packages/api/message-attachment-storage),
+ * а сетевая доступность нашего бакета из контейнера WAHA не гарантирована.
+ */
+export async function wahaSendFile(
+	session: string,
+	chatId: string,
+	attachment: {
+		bytes: Uint8Array;
+		fileName: string;
+		mimeType: string;
+		kind: "image" | "file";
+	},
+	caption?: string,
+): Promise<{ id?: string }> {
+	const before = wahaSessionHealth(await wahaGetSession(session));
+	if (before.status !== "connected") {
+		throw new WahaError(before.error ?? "Сессия WhatsApp не готова к отправке");
+	}
+	const endpoint =
+		attachment.kind === "image" ? "/api/sendImage" : "/api/sendFile";
+	const data = Buffer.from(attachment.bytes).toString("base64");
+	const res = await wahaFetch<{ id?: string } | undefined>(endpoint, {
+		method: "POST",
+		body: {
+			session,
+			chatId,
+			file: {
+				mimetype: attachment.mimeType,
+				filename: attachment.fileName,
+				data,
+			},
+			...(caption ? { caption } : {}),
+		},
+	});
+
+	// Та же короткая проверка сессии после отправки, что и в wahaSendText —
+	// WAHA может принять команду (201), а WhatsApp сразу после этого отозвать
+	// связанное устройство.
+	await new Promise((resolve) => setTimeout(resolve, 3_000));
+	const after = wahaSessionHealth(await wahaGetSession(session));
+	if (after.status !== "connected") {
+		throw new WahaError(
+			after.error ?? "WhatsApp отключил сессию сразу после отправки",
+		);
+	}
+	return { id: res?.id };
+}
+
 /** Имитирует обычный ответ оператора: коротко показывает набор текста. */
 export async function wahaSimulateTyping(
 	session: string,

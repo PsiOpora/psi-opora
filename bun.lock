@@ -195,6 +195,7 @@
       "dependencies": {
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/db": "workspace:*",
+        "@psi-opora/storage": "workspace:*",
         "@psi-opora/tg-userbot": "workspace:*",
       },
       "devDependencies": {

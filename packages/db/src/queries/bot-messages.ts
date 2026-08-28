@@ -63,12 +63,15 @@ export interface BotMessageEntry {
 	/** Только для telegram-personal/whatsapp-personal — какой из нескольких
 	 * личных номеров портала отправил/принял сообщение. */
 	connectorId?: string;
-	/** По умолчанию "text". "voice" — заливаем mediaS3Key в раздающий роут
-	 * (apps/dashboard/src/app/api/message-media). */
-	kind?: "text" | "voice";
+	/** По умолчанию "text". voice/image/file — заливаем mediaS3Key в
+	 * раздающий роут (apps/dashboard/src/app/api/message-media). */
+	kind?: "text" | "voice" | "image" | "file";
 	mediaS3Key?: string;
 	mediaMimeType?: string;
 	mediaDurationSec?: number;
+	/** Исходное имя файла (kind="file"/"image") — для Content-Disposition и
+	 * подписи в списке сообщений. */
+	mediaFileName?: string;
 }
 
 export async function insertBotMessage(
@@ -97,6 +100,7 @@ export async function insertBotMessage(
 		mediaS3Key: entry.mediaS3Key,
 		mediaMimeType: entry.mediaMimeType,
 		mediaDurationSec: entry.mediaDurationSec,
+		mediaFileName: entry.mediaFileName,
 		createdAt: now,
 		updatedAt: now,
 	});
@@ -106,10 +110,11 @@ export async function insertBotMessage(
 export interface BotMessageMedia {
 	mediaS3Key: string;
 	mediaMimeType: string | null;
+	mediaFileName: string | null;
 }
 
-/** Ключ и mime-type голосового вложения по id сообщения — для раздающего
- * роута apps/dashboard/src/app/api/message-media/[id]. */
+/** Ключ, mime-type и имя файла вложения (voice/image/file) по id сообщения —
+ * для раздающего роута apps/dashboard/src/app/api/message-media/[id]. */
 export async function getBotMessageMedia(
 	db: Database,
 	id: string,
@@ -119,12 +124,17 @@ export async function getBotMessageMedia(
 		.select({
 			mediaS3Key: botMessages.mediaS3Key,
 			mediaMimeType: botMessages.mediaMimeType,
+			mediaFileName: botMessages.mediaFileName,
 		})
 		.from(botMessages)
 		.where(and(eq(botMessages.id, id), isNull(botMessages.deletedAt)))
 		.limit(1);
 	if (!row?.mediaS3Key) return null;
-	return { mediaS3Key: row.mediaS3Key, mediaMimeType: row.mediaMimeType };
+	return {
+		mediaS3Key: row.mediaS3Key,
+		mediaMimeType: row.mediaMimeType,
+		mediaFileName: row.mediaFileName,
+	};
 }
 
 /** Обновляет статус доставки по внешнему id сообщения (сейчас — только

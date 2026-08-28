@@ -60,6 +60,12 @@ export async function sendViaPersonalNumber(params: {
 	connectorId: string;
 	target: { kind: "phone" | "username" | "id"; value: string };
 	text: string;
+	attachment?: {
+		s3Key: string;
+		fileName: string;
+		mimeType: string;
+		kind: "image" | "file";
+	};
 }): Promise<{
 	ok?: true;
 	error?: string;
@@ -80,6 +86,7 @@ export async function sendViaPersonalNumber(params: {
 			? { telegramUserId: Number(params.target.value) }
 			: {}),
 		text: params.text,
+		...(params.attachment ? { attachment: params.attachment } : {}),
 	});
 
 	const deadline = Date.now() + SEND_RESULT_TIMEOUT_MS;

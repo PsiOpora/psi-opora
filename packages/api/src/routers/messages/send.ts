@@ -16,16 +16,22 @@ import {
 	setWhatsappPersonalAccountStateBySession,
 	upsertBitrixCrmLink,
 } from "@psi-opora/db/queries";
-import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
+import {
+	formatMessengerError,
+	sendMessengerMediaMessage,
+	sendMessengerMessage,
+} from "@psi-opora/jobs";
 import {
 	getMaxSendResult,
 	pushMaxOutboundMessage,
 } from "@psi-opora/max-userbot";
 import {
 	wahaGetSession,
+	wahaSendFile,
 	wahaSendText,
 	wahaSessionHealth,
 } from "@psi-opora/waha";
+import { downloadOutboundAttachment } from "../../message-attachment-storage";
 import { bitrixProcedure } from "../../orpc";
 import { sendClientMessageSchema } from "../../schemas/messages";
 import {
@@ -120,6 +126,14 @@ async function sendTelegramPersonal(
 	lineId: string | undefined,
 	connectorId: string | undefined,
 	text: string,
+	attachment:
+		| {
+				s3Key: string;
+				fileName: string;
+				mimeType: string;
+				kind: "image" | "file";
+		  }
+		| undefined,
 ): Promise<{
 	ok?: true;
 	error?: string;
@@ -159,6 +173,7 @@ async function sendTelegramPersonal(
 		connectorId: account.connectorId,
 		target,
 		text,
+		attachment,
 	});
 	if (result.error) return result;
 	return {
@@ -183,6 +198,14 @@ async function sendWhatsappPersonal(
 	lineId: string | undefined,
 	connectorId: string | undefined,
 	text: string,
+	attachment:
+		| {
+				s3Key: string;
+				fileName: string;
+				mimeType: string;
+				kind: "image" | "file";
+		  }
+		| undefined,
 ): Promise<{
 	ok?: true;
 	error?: string;
@@ -215,7 +238,19 @@ async function sendWhatsappPersonal(
 	if (!account) return { error: "Личный номер WhatsApp не подключён" };
 
 	try {
-		const { id } = await wahaSendText(account.sessionName, userId, text);
+		const { id } = attachment
+			? await wahaSendFile(
+					account.sessionName,
+					userId,
+					{
+						bytes: await downloadOutboundAttachment(attachment.s3Key),
+						fileName: attachment.fileName,
+						mimeType: attachment.mimeType,
+						kind: attachment.kind,
+					},
+					text || undefined,
+				)
+			: await wahaSendText(account.sessionName, userId, text);
 		await captureWhatsappPresence(account.sessionName, userId).catch((err) =>
 			console.error(
 				`[messages] не удалось получить WhatsApp presence ${userId}: ${(err as Error).message}`,
@@ -258,10 +293,27 @@ export const send = bitrixProcedure
 	.handler(
 		async ({ input, context }): Promise<{ ok?: true; error?: string }> => {
 			const text = input.text.trim();
-			if (!text) return { error: "Введите текст сообщения" };
+			if (!text && !input.attachment) {
+				return { error: "Введите текст сообщения или прикрепите файл" };
+			}
 			// Авторство берём из подписанной Bitrix-сессии, а не из клиентского
 			// payload: профиль оператора в React может ещё не успеть загрузиться.
 			const operatorId = context.bitrixSession.userId;
+
+			// Личный номер MAX работает через собственный бинарный протокол
+			// (packages/max-userbot), в котором опкоды загрузки вложений
+			// (FILE_UPLOAD/PHOTO_UPLOAD) существуют по данным реверс-инжиниринга,
+			// но никогда не реализовывались и не проверялись вживую — в отличие
+			// от MSG_SEND. Слепая реализация протокольной загрузки бинарников без
+			// возможности проверить её на реальном сервере рискует непредсказуемо
+			// сломать соединение воркера, поэтому вложения через этот канал пока
+			// не поддерживаются явной ошибкой, а не тихой попыткой угадать протокол.
+			if (input.messenger === "max-personal" && input.attachment) {
+				return {
+					error:
+						"Отправка файлов/изображений через личный номер MAX пока не поддерживается",
+				};
+			}
 
 			let externalId: string | undefined;
 			let connector: OpenLineConnectorRef | undefined;
@@ -276,6 +328,7 @@ export const send = bitrixProcedure
 					input.lineId,
 					input.connectorId,
 					text,
+					input.attachment,
 				);
 				if (result.error) return result;
 				connector = result.connector;
@@ -314,6 +367,7 @@ export const send = bitrixProcedure
 					input.lineId,
 					input.connectorId,
 					text,
+					input.attachment,
 				);
 				if (result.error) return result;
 				externalId = result.externalId;
@@ -331,11 +385,21 @@ export const send = bitrixProcedure
 				connector = result.connector;
 			} else {
 				try {
-					externalId = await sendMessengerMessage(
-						input.messenger,
-						input.userId,
-						text,
-					);
+					externalId = input.attachment
+						? await sendMessengerMediaMessage(
+								input.messenger,
+								input.userId,
+								{
+									bytes: await downloadOutboundAttachment(
+										input.attachment.s3Key,
+									),
+									fileName: input.attachment.fileName,
+									mimeType: input.attachment.mimeType,
+									kind: input.attachment.kind,
+								},
+								text || undefined,
+							)
+						: await sendMessengerMessage(input.messenger, input.userId, text);
 				} catch (err) {
 					const error = err as Error;
 					console.error(
@@ -364,7 +428,7 @@ export const send = bitrixProcedure
 					userId: input.userId,
 					direction: "out",
 					source: "widget",
-					text,
+					text: text || (input.attachment?.kind === "image" ? "Фото" : "Файл"),
 					operatorId,
 					operatorName: input.operatorName,
 					externalId,
@@ -373,6 +437,14 @@ export const send = bitrixProcedure
 							? input.userId
 							: canonicalTelegramUserId,
 					connectorId: connector?.connectorId,
+					...(input.attachment
+						? {
+								kind: input.attachment.kind,
+								mediaS3Key: input.attachment.s3Key,
+								mediaMimeType: input.attachment.mimeType,
+								mediaFileName: input.attachment.fileName,
+							}
+						: {}),
 				});
 			} catch (err) {
 				console.error(

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ClientListItem, InboxMessenger } from "@psi-opora/api";
+import { MAX_ATTACHMENT_SIZE } from "@psi-opora/api/schemas";
 import {
 	LinkIcon,
 	Loader2Icon,
@@ -21,7 +22,10 @@ import {
 } from "@/components/inbox/message-list";
 import { messengerLabel } from "@/components/inbox/messenger-meta";
 import { QuickReplies } from "@/components/inbox/quick-replies";
-import { MessageComposer } from "@/components/messaging/message-composer";
+import {
+	type ComposerAttachment,
+	MessageComposer,
+} from "@/components/messaging/message-composer";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -93,6 +97,7 @@ export function ThreadPane({
 	const [messages, setMessages] = useState<ThreadMessage[]>([]);
 	const [threadLoading, setThreadLoading] = useState(false);
 	const [text, setText] = useState("");
+	const [attachment, setAttachment] = useState<ComposerAttachment | null>(null);
 	const [sendError, setSendError] = useState<string | null>(null);
 	const [sending, startSending] = useTransition();
 	const [editing, startEditing] = useTransition();
@@ -128,6 +133,10 @@ export function ThreadPane({
 
 		setMessages([]);
 		setText("");
+		setAttachment((prev) => {
+			if (prev) URL.revokeObjectURL(prev.previewUrl);
+			return null;
+		});
 		setSendError(null);
 		setEditTarget(null);
 		setEditText("");
@@ -164,6 +173,7 @@ export function ThreadPane({
 						canDelete: m.canDelete,
 						kind: m.kind,
 						mediaUrl: m.mediaUrl,
+						mediaFileName: m.mediaFileName,
 						connectorId: m.connectorId,
 						guideEmailSentAt: m.guideEmailSentAt,
 					})),
@@ -234,6 +244,7 @@ export function ThreadPane({
 							canDelete: m.canDelete,
 							kind: m.kind,
 							mediaUrl: m.mediaUrl,
+							mediaFileName: m.mediaFileName,
 							connectorId: m.connectorId,
 							guideEmailSentAt: m.guideEmailSentAt,
 						})),
@@ -257,10 +268,65 @@ export function ThreadPane({
 		};
 	}, [selectedMessenger, selectedUserId]);
 
+	// Загрузка вложения — сразу по выбору файла в composer'е, не дожидаясь
+	// отправки сообщения: так превью и прогресс не завязаны на send().
+	const attachFile = (file: File) => {
+		setAttachment((prev) => {
+			if (prev) URL.revokeObjectURL(prev.previewUrl);
+			return null;
+		});
+		if (file.size > MAX_ATTACHMENT_SIZE) {
+			setSendError(
+				`Файл больше ${Math.floor(MAX_ATTACHMENT_SIZE / (1024 * 1024))} МБ`,
+			);
+			return;
+		}
+		setSendError(null);
+		const previewUrl = file.type.startsWith("image/")
+			? URL.createObjectURL(file)
+			: "";
+		const pending: ComposerAttachment = {
+			file,
+			previewUrl,
+			status: "uploading",
+		};
+		setAttachment(pending);
+
+		const formData = new FormData();
+		formData.append("file", file);
+		fetch("/api/attachments", { method: "POST", body: formData })
+			.then(async (res) => {
+				const json = await res.json();
+				setAttachment((current) => {
+					if (current?.file !== file) return current;
+					return res.ok
+						? { ...current, status: "done", uploaded: json }
+						: { ...current, status: "error", error: json.error };
+				});
+			})
+			.catch((err) => {
+				setAttachment((current) =>
+					current?.file === file
+						? { ...current, status: "error", error: (err as Error).message }
+						: current,
+				);
+			});
+	};
+
+	const removeAttachment = () => {
+		setAttachment((prev) => {
+			if (prev) URL.revokeObjectURL(prev.previewUrl);
+			return null;
+		});
+	};
+
 	const send = () => {
 		if (!selected) return;
 		const trimmed = text.trim();
-		if (!trimmed || sending) return;
+		const readyAttachment =
+			attachment?.status === "done" ? attachment.uploaded : undefined;
+		if ((!trimmed && !readyAttachment) || sending) return;
+		if (attachment?.status === "uploading") return;
 
 		setSendError(null);
 		startSending(async () => {
@@ -269,6 +335,7 @@ export function ThreadPane({
 				userId: selected.userId,
 				connectorId,
 				text: trimmed,
+				attachment: readyAttachment,
 				operatorId: operator?.id,
 				operatorName: operator?.name,
 			});
@@ -277,6 +344,11 @@ export function ThreadPane({
 				return;
 			}
 			setText("");
+			// previewUrl отправленного вложения не отзываем сразу: он ещё нужен
+			// как mediaUrl оптимистичного сообщения ниже, пока поллинг не заменит
+			// его настоящим — см. mergeThread по text+direction в message-list.tsx.
+			const sentPreviewUrl = attachment?.previewUrl;
+			setAttachment(null);
 			setMessages((prev) => [
 				...prev,
 				{
@@ -287,6 +359,13 @@ export function ThreadPane({
 					operatorName: operator?.name,
 					createdAt: new Date().toISOString(),
 					pending: true,
+					...(readyAttachment
+						? {
+								kind: readyAttachment.kind,
+								mediaUrl: sentPreviewUrl,
+								mediaFileName: readyAttachment.fileName,
+							}
+						: {}),
 				},
 			]);
 			onAfterSend();
@@ -339,6 +418,7 @@ export function ThreadPane({
 				canDelete: result.message.canDelete,
 				kind: result.message.kind,
 				mediaUrl: result.message.mediaUrl,
+				mediaFileName: result.message.mediaFileName,
 				connectorId: result.message.connectorId,
 			};
 			setMessages((prev) => mergeThread(prev, [updated]));
@@ -375,6 +455,7 @@ export function ThreadPane({
 				canDelete: result.message.canDelete,
 				kind: result.message.kind,
 				mediaUrl: result.message.mediaUrl,
+				mediaFileName: result.message.mediaFileName,
 				connectorId: result.message.connectorId,
 			};
 			setMessages((prev) => mergeThread(prev, [updated]));
@@ -522,6 +603,9 @@ export function ThreadPane({
 					onTextChange={setText}
 					onSend={send}
 					placeholder="Ответить клиенту… (Enter — отправить, Shift+Enter — новая строка)"
+					attachment={attachment}
+					onAttachFile={attachFile}
+					onRemoveAttachment={removeAttachment}
 				/>
 				<div className="mt-1.5 flex items-center justify-between gap-2">
 					<div className="flex items-center gap-2">
@@ -536,7 +620,14 @@ export function ThreadPane({
 							<p className="text-sm text-destructive">{sendError}</p>
 						)}
 					</div>
-					<Button onClick={send} disabled={sending || !text.trim()}>
+					<Button
+						onClick={send}
+						disabled={
+							sending ||
+							attachment?.status === "uploading" ||
+							(!text.trim() && attachment?.status !== "done")
+						}
+					>
 						{sending ? (
 							<Loader2Icon className="size-4 animate-spin" />
 						) : (

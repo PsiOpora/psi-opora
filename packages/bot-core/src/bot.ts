@@ -636,44 +636,51 @@ export function createBot({
 			let fileName = "file";
 			let mimeType: string | undefined;
 			let durationSec: number | undefined;
+			/** voice/audio — плеер (как раньше); photo — фото; document/video —
+			 * файл (видео в отдельный тип плеера не выделяем — только звук). */
+			let kind: "voice" | "image" | "file" = "file";
 			if (ctx.message.photo) {
 				fileId = ctx.message.photo[ctx.message.photo.length - 1]?.file_id;
 				fileName = "photo.jpg";
+				mimeType = "image/jpeg";
+				kind = "image";
 			} else if (ctx.message.document) {
 				fileId = ctx.message.document.file_id;
 				fileName = ctx.message.document.file_name ?? "document";
+				mimeType = ctx.message.document.mime_type;
 			} else if (ctx.message.voice) {
 				fileId = ctx.message.voice.file_id;
 				fileName = "voice.ogg";
 				mimeType = ctx.message.voice.mime_type;
 				durationSec = ctx.message.voice.duration;
+				kind = "voice";
 			} else if (ctx.message.video) {
 				fileId = ctx.message.video.file_id;
 				fileName = "video.mp4";
+				mimeType = ctx.message.video.mime_type;
 			} else if (ctx.message.audio) {
 				fileId = ctx.message.audio.file_id;
 				fileName = ctx.message.audio.file_name ?? "audio.mp3";
 				mimeType = ctx.message.audio.mime_type;
 				durationSec = ctx.message.audio.duration;
+				kind = "voice";
 			}
 			if (!fileId) return;
 
 			const url = await resolveTelegramFileUrl(ctx.api, resolvedToken, fileId);
+			const isVoice = kind === "voice";
 
-			// Голосовые/аудио сохраняем как отдельный вид сообщения (kind="voice")
-			// с перезаливкой в наше S3 — чтобы инбокс «Клиенты» показывал плеер,
-			// а не заглушку `[voice.ogg]`. Остальные типы вложений (фото/документ/
-			// видео) — как раньше, без сохранения самого файла у нас.
-			const isVoice = Boolean(ctx.message.voice || ctx.message.audio);
+			// Перезаливаем вложение в наше S3 — чтобы инбокс «Клиенты» показывал
+			// плеер/превью/ссылку на скачивание, а не заглушку `[file.ext]`.
 			let mediaS3Key: string | undefined;
-			if (isVoice && uploadMedia && url) {
+			if (uploadMedia && url) {
 				try {
 					const res = await telegramFetch(url);
 					if (res.ok) {
 						const bytes = new Uint8Array(await res.arrayBuffer());
 						const uploaded = await uploadMedia({
 							bytes,
-							contentType: mimeType || "audio/ogg",
+							contentType: mimeType || "application/octet-stream",
 							messenger: "telegram",
 							fileId,
 						});
@@ -681,7 +688,7 @@ export function createBot({
 					}
 				} catch (err) {
 					console.error(
-						`[media] не удалось перезалить голосовое user=${ctx.from.id}: ${(err as Error).message}`,
+						`[media] не удалось перезалить вложение user=${ctx.from.id}: ${(err as Error).message}`,
 					);
 				}
 			}
@@ -694,10 +701,11 @@ export function createBot({
 				text: caption || (isVoice ? "Голосовое сообщение" : `[${fileName}]`),
 				...(mediaS3Key
 					? {
-							kind: "voice",
+							kind,
 							mediaS3Key,
 							mediaMimeType: mimeType,
 							mediaDurationSec: durationSec,
+							mediaFileName: kind === "file" ? fileName : undefined,
 						}
 					: {}),
 			});
