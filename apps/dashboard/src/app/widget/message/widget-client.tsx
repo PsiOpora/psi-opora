@@ -67,6 +67,7 @@ function pickDefaultChannel(
 ): WidgetChannel | null {
 	for (let i = history.length - 1; i >= 0; i--) {
 		const item = history[i];
+		if (!item) continue;
 		const match =
 			channels.find(
 				(c) =>
