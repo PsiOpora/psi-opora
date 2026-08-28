@@ -1,0 +1,1 @@
+ALTER TABLE "bot_messages" ADD COLUMN "media_file_name" text;

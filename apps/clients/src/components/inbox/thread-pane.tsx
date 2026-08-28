@@ -2,6 +2,10 @@
 
 import type { ClientListItem, InboxMessenger } from "@psi-opora/api";
 import {
+	MAX_ATTACHMENT_SIZE,
+	messageAttachmentSchema,
+} from "@psi-opora/api/schemas";
+import {
 	LinkIcon,
 	Loader2Icon,
 	MessageSquareIcon,
@@ -11,7 +15,7 @@ import {
 	SendIcon,
 	UserCheckIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ClientAvatar } from "@/components/inbox/client-avatar";
 import {
@@ -21,7 +25,10 @@ import {
 } from "@/components/inbox/message-list";
 import { messengerLabel } from "@/components/inbox/messenger-meta";
 import { QuickReplies } from "@/components/inbox/quick-replies";
-import { MessageComposer } from "@/components/messaging/message-composer";
+import {
+	type ComposerAttachment,
+	MessageComposer,
+} from "@/components/messaging/message-composer";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -93,6 +100,7 @@ export function ThreadPane({
 	const [messages, setMessages] = useState<ThreadMessage[]>([]);
 	const [threadLoading, setThreadLoading] = useState(false);
 	const [text, setText] = useState("");
+	const [attachment, setAttachment] = useState<ComposerAttachment | null>(null);
 	const [sendError, setSendError] = useState<string | null>(null);
 	const [sending, startSending] = useTransition();
 	const [editing, startEditing] = useTransition();
@@ -102,8 +110,32 @@ export function ThreadPane({
 	const [deleteTarget, setDeleteTarget] = useState<ThreadMessage | null>(null);
 	const [assigning, startAssigning] = useTransition();
 	const sinceRef = useRef(new Date().toISOString());
+	const attachmentUploadRef = useRef<AbortController | null>(null);
+	const attachmentPreviewUrlRef = useRef("");
+	const pendingPreviewUrlsRef = useRef(new Map<string, string>());
 	const selectedMessenger = selected?.messenger;
 	const selectedUserId = selected?.userId;
+	const revokePendingPreviewUrl = useCallback((messageId: string) => {
+		const previewUrl = pendingPreviewUrlsRef.current.get(messageId);
+		if (!previewUrl) return;
+		URL.revokeObjectURL(previewUrl);
+		pendingPreviewUrlsRef.current.delete(messageId);
+	}, []);
+	const revokeAllPendingPreviewUrls = useCallback(() => {
+		for (const previewUrl of pendingPreviewUrlsRef.current.values()) {
+			URL.revokeObjectURL(previewUrl);
+		}
+		pendingPreviewUrlsRef.current.clear();
+	}, []);
+	const clearAttachment = useCallback(() => {
+		attachmentUploadRef.current?.abort();
+		attachmentUploadRef.current = null;
+		if (attachmentPreviewUrlRef.current) {
+			URL.revokeObjectURL(attachmentPreviewUrlRef.current);
+			attachmentPreviewUrlRef.current = "";
+		}
+		setAttachment(null);
+	}, []);
 
 	// Личные номера (Telegram/WhatsApp) на портале может быть несколько —
 	// без явного выбора отправка ушла бы с первого попавшегося, а это не
@@ -118,14 +150,8 @@ export function ThreadPane({
 	// можно было сразу выставить номер по умолчанию тем же, с которого шла
 	// переписка, а не первым попавшимся из personalAccounts[0].
 	useEffect(() => {
-		if (!selected) return;
-		const { messenger, userId } = selected;
-		const isPersonal =
-			messenger === "telegram-personal" ||
-			messenger === "whatsapp-personal" ||
-			messenger === "max-personal";
-		let cancelled = false;
-
+		clearAttachment();
+		revokeAllPendingPreviewUrls();
 		setMessages([]);
 		setText("");
 		setSendError(null);
@@ -134,6 +160,14 @@ export function ThreadPane({
 		setDeleteTarget(null);
 		setPersonalAccounts([]);
 		setConnectorId(undefined);
+		if (!selected) return;
+		const { messenger, userId } = selected;
+		const isPersonal =
+			messenger === "telegram-personal" ||
+			messenger === "whatsapp-personal" ||
+			messenger === "max-personal";
+		let cancelled = false;
+
 		setThreadLoading(true);
 
 		Promise.all([
@@ -164,6 +198,7 @@ export function ThreadPane({
 						canDelete: m.canDelete,
 						kind: m.kind,
 						mediaUrl: m.mediaUrl,
+						mediaFileName: m.mediaFileName,
 						connectorId: m.connectorId,
 						guideEmailSentAt: m.guideEmailSentAt,
 					})),
@@ -193,7 +228,27 @@ export function ThreadPane({
 		return () => {
 			cancelled = true;
 		};
-	}, [selected]);
+	}, [selected, clearAttachment, revokeAllPendingPreviewUrls]);
+
+	useEffect(
+		() => () => {
+			attachmentUploadRef.current?.abort();
+			if (attachmentPreviewUrlRef.current) {
+				URL.revokeObjectURL(attachmentPreviewUrlRef.current);
+			}
+			revokeAllPendingPreviewUrls();
+		},
+		[revokeAllPendingPreviewUrls],
+	);
+
+	useEffect(() => {
+		const activeMessageIds = new Set(messages.map((message) => message.id));
+		for (const pendingId of pendingPreviewUrlsRef.current.keys()) {
+			if (!activeMessageIds.has(pendingId)) {
+				revokePendingPreviewUrl(pendingId);
+			}
+		}
+	}, [messages, revokePendingPreviewUrl]);
 
 	// Поллинг открытого диалога — новые сообщения (клиент, оператор из Bitrix, виджет CRM).
 	useEffect(() => {
@@ -234,6 +289,7 @@ export function ThreadPane({
 							canDelete: m.canDelete,
 							kind: m.kind,
 							mediaUrl: m.mediaUrl,
+							mediaFileName: m.mediaFileName,
 							connectorId: m.connectorId,
 							guideEmailSentAt: m.guideEmailSentAt,
 						})),
@@ -257,10 +313,89 @@ export function ThreadPane({
 		};
 	}, [selectedMessenger, selectedUserId]);
 
+	// Загрузка вложения — сразу по выбору файла в composer'е, не дожидаясь
+	// отправки сообщения: так превью и прогресс не завязаны на send().
+	const attachFile = (file: File) => {
+		clearAttachment();
+		if (file.size > MAX_ATTACHMENT_SIZE) {
+			setSendError(
+				`Файл больше ${Math.floor(MAX_ATTACHMENT_SIZE / (1024 * 1024))} МБ`,
+			);
+			return;
+		}
+		setSendError(null);
+		const previewUrl = file.type.startsWith("image/")
+			? URL.createObjectURL(file)
+			: "";
+		const pending: ComposerAttachment = {
+			file,
+			previewUrl,
+			status: "uploading",
+		};
+		attachmentPreviewUrlRef.current = previewUrl;
+		setAttachment(pending);
+
+		const controller = new AbortController();
+		attachmentUploadRef.current = controller;
+		const formData = new FormData();
+		formData.append("file", file);
+		fetch("/api/attachments", {
+			method: "POST",
+			body: formData,
+			signal: controller.signal,
+		})
+			.then(async (res) => {
+				const json: unknown = await res.json();
+				setAttachment((current) => {
+					if (current?.file !== file) return current;
+					if (!res.ok) {
+						const error =
+							typeof json === "object" &&
+							json !== null &&
+							"error" in json &&
+							typeof json.error === "string"
+								? json.error
+								: `HTTP ${res.status}`;
+						return { ...current, status: "error", error };
+					}
+					const parsed = messageAttachmentSchema.safeParse(json);
+					return parsed.success
+						? { ...current, status: "done", uploaded: parsed.data }
+						: {
+								...current,
+								status: "error",
+								error:
+									parsed.error.issues[0]?.message ??
+									"Некорректный ответ сервера",
+							};
+				});
+			})
+			.catch((err) => {
+				if (controller.signal.aborted) return;
+				setAttachment((current) =>
+					current?.file === file
+						? { ...current, status: "error", error: (err as Error).message }
+						: current,
+				);
+			})
+			.finally(() => {
+				if (attachmentUploadRef.current === controller) {
+					attachmentUploadRef.current = null;
+				}
+			});
+	};
+
+	const removeAttachment = () => {
+		clearAttachment();
+	};
+
 	const send = () => {
 		if (!selected) return;
 		const trimmed = text.trim();
-		if (!trimmed || sending) return;
+		const readyAttachment =
+			attachment?.status === "done" ? attachment.uploaded : undefined;
+		if ((!trimmed && !readyAttachment) || sending) return;
+		if (attachment?.status === "uploading") return;
 
 		setSendError(null);
 		startSending(async () => {
@@ -269,6 +404,7 @@ export function ThreadPane({
 				userId: selected.userId,
 				connectorId,
 				text: trimmed,
+				attachment: readyAttachment,
 				operatorId: operator?.id,
 				operatorName: operator?.name,
 			});
@@ -277,16 +413,33 @@ export function ThreadPane({
 				return;
 			}
 			setText("");
+			// previewUrl отправленного вложения не отзываем сразу: он ещё нужен
+			// как mediaUrl оптимистичного сообщения ниже, пока поллинг не заменит
+			// его настоящим — см. mergeThread по text+direction в message-list.tsx.
+			const sentPreviewUrl = attachment?.previewUrl;
+			const pendingId = `pending-${crypto.randomUUID()}`;
+			if (sentPreviewUrl) {
+				pendingPreviewUrlsRef.current.set(pendingId, sentPreviewUrl);
+				attachmentPreviewUrlRef.current = "";
+			}
+			setAttachment(null);
 			setMessages((prev) => [
 				...prev,
 				{
-					id: `pending-${crypto.randomUUID()}`,
+					id: pendingId,
 					direction: "out",
 					source: "widget",
 					text: trimmed,
 					operatorName: operator?.name,
 					createdAt: new Date().toISOString(),
 					pending: true,
+					...(readyAttachment
+						? {
+								kind: readyAttachment.kind,
+								...(sentPreviewUrl ? { mediaUrl: sentPreviewUrl } : {}),
+								mediaFileName: readyAttachment.fileName,
+							}
+						: {}),
 				},
 			]);
 			onAfterSend();
@@ -339,6 +492,7 @@ export function ThreadPane({
 				canDelete: result.message.canDelete,
 				kind: result.message.kind,
 				mediaUrl: result.message.mediaUrl,
+				mediaFileName: result.message.mediaFileName,
 				connectorId: result.message.connectorId,
 			};
 			setMessages((prev) => mergeThread(prev, [updated]));
@@ -375,6 +529,7 @@ export function ThreadPane({
 				canDelete: result.message.canDelete,
 				kind: result.message.kind,
 				mediaUrl: result.message.mediaUrl,
+				mediaFileName: result.message.mediaFileName,
 				connectorId: result.message.connectorId,
 			};
 			setMessages((prev) => mergeThread(prev, [updated]));
@@ -522,6 +677,9 @@ export function ThreadPane({
 					onTextChange={setText}
 					onSend={send}
 					placeholder="Ответить клиенту… (Enter — отправить, Shift+Enter — новая строка)"
+					attachment={attachment}
+					onAttachFile={attachFile}
+					onRemoveAttachment={removeAttachment}
 				/>
 				<div className="mt-1.5 flex items-center justify-between gap-2">
 					<div className="flex items-center gap-2">
@@ -536,7 +694,14 @@ export function ThreadPane({
 							<p className="text-sm text-destructive">{sendError}</p>
 						)}
 					</div>
-					<Button onClick={send} disabled={sending || !text.trim()}>
+					<Button
+						onClick={send}
+						disabled={
+							sending ||
+							attachment?.status === "uploading" ||
+							(!text.trim() && attachment?.status !== "done")
+						}
+					>
 						{sending ? (
 							<Loader2Icon className="size-4 animate-spin" />
 						) : (

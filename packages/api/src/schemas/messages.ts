@@ -34,20 +34,45 @@ export const clientPollSchema = z.object({
 });
 export type ClientPollInput = z.infer<typeof clientPollSchema>;
 
-export const sendClientMessageSchema = z.object({
-	messenger: inboxMessengerSchema,
-	userId: z.string(),
-	/** Только для персональных каналов — на
-	 * портале может быть несколько подключённых номеров, каждый на своей линии. */
-	lineId: z.string().optional(),
-	/** Уточняет конкретный номер, если на выбранной линии их несколько. */
-	connectorId: z.string().optional(),
-	text: z.string().max(MESSAGE_MAX_LENGTH),
-	/** Bitrix-ID/имя оператора из b24 user.current — чтобы в истории было видно,
-	 * кто из пользователей Bitrix написал ответ клиенту из инбокса «Клиенты». */
-	operatorId: z.string().optional(),
-	operatorName: z.string().optional(),
+/** Потолок размера вложения — общий для клиентской валидации перед загрузкой
+ * (apps/clients) и серверной (message-attachment-storage.ts): самый строгий
+ * из каналов (MAX/WAHA) заметно меньше лимита Telegram, единый потолок с
+ * запасом проще, чем разный лимит на каждый канал. */
+export const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024;
+
+/** Вложение (фото/файл), заранее загруженное оператором через
+ * apps/clients/api/attachments — s3Key ссылается на объект в bot/media/outbound/,
+ * см. packages/api/src/message-attachment-storage.ts. */
+export const messageAttachmentSchema = z.object({
+	s3Key: z.string().min(1),
+	fileName: z.string().min(1).max(200),
+	mimeType: z.string().min(1).max(200),
+	size: z.number().int().positive(),
+	kind: z.enum(["image", "file"]),
 });
+export type MessageAttachmentInput = z.infer<typeof messageAttachmentSchema>;
+
+export const sendClientMessageSchema = z
+	.object({
+		messenger: inboxMessengerSchema,
+		userId: z.string(),
+		/** Только для персональных каналов — на
+		 * портале может быть несколько подключённых номеров, каждый на своей линии. */
+		lineId: z.string().optional(),
+		/** Уточняет конкретный номер, если на выбранной линии их несколько. */
+		connectorId: z.string().optional(),
+		text: z.string().max(MESSAGE_MAX_LENGTH),
+		/** Фото/файл, отправляемый вместе с (опциональной) подписью text. */
+		attachment: messageAttachmentSchema.optional(),
+		/** Bitrix-ID/имя оператора из b24 user.current — чтобы в истории было видно,
+		 * кто из пользователей Bitrix написал ответ клиенту из инбокса «Клиенты». */
+		operatorId: z.string().optional(),
+		operatorName: z.string().optional(),
+	})
+	.refine((input) => input.text.trim() || input.attachment, {
+		message: "Введите текст сообщения или прикрепите файл",
+		path: ["text"],
+	});
 export type SendClientMessageInput = z.infer<typeof sendClientMessageSchema>;
 
 export const editClientMessageSchema = z.object({

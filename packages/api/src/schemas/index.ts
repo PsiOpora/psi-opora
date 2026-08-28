@@ -60,6 +60,9 @@ export {
 	editClientMessageSchema,
 	type ListClientsInput,
 	listClientsSchema,
+	MAX_ATTACHMENT_SIZE,
+	type MessageAttachmentInput,
+	messageAttachmentSchema,
 	type SendClientMessageInput,
 	sendClientMessageSchema,
 } from "./messages";

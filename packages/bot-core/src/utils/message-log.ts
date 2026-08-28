@@ -10,11 +10,12 @@ export interface BotMessageLogEntry {
 	direction: BotMessageDirection;
 	source: BotMessageSource;
 	text: string;
-	/** По умолчанию "text". "voice" — заливаем mediaS3Key голосового вложения. */
-	kind?: "text" | "voice";
+	/** По умолчанию "text". voice/image/file — заливаем mediaS3Key вложения. */
+	kind?: "text" | "voice" | "image" | "file";
 	mediaS3Key?: string;
 	mediaMimeType?: string;
 	mediaDurationSec?: number;
+	mediaFileName?: string;
 	/** По умолчанию "sent". "failed" — отправка в мессенджер не удалась;
 	 * запись всё равно нужна, чтобы в истории было видно «не доставлено». */
 	status?: "sent" | "delivered" | "read" | "failed";
@@ -46,6 +47,7 @@ export async function logBotMessage(
 			mediaS3Key: entry.mediaS3Key,
 			mediaMimeType: entry.mediaMimeType,
 			mediaDurationSec: entry.mediaDurationSec,
+			mediaFileName: entry.mediaFileName,
 			status: entry.status,
 			externalId: entry.externalId,
 		});

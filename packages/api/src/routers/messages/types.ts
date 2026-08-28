@@ -146,11 +146,14 @@ export interface ClientMessageItem {
 	canEdit: boolean;
 	/** Можно ли текущему оператору отозвать сообщение у клиента. */
 	canDelete: boolean;
-	/** "voice" — mediaUrl ведёт на раздающий роут apps/dashboard/api/message-media. */
-	kind: "text" | "voice";
+	/** "voice"/"image"/"file" — mediaUrl ведёт на раздающий роут
+	 * apps/dashboard/api/message-media. */
+	kind: "text" | "voice" | "image" | "file";
 	mediaUrl?: string;
 	mediaMimeType?: string | null;
 	mediaDurationSec?: number | null;
+	/** Исходное имя файла (kind="file"/"image") — для подписи под вложением. */
+	mediaFileName?: string | null;
 	/** Только для telegram-personal/whatsapp-personal — каким из нескольких
 	 * личных номеров портала отправлено/получено сообщение (см.
 	 * bot_messages.connector_id). */
@@ -224,10 +227,11 @@ export function toClientMessageItem(
 			isSupportedMessenger &&
 			isWithinTelegramDeleteWindow &&
 			hasTelegramPersonalTarget,
-		kind: row.kind as "text" | "voice",
+		kind: row.kind as "text" | "voice" | "image" | "file",
 		mediaUrl,
 		mediaMimeType: row.mediaMimeType,
 		mediaDurationSec: row.mediaDurationSec,
+		mediaFileName: row.mediaFileName,
 		connectorId: row.connectorId,
 		guideEmailSentAt: row.guideEmailSentAt?.toISOString() ?? null,
 	};

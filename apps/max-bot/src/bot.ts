@@ -535,36 +535,74 @@ export function createMaxBot({
 	bot.on("message_created", async (ctx) => {
 		const appCtx = ctx as unknown as AppContext;
 		const text = appCtx.message?.body.text?.trim() ?? "";
-		const audioAttachment = appCtx.message?.body.attachments?.find(
-			(a) => a.type === "audio",
-		) as { type: "audio"; payload: { url: string; token: string } } | undefined;
-		if (!text && !audioAttachment) return;
-		if (!audioAttachment && text.startsWith("/")) return;
+		// Реальные поля вложений MAX (см. @maxhub/max-bot-api
+		// core/network/api/types/attachment.d.ts, не экспортируется наружу
+		// пакетом — типизируем вручную): payload.url/token общие для всех
+		// медиа-типов, filename — только у file, отдельным полем, не в payload.
+		const attachments = appCtx.message?.body.attachments as
+			| Array<{
+					type: string;
+					payload: { url?: string; token?: string };
+					filename?: string;
+			  }>
+			| null
+			| undefined;
+		const audioAttachment = attachments?.find((a) => a.type === "audio") as
+			| { type: "audio"; payload: { url: string; token: string } }
+			| undefined;
+		// image — фото, остальное некрасноречивое (file/video/sticker/...) —
+		// общий kind="file" со ссылкой на скачивание.
+		const mediaAttachment = attachments?.find(
+			(a) => a.type === "image" || a.type === "file" || a.type === "video",
+		) as
+			| {
+					type: "image" | "file" | "video";
+					payload: { url?: string; token?: string };
+					filename?: string;
+			  }
+			| undefined;
+		if (!text && !audioAttachment && !mediaAttachment) return;
+		if (!audioAttachment && !mediaAttachment && text.startsWith("/")) return;
 
 		// В журнал попадают все входящие — даже вне сценария
 		const userId = appCtx.user?.user_id ?? appCtx.message?.sender?.user_id;
 
-		// Голосовое/аудио-вложение — перезаливаем в наше S3, чтобы инбокс
-		// «Клиенты» показывал плеер, а не молчал (без вложения пустой text
-		// раньше отбрасывался ранним return выше).
+		// Голосовое/фото/файл — перезаливаем в наше S3, чтобы инбокс «Клиенты»
+		// показывал плеер/превью/ссылку на скачивание, а не молчал (без
+		// вложения пустой text раньше отбрасывался ранним return выше).
 		let mediaS3Key: string | undefined;
 		let mediaMimeType: string | undefined;
-		if (audioAttachment) {
+		let mediaKind: "voice" | "image" | "file" | undefined;
+		let mediaFileName: string | undefined;
+		const attachment = audioAttachment ?? mediaAttachment;
+		if (attachment?.payload.url) {
 			try {
-				const res = await fetch(audioAttachment.payload.url);
+				const res = await fetch(attachment.payload.url);
 				if (res.ok) {
 					const bytes = new Uint8Array(await res.arrayBuffer());
-					mediaMimeType = res.headers.get("content-type") || "audio/mp4";
+					mediaKind = audioAttachment
+						? "voice"
+						: mediaAttachment?.type === "image"
+							? "image"
+							: "file";
+					mediaMimeType =
+						res.headers.get("content-type") ||
+						(mediaKind === "voice" ? "audio/mp4" : "application/octet-stream");
+					mediaFileName =
+						mediaKind === "file"
+							? (mediaAttachment?.filename ?? "file")
+							: undefined;
 					const uploaded = await uploadMaxMedia({
 						bytes,
 						contentType: mediaMimeType,
 						attachmentId: String(appCtx.message?.body.mid ?? Date.now()),
+						fileName: mediaFileName,
 					});
 					mediaS3Key = uploaded.mediaS3Key;
 				}
 			} catch (err) {
 				console.error(
-					`[media] не удалось перезалить аудио user=${userId}: ${(err as Error).message}`,
+					`[media] не удалось перезалить вложение user=${userId}: ${(err as Error).message}`,
 				);
 			}
 		}
@@ -574,8 +612,16 @@ export function createMaxBot({
 			userId,
 			direction: "in",
 			source: "scenario",
-			text: text || (audioAttachment ? "Голосовое сообщение" : ""),
-			...(mediaS3Key ? { kind: "voice", mediaS3Key, mediaMimeType } : {}),
+			text:
+				text ||
+				(audioAttachment
+					? "Голосовое сообщение"
+					: mediaAttachment
+						? `[${mediaFileName ?? mediaAttachment.type}]`
+						: ""),
+			...(mediaS3Key && mediaKind
+				? { kind: mediaKind, mediaS3Key, mediaMimeType, mediaFileName }
+				: {}),
 		});
 
 		// Дублируем в Открытую линию Bitrix24 — вся переписка видна оператору,
@@ -590,8 +636,12 @@ export function createMaxBot({
 				chatId: userId,
 				text,
 				name: appCtx.user?.name,
-				...(audioAttachment
-					? { files: [{ url: audioAttachment.payload.url, name: "audio" }] }
+				...(attachment?.payload.url
+					? {
+							files: [
+								{ url: attachment.payload.url, name: mediaKind ?? "file" },
+							],
+						}
 					: {}),
 			});
 		}

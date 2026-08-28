@@ -4,6 +4,20 @@ import { getBotMessageMedia } from "@psi-opora/db/queries";
 
 export const dynamic = "force-dynamic";
 
+function contentDisposition(fileName: string): string {
+	const asciiFallback =
+		fileName
+			.normalize("NFKD")
+			.replace(/[^\x20-\x7e]/g, "_")
+			.replace(/["\\]/g, "_")
+			.slice(0, 150) || "file";
+	const encoded = encodeURIComponent(fileName).replace(
+		/['()*]/g,
+		(char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+	);
+	return `inline; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
+}
+
 /**
  * Раздача голосового/аудио-вложения, перезалитого в наше S3 (см.
  * apps/tg-bot/src/avatar-storage.ts, apps/max-bot/src/avatar-storage.ts,
@@ -37,6 +51,11 @@ export async function GET(
 			headers: {
 				"Content-Type": contentType || media.mediaMimeType || "audio/ogg",
 				...(contentLength ? { "Content-Length": String(contentLength) } : {}),
+				...(media.mediaFileName
+					? {
+							"Content-Disposition": contentDisposition(media.mediaFileName),
+						}
+					: {}),
 				"Cache-Control": "private, max-age=900",
 				"X-Content-Type-Options": "nosniff",
 			},

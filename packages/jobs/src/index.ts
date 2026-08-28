@@ -62,8 +62,10 @@ export {
 	deleteMessengerMessage,
 	editMessengerMessage,
 	type Messenger,
+	type MessengerMediaAttachment,
 	resolveMessengerBotUsername,
 	SEND_INTERVAL_MS,
+	sendMessengerMediaMessage,
 	sendMessengerMessage,
 	setMessengerWebhook,
 } from "./messenger";

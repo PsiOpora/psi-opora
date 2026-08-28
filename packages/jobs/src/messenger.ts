@@ -239,6 +239,235 @@ async function sendMax(
 	);
 }
 
+/** Фото/файл, уже скачанный из нашего S3 (см. packages/api/
+ * message-attachment-storage.ts downloadOutboundAttachment) — отправляется
+ * байтами напрямую в Bot API, без зависимости от того, дотянется ли внешний
+ * сервис до нашего раздающего роута. */
+export interface MessengerMediaAttachment {
+	bytes: Uint8Array;
+	fileName: string;
+	mimeType: string;
+	kind: "image" | "file";
+}
+
+async function sendTelegramMedia(
+	userId: string,
+	attachment: MessengerMediaAttachment,
+	caption?: string,
+): Promise<string | undefined> {
+	const token = await resolveTelegramBotToken();
+	if (!token) throw new Error("Токен Telegram-бота не задан в БД");
+
+	const method = attachment.kind === "image" ? "sendPhoto" : "sendDocument";
+	const field = attachment.kind === "image" ? "photo" : "document";
+
+	let withMarkdown = true;
+	for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS + 1; attempt++) {
+		const form = new FormData();
+		form.append("chat_id", userId);
+		form.append(
+			field,
+			new Blob([attachment.bytes as Uint8Array<ArrayBuffer>], {
+				type: attachment.mimeType,
+			}),
+			attachment.fileName,
+		);
+		if (caption) {
+			form.append("caption", caption);
+			if (withMarkdown) form.append("parse_mode", "Markdown");
+		}
+
+		const res = await telegramFetch(
+			`${telegramApiRoot}/bot${token}/${method}`,
+			{ method: "POST", body: form },
+		);
+		const json = (await res.json()) as {
+			ok: boolean;
+			description?: string;
+			parameters?: { retry_after?: number };
+			result?: { message_id?: number };
+		};
+		if (json.ok) {
+			logger.info("messenger.send.ok", {
+				messenger: "telegram",
+				userId,
+				attempt,
+				media: attachment.kind,
+			});
+			return json.result?.message_id != null
+				? String(json.result.message_id)
+				: undefined;
+		}
+		if (
+			res.status === 400 &&
+			withMarkdown &&
+			caption &&
+			/parse entities/i.test(json.description ?? "")
+		) {
+			withMarkdown = false;
+			continue;
+		}
+		if (res.status === 429) {
+			const waitSec = (json.parameters?.retry_after ?? 2) + 1;
+			await sleep(waitSec * 1000);
+			continue;
+		}
+		logger.error("messenger.send.failed", undefined, {
+			messenger: "telegram",
+			userId,
+			attempt,
+			status: res.status,
+			description: json.description,
+		});
+		throw new Error(json.description ?? `Telegram HTTP ${res.status}`);
+	}
+	throw new Error(
+		`Telegram: лимит запросов (429) не снялся после ${RATE_LIMIT_ATTEMPTS} попыток`,
+	);
+}
+
+/**
+ * Загружает вложение в MAX через двухшаговый uploads-флоу платформы:
+ * `POST /uploads?type=` возвращает URL и (опционально) готовый token,
+ * `POST <url>` с бинарником в поле `data` возвращает token, которым
+ * адресуется вложение в `messages.send` (см. attachments ниже). Форма
+ * подтверждена исходниками @maxhub/max-bot-api (core/helpers/upload.js,
+ * core/helpers/attachments.js) — та же библиотека, что использует apps/max-bot
+ * для отправки гайда (sendMaxGuideFile), но здесь — без бот-фреймворка, сырым
+ * fetch, т.к. packages/jobs работает без живого MAX-клиента.
+ */
+async function maxUploadAttachment(
+	token: string,
+	attachment: MessengerMediaAttachment,
+): Promise<string> {
+	const uploadUrlReq = new URL("https://platform-api2.max.ru/uploads");
+	uploadUrlReq.searchParams.set("type", attachment.kind);
+	const uploadUrlRes = await fetchWithCa(
+		uploadUrlReq,
+		{ method: "POST", headers: { Authorization: token } },
+		RUSSIAN_TRUSTED_ROOT_CA,
+	);
+	if (!uploadUrlRes.ok) {
+		throw new Error(
+			`MAX: не удалось получить upload URL (HTTP ${uploadUrlRes.status})`,
+		);
+	}
+	const uploadUrlJson = (await uploadUrlRes.json().catch(() => null)) as {
+		url?: string;
+		token?: string;
+	} | null;
+	if (!uploadUrlJson?.url) throw new Error("MAX не вернул upload URL");
+
+	const form = new FormData();
+	form.append(
+		"data",
+		new Blob([attachment.bytes as Uint8Array<ArrayBuffer>], {
+			type: attachment.mimeType,
+		}),
+		attachment.fileName,
+	);
+	const uploadRes = await fetch(uploadUrlJson.url, {
+		method: "POST",
+		body: form,
+		signal: AbortSignal.timeout(60_000),
+		tls: { ca: RUSSIAN_TRUSTED_ROOT_CA },
+	} as RequestInit & { tls: { ca: string | Buffer } });
+	if (!uploadRes.ok) {
+		throw new Error(
+			`MAX: загрузка вложения не удалась (HTTP ${uploadRes.status})`,
+		);
+	}
+	const uploaded = (await uploadRes.json().catch(() => null)) as {
+		token?: string;
+	} | null;
+	const fileToken = uploaded?.token ?? uploadUrlJson.token;
+	if (!fileToken) throw new Error("MAX не вернул token вложения");
+	return fileToken;
+}
+
+async function sendMaxMedia(
+	userId: string,
+	attachment: MessengerMediaAttachment,
+	caption?: string,
+): Promise<string | undefined> {
+	const token = await resolveMaxBotToken();
+	if (!token) throw new Error("Токен MAX-бота не задан в БД");
+
+	const fileToken = await maxUploadAttachment(token, attachment);
+	const attachments = [
+		{ type: attachment.kind, payload: { token: fileToken } },
+	];
+
+	// Свежезагруженное вложение может быть ещё не готово на стороне MAX
+	// («attachment not ready») сразу после загрузки — повторяем с паузой, как
+	// apps/max-bot делает для гайда (sendMaxGuideFile).
+	let lastError: unknown;
+	for (let attempt = 1; attempt <= 3; attempt++) {
+		const url = new URL("https://platform-api2.max.ru/messages");
+		url.searchParams.set("user_id", userId);
+		const res = await fetchWithCa(
+			url,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json", Authorization: token },
+				body: JSON.stringify({
+					...(caption ? { text: caption, format: "markdown" } : {}),
+					attachments,
+				}),
+			},
+			RUSSIAN_TRUSTED_ROOT_CA,
+		);
+		if (res.ok) {
+			const json = (await res.json().catch(() => null)) as {
+				message?: { body?: { mid?: string } };
+				body?: { mid?: string };
+			} | null;
+			logger.info("messenger.send.ok", {
+				messenger: "max",
+				userId,
+				attempt,
+				media: attachment.kind,
+			});
+			return json?.message?.body?.mid ?? json?.body?.mid;
+		}
+		if (res.status === 429) {
+			const retryAfter = Number(res.headers.get("retry-after"));
+			const waitSec =
+				Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter + 1 : 3;
+			await sleep(waitSec * 1000);
+			continue;
+		}
+		const json = (await res.json().catch(() => null)) as {
+			message?: string;
+		} | null;
+		lastError = new Error(json?.message ?? `MAX HTTP ${res.status}`);
+		await sleep(1500);
+	}
+	logger.error("messenger.send.failed", undefined, {
+		messenger: "max",
+		userId,
+		reason: "attachment_not_ready",
+	});
+	throw lastError instanceof Error
+		? lastError
+		: new Error("MAX: не удалось отправить вложение");
+}
+
+/** Отправка фото/файла пользователю мессенджера (Bot API sendPhoto/
+ * sendDocument для Telegram, uploads+attachments для MAX). caption — опциональная
+ * подпись, как text у sendMessengerMessage. */
+export async function sendMessengerMediaMessage(
+	messenger: Messenger,
+	userId: string,
+	attachment: MessengerMediaAttachment,
+	caption?: string,
+): Promise<string | undefined> {
+	if (messenger === "telegram") {
+		return sendTelegramMedia(userId, attachment, caption);
+	}
+	return sendMaxMedia(userId, attachment, caption);
+}
+
 /** Отправка одного сообщения пользователю мессенджера с обработкой 429. */
 export async function sendMessengerMessage(
 	messenger: Messenger,
