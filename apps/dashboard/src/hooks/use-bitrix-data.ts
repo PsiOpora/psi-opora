@@ -33,7 +33,6 @@ const bitrixResponseSchema = z.object({
 				z.object({
 					name: z.string(),
 					sort: z.number(),
-					categoryId: z.string(),
 				}),
 			]),
 		)
