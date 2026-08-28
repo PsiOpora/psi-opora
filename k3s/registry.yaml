@@ -25,11 +25,11 @@ data:
         "rootDirectory": "/var/lib/registry",
         "dedupe": true,
         "gc": true,
-        "gcDelay": "1h",
-        "gcInterval": "24h",
+        "gcDelay": "5m",
+        "gcInterval": "15m",
         "retention": {
           "dryRun": false,
-          "delay": "24h",
+          "delay": "5m",
           "policies": [
             {
               "repositories": ["**"],
@@ -41,7 +41,7 @@ data:
                 },
                 {
                   "patterns": ["^[0-9a-f]{40}$"],
-                  "pushedWithin": "168h"
+                  "pushedWithin": "15m"
                 }
               ]
             }
