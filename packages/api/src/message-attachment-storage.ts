@@ -19,7 +19,7 @@ export interface UploadedAttachment {
 	fileName: string;
 	mimeType: string;
 	size: number;
-	kind: "image" | "file";
+	kind: "image" | "file" | "voice";
 }
 
 /** Загружает вложение оператора в S3, возвращает данные, достаточные чтобы
@@ -75,7 +75,11 @@ export async function uploadOutboundAttachment(
 		fileName: safeName,
 		mimeType,
 		size: file.size,
-		kind: mimeType.startsWith("image/") ? "image" : "file",
+		kind: mimeType.startsWith("image/")
+			? "image"
+			: mimeType.startsWith("audio/")
+				? "voice"
+				: "file",
 	};
 }
 

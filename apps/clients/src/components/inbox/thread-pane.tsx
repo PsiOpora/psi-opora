@@ -324,9 +324,10 @@ export function ThreadPane({
 			return;
 		}
 		setSendError(null);
-		const previewUrl = file.type.startsWith("image/")
-			? URL.createObjectURL(file)
-			: "";
+		const previewUrl =
+			file.type.startsWith("image/") || file.type.startsWith("audio/")
+				? URL.createObjectURL(file)
+				: "";
 		const pending: ComposerAttachment = {
 			file,
 			previewUrl,

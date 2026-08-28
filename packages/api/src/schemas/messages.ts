@@ -40,7 +40,7 @@ export type ClientPollInput = z.infer<typeof clientPollSchema>;
  * запасом проще, чем разный лимит на каждый канал. */
 export const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024;
 
-/** Вложение (фото/файл), заранее загруженное оператором через
+/** Вложение (фото/файл/голосовое), заранее загруженное оператором через
  * apps/clients/api/attachments — s3Key ссылается на объект в bot/media/outbound/,
  * см. packages/api/src/message-attachment-storage.ts. */
 export const messageAttachmentSchema = z.object({
@@ -48,7 +48,7 @@ export const messageAttachmentSchema = z.object({
 	fileName: z.string().min(1).max(200),
 	mimeType: z.string().min(1).max(200),
 	size: z.number().int().positive(),
-	kind: z.enum(["image", "file"]),
+	kind: z.enum(["image", "file", "voice"]),
 });
 export type MessageAttachmentInput = z.infer<typeof messageAttachmentSchema>;
 

@@ -10,7 +10,7 @@ export interface UserbotMediaAttachment {
 	bytes: Uint8Array;
 	fileName: string;
 	mimeType: string;
-	kind: "image" | "file";
+	kind: "image" | "file" | "voice";
 }
 
 export interface UserbotPresence {
@@ -110,11 +110,13 @@ export async function sendUserbotMedia(
 	const media =
 		attachment.kind === "image"
 			? InputMedia.photo(attachment.bytes, { caption })
-			: InputMedia.document(attachment.bytes, {
-					fileName: attachment.fileName,
-					fileMime: attachment.mimeType,
-					caption,
-				});
+			: attachment.kind === "voice"
+				? InputMedia.voice(attachment.bytes, { caption })
+				: InputMedia.document(attachment.bytes, {
+						fileName: attachment.fileName,
+						fileMime: attachment.mimeType,
+						caption,
+					});
 	const message = await client.sendMedia(target, media);
 	return String(message.id);
 }

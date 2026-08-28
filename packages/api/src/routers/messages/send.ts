@@ -131,7 +131,7 @@ async function sendTelegramPersonal(
 				s3Key: string;
 				fileName: string;
 				mimeType: string;
-				kind: "image" | "file";
+				kind: "image" | "file" | "voice";
 		  }
 		| undefined,
 ): Promise<{
@@ -203,7 +203,7 @@ async function sendWhatsappPersonal(
 				s3Key: string;
 				fileName: string;
 				mimeType: string;
-				kind: "image" | "file";
+				kind: "image" | "file" | "voice";
 		  }
 		| undefined,
 ): Promise<{
@@ -428,7 +428,13 @@ export const send = bitrixProcedure
 					userId: input.userId,
 					direction: "out",
 					source: "widget",
-					text: text || (input.attachment?.kind === "image" ? "Фото" : "Файл"),
+					text:
+						text ||
+						(input.attachment?.kind === "image"
+							? "Фото"
+							: input.attachment?.kind === "voice"
+								? "Голосовое сообщение"
+								: "Файл"),
 					operatorId,
 					operatorName: input.operatorName,
 					externalId,

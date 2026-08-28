@@ -64,7 +64,7 @@ export async function sendViaPersonalNumber(params: {
 		s3Key: string;
 		fileName: string;
 		mimeType: string;
-		kind: "image" | "file";
+		kind: "image" | "file" | "voice";
 	};
 }): Promise<{
 	ok?: true;

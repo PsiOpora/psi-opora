@@ -295,8 +295,8 @@ export async function wahaSendText(
 }
 
 /**
- * Отправка фото/файла в чат WhatsApp. Байты передаются как base64 в теле
- * запроса (`file.data`) — в отличие от wahaSendText, здесь нет публичного
+ * Отправка фото/файла/голосового в чат WhatsApp. Байты передаются как base64
+ * в теле запроса (`file.data`) — в отличие от wahaSendText, здесь нет публичного
  * URL, по которому WAHA могла бы сама скачать вложение (оно только что
  * загружено оператором в наше S3, см. packages/api/message-attachment-storage),
  * а сетевая доступность нашего бакета из контейнера WAHA не гарантирована.
@@ -308,7 +308,7 @@ export async function wahaSendFile(
 		bytes: Uint8Array;
 		fileName: string;
 		mimeType: string;
-		kind: "image" | "file";
+		kind: "image" | "file" | "voice";
 	},
 	caption?: string,
 ): Promise<{ id?: string }> {
@@ -317,7 +317,11 @@ export async function wahaSendFile(
 		throw new WahaError(before.error ?? "Сессия WhatsApp не готова к отправке");
 	}
 	const endpoint =
-		attachment.kind === "image" ? "/api/sendImage" : "/api/sendFile";
+		attachment.kind === "image"
+			? "/api/sendImage"
+			: attachment.kind === "voice"
+				? "/api/sendVoice"
+				: "/api/sendFile";
 	const data = Buffer.from(attachment.bytes).toString("base64");
 	const res = await wahaFetch<{ id?: string } | undefined>(endpoint, {
 		method: "POST",
