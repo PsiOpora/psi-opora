@@ -17,8 +17,8 @@
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
-    "grammy": "1.45.1",
-    "hono": "4.13.3"
+    "grammy": "1.46.0",
+    "hono": "4.13.5"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
