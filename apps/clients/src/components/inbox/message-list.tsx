@@ -35,6 +35,12 @@ export interface ThreadMessage {
 	canDelete?: boolean;
 	status?: MessageDeliveryStatus;
 	pending?: boolean;
+	/** id, реально присвоенный записи в bot_messages сервером (см.
+	 * messages.send) — по нему mergeThread опознаёт «своё» pending-сообщение
+	 * при подтверждении поллингом, не полагаясь на совпадение текста (текст
+	 * может разойтись, например у фото без подписи сервер подставляет
+	 * заглушку «Фото»). */
+	expectedId?: string;
 	/** "voice"/"image"/"file" — рендерим плеер/превью/ссылку вместо текста
 	 * (см. bot_messages.kind). */
 	kind?: "text" | "voice" | "image" | "file";
@@ -123,7 +129,7 @@ export function mergeThread(
 			(item) =>
 				item.id.startsWith("pending-") &&
 				item.direction === msg.direction &&
-				item.text === msg.text,
+				(item.expectedId ? item.expectedId === msg.id : item.text === msg.text),
 		);
 		if (pendingIdx !== -1) {
 			next = [...next.slice(0, pendingIdx), msg, ...next.slice(pendingIdx + 1)];

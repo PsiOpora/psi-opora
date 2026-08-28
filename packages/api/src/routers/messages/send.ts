@@ -291,7 +291,10 @@ async function sendWhatsappPersonal(
 export const send = bitrixProcedure
 	.input(sendClientMessageSchema)
 	.handler(
-		async ({ input, context }): Promise<{ ok?: true; error?: string }> => {
+		async ({
+			input,
+			context,
+		}): Promise<{ ok?: true; error?: string; id?: string }> => {
 			const text = input.text.trim();
 			if (!text && !input.attachment) {
 				return { error: "Введите текст сообщения или прикрепите файл" };
@@ -479,6 +482,6 @@ export const send = bitrixProcedure
 				}
 			}
 
-			return { ok: true };
+			return { ok: true, id: storedMessageId };
 		},
 	);
