@@ -107,10 +107,14 @@ export async function sendUserbotMedia(
 	attachment: UserbotMediaAttachment,
 	caption?: string,
 ): Promise<string> {
+	const mediaType = attachment.mimeType.split(";", 1)[0]?.trim().toLowerCase();
+	const sendAsVoice =
+		attachment.kind === "voice" &&
+		(mediaType === "audio/ogg" || mediaType === "audio/opus");
 	const media =
 		attachment.kind === "image"
 			? InputMedia.photo(attachment.bytes, { caption })
-			: attachment.kind === "voice"
+			: sendAsVoice
 				? InputMedia.voice(attachment.bytes, { caption })
 				: InputMedia.document(attachment.bytes, {
 						fileName: attachment.fileName,
