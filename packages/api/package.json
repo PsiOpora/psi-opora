@@ -38,9 +38,9 @@
     "@psi-opora/validators": "workspace:*",
     "@orpc/contract": "1.15.0",
     "@orpc/server": "1.15.0",
-    "better-auth": "1.7.1",
+    "better-auth": "1.7.2",
     "superjson": "2.2.6",
-    "zod": "4.4.3"
+    "zod": "4.5.1"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",

@@ -31,7 +31,7 @@
     "@psi-opora/rusender-client": "workspace:*",
     "@psi-opora/unisender-client": "workspace:*",
     "@hatchet-dev/typescript-sdk": "1.28.2",
-    "zod": "^4.4.3"
+    "zod": "^4.5.1"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
