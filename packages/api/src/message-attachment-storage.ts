@@ -4,6 +4,7 @@ import {
 	getObjectStream,
 	uploadObject,
 } from "@psi-opora/storage";
+import { transcodeToOggOpus } from "./audio-transcode";
 import { MAX_ATTACHMENT_SIZE } from "./schemas/messages";
 
 /**
@@ -40,13 +41,33 @@ export async function uploadOutboundAttachment(
 	}
 
 	const { client, bucket } = await createS3Client();
-	const safeName = (file.name || "file")
+	let safeName = (file.name || "file")
 		.replace(/[^\p{L}\p{N}._-]+/gu, "_")
 		.slice(-120);
-	const key = `${ATTACHMENT_PREFIX}${crypto.randomUUID()}-${safeName}`;
-	const mimeType = file.type || "application/octet-stream";
+	let mimeType = file.type || "application/octet-stream";
 	signal?.throwIfAborted();
-	const bytes = new Uint8Array(await file.arrayBuffer());
+	let bytes = new Uint8Array(await file.arrayBuffer());
+
+	// Голосовые из composer'а — браузерный MediaRecorder в Chrome/Safari умеет
+	// писать только WebM/Opus, а Telegram sendVoice показывает нативный
+	// плеер-волну только для OGG/OPUS (иначе голосовое доходит обычным
+	// файлом). Перекодируем один раз при загрузке — MAX/WAHA формату не
+	// привередливы, так что все каналы получают один и тот же объект в S3.
+	// Firefox уже пишет OGG/Opus — его не трогаем.
+	const isVoice = mimeType.startsWith("audio/");
+	if (isVoice && !mimeType.includes("ogg")) {
+		try {
+			bytes = (await transcodeToOggOpus(bytes)) as Uint8Array<ArrayBuffer>;
+			mimeType = "audio/ogg";
+			safeName = `${safeName.replace(/\.[^./]+$/, "")}.ogg`;
+		} catch (err) {
+			console.error(
+				`[attachments] не удалось перекодировать голосовое в OGG/Opus: ${(err as Error).message}`,
+			);
+		}
+	}
+
+	const key = `${ATTACHMENT_PREFIX}${crypto.randomUUID()}-${safeName}`;
 
 	try {
 		signal?.throwIfAborted();
@@ -74,12 +95,8 @@ export async function uploadOutboundAttachment(
 		s3Key: key,
 		fileName: safeName,
 		mimeType,
-		size: file.size,
-		kind: mimeType.startsWith("image/")
-			? "image"
-			: mimeType.startsWith("audio/")
-				? "voice"
-				: "file",
+		size: bytes.length,
+		kind: isVoice ? "voice" : mimeType.startsWith("image/") ? "image" : "file",
 	};
 }
 

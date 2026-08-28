@@ -1,7 +1,11 @@
 FROM oven/bun:1-alpine AS base
 # @mtcute/node (через @psi-opora/tg-userbot, входит в @psi-opora/api) тянет
 # нативные аддоны (better-sqlite3), которым в Alpine-образе нужны Python и компилятор.
-RUN apk add --no-cache libc6-compat git python3 g++ make
+# ffmpeg — перекодирует голосовые из composer'а в OGG/OPUS перед отправкой
+# (см. packages/api/src/audio-transcode.ts): без этого Telegram sendVoice не
+# показывает нативный плеер-волну для WebM/Opus, который пишет MediaRecorder
+# в Chrome/Safari.
+RUN apk add --no-cache libc6-compat git python3 g++ make ffmpeg
 WORKDIR /app
 
 # --- Prepare ---
