@@ -141,6 +141,8 @@ export function MessageComposer({
 	const recordedChunksRef = useRef<Blob[]>([]);
 	const recordingStreamRef = useRef<MediaStream | null>(null);
 	const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const recordingStartLockRef = useRef(false);
+	const recordingCancelledRef = useRef(false);
 
 	const releaseRecordingResources = useCallback(() => {
 		for (const track of recordingStreamRef.current?.getTracks() ?? []) {
@@ -151,33 +153,61 @@ export function MessageComposer({
 			clearInterval(recordingTimerRef.current);
 			recordingTimerRef.current = null;
 		}
+		recordingStartLockRef.current = false;
 	}, []);
 
-	useEffect(() => releaseRecordingResources, [releaseRecordingResources]);
+	useEffect(() => {
+		recordingCancelledRef.current = false;
+		return () => {
+			recordingCancelledRef.current = true;
+			const recorder = mediaRecorderRef.current;
+			if (recorder) {
+				recorder.onstop = null;
+				if (recorder.state !== "inactive") recorder.stop();
+				mediaRecorderRef.current = null;
+			}
+			releaseRecordingResources();
+		};
+	}, [releaseRecordingResources]);
 
 	const startRecording = useCallback(async () => {
-		if (isRecording || !navigator.mediaDevices?.getUserMedia) {
+		if (
+			recordingStartLockRef.current ||
+			isRecording ||
+			!navigator.mediaDevices?.getUserMedia
+		) {
 			if (!navigator.mediaDevices?.getUserMedia) {
 				toast.error("Браузер не поддерживает запись голосовых сообщений");
 			}
 			return;
 		}
+		recordingStartLockRef.current = true;
+		let stream: MediaStream | null = null;
+		let recorder: MediaRecorder | null = null;
 		try {
-			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			if (recordingCancelledRef.current) {
+				for (const track of stream.getTracks()) track.stop();
+				recordingStartLockRef.current = false;
+				return;
+			}
 			recordingStreamRef.current = stream;
 			const mimeType = pickVoiceMimeType();
-			const recorder = mimeType
+			recorder = mimeType
 				? new MediaRecorder(stream, { mimeType })
 				: new MediaRecorder(stream);
+			const activeRecorder = recorder;
 			recordedChunksRef.current = [];
-			recorder.ondataavailable = (e) => {
+			activeRecorder.ondataavailable = (e) => {
 				if (e.data.size > 0) recordedChunksRef.current.push(e.data);
 			};
-			recorder.onstop = () => {
+			activeRecorder.onstop = () => {
+				mediaRecorderRef.current = null;
 				const blob = new Blob(recordedChunksRef.current, {
-					type: recorder.mimeType || "audio/webm",
+					type: activeRecorder.mimeType || "audio/webm",
 				});
 				releaseRecordingResources();
+				if (recordingCancelledRef.current) return;
 				setIsRecording(false);
 				setRecordingSeconds(0);
 				if (blob.size > 0) {
@@ -188,28 +218,36 @@ export function MessageComposer({
 					onAttachFile?.(file);
 				}
 			};
-			mediaRecorderRef.current = recorder;
-			recorder.start();
+			mediaRecorderRef.current = activeRecorder;
+			activeRecorder.start();
 			setIsRecording(true);
 			setRecordingSeconds(0);
 			recordingTimerRef.current = setInterval(() => {
 				setRecordingSeconds((s) => s + 1);
 			}, 1000);
 		} catch {
-			toast.error("Не удалось получить доступ к микрофону");
+			if (recorder) {
+				recorder.onstop = null;
+				if (recorder.state !== "inactive") recorder.stop();
+			}
+			mediaRecorderRef.current = null;
+			releaseRecordingResources();
+			if (!recordingCancelledRef.current) {
+				toast.error("Не удалось получить доступ к микрофону");
+			}
 		}
 	}, [isRecording, onAttachFile, releaseRecordingResources]);
 
 	const stopRecording = useCallback(() => {
-		mediaRecorderRef.current?.stop();
-		mediaRecorderRef.current = null;
+		const recorder = mediaRecorderRef.current;
+		if (recorder && recorder.state !== "inactive") recorder.stop();
 	}, []);
 
 	const cancelRecording = useCallback(() => {
 		const recorder = mediaRecorderRef.current;
 		if (recorder) {
 			recorder.onstop = null;
-			recorder.stop();
+			if (recorder.state !== "inactive") recorder.stop();
 			mediaRecorderRef.current = null;
 		}
 		releaseRecordingResources();

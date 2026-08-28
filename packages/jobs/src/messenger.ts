@@ -258,18 +258,18 @@ async function sendTelegramMedia(
 	const token = await resolveTelegramBotToken();
 	if (!token) throw new Error("Токен Telegram-бота не задан в БД");
 
+	const mediaType = attachment.mimeType.split(";", 1)[0]?.trim().toLowerCase();
+	const sendAsVoice =
+		attachment.kind === "voice" &&
+		(mediaType === "audio/ogg" || mediaType === "audio/opus");
 	const method =
 		attachment.kind === "image"
 			? "sendPhoto"
-			: attachment.kind === "voice"
+			: sendAsVoice
 				? "sendVoice"
 				: "sendDocument";
 	const field =
-		attachment.kind === "image"
-			? "photo"
-			: attachment.kind === "voice"
-				? "voice"
-				: "document";
+		attachment.kind === "image" ? "photo" : sendAsVoice ? "voice" : "document";
 
 	let withMarkdown = true;
 	for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS + 1; attempt++) {

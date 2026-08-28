@@ -316,10 +316,14 @@ export async function wahaSendFile(
 	if (before.status !== "connected") {
 		throw new WahaError(before.error ?? "Сессия WhatsApp не готова к отправке");
 	}
+	const mediaType = attachment.mimeType.split(";", 1)[0]?.trim().toLowerCase();
+	const sendAsVoice =
+		attachment.kind === "voice" &&
+		(mediaType === "audio/ogg" || mediaType === "audio/opus");
 	const endpoint =
 		attachment.kind === "image"
 			? "/api/sendImage"
-			: attachment.kind === "voice"
+			: sendAsVoice
 				? "/api/sendVoice"
 				: "/api/sendFile";
 	const data = Buffer.from(attachment.bytes).toString("base64");
