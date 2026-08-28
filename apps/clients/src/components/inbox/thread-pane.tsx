@@ -1,7 +1,10 @@
 "use client";
 
 import type { ClientListItem, InboxMessenger } from "@psi-opora/api";
-import { MAX_ATTACHMENT_SIZE } from "@psi-opora/api/schemas";
+import {
+	MAX_ATTACHMENT_SIZE,
+	messageAttachmentSchema,
+} from "@psi-opora/api/schemas";
 import {
 	LinkIcon,
 	Loader2Icon,
@@ -12,7 +15,7 @@ import {
 	SendIcon,
 	UserCheckIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ClientAvatar } from "@/components/inbox/client-avatar";
 import {
@@ -107,8 +110,32 @@ export function ThreadPane({
 	const [deleteTarget, setDeleteTarget] = useState<ThreadMessage | null>(null);
 	const [assigning, startAssigning] = useTransition();
 	const sinceRef = useRef(new Date().toISOString());
+	const attachmentUploadRef = useRef<AbortController | null>(null);
+	const attachmentPreviewUrlRef = useRef("");
+	const pendingPreviewUrlsRef = useRef(new Map<string, string>());
 	const selectedMessenger = selected?.messenger;
 	const selectedUserId = selected?.userId;
+	const revokePendingPreviewUrl = useCallback((messageId: string) => {
+		const previewUrl = pendingPreviewUrlsRef.current.get(messageId);
+		if (!previewUrl) return;
+		URL.revokeObjectURL(previewUrl);
+		pendingPreviewUrlsRef.current.delete(messageId);
+	}, []);
+	const revokeAllPendingPreviewUrls = useCallback(() => {
+		for (const previewUrl of pendingPreviewUrlsRef.current.values()) {
+			URL.revokeObjectURL(previewUrl);
+		}
+		pendingPreviewUrlsRef.current.clear();
+	}, []);
+	const clearAttachment = useCallback(() => {
+		attachmentUploadRef.current?.abort();
+		attachmentUploadRef.current = null;
+		if (attachmentPreviewUrlRef.current) {
+			URL.revokeObjectURL(attachmentPreviewUrlRef.current);
+			attachmentPreviewUrlRef.current = "";
+		}
+		setAttachment(null);
+	}, []);
 
 	// Личные номера (Telegram/WhatsApp) на портале может быть несколько —
 	// без явного выбора отправка ушла бы с первого попавшегося, а это не
@@ -123,6 +150,16 @@ export function ThreadPane({
 	// можно было сразу выставить номер по умолчанию тем же, с которого шла
 	// переписка, а не первым попавшимся из personalAccounts[0].
 	useEffect(() => {
+		clearAttachment();
+		revokeAllPendingPreviewUrls();
+		setMessages([]);
+		setText("");
+		setSendError(null);
+		setEditTarget(null);
+		setEditText("");
+		setDeleteTarget(null);
+		setPersonalAccounts([]);
+		setConnectorId(undefined);
 		if (!selected) return;
 		const { messenger, userId } = selected;
 		const isPersonal =
@@ -131,18 +168,6 @@ export function ThreadPane({
 			messenger === "max-personal";
 		let cancelled = false;
 
-		setMessages([]);
-		setText("");
-		setAttachment((prev) => {
-			if (prev) URL.revokeObjectURL(prev.previewUrl);
-			return null;
-		});
-		setSendError(null);
-		setEditTarget(null);
-		setEditText("");
-		setDeleteTarget(null);
-		setPersonalAccounts([]);
-		setConnectorId(undefined);
 		setThreadLoading(true);
 
 		Promise.all([
@@ -203,7 +228,27 @@ export function ThreadPane({
 		return () => {
 			cancelled = true;
 		};
-	}, [selected]);
+	}, [selected, clearAttachment, revokeAllPendingPreviewUrls]);
+
+	useEffect(
+		() => () => {
+			attachmentUploadRef.current?.abort();
+			if (attachmentPreviewUrlRef.current) {
+				URL.revokeObjectURL(attachmentPreviewUrlRef.current);
+			}
+			revokeAllPendingPreviewUrls();
+		},
+		[revokeAllPendingPreviewUrls],
+	);
+
+	useEffect(() => {
+		const activeMessageIds = new Set(messages.map((message) => message.id));
+		for (const pendingId of pendingPreviewUrlsRef.current.keys()) {
+			if (!activeMessageIds.has(pendingId)) {
+				revokePendingPreviewUrl(pendingId);
+			}
+		}
+	}, [messages, revokePendingPreviewUrl]);
 
 	// Поллинг открытого диалога — новые сообщения (клиент, оператор из Bitrix, виджет CRM).
 	useEffect(() => {
@@ -271,10 +316,7 @@ export function ThreadPane({
 	// Загрузка вложения — сразу по выбору файла в composer'е, не дожидаясь
 	// отправки сообщения: так превью и прогресс не завязаны на send().
 	const attachFile = (file: File) => {
-		setAttachment((prev) => {
-			if (prev) URL.revokeObjectURL(prev.previewUrl);
-			return null;
-		});
+		clearAttachment();
 		if (file.size > MAX_ATTACHMENT_SIZE) {
 			setSendError(
 				`Файл больше ${Math.floor(MAX_ATTACHMENT_SIZE / (1024 * 1024))} МБ`,
@@ -290,34 +332,61 @@ export function ThreadPane({
 			previewUrl,
 			status: "uploading",
 		};
+		attachmentPreviewUrlRef.current = previewUrl;
 		setAttachment(pending);
 
+		const controller = new AbortController();
+		attachmentUploadRef.current = controller;
 		const formData = new FormData();
 		formData.append("file", file);
-		fetch("/api/attachments", { method: "POST", body: formData })
+		fetch("/api/attachments", {
+			method: "POST",
+			body: formData,
+			signal: controller.signal,
+		})
 			.then(async (res) => {
-				const json = await res.json();
+				const json: unknown = await res.json();
 				setAttachment((current) => {
 					if (current?.file !== file) return current;
-					return res.ok
-						? { ...current, status: "done", uploaded: json }
-						: { ...current, status: "error", error: json.error };
+					if (!res.ok) {
+						const error =
+							typeof json === "object" &&
+							json !== null &&
+							"error" in json &&
+							typeof json.error === "string"
+								? json.error
+								: `HTTP ${res.status}`;
+						return { ...current, status: "error", error };
+					}
+					const parsed = messageAttachmentSchema.safeParse(json);
+					return parsed.success
+						? { ...current, status: "done", uploaded: parsed.data }
+						: {
+								...current,
+								status: "error",
+								error:
+									parsed.error.issues[0]?.message ??
+									"Некорректный ответ сервера",
+							};
 				});
 			})
 			.catch((err) => {
+				if (controller.signal.aborted) return;
 				setAttachment((current) =>
 					current?.file === file
 						? { ...current, status: "error", error: (err as Error).message }
 						: current,
 				);
+			})
+			.finally(() => {
+				if (attachmentUploadRef.current === controller) {
+					attachmentUploadRef.current = null;
+				}
 			});
 	};
 
 	const removeAttachment = () => {
-		setAttachment((prev) => {
-			if (prev) URL.revokeObjectURL(prev.previewUrl);
-			return null;
-		});
+		clearAttachment();
 	};
 
 	const send = () => {
@@ -348,11 +417,16 @@ export function ThreadPane({
 			// как mediaUrl оптимистичного сообщения ниже, пока поллинг не заменит
 			// его настоящим — см. mergeThread по text+direction в message-list.tsx.
 			const sentPreviewUrl = attachment?.previewUrl;
+			const pendingId = `pending-${crypto.randomUUID()}`;
+			if (sentPreviewUrl) {
+				pendingPreviewUrlsRef.current.set(pendingId, sentPreviewUrl);
+				attachmentPreviewUrlRef.current = "";
+			}
 			setAttachment(null);
 			setMessages((prev) => [
 				...prev,
 				{
-					id: `pending-${crypto.randomUUID()}`,
+					id: pendingId,
 					direction: "out",
 					source: "widget",
 					text: trimmed,
@@ -362,7 +436,7 @@ export function ThreadPane({
 					...(readyAttachment
 						? {
 								kind: readyAttachment.kind,
-								mediaUrl: sentPreviewUrl,
+								...(sentPreviewUrl ? { mediaUrl: sentPreviewUrl } : {}),
 								mediaFileName: readyAttachment.fileName,
 							}
 						: {}),

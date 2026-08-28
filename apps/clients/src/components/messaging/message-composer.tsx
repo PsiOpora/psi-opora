@@ -229,20 +229,19 @@ export function MessageComposer({
 									: formatFileSize(attachment.file.size)}
 						</p>
 					</div>
-					{attachment.status === "uploading" ? (
+					{attachment.status === "uploading" && (
 						<Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" />
-					) : (
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon-sm"
-							title="Убрать вложение"
-							aria-label="Убрать вложение"
-							onClick={onRemoveAttachment}
-						>
-							<XIcon className="size-3.5" />
-						</Button>
 					)}
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-sm"
+						title="Убрать вложение"
+						aria-label="Убрать вложение"
+						onClick={onRemoveAttachment}
+					>
+						<XIcon className="size-3.5" />
+					</Button>
 				</div>
 			)}
 			<Textarea

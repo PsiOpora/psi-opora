@@ -29,7 +29,7 @@ export async function POST(request: Request): Promise<Response> {
 	}
 
 	try {
-		const uploaded = await uploadOutboundAttachment(file);
+		const uploaded = await uploadOutboundAttachment(file, request.signal);
 		return NextResponse.json({ ok: true, ...uploaded });
 	} catch (err) {
 		return NextResponse.json(

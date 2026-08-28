@@ -78,6 +78,18 @@ spec:
       nodePort: 30005
 ---
 apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: clients-attachment-body-limit
+  namespace: psi-opora
+spec:
+  buffering:
+    # 20 MiB файла + запас на multipart-заголовки. Traefik отклоняет тело до
+    # передачи в Next.js, где file.size остаётся дополнительной проверкой.
+    maxRequestBodyBytes: 22020096
+    memRequestBodyBytes: 1048576
+---
+apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: clients-http
@@ -103,6 +115,14 @@ spec:
   entryPoints:
     - websecure
   routes:
+    - match: Host(`psi-opora-clients.orixon.ru`) && Path(`/api/attachments`) && Method(`POST`)
+      kind: Rule
+      priority: 100
+      services:
+        - name: clients
+          port: 3000
+      middlewares:
+        - name: clients-attachment-body-limit
     - match: Host(`psi-opora-clients.orixon.ru`)
       kind: Rule
       services:

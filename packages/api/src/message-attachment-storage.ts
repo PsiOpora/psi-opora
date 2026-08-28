@@ -1,5 +1,6 @@
 import {
 	createS3Client,
+	deleteObject,
 	getObjectStream,
 	uploadObject,
 } from "@psi-opora/storage";
@@ -29,6 +30,7 @@ export interface UploadedAttachment {
  * bitrixProcedure. */
 export async function uploadOutboundAttachment(
 	file: File,
+	signal?: AbortSignal,
 ): Promise<UploadedAttachment> {
 	if (file.size === 0) throw new Error("Пустой файл");
 	if (file.size > MAX_ATTACHMENT_SIZE) {
@@ -43,16 +45,30 @@ export async function uploadOutboundAttachment(
 		.slice(-120);
 	const key = `${ATTACHMENT_PREFIX}${crypto.randomUUID()}-${safeName}`;
 	const mimeType = file.type || "application/octet-stream";
+	signal?.throwIfAborted();
 	const bytes = new Uint8Array(await file.arrayBuffer());
 
-	await uploadObject({
-		client,
-		bucket,
-		key,
-		body: bytes,
-		contentType: mimeType,
-		contentDisposition: `attachment; filename="${encodeURIComponent(safeName)}"`,
-	});
+	try {
+		signal?.throwIfAborted();
+		await uploadObject({
+			client,
+			bucket,
+			key,
+			body: bytes,
+			contentType: mimeType,
+			contentDisposition: `attachment; filename="${encodeURIComponent(safeName)}"`,
+			signal,
+		});
+		signal?.throwIfAborted();
+	} catch (err) {
+		// PutObject мог успеть завершиться одновременно с разрывом HTTP-запроса.
+		// Удаление по детерминированному ключу безопасно и не оставляет сиротский
+		// объект, если клиент отменил загрузку.
+		if (signal?.aborted) {
+			await deleteObject({ client, bucket, key });
+		}
+		throw err;
+	}
 
 	return {
 		s3Key: key,

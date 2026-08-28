@@ -286,20 +286,29 @@ export function MessageList({
 										<p className="mt-1.5 whitespace-pre-wrap">{item.text}</p>
 									)}
 								</>
-							) : item.kind === "file" && item.mediaUrl ? (
+							) : item.kind === "file" ? (
 								<>
-									<a
-										href={item.mediaUrl}
-										target="_blank"
-										rel="noreferrer"
-										className="flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2 hover:bg-black/10"
-									>
-										<FileIcon className="size-5 shrink-0" />
-										<span className="min-w-0 flex-1 truncate">
-											{item.mediaFileName ?? "Файл"}
-										</span>
-										<DownloadIcon className="size-4 shrink-0" />
-									</a>
+									{item.mediaUrl ? (
+										<a
+											href={item.mediaUrl}
+											target="_blank"
+											rel="noreferrer"
+											className="flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2 hover:bg-black/10"
+										>
+											<FileIcon className="size-5 shrink-0" />
+											<span className="min-w-0 flex-1 truncate">
+												{item.mediaFileName ?? "Файл"}
+											</span>
+											<DownloadIcon className="size-4 shrink-0" />
+										</a>
+									) : (
+										<div className="flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2">
+											<FileIcon className="size-5 shrink-0" />
+											<span className="min-w-0 flex-1 truncate">
+												{item.mediaFileName ?? "Файл"}
+											</span>
+										</div>
+									)}
 									{item.text && (
 										<p className="mt-1.5 whitespace-pre-wrap">{item.text}</p>
 									)}

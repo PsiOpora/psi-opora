@@ -31,6 +31,7 @@ import {
 
 const OUTBOX_POLL_INTERVAL_MS = 3000;
 const ACCOUNTS_RESCAN_INTERVAL_MS = 60_000;
+const MAX_INBOUND_MEDIA_SIZE = 20 * 1024 * 1024;
 
 /** Скачивает вложение, загруженное оператором (apps/clients/api/attachments)
  * в bot/media/outbound/ — тот же бакет, что и остальное S3-хранилище, здесь
@@ -55,7 +56,7 @@ async function uploadInboundMedia(params: {
 }): Promise<{ mediaS3Key: string }> {
 	const { client, bucket } = await createS3Client();
 	const safeName = params.fileName.replace(/[^\p{L}\p{N}._-]+/gu, "_");
-	const key = `bot/media/telegram-personal/${params.messageId}-${safeName}`;
+	const key = `bot/media/telegram-personal/${params.messageId}-${crypto.randomUUID()}-${safeName}`;
 	await uploadObject({
 		client,
 		bucket,
@@ -344,6 +345,12 @@ async function startAccountWorker(
 			// показывал превью/ссылку на скачивание, а не молчал (голосовые для
 			// этого канала пока не перезаливаются — не было запроса на них).
 			const media = message.media;
+			const mediaKind =
+				media?.type === "photo"
+					? "image"
+					: media?.type === "document" || media?.type === "video"
+						? "file"
+						: undefined;
 			let mediaUpload:
 				| {
 						kind: "image" | "file";
@@ -357,9 +364,29 @@ async function startAccountWorker(
 				media?.type === "document" ||
 				media?.type === "video"
 			) {
+				const kind = media.type === "photo" ? "image" : "file";
 				try {
-					const bytes = await client.downloadAsBuffer(media);
-					const kind = media.type === "photo" ? "image" : "file";
+					if (
+						media.fileSize !== undefined &&
+						media.fileSize > MAX_INBOUND_MEDIA_SIZE
+					) {
+						throw new Error("Вложение больше 20 МБ");
+					}
+					const chunks: Uint8Array[] = [];
+					let downloadedSize = 0;
+					const downloadController = new AbortController();
+					for await (const chunk of client.downloadAsIterable(media, {
+						limit: MAX_INBOUND_MEDIA_SIZE + 1,
+						abortSignal: downloadController.signal,
+					})) {
+						downloadedSize += chunk.byteLength;
+						if (downloadedSize > MAX_INBOUND_MEDIA_SIZE) {
+							downloadController.abort();
+							throw new Error("Вложение больше 20 МБ");
+						}
+						chunks.push(chunk);
+					}
+					const bytes = Buffer.concat(chunks, downloadedSize);
 					const mimeType =
 						"mimeType" in media
 							? media.mimeType
@@ -389,8 +416,7 @@ async function startAccountWorker(
 				}
 			}
 			const text =
-				caption ||
-				(mediaUpload ? (mediaUpload.kind === "image" ? "Фото" : "Файл") : "");
+				caption || (mediaKind ? (mediaKind === "image" ? "Фото" : "Файл") : "");
 			if (!text) return;
 			const rawPhone =
 				"phoneNumber" in message.sender ? message.sender.phoneNumber : null;

@@ -369,7 +369,9 @@ async function maxUploadAttachment(
 	const uploadRes = await fetch(uploadUrlJson.url, {
 		method: "POST",
 		body: form,
-	});
+		signal: AbortSignal.timeout(60_000),
+		tls: { ca: RUSSIAN_TRUSTED_ROOT_CA },
+	} as RequestInit & { tls: { ca: string | Buffer } });
 	if (!uploadRes.ok) {
 		throw new Error(
 			`MAX: загрузка вложения не удалась (HTTP ${uploadRes.status})`,

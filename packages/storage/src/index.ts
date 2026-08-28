@@ -89,6 +89,7 @@ export async function uploadObject(params: {
 	contentType: string;
 	contentEncoding?: string;
 	contentDisposition?: string;
+	signal?: AbortSignal;
 }): Promise<void> {
 	await params.client.send(
 		new PutObjectCommand({
@@ -99,6 +100,7 @@ export async function uploadObject(params: {
 			ContentEncoding: params.contentEncoding,
 			ContentDisposition: params.contentDisposition,
 		}),
+		{ abortSignal: params.signal },
 	);
 }
 
