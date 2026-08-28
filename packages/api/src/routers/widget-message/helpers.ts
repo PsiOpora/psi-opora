@@ -166,6 +166,7 @@ export async function loadHistory(
 			return rows.map((row) => ({
 				id: row.id,
 				messenger: channel.messenger,
+				connectorId: channel.connectorId,
 				direction: row.direction === "in" ? ("in" as const) : ("out" as const),
 				source: row.source,
 				text: row.text,

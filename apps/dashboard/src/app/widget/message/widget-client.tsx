@@ -3,6 +3,7 @@
 import type {
 	WidgetChannel,
 	WidgetEntity,
+	WidgetHistoryItem,
 	WidgetRecipient,
 } from "@psi-opora/api";
 import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
@@ -54,6 +55,29 @@ function channelKey(
 }
 
 /**
+ * Канал по умолчанию — тот, через который уже идёт переписка с клиентом:
+ * ищем канал последнего сообщения истории (свежие — в конце, см.
+ * WidgetRecipient.history), сначала точным совпадением messenger+connectorId
+ * (различает несколько личных номеров одного мессенджера), затем только по
+ * messenger. Если истории ещё нет (новый контакт) — первый доступный канал.
+ */
+function pickDefaultChannel(
+	channels: WidgetChannel[],
+	history: WidgetHistoryItem[],
+): WidgetChannel | null {
+	for (let i = history.length - 1; i >= 0; i--) {
+		const item = history[i];
+		const match =
+			channels.find(
+				(c) =>
+					c.messenger === item.messenger && c.connectorId === item.connectorId,
+			) ?? channels.find((c) => c.messenger === item.messenger);
+		if (match) return match;
+	}
+	return channels[0] ?? null;
+}
+
+/**
  * Форма отправки сообщения клиенту из карточки CRM. Список каналов —
  * динамический (recipient.channels): боты — только если контакт уже писал
  * (поля контакта), личный(е) номер(а) Telegram — всегда, если у контакта
@@ -100,7 +124,7 @@ export function MessageWidget({
 				sinceRef.current =
 					loaded.history[loaded.history.length - 1]?.createdAt ??
 					new Date().toISOString();
-				setChannel(loaded.channels[0] ?? null);
+				setChannel(pickDefaultChannel(loaded.channels, loaded.history));
 			})
 			.catch((err) => setLoadError((err as Error).message))
 			.finally(() => setLoading(false));
