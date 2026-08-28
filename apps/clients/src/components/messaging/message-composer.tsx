@@ -8,11 +8,14 @@ import {
 	ItalicIcon,
 	Link2Icon,
 	Loader2Icon,
+	MicIcon,
 	PaperclipIcon,
+	SquareIcon,
 	XIcon,
 } from "lucide-react";
 import type * as React from "react";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -24,7 +27,7 @@ export interface UploadedComposerAttachment {
 	fileName: string;
 	mimeType: string;
 	size: number;
-	kind: "image" | "file";
+	kind: "image" | "file" | "voice";
 }
 
 /** Состояние вложения, прикреплённого к composer'у, но ещё не отправленного —
@@ -43,6 +46,25 @@ function formatFileSize(bytes: number): string {
 	if (bytes < 1024) return `${bytes} Б`;
 	if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
 	return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+}
+
+function formatDuration(totalSeconds: number): string {
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = totalSeconds % 60;
+	return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+/** Предпочитаем OGG/OPUS — формат, который Telegram Bot API ожидает для
+ * sendVoice (иначе голосовое доходит обычным файлом, без плеера-волны);
+ * поддерживает его практически только Firefox. Остальные браузеры (Chrome,
+ * Safari) умеют писать только WebM/Opus — MAX и WhatsApp принимают его без
+ * ограничений, так что там разницы нет. */
+function pickVoiceMimeType(): string | undefined {
+	if (typeof MediaRecorder === "undefined") return undefined;
+	for (const candidate of ["audio/ogg;codecs=opus", "audio/webm;codecs=opus"]) {
+		if (MediaRecorder.isTypeSupported(candidate)) return candidate;
+	}
+	return undefined;
 }
 
 /**
@@ -109,6 +131,129 @@ export function MessageComposer({
 		e.target.value = "";
 		if (file) onAttachFile?.(file);
 	};
+
+	// Запись голосового — стрим/таймер живут в рефах, а не в state, чтобы
+	// onstop (событие MediaRecorder, не React) видел актуальные значения без
+	// пересоздания обработчика при каждом тике таймера.
+	const [isRecording, setIsRecording] = useState(false);
+	const [recordingSeconds, setRecordingSeconds] = useState(0);
+	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+	const recordedChunksRef = useRef<Blob[]>([]);
+	const recordingStreamRef = useRef<MediaStream | null>(null);
+	const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const recordingStartLockRef = useRef(false);
+	const recordingCancelledRef = useRef(false);
+
+	const releaseRecordingResources = useCallback(() => {
+		for (const track of recordingStreamRef.current?.getTracks() ?? []) {
+			track.stop();
+		}
+		recordingStreamRef.current = null;
+		if (recordingTimerRef.current) {
+			clearInterval(recordingTimerRef.current);
+			recordingTimerRef.current = null;
+		}
+		recordingStartLockRef.current = false;
+	}, []);
+
+	useEffect(() => {
+		recordingCancelledRef.current = false;
+		return () => {
+			recordingCancelledRef.current = true;
+			const recorder = mediaRecorderRef.current;
+			if (recorder) {
+				recorder.onstop = null;
+				if (recorder.state !== "inactive") recorder.stop();
+				mediaRecorderRef.current = null;
+			}
+			releaseRecordingResources();
+		};
+	}, [releaseRecordingResources]);
+
+	const startRecording = useCallback(async () => {
+		if (
+			recordingStartLockRef.current ||
+			isRecording ||
+			!navigator.mediaDevices?.getUserMedia
+		) {
+			if (!navigator.mediaDevices?.getUserMedia) {
+				toast.error("Браузер не поддерживает запись голосовых сообщений");
+			}
+			return;
+		}
+		recordingStartLockRef.current = true;
+		let stream: MediaStream | null = null;
+		let recorder: MediaRecorder | null = null;
+		try {
+			stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			if (recordingCancelledRef.current) {
+				for (const track of stream.getTracks()) track.stop();
+				recordingStartLockRef.current = false;
+				return;
+			}
+			recordingStreamRef.current = stream;
+			const mimeType = pickVoiceMimeType();
+			recorder = mimeType
+				? new MediaRecorder(stream, { mimeType })
+				: new MediaRecorder(stream);
+			const activeRecorder = recorder;
+			recordedChunksRef.current = [];
+			activeRecorder.ondataavailable = (e) => {
+				if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+			};
+			activeRecorder.onstop = () => {
+				mediaRecorderRef.current = null;
+				const blob = new Blob(recordedChunksRef.current, {
+					type: activeRecorder.mimeType || "audio/webm",
+				});
+				releaseRecordingResources();
+				if (recordingCancelledRef.current) return;
+				setIsRecording(false);
+				setRecordingSeconds(0);
+				if (blob.size > 0) {
+					const ext = blob.type.includes("ogg") ? "ogg" : "webm";
+					const file = new File([blob], `voice-${Date.now()}.${ext}`, {
+						type: blob.type,
+					});
+					onAttachFile?.(file);
+				}
+			};
+			mediaRecorderRef.current = activeRecorder;
+			activeRecorder.start();
+			setIsRecording(true);
+			setRecordingSeconds(0);
+			recordingTimerRef.current = setInterval(() => {
+				setRecordingSeconds((s) => s + 1);
+			}, 1000);
+		} catch {
+			if (recorder) {
+				recorder.onstop = null;
+				if (recorder.state !== "inactive") recorder.stop();
+			}
+			mediaRecorderRef.current = null;
+			releaseRecordingResources();
+			if (!recordingCancelledRef.current) {
+				toast.error("Не удалось получить доступ к микрофону");
+			}
+		}
+	}, [isRecording, onAttachFile, releaseRecordingResources]);
+
+	const stopRecording = useCallback(() => {
+		const recorder = mediaRecorderRef.current;
+		if (recorder && recorder.state !== "inactive") recorder.stop();
+	}, []);
+
+	const cancelRecording = useCallback(() => {
+		const recorder = mediaRecorderRef.current;
+		if (recorder) {
+			recorder.onstop = null;
+			if (recorder.state !== "inactive") recorder.stop();
+			mediaRecorderRef.current = null;
+		}
+		releaseRecordingResources();
+		setIsRecording(false);
+		setRecordingSeconds(0);
+	}, [releaseRecordingResources]);
 
 	const wrapSelection = useCallback(
 		(before: string, after: string, placeholderText: string) => {
@@ -203,6 +348,44 @@ export function MessageComposer({
 							className="hidden"
 							onChange={handleFileInputChange}
 						/>
+						{isRecording ? (
+							<div className="ml-1 flex items-center gap-1.5 pr-1 text-xs text-destructive">
+								<span className="size-2 animate-pulse rounded-full bg-destructive" />
+								{formatDuration(recordingSeconds)}
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									title="Остановить и прикрепить"
+									aria-label="Остановить и прикрепить"
+									onClick={stopRecording}
+								>
+									<SquareIcon className="size-3.5" />
+								</Button>
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									title="Отменить запись"
+									aria-label="Отменить запись"
+									onClick={cancelRecording}
+								>
+									<XIcon className="size-3.5" />
+								</Button>
+							</div>
+						) : (
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-sm"
+								title="Записать голосовое сообщение"
+								aria-label="Записать голосовое сообщение"
+								disabled={attachment?.status === "uploading"}
+								onClick={startRecording}
+							>
+								<MicIcon className="size-3.5" />
+							</Button>
+						)}
 					</>
 				)}
 			</div>
@@ -214,13 +397,27 @@ export function MessageComposer({
 							alt={attachment.file.name}
 							className="size-8 shrink-0 rounded object-cover"
 						/>
+					) : attachment.file.type.startsWith("audio/") ? (
+						<MicIcon className="size-8 shrink-0 text-muted-foreground" />
 					) : (
 						<FileIcon className="size-8 shrink-0 text-muted-foreground" />
 					)}
 					<div className="min-w-0 flex-1">
-						<p className="truncate text-xs font-medium">
-							{attachment.file.name}
-						</p>
+						{attachment.file.type.startsWith("audio/") &&
+						attachment.status !== "uploading" &&
+						attachment.previewUrl ? (
+							// biome-ignore lint/a11y/useMediaCaption: превью записанного оператором голосового, субтитров нет
+							<audio
+								controls
+								preload="metadata"
+								src={attachment.previewUrl}
+								className="h-8 max-w-full"
+							/>
+						) : (
+							<p className="truncate text-xs font-medium">
+								{attachment.file.name}
+							</p>
+						)}
 						<p className="text-[11px] text-muted-foreground">
 							{attachment.status === "uploading"
 								? "Загрузка…"

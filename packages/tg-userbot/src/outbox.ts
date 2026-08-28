@@ -37,7 +37,7 @@ export interface OutboundMessage {
 		s3Key: string;
 		fileName: string;
 		mimeType: string;
-		kind: "image" | "file";
+		kind: "image" | "file" | "voice";
 	};
 }
 

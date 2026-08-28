@@ -247,7 +247,7 @@ export interface MessengerMediaAttachment {
 	bytes: Uint8Array;
 	fileName: string;
 	mimeType: string;
-	kind: "image" | "file";
+	kind: "image" | "file" | "voice";
 }
 
 async function sendTelegramMedia(
@@ -258,8 +258,18 @@ async function sendTelegramMedia(
 	const token = await resolveTelegramBotToken();
 	if (!token) throw new Error("Токен Telegram-бота не задан в БД");
 
-	const method = attachment.kind === "image" ? "sendPhoto" : "sendDocument";
-	const field = attachment.kind === "image" ? "photo" : "document";
+	const mediaType = attachment.mimeType.split(";", 1)[0]?.trim().toLowerCase();
+	const sendAsVoice =
+		attachment.kind === "voice" &&
+		(mediaType === "audio/ogg" || mediaType === "audio/opus");
+	const method =
+		attachment.kind === "image"
+			? "sendPhoto"
+			: sendAsVoice
+				? "sendVoice"
+				: "sendDocument";
+	const field =
+		attachment.kind === "image" ? "photo" : sendAsVoice ? "voice" : "document";
 
 	let withMarkdown = true;
 	for (let attempt = 1; attempt <= RATE_LIMIT_ATTEMPTS + 1; attempt++) {
@@ -326,6 +336,12 @@ async function sendTelegramMedia(
 	);
 }
 
+/** Наш внутренний kind → тип вложения в API MAX: голосовые там — обычный
+ * `audio`, отдельного типа "voice" платформа не знает. */
+function maxAttachmentType(kind: MessengerMediaAttachment["kind"]): string {
+	return kind === "voice" ? "audio" : kind;
+}
+
 /**
  * Загружает вложение в MAX через двухшаговый uploads-флоу платформы:
  * `POST /uploads?type=` возвращает URL и (опционально) готовый token,
@@ -341,7 +357,7 @@ async function maxUploadAttachment(
 	attachment: MessengerMediaAttachment,
 ): Promise<string> {
 	const uploadUrlReq = new URL("https://platform-api2.max.ru/uploads");
-	uploadUrlReq.searchParams.set("type", attachment.kind);
+	uploadUrlReq.searchParams.set("type", maxAttachmentType(attachment.kind));
 	const uploadUrlRes = await fetchWithCa(
 		uploadUrlReq,
 		{ method: "POST", headers: { Authorization: token } },
@@ -395,7 +411,7 @@ async function sendMaxMedia(
 
 	const fileToken = await maxUploadAttachment(token, attachment);
 	const attachments = [
-		{ type: attachment.kind, payload: { token: fileToken } },
+		{ type: maxAttachmentType(attachment.kind), payload: { token: fileToken } },
 	];
 
 	// Свежезагруженное вложение может быть ещё не готово на стороне MAX
