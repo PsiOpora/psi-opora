@@ -223,46 +223,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Detect migration changes
-        id: migrations
-        run: |
-          if [ "${{ github.event_name }}" != "push" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Ручной deploy: миграции не запускаются"
-            exit 0
-          fi
-
-          FROM="${{ github.event.before }}"
-          if [ -z "$FROM" ] || [ "$FROM" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$FROM" 2>/dev/null; then
-            FROM="HEAD~1"
-          fi
-
-          if git diff --quiet "$FROM" "${{ github.sha }}" -- packages/db/migrations/; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Файлы миграций не менялись — шаг пропущен"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Setup Bun
-        if: steps.migrations.outputs.changed == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        if: steps.migrations.outputs.changed == 'true'
         run: bun install --frozen-lockfile
 
       - name: Build configuration package
-        if: steps.migrations.outputs.changed == 'true'
         run: bun run --filter @psi-opora/config build
 
       - name: Run Drizzle migrations
-        if: false
+        # drizzle-kit migrate идемпотентен (применяет только те миграции,
+        # которых нет в её собственной таблице учёта в БД), поэтому гоняем
+        # его на каждом деплое, а не только когда в этом диффе поменялись
+        # файлы миграций — иначе миграция, слитая в main вместе с этим шагом
+        # выключенным (или руками через workflow_dispatch), тихо остаётся
+        # неприменённой и всплывает рантайм-ошибкой вида "column ... does
+        # not exist" при первом же обращении приложения к новой колонке.
         working-directory: packages/db
         env:
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
