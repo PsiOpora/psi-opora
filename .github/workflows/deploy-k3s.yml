@@ -254,7 +254,6 @@ jobs:
     needs:
       - detect
       - infrastructure
-      - migrate
     if: needs.detect.outputs.services != '[]'
     runs-on: ubuntu-latest
     strategy:
