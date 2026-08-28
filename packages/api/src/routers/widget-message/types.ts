@@ -38,6 +38,11 @@ export interface WidgetChannel {
 export interface WidgetHistoryItem {
 	id: string;
 	messenger: WidgetMessenger;
+	/** Только для telegram-personal/whatsapp-personal — коннектор, которым
+	 * было отправлено/получено сообщение (см. WidgetChannel.connectorId) —
+	 * различает несколько личных номеров одного мессенджера при выборе канала
+	 * по умолчанию. */
+	connectorId?: string;
 	direction: "in" | "out";
 	source: string;
 	text: string;
