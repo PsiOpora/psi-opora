@@ -26,6 +26,10 @@ import {
 import { messengerLabel } from "@/components/inbox/messenger-meta";
 import { QuickReplies } from "@/components/inbox/quick-replies";
 import {
+	getSendResultError,
+	isSuccessfulSendResult,
+} from "@/components/inbox/send-result";
+import {
 	type ComposerAttachment,
 	MessageComposer,
 } from "@/components/messaging/message-composer";
@@ -409,14 +413,14 @@ export function ThreadPane({
 				operatorId: operator?.id,
 				operatorName: operator?.name,
 			});
-			if (result.error) {
-				setSendError(result.error);
+			if (!isSuccessfulSendResult(result)) {
+				setSendError(getSendResultError(result));
 				return;
 			}
 			setText("");
 			// previewUrl отправленного вложения не отзываем сразу: он ещё нужен
 			// как mediaUrl оптимистичного сообщения ниже, пока поллинг не заменит
-			// его настоящим — см. mergeThread по text+direction в message-list.tsx.
+			// его настоящим — см. mergeThread по expectedId в message-list.tsx.
 			const sentPreviewUrl = attachment?.previewUrl;
 			const pendingId = `pending-${crypto.randomUUID()}`;
 			if (sentPreviewUrl) {
@@ -434,6 +438,7 @@ export function ThreadPane({
 					operatorName: operator?.name,
 					createdAt: new Date().toISOString(),
 					pending: true,
+					expectedId: result.id,
 					...(readyAttachment
 						? {
 								kind: readyAttachment.kind,

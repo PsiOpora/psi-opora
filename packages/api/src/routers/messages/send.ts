@@ -38,6 +38,10 @@ import {
 	captureWhatsappPresence,
 	sendViaPersonalNumber,
 } from "../widget-message/helpers";
+import {
+	persistSentMessage,
+	type SendClientMessageProcedureResult,
+} from "./send-result";
 import { resolveTelegramPersonalTarget } from "./telegram-personal-target";
 
 const operatorMirrorRedis: RedisClient | undefined = isRedisConfigured()
@@ -291,10 +295,13 @@ async function sendWhatsappPersonal(
 export const send = bitrixProcedure
 	.input(sendClientMessageSchema)
 	.handler(
-		async ({ input, context }): Promise<{ ok?: true; error?: string }> => {
+		async ({ input, context }): Promise<SendClientMessageProcedureResult> => {
 			const text = input.text.trim();
 			if (!text && !input.attachment) {
-				return { error: "Введите текст сообщения или прикрепите файл" };
+				return {
+					ok: false,
+					error: "Введите текст сообщения или прикрепите файл",
+				};
 			}
 			// Авторство берём из подписанной Bitrix-сессии, а не из клиентского
 			// payload: профиль оператора в React может ещё не успеть загрузиться.
@@ -310,6 +317,7 @@ export const send = bitrixProcedure
 			// не поддерживаются явной ошибкой, а не тихой попыткой угадать протокол.
 			if (input.messenger === "max-personal" && input.attachment) {
 				return {
+					ok: false,
 					error:
 						"Отправка файлов/изображений через личный номер MAX пока не поддерживается",
 				};
@@ -330,7 +338,7 @@ export const send = bitrixProcedure
 					text,
 					input.attachment,
 				);
-				if (result.error) return result;
+				if (result.error) return { ok: false, error: result.error };
 				connector = result.connector;
 				canonicalTelegramUserId = result.telegramUserId;
 				externalId = result.externalId;
@@ -369,7 +377,7 @@ export const send = bitrixProcedure
 					text,
 					input.attachment,
 				);
-				if (result.error) return result;
+				if (result.error) return { ok: false, error: result.error };
 				externalId = result.externalId;
 				connector = result.connector;
 			} else if (input.messenger === "max-personal") {
@@ -380,7 +388,7 @@ export const send = bitrixProcedure
 					input.connectorId,
 					text,
 				);
-				if (result.error) return result;
+				if (result.error) return { ok: false, error: result.error };
 				externalId = result.externalId;
 				connector = result.connector;
 			} else {
@@ -407,6 +415,7 @@ export const send = bitrixProcedure
 						error.cause ?? "",
 					);
 					return {
+						ok: false,
 						error: `Не отправлено: ${formatMessengerError(error.message)}`,
 					};
 				}
@@ -421,9 +430,8 @@ export const send = bitrixProcedure
 				}
 			}
 
-			let storedMessageId: string | undefined;
-			try {
-				storedMessageId = await insertBotMessage({
+			const persistenceResult = await persistSentMessage(
+				{
 					messenger: input.messenger,
 					userId: input.userId,
 					direction: "out",
@@ -451,12 +459,12 @@ export const send = bitrixProcedure
 								mediaFileName: input.attachment.fileName,
 							}
 						: {}),
-				});
-			} catch (err) {
-				console.error(
-					`[messages] не удалось записать сообщение в журнал: ${(err as Error).message}`,
-				);
-			}
+				},
+				insertBotMessage,
+			);
+			const storedMessageId = persistenceResult.ok
+				? persistenceResult.id
+				: undefined;
 
 			// Если диалог/коннектор известен, отражаем сообщение в Открытой линии.
 			// operatorId надёжно получен из подписанной Bitrix-сессии выше.
@@ -485,6 +493,6 @@ export const send = bitrixProcedure
 				}
 			}
 
-			return { ok: true };
+			return persistenceResult;
 		},
 	);
