@@ -44,10 +44,13 @@ export const poll = publicProcedure
 							channel.messenger,
 							channel.userId,
 							since,
+							undefined,
+							channel.connectorId,
 						).catch(() => []);
 						return rows.map((row) => ({
 							id: row.id,
 							messenger: channel.messenger,
+							connectorId: row.connectorId ?? undefined,
 							direction:
 								row.direction === "in" ? ("in" as const) : ("out" as const),
 							source: row.source,

@@ -269,8 +269,9 @@ export async function listBotMessages(
 	messenger: string,
 	userId: string,
 	limit?: number,
+	connectorId?: string,
 ) {
-	return _listBotMessages(db, messenger, userId, limit);
+	return _listBotMessages(db, messenger, userId, limit, connectorId);
 }
 
 export async function listAllBotMessages(messenger: string, userId: string) {
@@ -288,8 +289,9 @@ export async function listBotMessagesSince(
 	userId: string,
 	since: Date,
 	limit?: number,
+	connectorId?: string,
 ) {
-	return _listBotMessagesSince(db, messenger, userId, since, limit);
+	return _listBotMessagesSince(db, messenger, userId, since, limit, connectorId);
 }
 
 export async function listBotMessagesSinceForGroup(

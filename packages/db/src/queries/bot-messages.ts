@@ -281,19 +281,27 @@ export async function markBotMessageGuideEmailSent(
 		.where(eq(botMessages.id, id));
 }
 
-/** Последние сообщения диалога с клиентом (новые первыми). */
+/** Последние сообщения диалога с клиентом (новые первыми). `connectorId`
+ * сужает до конкретного личного номера (telegram-personal/whatsapp-personal),
+ * когда на одну messenger+userId приходится несколько подключённых номеров —
+ * иначе тред одного номера подмешивает сообщения другого. */
 export async function listBotMessages(
 	db: Database,
 	messenger: string,
 	userId: string,
 	limit = 50,
+	connectorId?: string,
 ): Promise<BotMessage[]> {
 	if (!db) return [];
 	return db
 		.select()
 		.from(botMessages)
 		.where(
-			and(eq(botMessages.messenger, messenger), eq(botMessages.userId, userId)),
+			and(
+				eq(botMessages.messenger, messenger),
+				eq(botMessages.userId, userId),
+				...(connectorId ? [eq(botMessages.connectorId, connectorId)] : []),
+			),
 		)
 		.orderBy(desc(botMessages.createdAt))
 		.limit(limit);
@@ -342,6 +350,7 @@ export async function listBotMessagesSince(
 	userId: string,
 	since: Date,
 	limit = 50,
+	connectorId?: string,
 ): Promise<BotMessage[]> {
 	if (!db) return [];
 	return db
@@ -352,6 +361,7 @@ export async function listBotMessagesSince(
 				eq(botMessages.messenger, messenger),
 				eq(botMessages.userId, userId),
 				gt(botMessages.updatedAt, since),
+				...(connectorId ? [eq(botMessages.connectorId, connectorId)] : []),
 			),
 		)
 		.orderBy(asc(botMessages.updatedAt))
