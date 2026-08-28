@@ -446,6 +446,7 @@ export async function listDealsInGroup(
 		| "categoryId"
 		| "stageId"
 		| "sourceId"
+		| "failReasonId"
 		| "utmSource"
 		| "utmMedium"
 		| "utmCampaign"
