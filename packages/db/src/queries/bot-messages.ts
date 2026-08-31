@@ -4,6 +4,7 @@ import {
 	desc,
 	eq,
 	gt,
+	inArray,
 	isNotNull,
 	isNull,
 	or,
@@ -32,6 +33,11 @@ function identitiesFilter(identities: ClientIdentityRef[]) {
 		),
 	);
 }
+
+// Автосообщения без привязки к оператору (напоминания, виджет) — правит и
+// удаляет любой оператор, а не только тот, кто их отправил, ведь отправил их
+// не человек.
+const UNOWNED_EDITABLE_SOURCES = ["widget", "reminder"] as const;
 
 export type BotMessage = typeof botMessages.$inferSelect;
 export type NewBotMessage = typeof botMessages.$inferInsert;
@@ -168,7 +174,10 @@ export async function getEditableBotMessage(
 				eq(botMessages.kind, "text"),
 				or(
 					eq(botMessages.operatorId, operatorId),
-					and(isNull(botMessages.operatorId), eq(botMessages.source, "widget")),
+					and(
+						isNull(botMessages.operatorId),
+						inArray(botMessages.source, UNOWNED_EDITABLE_SOURCES),
+					),
 				),
 				isNotNull(botMessages.externalId),
 				isNull(botMessages.deletedAt),
@@ -208,7 +217,10 @@ export async function getDeletableBotMessage(
 				eq(botMessages.direction, "out"),
 				or(
 					eq(botMessages.operatorId, operatorId),
-					and(isNull(botMessages.operatorId), eq(botMessages.source, "widget")),
+					and(
+						isNull(botMessages.operatorId),
+						inArray(botMessages.source, UNOWNED_EDITABLE_SOURCES),
+					),
 				),
 				isNotNull(botMessages.externalId),
 				isNull(botMessages.deletedAt),
