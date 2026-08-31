@@ -184,7 +184,8 @@ export function toClientMessageItem(
 		!row.deletedAt && row.mediaS3Key ? signedMediaUrl(row.id) : undefined;
 	const ownedByCurrentOperator =
 		row.operatorId === currentOperatorId ||
-		(row.operatorId === null && row.source === "widget");
+		(row.operatorId === null &&
+			(row.source === "widget" || row.source === "reminder"));
 	const isSupportedMessenger =
 		row.messenger === "telegram" ||
 		row.messenger === "max" ||
