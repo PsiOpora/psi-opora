@@ -107,6 +107,14 @@ export const env = createEnv({
 		// (imconnector.register per-account), чтобы несколько номеров можно
 		// было активировать на одной линии одновременно.
 		TG_USERBOT_CONNECTOR_ID: z.string().default("psiopora_tg_personal"),
+		// Прокси для MTProto-соединений mtcute (личные номера Telegram) — сервер
+		// сейчас расположен в РФ, и прямые подключения к DC Telegram оттуда
+		// ненадёжны/блокируются, прокси нужен всегда, а не только для кода
+		// подтверждения (в отличие от TG_API_PROXY_* выше, который проксирует
+		// только HTTPS Bot API). Формат — то, что понимает mtcute
+		// `proxyTransportFromUrl`: socks5://user:pass@host:port,
+		// http(s)://user:pass@host:port или https://t.me/proxy?server=...&secret=...
+		TG_USERBOT_PROXY: z.string().optional(),
 
 		// Личный номер MAX через неофициальный reverse-engineered протокол.
 		MAX_USERBOT_CONNECTOR_ID: z.string().default("psiopora_max_personal"),
@@ -130,6 +138,14 @@ export const env = createEnv({
 		WAHA_API_KEY: z.string().optional(),
 		WAHA_WEBHOOK_URL: z.string().optional(),
 		WAHA_WEBHOOK_SECRET: z.string().optional(),
+		// Прокси для самого WhatsApp-соединения (не для нашего HTTP до контейнера
+		// WAHA) — сервер в РФ, задаётся per-session в config.proxy при создании
+		// сессии (см. wahaCreateSession в packages/waha). Формат — то, что
+		// понимает WAHA (ProxyConfig её OpenAPI-схемы): server — "host:port"
+		// или "socks5://host:port" без креденшлов, они отдельно в username/password.
+		WAHA_PROXY_SERVER: z.string().optional(),
+		WAHA_PROXY_USERNAME: z.string().optional(),
+		WAHA_PROXY_PASSWORD: z.string().optional(),
 		// Префикс ID коннектора — см. комментарий у TG_USERBOT_CONNECTOR_ID.
 		WA_PERSONAL_CONNECTOR_ID: z.string().default("psiopora_wa_personal"),
 
@@ -209,6 +225,7 @@ export const env = createEnv({
 		BITRIX_CALENDAR_WEBHOOK_URL: process.env.BITRIX_CALENDAR_WEBHOOK_URL,
 		TG_USERBOT_ENCRYPTION_KEY: process.env.TG_USERBOT_ENCRYPTION_KEY,
 		TG_USERBOT_CONNECTOR_ID: process.env.TG_USERBOT_CONNECTOR_ID,
+		TG_USERBOT_PROXY: process.env.TG_USERBOT_PROXY,
 		MAX_USERBOT_CONNECTOR_ID: process.env.MAX_USERBOT_CONNECTOR_ID,
 		MAX_USERBOT_APP_VERSION: process.env.MAX_USERBOT_APP_VERSION,
 		MAX_USERBOT_BUILD_NUMBER: process.env.MAX_USERBOT_BUILD_NUMBER,
@@ -217,6 +234,9 @@ export const env = createEnv({
 		WAHA_API_KEY: process.env.WAHA_API_KEY,
 		WAHA_WEBHOOK_URL: process.env.WAHA_WEBHOOK_URL,
 		WAHA_WEBHOOK_SECRET: process.env.WAHA_WEBHOOK_SECRET,
+		WAHA_PROXY_SERVER: process.env.WAHA_PROXY_SERVER,
+		WAHA_PROXY_USERNAME: process.env.WAHA_PROXY_USERNAME,
+		WAHA_PROXY_PASSWORD: process.env.WAHA_PROXY_PASSWORD,
 		WA_PERSONAL_CONNECTOR_ID: process.env.WA_PERSONAL_CONNECTOR_ID,
 		ADMIN_EMAILS: process.env.ADMIN_EMAILS,
 		CRON_SECRET: process.env.CRON_SECRET,
