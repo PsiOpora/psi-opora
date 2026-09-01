@@ -72,8 +72,12 @@ function readInteger(value: unknown): number | undefined {
 
 export interface SessionInitResult {
 	/** `callsSeed` из ответа SESSION_INIT — используется для вычисления
-	 * ChatCacheFingerprint (поле `mode` в AUTH_REQUEST), как у Komet. */
-	callsSeed: number | undefined;
+	 * ChatCacheFingerprint (поле `mode` в AUTH_REQUEST), как у Komet.
+	 * Приходит как 64-битное целое; decodePayload (frame.ts) декодирует int64
+	 * через useBigInt64 и normalizeBigInts переводит bigint в десятичную
+	 * строку (чтобы не терять точность вне Number.MAX_SAFE_INTEGER) — поэтому
+	 * здесь ждём string, а не number, иначе поле никогда не распознаётся. */
+	callsSeed: string | undefined;
 }
 
 /** Экспортируется для переиспользования в relay.ts (Фаза 2). */
@@ -90,7 +94,9 @@ export async function sessionInit(
 		`[max-personal-login] SESSION_INIT response: ${JSON.stringify(response)}`,
 	);
 	const callsSeed =
-		typeof response.callsSeed === "number" ? response.callsSeed : undefined;
+		typeof response.callsSeed === "string" && /^-?\d+$/.test(response.callsSeed)
+			? response.callsSeed
+			: undefined;
 	return { callsSeed };
 }
 
@@ -106,7 +112,7 @@ export async function sessionInit(
  *
  * Дайджесты — публичные константы из исходников Komet (chat_cache_fingerprint.dart).
  */
-function chatCacheFingerprint(callsSeed: number, deviceId: string): Uint8Array {
+function chatCacheFingerprint(callsSeed: string, deviceId: string): Uint8Array {
 	const SIGNATURE_DIGEST = Buffer.from(
 		"1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
 		"hex",
@@ -121,7 +127,8 @@ function chatCacheFingerprint(callsSeed: number, deviceId: string): Uint8Array {
 	);
 
 	const seed = Buffer.allocUnsafe(8);
-	// callsSeed — 32-битное целое от сервера, пишем в int64 big-endian как Dart
+	// callsSeed — 64-битное целое от сервера (в строке, см. SessionInitResult),
+	// пишем в int64 big-endian как Dart
 	seed.writeBigInt64BE(BigInt(callsSeed), 0);
 	const device = Buffer.from(deviceId, "utf8");
 
@@ -137,7 +144,7 @@ function chatCacheFingerprint(callsSeed: number, deviceId: string): Uint8Array {
 }
 async function connectAndInit(
 	deviceId: string,
-): Promise<{ client: MaxProtocolClient; callsSeed: number | undefined }> {
+): Promise<{ client: MaxProtocolClient; callsSeed: string | undefined }> {
 	const client = new MaxProtocolClient({
 		proxy: env.MAX_USERBOT_PROXY,
 	});
