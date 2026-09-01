@@ -138,6 +138,14 @@ export const env = createEnv({
 		WAHA_API_KEY: z.string().optional(),
 		WAHA_WEBHOOK_URL: z.string().optional(),
 		WAHA_WEBHOOK_SECRET: z.string().optional(),
+		// Прокси для самого WhatsApp-соединения (не для нашего HTTP до контейнера
+		// WAHA) — сервер в РФ, задаётся per-session в config.proxy при создании
+		// сессии (см. wahaCreateSession в packages/waha). Формат — то, что
+		// понимает WAHA (ProxyConfig её OpenAPI-схемы): server — "host:port"
+		// или "socks5://host:port" без креденшлов, они отдельно в username/password.
+		WAHA_PROXY_SERVER: z.string().optional(),
+		WAHA_PROXY_USERNAME: z.string().optional(),
+		WAHA_PROXY_PASSWORD: z.string().optional(),
 		// Префикс ID коннектора — см. комментарий у TG_USERBOT_CONNECTOR_ID.
 		WA_PERSONAL_CONNECTOR_ID: z.string().default("psiopora_wa_personal"),
 
@@ -226,6 +234,9 @@ export const env = createEnv({
 		WAHA_API_KEY: process.env.WAHA_API_KEY,
 		WAHA_WEBHOOK_URL: process.env.WAHA_WEBHOOK_URL,
 		WAHA_WEBHOOK_SECRET: process.env.WAHA_WEBHOOK_SECRET,
+		WAHA_PROXY_SERVER: process.env.WAHA_PROXY_SERVER,
+		WAHA_PROXY_USERNAME: process.env.WAHA_PROXY_USERNAME,
+		WAHA_PROXY_PASSWORD: process.env.WAHA_PROXY_PASSWORD,
 		WA_PERSONAL_CONNECTOR_ID: process.env.WA_PERSONAL_CONNECTOR_ID,
 		ADMIN_EMAILS: process.env.ADMIN_EMAILS,
 		CRON_SECRET: process.env.CRON_SECRET,

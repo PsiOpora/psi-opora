@@ -199,6 +199,18 @@ export async function wahaCreateSession(
 				// Статусы («сторис») в линию не тащим; группы пропускает сам
 				// вебхук-обработчик — здесь фильтр не у всех движков одинаков.
 				ignore: { status: true },
+				// Сервер в РФ — само WhatsApp-соединение (не наш HTTP до
+				// контейнера WAHA) идёт через прокси, иначе WhatsApp не
+				// присылает коды подтверждения (см. WAHA_PROXY_* в env.ts).
+				...(env.WAHA_PROXY_SERVER
+					? {
+							proxy: {
+								server: env.WAHA_PROXY_SERVER,
+								username: env.WAHA_PROXY_USERNAME,
+								password: env.WAHA_PROXY_PASSWORD,
+							},
+						}
+					: {}),
 			},
 		},
 	});
