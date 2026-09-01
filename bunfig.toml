@@ -1,0 +1,11 @@
+[install]
+# Bun 1.4 переключил линкер по умолчанию на "isolated" (симлинки на общий
+# стор в node_modules/.bun/, как у pnpm). @mtcute/node грузит .wasm через
+# createRequire(import.meta.url).resolve('@mtcute/wasm/...'), а этот вызов
+# не резолвит симлинки перед подъёмом по node_modules — в изолированном
+# layout node_modules/@mtcute/node оказывается симлинком, у которого нет
+# @mtcute/wasm среди прямых соседей (это транзитивная зависимость), и
+# require.resolve падает с "Cannot find module '@mtcute/wasm/mtcute-simd.wasm'".
+# Классический плоский (hoisted) layout кладёт @mtcute/wasm реальным файлом
+# рядом с @mtcute/node, так что резолв работает.
+linker = "hoisted"
