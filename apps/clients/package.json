@@ -22,7 +22,7 @@
     "date-fns": "^4.4.0",
     "geist": "^1.7.2",
     "lucide-react": "^1.35.0",
-    "next": "16.3.3",
+    "next": "16.3.4",
     "radix-ui": "1.6.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -30,7 +30,7 @@
     "sonner": "^2.0.8",
     "superjson": "2.2.6",
     "tailwind-merge": "^3.6.0",
-    "zod": "4.5.1"
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
