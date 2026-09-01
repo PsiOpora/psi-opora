@@ -112,11 +112,11 @@ function chatCacheFingerprint(callsSeed: number, deviceId: string): Uint8Array {
 		"hex",
 	);
 	const SO_DIGEST = Buffer.from(
-		"90e2fb8745b17b42a10182f8d8ac590e3fca5b311e2ce2d5144fa2c18cb3090d",
+		"634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
 		"hex",
 	);
 	const DEX_DIGEST = Buffer.from(
-		"0a6265f6e5d8231b9cba641f8c40475e6f3baeb06ed41b804b9bf7307aa4214e",
+		"38cff46f392dc1734c308be011c2f0d8da152a390b41063dbb2c913e3032f4b3",
 		"hex",
 	);
 
