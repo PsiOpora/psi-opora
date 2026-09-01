@@ -1,5 +1,6 @@
 import { MemoryStorage, SentCode, tl } from "@mtcute/core";
-import { TelegramClient } from "@mtcute/node";
+import { proxyTransportFromUrl, TelegramClient } from "@mtcute/node";
+import { env } from "@psi-opora/config";
 
 export interface TelegramApiCredentials {
 	apiId: number;
@@ -22,6 +23,9 @@ function createClient(credentials: TelegramApiCredentials): TelegramClient {
 		apiId: credentials.apiId,
 		apiHash: credentials.apiHash,
 		storage: new MemoryStorage(),
+		transport: env.TG_USERBOT_PROXY
+			? proxyTransportFromUrl(env.TG_USERBOT_PROXY)
+			: undefined,
 	});
 }
 

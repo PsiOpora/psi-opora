@@ -1,6 +1,11 @@
 import { MemoryStorage, MtPeerNotFoundError, type tl } from "@mtcute/core";
 import type { Message } from "@mtcute/node";
-import { InputMedia, TelegramClient } from "@mtcute/node";
+import {
+	InputMedia,
+	proxyTransportFromUrl,
+	TelegramClient,
+} from "@mtcute/node";
+import { env } from "@psi-opora/config";
 import type { TelegramApiCredentials } from "./login";
 
 /** Фото/файл, уже скачанный из нашего S3 (см. packages/api/
@@ -42,6 +47,9 @@ export async function createUserbotClient(
 		apiId: credentials.apiId,
 		apiHash: credentials.apiHash,
 		storage: new MemoryStorage(),
+		transport: env.TG_USERBOT_PROXY
+			? proxyTransportFromUrl(env.TG_USERBOT_PROXY)
+			: undefined,
 	});
 	await tg.importSession(session);
 	return tg;

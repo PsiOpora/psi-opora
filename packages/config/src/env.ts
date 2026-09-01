@@ -107,6 +107,14 @@ export const env = createEnv({
 		// (imconnector.register per-account), чтобы несколько номеров можно
 		// было активировать на одной линии одновременно.
 		TG_USERBOT_CONNECTOR_ID: z.string().default("psiopora_tg_personal"),
+		// Прокси для MTProto-соединений mtcute (личные номера Telegram) — сервер
+		// сейчас расположен в РФ, и прямые подключения к DC Telegram оттуда
+		// ненадёжны/блокируются, прокси нужен всегда, а не только для кода
+		// подтверждения (в отличие от TG_API_PROXY_* выше, который проксирует
+		// только HTTPS Bot API). Формат — то, что понимает mtcute
+		// `proxyTransportFromUrl`: socks5://user:pass@host:port,
+		// http(s)://user:pass@host:port или https://t.me/proxy?server=...&secret=...
+		TG_USERBOT_PROXY: z.string().optional(),
 
 		// Личный номер MAX через неофициальный reverse-engineered протокол.
 		MAX_USERBOT_CONNECTOR_ID: z.string().default("psiopora_max_personal"),
@@ -209,6 +217,7 @@ export const env = createEnv({
 		BITRIX_CALENDAR_WEBHOOK_URL: process.env.BITRIX_CALENDAR_WEBHOOK_URL,
 		TG_USERBOT_ENCRYPTION_KEY: process.env.TG_USERBOT_ENCRYPTION_KEY,
 		TG_USERBOT_CONNECTOR_ID: process.env.TG_USERBOT_CONNECTOR_ID,
+		TG_USERBOT_PROXY: process.env.TG_USERBOT_PROXY,
 		MAX_USERBOT_CONNECTOR_ID: process.env.MAX_USERBOT_CONNECTOR_ID,
 		MAX_USERBOT_APP_VERSION: process.env.MAX_USERBOT_APP_VERSION,
 		MAX_USERBOT_BUILD_NUMBER: process.env.MAX_USERBOT_BUILD_NUMBER,
