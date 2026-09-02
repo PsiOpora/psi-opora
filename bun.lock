@@ -385,6 +385,7 @@
         "@psi-opora/bot-core": "workspace:*",
         "@psi-opora/config": "workspace:*",
         "socks": "2.8.9",
+        "zod": "4.5.4",
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
