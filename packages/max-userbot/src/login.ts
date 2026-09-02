@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { env } from "@psi-opora/config";
+import { z } from "zod";
 import { MaxProtocolClient } from "./protocol/client";
 import { OPCODE } from "./protocol/opcodes";
 
@@ -80,6 +81,21 @@ export interface SessionInitResult {
 	callsSeed: string | undefined;
 }
 
+const callsSeedSchema = z
+	.string()
+	.regex(/^-?\d+$/)
+	.refine(
+		(value) => {
+			try {
+				const seed = BigInt(value);
+				return seed >= -(1n << 63n) && seed <= (1n << 63n) - 1n;
+			} catch {
+				return false;
+			}
+		},
+		{ message: "callsSeed must be a signed int64" },
+	);
+
 /** Экспортируется для переиспользования в relay.ts (Фаза 2). */
 export async function sessionInit(
 	client: MaxProtocolClient,
@@ -93,10 +109,7 @@ export async function sessionInit(
 	console.log(
 		`[max-personal-login] SESSION_INIT response: ${JSON.stringify(response)}`,
 	);
-	const callsSeed =
-		typeof response.callsSeed === "string" && /^-?\d+$/.test(response.callsSeed)
-			? response.callsSeed
-			: undefined;
+	const callsSeed = callsSeedSchema.safeParse(response.callsSeed).data;
 	return { callsSeed };
 }
 

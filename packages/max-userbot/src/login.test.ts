@@ -1,5 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeMaxPhone, userAgentPayload } from "./login";
+import { normalizeMaxPhone, sessionInit, userAgentPayload } from "./login";
+import type { MaxProtocolClient } from "./protocol/client";
+
+function sessionInitClient(
+	response: Record<string, unknown>,
+): MaxProtocolClient {
+	return {
+		request: async () => response,
+	} as MaxProtocolClient;
+}
 
 describe("userAgentPayload", () => {
 	test("представляется актуальной поддерживаемой Android-сборкой MAX", () => {
@@ -25,5 +34,33 @@ describe("normalizeMaxPhone", () => {
 
 	test("отклоняет неоднозначный номер", () => {
 		expect(() => normalizeMaxPhone("9991234567")).toThrow(/международном/);
+	});
+});
+
+describe("sessionInit", () => {
+	test("сохраняет callsSeed в границах signed int64", async () => {
+		for (const callsSeed of ["-9223372036854775808", "9223372036854775807"]) {
+			const result = await sessionInit(
+				sessionInitClient({ callsSeed }),
+				"device-id",
+			);
+			expect(result.callsSeed).toBe(callsSeed);
+		}
+	});
+
+	test("отклоняет callsSeed вне signed int64 и нестроковые значения", async () => {
+		for (const callsSeed of [
+			"-9223372036854775809",
+			"9223372036854775808",
+			"not-an-integer",
+			123,
+			null,
+		]) {
+			const result = await sessionInit(
+				sessionInitClient({ callsSeed }),
+				"device-id",
+			);
+			expect(result.callsSeed).toBeUndefined();
+		}
 	});
 });
