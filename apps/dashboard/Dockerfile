@@ -1,7 +1,7 @@
 FROM oven/bun:1-alpine AS base
 # @mtcute/node (через @psi-opora/tg-userbot) тянет нативные аддоны
 # (better-sqlite3), которым в Alpine-образе нужны Python и компилятор.
-RUN apk add --no-cache libc6-compat git python3 g++ make
+RUN apk add --no-cache libc6-compat git python3 g++ make curl
 WORKDIR /app
 
 # --- Prepare ---
