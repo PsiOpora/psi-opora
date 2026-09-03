@@ -40,13 +40,6 @@ spec:
             - configMapRef:
                 name: redis-connection
           env:
-            # Явно перекрывает старый облачный URL из общего Secret.
-            - name: REDIS_URL
-              value: ""
-            # Service WAHA внутри кластера слушает 3000;
-            # NodePort 30050 и compose-порт 3050 здесь не используются.
-            - name: WAHA_URL
-              value: "http://waha:3000"
             - name: LOG_LEVEL
               value: "error"
           readinessProbe:
