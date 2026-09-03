@@ -29,6 +29,12 @@ export interface ContactData {
 	consentGranted?: boolean;
 	campaign?: string;
 	source?: string;
+	/** ClientID Яндекс.Метрики визита, с которого пришёл клиент (см.
+	 * packages/bot-core/src/utils/utm.ts extractYmClientId) — сохраняется в
+	 * Bitrix, если настроено поле BITRIX_YM_CLIENT_ID_FIELD, и используется для
+	 * отправки офлайн-конверсии «Запись на консультацию» в Яндекс.Метрику
+	 * (см. packages/bot-core/src/utils/yandex-metrika.ts). */
+	ymClientId?: string;
 	telegramUserId?: number;
 	messenger?: string;
 	/** Внешний ID чата, переданный в imconnector.send.messages (chat.id) —

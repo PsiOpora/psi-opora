@@ -37,6 +37,10 @@ export interface ScenarioDispatchDeps {
 	chatId?: number;
 	source?: string;
 	campaign?: string;
+	/** ClientID Яндекс.Метрики визита, с которого клиент открыл бота (см.
+	 * extractYmClientId) — нужен, чтобы при записи на консультацию отправить
+	 * в Метрику офлайн-конверсию, привязанную к исходному визиту. */
+	ymClientId?: string;
 	/** Данные кампании гайда при out.state.campaignId — переопределяет тему/текст письма и фиксирует выдачу. */
 	guideCampaign?: GuideCampaignContext | null;
 }
@@ -251,6 +255,7 @@ export async function dispatchScenarioOutput(
 			chatId: deps.chatId,
 			source: deps.source,
 			campaign: deps.campaign,
+			ymClientId: deps.ymClientId,
 			comment: describeLead(out.lead, deps.texts, deps.guideCampaign?.title),
 			flow: out.lead.flow,
 			audience: out.lead.audience,
@@ -322,6 +327,7 @@ export async function dispatchScenarioOutput(
 			chatId: deps.chatId,
 			source: deps.source,
 			campaign: deps.campaign,
+			ymClientId: deps.ymClientId,
 		});
 		if (contactId) {
 			console.log(

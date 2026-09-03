@@ -168,6 +168,23 @@ export const env = createEnv({
 		OPENROUTER_MODEL: z
 			.string()
 			.default("nvidia/nemotron-3-ultra-550b-a55b:free"),
+
+		// Яндекс.Метрика — автоматическая офлайн-конверсия «Запись на консультацию»
+		// при создании сделки в Bitrix (packages/bot-core/src/utils/yandex-metrika.ts).
+		// Без счётчика и токена отправка молча пропускается (лог warn), сделка
+		// в Bitrix создаётся как обычно.
+		YANDEX_METRIKA_COUNTER_ID: z.string().optional(),
+		// OAuth-токен с правами на счётчик: https://oauth.yandex.ru/authorize?response_type=token&client_id=<id приложения с доступом к Метрике>
+		YANDEX_METRIKA_OAUTH_TOKEN: z.string().optional(),
+		// Идентификатор цели в Метрике (Target в CSV офлайн-конверсий) — цель
+		// типа «JavaScript-событие» с условием «содержит», созданная заранее
+		// в счётчике: https://yandex.ru/dev/metrika/ru/management/offline-conv
+		YANDEX_METRIKA_CONSULTATION_GOAL: z.string().default("consultation_booked"),
+		// Код пользовательского поля в Bitrix (Сделка), куда пишется ClientID
+		// Метрики — создаётся вручную в CRM → Настройки → Пользовательские поля
+		// сделки. Без него ClientID просто не сохраняется в карточке сделки,
+		// на отправку конверсии это не влияет.
+		BITRIX_YM_CLIENT_ID_FIELD: z.string().optional(),
 	},
 	client: {
 		NEXT_PUBLIC_APP_NAME: z.string().default('Психологический центр "Опора"'),
@@ -246,6 +263,11 @@ export const env = createEnv({
 		HATCHET_CLIENT_TLS_STRATEGY: process.env.HATCHET_CLIENT_TLS_STRATEGY,
 		OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
 		OPENROUTER_MODEL: process.env.OPENROUTER_MODEL,
+		YANDEX_METRIKA_COUNTER_ID: process.env.YANDEX_METRIKA_COUNTER_ID,
+		YANDEX_METRIKA_OAUTH_TOKEN: process.env.YANDEX_METRIKA_OAUTH_TOKEN,
+		YANDEX_METRIKA_CONSULTATION_GOAL:
+			process.env.YANDEX_METRIKA_CONSULTATION_GOAL,
+		BITRIX_YM_CLIENT_ID_FIELD: process.env.BITRIX_YM_CLIENT_ID_FIELD,
 		NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
 		NEXT_PUBLIC_APP_SHORT_NAME: process.env.NEXT_PUBLIC_APP_SHORT_NAME,
 		NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,

@@ -13,6 +13,10 @@ export interface ConsultationSession {
 	email?: string;
 	campaign?: string;
 	source?: string;
+	/** ClientID Яндекс.Метрики визита, с которого пришёл клиент (см. extractYmClientId) —
+	 * нужен, чтобы при создании сделки отправить в Метрику офлайн-конверсию
+	 * «Запись на консультацию», привязанную к исходному рекламному визиту. */
+	ymClientId?: string;
 }
 
 export type AppContext = Context & SessionFlavor<ConsultationSession>;

@@ -9,6 +9,7 @@ import {
 	decodeStartParam,
 	dispatchScenarioOutput,
 	enrichCrmFromClientMessage,
+	extractYmClientId,
 	formatUtmLog,
 	type GuideCampaignContext,
 	getScenarioTexts,
@@ -392,6 +393,7 @@ export function createMaxBot({
 			userId: ctx.user?.user_id,
 			source: ctx.session.source,
 			campaign: ctx.session.campaign,
+			ymClientId: ctx.session.ymClientId,
 			guideCampaign,
 		});
 	};
@@ -412,7 +414,13 @@ export function createMaxBot({
 		// с источником рекламы через `_` (SCHOOL_VK, см. splitStartParam). См.
 		// такую же ветку в bot.command("start") у TG-бота (packages/bot-core/src/bot.ts).
 		// Декодируем до сравнения: кириллица в ссылке приходит percent-encoded.
-		const startParam = decodeStartParam(startPayload);
+		// ClientID Яндекс.Метрики сайт приклеивает суффиксом `_ymNNN` (см.
+		// extractYmClientId) — отрезаем его до разбора кампании/UTM, чтобы
+		// SITE_CODES и splitStartParam видели параметр как раньше.
+		const { code: startParam, ymClientId } = extractYmClientId(
+			decodeStartParam(startPayload),
+		);
+		if (ymClientId) ctx.session.ymClientId = ymClientId;
 		const resolved = startParam
 			? await resolveGuideCampaignStart(startParam)
 			: null;

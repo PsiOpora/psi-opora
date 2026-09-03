@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { isValidCampaignKeyword, parseUtmParams, splitStartParam } from "./utm";
+import {
+	extractYmClientId,
+	isValidCampaignKeyword,
+	parseUtmParams,
+	splitStartParam,
+} from "./utm";
 
 describe("parseUtmParams", () => {
 	test("декодирует percent-encoded код до поиска в справочнике", () => {
@@ -48,6 +53,40 @@ describe("splitStartParam", () => {
 	test("пустая часть до/после подчёркивания — без источника, всё слово целиком", () => {
 		expect(splitStartParam("_VK")).toEqual({ keyword: "_VK" });
 		expect(splitStartParam("SCHOOL_")).toEqual({ keyword: "SCHOOL_" });
+	});
+});
+
+describe("extractYmClientId", () => {
+	test("нет суффикса — код возвращается как есть, ClientID нет", () => {
+		expect(extractYmClientId("search_anorexia_708811857")).toEqual({
+			code: "search_anorexia_708811857",
+		});
+	});
+
+	test("отрезает суффикс _ymNNN и возвращает остаток отдельно", () => {
+		expect(
+			extractYmClientId("search_anorexia_708811857_ym163972457524306386"),
+		).toEqual({
+			code: "search_anorexia_708811857",
+			ymClientId: "163972457524306386",
+		});
+	});
+
+	test("работает и с коротким кодом без источника", () => {
+		expect(extractYmClientId("SCHOOL_VK_ym1234567890")).toEqual({
+			code: "SCHOOL_VK",
+			ymClientId: "1234567890",
+		});
+	});
+
+	test("слишком короткое число после _ym не считается ClientID", () => {
+		expect(extractYmClientId("SCHOOL_ym123")).toEqual({
+			code: "SCHOOL_ym123",
+		});
+	});
+
+	test("undefined остаётся undefined", () => {
+		expect(extractYmClientId(undefined)).toEqual({ code: undefined });
 	});
 });
 

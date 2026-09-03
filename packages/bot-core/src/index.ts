@@ -150,11 +150,17 @@ export {
 	buildMaxStartLink,
 	buildStartLink,
 	decodeStartParam,
+	extractYmClientId,
 	formatUtmLog,
 	isValidCampaignKeyword,
 	isValidStartParam,
 	parseUtmParams,
+	type StartParamWithClientId,
 	splitStartParam,
 	type UtmParams,
 } from "./utils/utm";
 export { hasPhoneNumber, isValidEmail } from "./utils/validation";
+export {
+	type ConsultationGoalParams,
+	sendConsultationGoalToYandexMetrika,
+} from "./utils/yandex-metrika";
