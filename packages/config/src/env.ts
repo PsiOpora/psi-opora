@@ -122,10 +122,6 @@ export const env = createEnv({
 		// оперативно обновить без правки протокольного кода при следующем релизе.
 		MAX_USERBOT_APP_VERSION: z.string().default("26.25.0"),
 		MAX_USERBOT_BUILD_NUMBER: z.coerce.number().int().positive().default(6790),
-		// SOCKS5-прокси для подключения к API MAX (api.oneme.ru) — обязательно
-		// через российский IP, иначе сервер определяет VPN/зарубежный IP и не
-		// отправляет коды подтверждения. Формат: socks5://user:pass@host:port
-		MAX_USERBOT_PROXY: z.string().optional(),
 
 		// WhatsApp userbot (личный номер как коннектор Открытых линий, WAHA).
 		// Постоянное соединение держит контейнер WAHA. В Docker Compose и k3s
@@ -229,7 +225,6 @@ export const env = createEnv({
 		MAX_USERBOT_CONNECTOR_ID: process.env.MAX_USERBOT_CONNECTOR_ID,
 		MAX_USERBOT_APP_VERSION: process.env.MAX_USERBOT_APP_VERSION,
 		MAX_USERBOT_BUILD_NUMBER: process.env.MAX_USERBOT_BUILD_NUMBER,
-		MAX_USERBOT_PROXY: process.env.MAX_USERBOT_PROXY,
 		WAHA_URL: process.env.WAHA_URL,
 		WAHA_API_KEY: process.env.WAHA_API_KEY,
 		WAHA_WEBHOOK_URL: process.env.WAHA_WEBHOOK_URL,

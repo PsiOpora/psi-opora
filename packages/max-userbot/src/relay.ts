@@ -130,7 +130,6 @@ export async function createUserbotClient(
 	const session: MaxUserbotSession = JSON.parse(sessionJson);
 
 	const client = new MaxProtocolClient({
-		proxy: env.MAX_USERBOT_PROXY,
 		onPush: (opcode, payload) => dispatchPush(opcode, payload, handlers),
 		onClose: handlers.onDisconnect,
 	});

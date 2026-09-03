@@ -38,7 +38,7 @@ spec:
           # обновлять стоит вручную и осознанно (см. docker-compose.yml,
           # где запинена та же версия). Always — иначе при :latest нода
           # держит закэшированный образ и не видит новых сборок.
-          image: devlikeapro/waha:latest-2026.8.1
+          image: devlikeapro/waha:latest-2026.8.2
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
@@ -48,6 +48,25 @@ spec:
             # После рестарта пода поднимать все ранее запущенные сессии.
             - name: WHATSAPP_RESTART_ALL_SESSIONS
               value: "True"
+            # Прокси для NOWEB (Baileys) читается только из этих env,
+            # per-session proxy в теле /api/sessions (см. packages/waha)
+            # движком NOWEB игнорируется — WAHA_PROXY_* в секрете те же,
+            # просто под другими именами.
+            - name: WHATSAPP_PROXY_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: psi-opora-env
+                  key: WAHA_PROXY_SERVER
+            - name: WHATSAPP_PROXY_SERVER_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: psi-opora-env
+                  key: WAHA_PROXY_USERNAME
+            - name: WHATSAPP_PROXY_SERVER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: psi-opora-env
+                  key: WAHA_PROXY_PASSWORD
           envFrom:
             - secretRef:
                 name: psi-opora-env

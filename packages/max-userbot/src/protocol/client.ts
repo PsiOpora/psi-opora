@@ -1,5 +1,4 @@
 import { connect, type TLSSocket } from "node:tls";
-import { SocksClient } from "socks";
 import {
 	decodeHeader,
 	decodePayload,
@@ -18,38 +17,9 @@ export const MAX_API_PORT = 443;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
-/** Разбирает SOCKS5 proxy URL (socks5://user:pass@host:port) в параметры
- * для библиотеки `socks`. */
-function parseSocksProxy(url: string): {
-	host: string;
-	port: number;
-	type: 5;
-	userId?: string;
-	password?: string;
-} {
-	const parsed = new URL(url);
-	const result: {
-		host: string;
-		port: number;
-		type: 5;
-		userId?: string;
-		password?: string;
-	} = {
-		host: parsed.hostname,
-		port: Number(parsed.port) || 1080,
-		type: 5,
-	};
-	if (parsed.username) result.userId = decodeURIComponent(parsed.username);
-	if (parsed.password) result.password = decodeURIComponent(parsed.password);
-	return result;
-}
-
 export interface MaxProtocolClientOptions {
 	host?: string;
 	port?: number;
-	/** SOCKS5 proxy URL (socks5://user:pass@host:port) — для подключения к
-	 * MAX через российский IP (сервер блокирует коды с зарубежных/VPN адресов). */
-	proxy?: string;
 	/** Входящие пуш-сообщения сервера (cmd=0 без ожидающего запроса с таким же
 	 * seq) — понадобится Фазе 2 для приёма сообщений в реальном времени. */
 	onPush?: (opcode: number, payload: Record<string, unknown>) => void;
@@ -102,49 +72,22 @@ export class MaxProtocolClient {
 		const host = this.options.host ?? MAX_API_HOST;
 		const port = this.options.port ?? MAX_API_PORT;
 
-		if (this.options.proxy) {
-			// Подключаемся через SOCKS5-прокси: сначала устанавливаем TCP-туннель,
-			// затем поверх него — TLS (для SNI и шифрования).
-			const proxyOpts = parseSocksProxy(this.options.proxy);
-			console.log(
-				`[max-userbot] подключение к ${host}:${port} через SOCKS5 прокси ${proxyOpts.host}:${proxyOpts.port}`,
+		await new Promise<void>((resolve, reject) => {
+			let settled = false;
+			const socket = connect({ host, port }, () => {
+				settled = true;
+				resolve();
+			});
+			socket.once("error", (err) => {
+				if (!settled) reject(err);
+			});
+			socket.on("data", (chunk: Buffer) => this.onData(chunk));
+			socket.on("error", (err) => this.onFatalError(err));
+			socket.on("close", () =>
+				this.onFatalError(new Error("Соединение с MAX закрыто сервером")),
 			);
-			const { socket: rawSocket } = await SocksClient.createConnection({
-				proxy: proxyOpts,
-				command: "connect",
-				destination: { host, port },
-			});
-			await new Promise<void>((resolve, reject) => {
-				const tlsSocket = connect(
-					{ host, port, socket: rawSocket, servername: host },
-					() => resolve(),
-				);
-				tlsSocket.once("error", (err) => reject(err));
-				tlsSocket.on("data", (chunk: Buffer) => this.onData(chunk));
-				tlsSocket.on("error", (err) => this.onFatalError(err));
-				tlsSocket.on("close", () =>
-					this.onFatalError(new Error("Соединение с MAX закрыто сервером")),
-				);
-				this.socket = tlsSocket;
-			});
-		} else {
-			await new Promise<void>((resolve, reject) => {
-				let settled = false;
-				const socket = connect({ host, port }, () => {
-					settled = true;
-					resolve();
-				});
-				socket.once("error", (err) => {
-					if (!settled) reject(err);
-				});
-				socket.on("data", (chunk: Buffer) => this.onData(chunk));
-				socket.on("error", (err) => this.onFatalError(err));
-				socket.on("close", () =>
-					this.onFatalError(new Error("Соединение с MAX закрыто сервером")),
-				);
-				this.socket = socket;
-			});
-		}
+			this.socket = socket;
+		});
 	}
 
 	close(): void {
