@@ -23,6 +23,7 @@ mock.module("@psi-opora/db/queries", () => ({
 	upsertBotFunnelEvent: () => Promise.resolve(),
 	upsertBitrixCrmLink: () => Promise.resolve(),
 	upsertBotUser: () => Promise.resolve(),
+	getYandexMetrikaSettings: () => Promise.resolve(null),
 }));
 
 const { createBot } = await import("./bot");

@@ -1,4 +1,4 @@
-import { env } from "@psi-opora/config";
+import { getYandexMetrikaSettings } from "@psi-opora/db/queries";
 import { bitrixPost, getBotId, getSourceId } from "./client";
 import { DEFAULT_ASSIGNED_BY_ID } from "./contact";
 import type { DealData } from "./types";
@@ -40,11 +40,19 @@ function buildFlowLabel(data: DealData): string | undefined {
 	return undefined;
 }
 
-export function buildDealFields(data: DealData, contactId: number) {
+export async function buildDealFields(data: DealData, contactId: number) {
 	const messenger = data.messenger ?? "telegram";
 	const botId = getBotId(messenger);
 	const description = [data.source, data.campaign].filter(Boolean).join(" / ");
 	const flowLabel = buildFlowLabel(data);
+
+	// Код поля для ClientID Метрики настраивается администратором в дашборде
+	// (/settings/metrika), а не в .env — без него просто не пишем это поле.
+	const metrikaSettings = data.ymClientId
+		? await getYandexMetrikaSettings()
+		: null;
+	const clientIdField = metrikaSettings?.bitrixClientIdField;
+
 	return {
 		TITLE: `Заявка (${[flowLabel, botId].filter(Boolean).join(", ")}): ${data.name}`,
 		CONTACT_IDS: [contactId],
@@ -57,10 +65,8 @@ export function buildDealFields(data: DealData, contactId: number) {
 		UTM_CONTENT: botId,
 		UF_CRM_1779643796551:
 			MESSENGER_FIELD_VALUES[messenger] ?? MESSENGER_FIELD_OTHER,
-		// Поле для ClientID Метрики создаётся вручную на портале (см.
-		// BITRIX_YM_CLIENT_ID_FIELD в .env.example) — без него просто не пишем.
-		...(data.ymClientId && env.BITRIX_YM_CLIENT_ID_FIELD
-			? { [env.BITRIX_YM_CLIENT_ID_FIELD]: data.ymClientId }
+		...(data.ymClientId && clientIdField
+			? { [clientIdField]: data.ymClientId }
 			: {}),
 		...(data.flow === "consult"
 			? { UF_CRM_1779045469683: PRODUCT_CONSULT_ID }

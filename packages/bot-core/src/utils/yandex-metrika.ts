@@ -1,6 +1,8 @@
-import { env, logger } from "@psi-opora/config";
+import { logger } from "@psi-opora/config";
+import { getYandexMetrikaSettings } from "@psi-opora/db/queries";
 
 const UPLOAD_URL_BASE = "https://api-metrika.yandex.net/management/v1/counter";
+const DEFAULT_GOAL_ID = "consultation_booked";
 
 export interface ConsultationGoalParams {
 	/** ClientID Яндекс.Метрики визита (см. utils/utm.ts extractYmClientId). */
@@ -28,15 +30,18 @@ function buildConversionsCsv(
  * Метрики в течение ~2 часов после загрузки — это SLA самого метода upload,
  * а не задержка на нашей стороне.
  *
- * Если счётчик/токен не настроены, тихо пропускает отправку (warn в лог) —
- * сделка в Bitrix при этом создаётся как обычно.
+ * Счётчик/токен/цель настраиваются администратором в дашборде
+ * (/settings/metrika, таблица yandex_metrika_settings), а не в .env — так
+ * их можно поменять без деплоя. Если ничего не настроено, тихо пропускает
+ * отправку (warn в лог) — сделка в Bitrix при этом создаётся как обычно.
  */
 export async function sendConsultationGoalToYandexMetrika(
 	params: ConsultationGoalParams,
 ): Promise<boolean> {
-	const counterId = env.YANDEX_METRIKA_COUNTER_ID;
-	const token = env.YANDEX_METRIKA_OAUTH_TOKEN;
-	const target = env.YANDEX_METRIKA_CONSULTATION_GOAL;
+	const settings = await getYandexMetrikaSettings();
+	const counterId = settings?.counterId;
+	const token = settings?.oauthToken;
+	const target = settings?.goalId || DEFAULT_GOAL_ID;
 
 	if (!counterId || !token) {
 		logger.warn("yandex_metrika.not_configured", { dealId: params.dealId });

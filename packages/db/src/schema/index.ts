@@ -28,3 +28,4 @@ export * from "./smtp-bz";
 export * from "./telegram-personal";
 export * from "./unisender";
 export * from "./whatsapp-personal";
+export * from "./yandex-metrika";

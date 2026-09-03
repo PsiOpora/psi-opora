@@ -1,15 +1,25 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
-const envMock: Record<string, string | undefined> = {
-	YANDEX_METRIKA_COUNTER_ID: "12345",
-	YANDEX_METRIKA_OAUTH_TOKEN: "test-token",
-	YANDEX_METRIKA_CONSULTATION_GOAL: "consultation_booked",
+interface SettingsRow {
+	counterId: string | null;
+	oauthToken: string | null;
+	goalId: string | null;
+	bitrixClientIdField: string | null;
+}
+
+let settings: SettingsRow | null = {
+	counterId: "12345",
+	oauthToken: "test-token",
+	goalId: "consultation_booked",
+	bitrixClientIdField: null,
 };
+const getYandexMetrikaSettings = mock(async () => settings);
+mock.module("@psi-opora/db/queries", () => ({ getYandexMetrikaSettings }));
+
 const warn = mock(() => {});
 const error = mock(() => {});
 const info = mock(() => {});
 mock.module("@psi-opora/config", () => ({
-	env: envMock,
 	logger: { warn, error, info },
 }));
 
@@ -19,9 +29,13 @@ const { sendConsultationGoalToYandexMetrika } = await import(
 
 describe("sendConsultationGoalToYandexMetrika", () => {
 	beforeEach(() => {
-		envMock.YANDEX_METRIKA_COUNTER_ID = "12345";
-		envMock.YANDEX_METRIKA_OAUTH_TOKEN = "test-token";
-		envMock.YANDEX_METRIKA_CONSULTATION_GOAL = "consultation_booked";
+		settings = {
+			counterId: "12345",
+			oauthToken: "test-token",
+			goalId: "consultation_booked",
+			bitrixClientIdField: null,
+		};
+		getYandexMetrikaSettings.mockClear();
 		warn.mockClear();
 		error.mockClear();
 		info.mockClear();
@@ -58,8 +72,8 @@ describe("sendConsultationGoalToYandexMetrika", () => {
 		);
 	});
 
-	test("без счётчика или токена — не отправляет запрос и логирует warn", async () => {
-		envMock.YANDEX_METRIKA_COUNTER_ID = undefined;
+	test("без настроек в БД — не отправляет запрос и логирует warn", async () => {
+		settings = null;
 		const fetchMock = mock(async () => new Response("{}", { status: 200 }));
 		globalThis.fetch = fetchMock as unknown as typeof fetch;
 
