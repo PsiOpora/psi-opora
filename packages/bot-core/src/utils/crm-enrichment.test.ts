@@ -37,7 +37,10 @@ let crmLink: {
 	dealId: string | null;
 } | null = { contactId: "7624", dealId: "5336" };
 const getBitrixCrmLink = mock(() => Promise.resolve(crmLink));
-mock.module("@psi-opora/db/queries", () => ({ getBitrixCrmLink }));
+mock.module("@psi-opora/db/queries", () => ({
+	getBitrixCrmLink,
+	getYandexMetrikaSettings: () => Promise.resolve(null),
+}));
 
 const createBitrixContact = mock(() => Promise.resolve(9001));
 mock.module("./bitrix/create-deal", () => ({ createBitrixContact }));

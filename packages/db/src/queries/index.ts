@@ -180,6 +180,7 @@ export * from "./smtp-bz";
 export * from "./telegram-personal";
 export * from "./unisender";
 export * from "./whatsapp-personal";
+export * from "./yandex-metrika";
 
 export async function getBotConnector(messenger: string) {
 	return _getBotConnector(db, messenger);
@@ -291,7 +292,14 @@ export async function listBotMessagesSince(
 	limit?: number,
 	connectorId?: string,
 ) {
-	return _listBotMessagesSince(db, messenger, userId, since, limit, connectorId);
+	return _listBotMessagesSince(
+		db,
+		messenger,
+		userId,
+		since,
+		limit,
+		connectorId,
+	);
 }
 
 export async function listBotMessagesSinceForGroup(

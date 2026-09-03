@@ -43,8 +43,8 @@ export {
 	type DisconnectMaxPersonalInput,
 	disconnectMaxPersonalSchema,
 	type StartMaxLoginInput,
-	startMaxLoginSchema,
 	type SubmitMaxCodeInput,
+	startMaxLoginSchema,
 	submitMaxCodeSchema,
 } from "./max-personal";
 export {
@@ -66,6 +66,14 @@ export {
 	type SendClientMessageInput,
 	sendClientMessageSchema,
 } from "./messages";
+export { type ResendSettingsInput, resendSettingsSchema } from "./resend";
+export {
+	type EmailProviderInput,
+	emailProviderSchema,
+	type RusenderSettingsInput,
+	rusenderSettingsSchema,
+} from "./rusender";
+export { type SmtpBzSettingsInput, smtpBzSettingsSchema } from "./smtp-bz";
 export {
 	type DisconnectTelegramPersonalInput,
 	disconnectTelegramPersonalSchema,
@@ -77,17 +85,9 @@ export {
 	submitTelegramPasswordSchema,
 } from "./telegram-personal";
 export {
-	type EmailProviderInput,
-	emailProviderSchema,
-	type RusenderSettingsInput,
-	rusenderSettingsSchema,
-} from "./rusender";
-export {
 	type UnisenderSettingsInput,
 	unisenderSettingsSchema,
 } from "./unisender";
-export { type SmtpBzSettingsInput, smtpBzSettingsSchema } from "./smtp-bz";
-export { type ResendSettingsInput, resendSettingsSchema } from "./resend";
 export {
 	type DisconnectWhatsappPersonalInput,
 	disconnectWhatsappPersonalSchema,
@@ -96,3 +96,7 @@ export {
 	type StartWhatsappLoginInput,
 	startWhatsappLoginSchema,
 } from "./whatsapp-personal";
+export {
+	type YandexMetrikaSettingsInput,
+	yandexMetrikaSettingsSchema,
+} from "./yandex-metrika";
