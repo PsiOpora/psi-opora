@@ -33,6 +33,7 @@ mock.module("@psi-opora/db/queries", () => ({
 	upsertBotFunnelEvent: () => Promise.resolve(),
 	upsertBitrixCrmLink: () => Promise.resolve(),
 	upsertBotUser: () => Promise.resolve(),
+	getYandexMetrikaSettings: () => Promise.resolve(null),
 }));
 
 const { triageOffScriptMessage } = await import("./triage");

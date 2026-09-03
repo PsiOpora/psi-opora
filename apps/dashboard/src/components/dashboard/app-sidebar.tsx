@@ -17,6 +17,7 @@ import {
 	SettingsIcon,
 	SlidersHorizontalIcon,
 	TagsIcon,
+	TargetIcon,
 	WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -76,6 +77,11 @@ const NAV_GROUPS = [
 			},
 			{ href: "/settings/connectors", label: "Каналы ботов", icon: PlugIcon },
 			{ href: "/settings/ads", label: "Настройки", icon: SettingsIcon },
+			{
+				href: "/settings/metrika",
+				label: "Яндекс.Метрика",
+				icon: TargetIcon,
+			},
 			{
 				href: "/settings/backup",
 				label: "Бэкап CRM",

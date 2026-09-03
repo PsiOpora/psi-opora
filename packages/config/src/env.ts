@@ -168,6 +168,10 @@ export const env = createEnv({
 		OPENROUTER_MODEL: z
 			.string()
 			.default("nvidia/nemotron-3-ultra-550b-a55b:free"),
+
+		// Яндекс.Метрика (счётчик, OAuth-токен, цель, поле ClientID в Bitrix)
+		// настраивается администратором в дашборде (/settings/metrika, таблица
+		// yandex_metrika_settings) — см. packages/bot-core/src/utils/yandex-metrika.ts.
 	},
 	client: {
 		NEXT_PUBLIC_APP_NAME: z.string().default('Психологический центр "Опора"'),

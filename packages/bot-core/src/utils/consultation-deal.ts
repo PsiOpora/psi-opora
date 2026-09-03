@@ -13,6 +13,7 @@ import {
 	type DealData,
 } from "./bitrix";
 import { type FunnelEventContext, trackFunnelStep } from "./funnel";
+import { sendConsultationGoalToYandexMetrika } from "./yandex-metrika";
 
 export interface SubmitDealParams {
 	name: string;
@@ -25,6 +26,11 @@ export interface SubmitDealParams {
 	chatId?: number;
 	source?: string;
 	campaign?: string;
+	/** ClientID Яндекс.Метрики визита, с которого клиент пришёл в бота — см.
+	 * utils/utm.ts extractYmClientId. При flow "consult" после успешного
+	 * создания сделки используется для отправки офлайн-конверсии «Запись на
+	 * консультацию» в Метрику (см. utils/yandex-metrika.ts). */
+	ymClientId?: string;
 	/** Комментарий к сделке (например, выбранные в сценарии категория и тема). */
 	comment?: string;
 	/** Ветка сценария — попадает в заголовок сделки и «Продукт» в Bitrix. */
@@ -76,6 +82,7 @@ export async function submitConsultationDeal(
 		chatId,
 		source,
 		campaign,
+		ymClientId,
 		comment,
 		flow,
 		audience,
@@ -129,10 +136,22 @@ export async function submitConsultationDeal(
 			...(languageCode ? { languageCode } : {}),
 			...(isPremium !== undefined ? { isPremium } : {}),
 			...(bio ? { bio } : {}),
+			...(ymClientId ? { ymClientId } : {}),
 		};
 
 		const { dealId } = await createBitrixDeal(dealData);
 		await trackFunnelStep("deal", funnelCtx);
+
+		// Целевое действие «Запись на консультацию» фиксируем именно на flow
+		// "consult" — flow "guide" тоже создаёт сделку, но это выдача
+		// лид-магнита, а не запись, и не должна засчитываться как эта цель.
+		if (dealId && flow === "consult" && ymClientId) {
+			await sendConsultationGoalToYandexMetrika({
+				clientId: ymClientId,
+				dealId,
+			});
+		}
+
 		return dealId || null;
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);

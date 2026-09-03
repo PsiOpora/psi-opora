@@ -37,7 +37,12 @@ import {
 } from "./utils/telegram-proxy";
 import { triageOffScriptMessage } from "./utils/triage";
 import { upsertBotUserProfile } from "./utils/user-profile";
-import { decodeStartParam, formatUtmLog, parseUtmParams } from "./utils/utm";
+import {
+	decodeStartParam,
+	extractYmClientId,
+	formatUtmLog,
+	parseUtmParams,
+} from "./utils/utm";
 
 export const log = (msg: string) => {
 	console.log(`${new Date().toISOString()} ${msg}`);
@@ -319,6 +324,7 @@ export function createBot({
 			userId: ctx.from?.id,
 			source: ctx.session.source,
 			campaign: ctx.session.campaign,
+			ymClientId: ctx.session.ymClientId,
 			guideCampaign,
 		});
 	};
@@ -342,7 +348,13 @@ export function createBot({
 		// метки, коллизия с кодовым словом кампании маловероятна, а кампания
 		// конкретнее. Декодируем до сравнения: кириллица в ссылке приходит
 		// percent-encoded.
-		const startParam = decodeStartParam(rawParam);
+		// ClientID Яндекс.Метрики сайт приклеивает суффиксом `_ymNNN` к обычной
+		// ссылке (см. extractYmClientId) — отрезаем его до разбора кампании/UTM,
+		// чтобы SITE_CODES и splitStartParam видели параметр как раньше.
+		const { code: startParam, ymClientId } = extractYmClientId(
+			decodeStartParam(rawParam),
+		);
+		if (ymClientId) ctx.session.ymClientId = ymClientId;
 		const resolved = startParam
 			? await resolveGuideCampaignStart(startParam)
 			: null;

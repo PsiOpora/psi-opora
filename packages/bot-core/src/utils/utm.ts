@@ -23,6 +23,36 @@ export function decodeStartParam(raw: string | undefined): string | undefined {
 	}
 }
 
+/**
+ * ClientID Яндекс.Метрики, который сайт получает через `ym(id,'getClientID')`
+ * в момент клика по кнопке «Записаться на консультацию» и приклеивает
+ * суффиксом `_ymNNN...` к обычной ссылке-диплинку (SITE_CODE или
+ * SCHOOL_VK) — например `search_anorexia_708811857_ym163972457524306386`.
+ * Отрезаем суффикс до любого другого разбора параметра, чтобы не ломать
+ * ни SITE_CODES, ни keyword_source (splitStartParam/resolveGuideCampaignStart):
+ * они видят ту же строку, что и раньше, без ClientID. ClientID у Метрики —
+ * число из 18-20 цифр, диапазон 10-25 сделан с запасом на будущее.
+ */
+const YM_CLIENT_ID_SUFFIX_RE = /_ym(\d{10,25})$/;
+
+export interface StartParamWithClientId {
+	/** Остаток параметра для SITE_CODES/splitStartParam — без суффикса ClientID. */
+	code: string | undefined;
+	ymClientId?: string;
+}
+
+export function extractYmClientId(
+	startParam: string | undefined,
+): StartParamWithClientId {
+	if (!startParam) return { code: startParam };
+	const match = startParam.match(YM_CLIENT_ID_SUFFIX_RE);
+	if (!match) return { code: startParam };
+	return {
+		code: startParam.slice(0, -match[0].length),
+		ymClientId: match[1],
+	};
+}
+
 export function parseUtmParams(startParam: string | undefined): UtmParams {
 	if (!startParam) return {};
 	const decodedParam = decodeStartParam(startParam) ?? startParam;

@@ -31,6 +31,7 @@ import { messagesRouter } from "./messages";
 import { telegramPersonalRouter } from "./telegram-personal";
 import { whatsappPersonalRouter } from "./whatsapp-personal";
 import { widgetMessageRouter } from "./widget-message";
+import { yandexMetrikaRouter } from "./yandex-metrika";
 
 export {
 	adsRouter,
@@ -48,6 +49,7 @@ export {
 	telegramPersonalRouter,
 	whatsappPersonalRouter,
 	widgetMessageRouter,
+	yandexMetrikaRouter,
 };
 export const appRouter = {
 	ads: adsRouter,
@@ -65,6 +67,7 @@ export const appRouter = {
 	telegramPersonal: telegramPersonalRouter,
 	whatsappPersonal: whatsappPersonalRouter,
 	widgetMessage: widgetMessageRouter,
+	yandexMetrika: yandexMetrikaRouter,
 };
 
 export type AppRouter = typeof appRouter;
