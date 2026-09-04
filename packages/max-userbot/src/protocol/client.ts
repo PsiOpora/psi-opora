@@ -7,12 +7,13 @@ import {
 	HEADER_LENGTH,
 } from "./frame";
 import { decompressLz4Block } from "./lz4";
+import { RUSSIAN_TRUSTED_ROOT_CA } from "./russian-trusted-ca";
 
 /** По разбору koval01 — raw TLS TCP, а не WebSocket (расхождение с описанием
  * maxcalls, см. план). Если живая проверка покажет обратное, транспорт можно
  * заменить (например на `ws`), не трогая фрейминг/RPC-логику ниже — она
  * оперирует уже разобранными Buffer'ами, а не сокетом напрямую. */
-export const MAX_API_HOST = "api.oneme.ru";
+export const MAX_API_HOST = "api2.oneme.ru";
 export const MAX_API_PORT = 443;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
@@ -74,10 +75,13 @@ export class MaxProtocolClient {
 
 		await new Promise<void>((resolve, reject) => {
 			let settled = false;
-			const socket = connect({ host, port }, () => {
-				settled = true;
-				resolve();
-			});
+			const socket = connect(
+				{ host, port, ca: RUSSIAN_TRUSTED_ROOT_CA },
+				() => {
+					settled = true;
+					resolve();
+				},
+			);
 			socket.once("error", (err) => {
 				if (!settled) reject(err);
 			});

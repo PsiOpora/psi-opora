@@ -163,7 +163,7 @@ line/connector ID и никакого ручного запуска скрипт
 Сессия хранится в `max_personal_accounts` зашифрованной общим
 `TG_USERBOT_ENCRYPTION_KEY`, промежуточный логин — в Redis 10 минут.
 
-`apps/max-userbot-worker` держит TLS-соединения с `api.oneme.ru`, пересылает
+`apps/max-userbot-worker` держит TLS-соединения с `api2.oneme.ru`, пересылает
 входящие сообщения в Bitrix24 и отправляет ответы операторов из Redis-очереди.
 Протокол использует MessagePack и raw LZ4 block; оба формата разбираются в
 `packages/max-userbot/src/protocol`.
