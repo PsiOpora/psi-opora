@@ -137,48 +137,42 @@ describe("телеграм-бот: /start", () => {
 		expect(sentMessages(sent).length).toBe(1);
 	});
 
-	test("флоу гайда кнопками: гайд → согласие → согласие на рекламу → категория → тема → email", async () => {
+	test("флоу гайда кнопками: гайд → согласие → категория → тема → email", async () => {
 		const { bot, sent } = makeBot();
 		await bot.handleUpdate(commandUpdate("/start"));
 		await bot.handleUpdate(callbackUpdate("sc_guide", 2));
 		await bot.handleUpdate(callbackUpdate("consent_agree", 3));
-		await bot.handleUpdate(callbackUpdate("marketing_consent_agree", 4));
-		await bot.handleUpdate(callbackUpdate("sc_child", 5));
-		await bot.handleUpdate(callbackUpdate("sc_eating", 6));
+		await bot.handleUpdate(callbackUpdate("sc_child", 4));
+		await bot.handleUpdate(callbackUpdate("sc_eating", 5));
 
 		const texts = sentMessages(sent).map((m) => m.payload.text);
 		expect(texts).toEqual([
 			t.welcome,
 			t.consent_text,
 			t.consent_agreed,
-			t.marketing_consent_text,
-			t.marketing_consent_agreed,
 			t.category_question,
 			t.issue_question,
 			t.email_question,
 		]);
 	});
 
-	test("флоу консультации: согласие → согласие на рекламу → имя → телефон → email → заявка", async () => {
+	test("флоу консультации: согласие → имя → телефон → email → заявка", async () => {
 		const { bot, sent } = makeBot();
 		await bot.handleUpdate(commandUpdate("/start"));
 		await bot.handleUpdate(callbackUpdate("sc_consult", 2));
 		await bot.handleUpdate(callbackUpdate("consent_agree", 3));
-		await bot.handleUpdate(callbackUpdate("marketing_consent_agree", 4));
-		await bot.handleUpdate(textUpdate("Анна", 5));
-		await bot.handleUpdate(textUpdate("+7 999 123-45-67", 6));
-		await bot.handleUpdate(textUpdate("anna@example.com", 7));
+		await bot.handleUpdate(textUpdate("Анна", 4));
+		await bot.handleUpdate(textUpdate("+7 999 123-45-67", 5));
+		await bot.handleUpdate(textUpdate("anna@example.com", 6));
 
 		const texts = sentMessages(sent).map((m) => m.payload.text);
 		expect(texts[0]).toBe(t.welcome);
 		expect(texts[1]).toBe(t.consent_text);
 		expect(texts[2]).toBe(t.consent_agreed);
-		expect(texts[3]).toBe(t.marketing_consent_text);
-		expect(texts[4]).toBe(t.marketing_consent_agreed);
-		expect(texts[5]).toBe(t.name_question);
-		expect(texts[6]).toContain("Анна");
-		expect(texts[7]).toBe(t.consult_email_question);
-		expect(texts[8]).toContain("Заявка принята");
+		expect(texts[3]).toBe(t.name_question);
+		expect(texts[4]).toContain("Анна");
+		expect(texts[5]).toBe(t.consult_email_question);
+		expect(texts[6]).toContain("Заявка принята");
 	});
 });
 
@@ -215,10 +209,9 @@ describe("телеграм-бот: журнал сообщений (bot_messages
 		await bot.handleUpdate(commandUpdate("/start"));
 		await bot.handleUpdate(callbackUpdate("sc_consult", 2));
 		await bot.handleUpdate(callbackUpdate("consent_agree", 3));
-		await bot.handleUpdate(callbackUpdate("marketing_consent_agree", 4));
-		await bot.handleUpdate(textUpdate("Анна", 5));
-		await bot.handleUpdate(textUpdate("+7 999 123-45-67", 6));
-		await bot.handleUpdate(textUpdate("anna@example.com", 7));
+		await bot.handleUpdate(textUpdate("Анна", 4));
+		await bot.handleUpdate(textUpdate("+7 999 123-45-67", 5));
+		await bot.handleUpdate(textUpdate("anna@example.com", 6));
 
 		const calls = insertBotMessage.mock.calls.map(([entry]) => entry);
 		for (const entry of calls) {
@@ -228,8 +221,6 @@ describe("телеграм-бот: журнал сообщений (bot_messages
 		}
 
 		expect(calls.map((e) => e.direction)).toEqual([
-			"in",
-			"out",
 			"in",
 			"out",
 			"in",
@@ -252,15 +243,13 @@ describe("телеграм-бот: журнал сообщений (bot_messages
 		expect(texts[3]).toBe(t.consent_text);
 		expect(texts[4]).toBe(t.btn_consent_agree);
 		expect(texts[5]).toBe(t.consent_agreed);
-		expect(texts[6]).toBe(t.btn_marketing_consent_agree);
-		expect(texts[7]).toBe(t.marketing_consent_agreed);
-		expect(texts[8]).toBe(t.name_question);
-		expect(texts[9]).toBe("Анна");
-		expect(texts[10]).toContain("Анна");
-		expect(texts[11]).toBe("+7 999 123-45-67");
-		expect(texts[12]).toBe(t.consult_email_question);
-		expect(texts[13]).toBe("anna@example.com");
-		expect(texts[14]).toContain("Заявка принята");
+		expect(texts[6]).toBe(t.name_question);
+		expect(texts[7]).toBe("Анна");
+		expect(texts[8]).toContain("Анна");
+		expect(texts[9]).toBe("+7 999 123-45-67");
+		expect(texts[10]).toBe(t.consult_email_question);
+		expect(texts[11]).toBe("anna@example.com");
+		expect(texts[12]).toContain("Заявка принята");
 	});
 
 	test("кнопка запускает журнал с человекочитаемой подписью, а не с кодом action", async () => {

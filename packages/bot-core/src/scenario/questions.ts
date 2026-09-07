@@ -46,26 +46,6 @@ export function consentQuestion(t: ScenarioTexts): ScenarioMessage {
 	};
 }
 
-export function marketingConsentQuestion(t: ScenarioTexts): ScenarioMessage {
-	return {
-		text: t.marketing_consent_text,
-		buttons: [
-			[
-				{
-					label: t.btn_marketing_consent_agree,
-					action: "marketing_consent_agree",
-				},
-			],
-			[
-				{
-					label: t.btn_marketing_consent_decline,
-					action: "marketing_consent_decline",
-				},
-			],
-		],
-	};
-}
-
 export function categoryQuestion(t: ScenarioTexts): ScenarioMessage {
 	return {
 		text: t.category_question,
@@ -136,8 +116,6 @@ export function stepQuestion(
 			return entryQuestion(t);
 		case "consent":
 			return consentQuestion(t);
-		case "marketing_consent":
-			return marketingConsentQuestion(t);
 		case "name":
 			return { text: t.name_question };
 		case "category":

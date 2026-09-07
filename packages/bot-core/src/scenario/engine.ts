@@ -8,7 +8,6 @@ import {
 	emailQuestion,
 	entryQuestion,
 	issueQuestion,
-	marketingConsentQuestion,
 	phoneQuestion,
 	stepQuestion,
 	subscribeQuestion,
@@ -39,8 +38,12 @@ import type {
  *   │         ветка «ребёнок»: email → гайд → телефон → сделка
  *   │         ветка «для себя»: телефон (или отказ) → вопрос о рассылке
  *   └── кодовое слово кампании (см. startGuideCampaign/GuideCampaignContext)
- *         └── согласие на ПДн → согласие на рекламу → email → гайд → сделка
+ *         └── согласие на ПДн → email → гайд → сделка
  *             (без телефона — материал кампании отдаётся только за email)
+ *
+ * Согласие на рекламную рассылку в диалог бота не входит — это отдельный
+ * триггер по CRM, когда сделка попадает в стадию «Б/п консультация»
+ * (см. packages/bot-core/src/utils/stage-consent.ts и packages/jobs/src/stage-consent.ts).
  *
  * Адаптеры (grammy для TG, @maxhub для MAX) рендерят ScenarioMessage
  * и исполняют эффекты: track (воронка) и lead (сделка в Bitrix).
@@ -122,8 +125,8 @@ export interface GuideCampaignContext {
 /**
  * Вход по кодовому слову кампании (см. bot_guide_campaigns): минуя обычный
  * выбор категории/темы, сразу (опционально приветствие →) согласие на ПДн →
- * согласие на рекламу → email → выдача гайда кампании → телефон (см.
- * ветвление по campaignId в applyScenarioAction/applyScenarioText ниже).
+ * email → выдача гайда кампании → телефон (см. ветвление по campaignId в
+ * applyScenarioAction/applyScenarioText ниже).
  */
 export function startGuideCampaign(
 	campaign: GuideCampaignContext,
@@ -173,7 +176,6 @@ function submitGuidePhone(
 		email: state.email,
 		audience: state.audience ?? "self",
 		issue: state.issue ?? "other",
-		marketingConsent: state.marketingConsent,
 		campaignId: state.campaignId,
 		consentAt: state.consentAt,
 	};
@@ -209,7 +211,6 @@ function submitCampaignGuide(
 		email,
 		audience: "child",
 		issue: "other",
-		marketingConsent: state.marketingConsent,
 		campaignId: state.campaignId,
 		consentAt: state.consentAt,
 	};
@@ -266,7 +267,6 @@ function submitConsultLead(
 		phone: state.phone ?? "",
 		email,
 		name: state.name,
-		marketingConsent: state.marketingConsent,
 		consentAt: state.consentAt,
 	};
 	return output(
@@ -301,13 +301,37 @@ export function applyScenarioAction(
 
 		case "consent": {
 			if (action === "consent_agree") {
+				const consentAt = new Date().toISOString();
+				const consentReply = { text: t.consent_agreed };
+				// Вход по кодовому слову кампании — тема уже известна, category/issue
+				// не спрашиваем, сразу переходим к email (ветка «ребёнок»: email →
+				// гайд → телефон → done, см. submitGuidePhone).
+				if (state.campaignId) {
+					return output(
+						{
+							...fresh(state),
+							step: "email",
+							consentAt,
+							audience: "child",
+						},
+						[
+							consentReply,
+							campaign ? { text: campaign.emailQuestion } : emailQuestion(t),
+						],
+						{ track: ["consent"] },
+					);
+				}
+				const isGuide = state.flow === "guide";
 				return output(
 					{
 						...fresh(state),
-						step: "marketing_consent",
-						consentAt: new Date().toISOString(),
+						step: isGuide ? "category" : "name",
+						consentAt,
 					},
-					[{ text: t.consent_agreed }, marketingConsentQuestion(t)],
+					[
+						consentReply,
+						isGuide ? categoryQuestion(t) : { text: t.name_question },
+					],
 					{ track: ["consent"] },
 				);
 			}
@@ -319,52 +343,6 @@ export function applyScenarioAction(
 				);
 			}
 			return null;
-		}
-
-		case "marketing_consent": {
-			if (
-				action !== "marketing_consent_agree" &&
-				action !== "marketing_consent_decline"
-			) {
-				return null;
-			}
-			const marketingConsent = action === "marketing_consent_agree";
-			const consentReply = {
-				text: marketingConsent
-					? t.marketing_consent_agreed
-					: t.marketing_consent_declined,
-			};
-			// Вход по кодовому слову кампании — тема уже известна, category/issue
-			// не спрашиваем, сразу переходим к email (ветка «ребёнок»: email →
-			// гайд → телефон → done, см. submitGuidePhone).
-			if (state.campaignId) {
-				return output(
-					{
-						...fresh(state),
-						step: "email",
-						marketingConsent,
-						audience: "child",
-					},
-					[
-						consentReply,
-						campaign ? { text: campaign.emailQuestion } : emailQuestion(t),
-					],
-					{ track: ["marketing_consent"] },
-				);
-			}
-			const isGuide = state.flow === "guide";
-			return output(
-				{
-					...fresh(state),
-					step: isGuide ? "category" : "name",
-					marketingConsent,
-				},
-				[
-					consentReply,
-					isGuide ? categoryQuestion(t) : { text: t.name_question },
-				],
-				{ track: ["marketing_consent"] },
-			);
 		}
 
 		case "category": {
@@ -611,7 +589,6 @@ export async function applyScenarioText(
 		// не встреваем в чужой диалог
 		case "entry":
 		case "consent":
-		case "marketing_consent":
 		case "category":
 		case "issue":
 		case "subscribe": {
@@ -644,8 +621,6 @@ export function actionLabel(action: ScenarioAction, t: ScenarioTexts): string {
 		sc_guide: t.btn_guide,
 		consent_agree: t.btn_consent_agree,
 		consent_decline: t.btn_consent_decline,
-		marketing_consent_agree: t.btn_marketing_consent_agree,
-		marketing_consent_decline: t.btn_marketing_consent_decline,
 		sc_child: t.btn_child,
 		sc_self: t.btn_self,
 		sc_eating: t.btn_issue_eating,
@@ -670,12 +645,11 @@ export function describeLead(
 	t: ScenarioTexts,
 	campaignTitle?: string,
 ): string {
-	const marketingConsentLine = `Согласие на рекламную рассылку: ${lead.marketingConsent ? "да" : "нет"}`;
 	if (lead.flow === "consult") {
-		return `Заявка: ${t.btn_consult}\n${marketingConsentLine}`;
+		return `Заявка: ${t.btn_consult}`;
 	}
 	if (campaignTitle) {
-		return `Заявка: гайд по кодовому слову «${campaignTitle}»\n${marketingConsentLine}`;
+		return `Заявка: гайд по кодовому слову «${campaignTitle}»`;
 	}
 	const audience = lead.audience === "child" ? t.btn_child : t.btn_self;
 	const issue =
@@ -684,5 +658,5 @@ export function describeLead(
 			: lead.issue === "ocd"
 				? t.btn_issue_ocd
 				: t.btn_issue_other;
-	return `Заявка: ${t.btn_guide}\nКатегория: ${audience}\nТема: ${issue}\n${marketingConsentLine}`;
+	return `Заявка: ${t.btn_guide}\nКатегория: ${audience}\nТема: ${issue}`;
 }
