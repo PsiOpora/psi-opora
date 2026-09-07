@@ -30,7 +30,7 @@ spec:
         - name: regcred
       containers:
         - name: clients
-          image: registry.orixon.ru/psi-opora-clients:latest
+          image: ghcr.io/kodermax/psi-opora-clients:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
