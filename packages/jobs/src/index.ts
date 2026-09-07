@@ -12,7 +12,6 @@ export {
 	sendConsultationReminders,
 } from "./consultation-reminders";
 export { syncStageHistory } from "./deal-stage-history-sync";
-export { handleStageConsentTrigger } from "./stage-consent";
 export {
 	removeSyncedDeal,
 	syncAllDeals,
@@ -58,6 +57,7 @@ export {
 export { guideFollowUps } from "./hatchet/guide-follow-ups";
 export { maxWebhookHealthcheck } from "./hatchet/max-webhook-healthcheck";
 export { scenarioReminders } from "./hatchet/scenario-reminders";
+export { stageConsentOutbox } from "./hatchet/stage-consent";
 export { hatchetTasks, startHatchetWorker } from "./hatchet/worker";
 export {
 	deleteMessengerMessage,
@@ -71,3 +71,4 @@ export {
 	setMessengerWebhook,
 } from "./messenger";
 export { formatMessengerError } from "./messenger-errors";
+export { handleStageConsentTrigger } from "./stage-consent";

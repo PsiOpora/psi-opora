@@ -329,6 +329,7 @@ export async function dispatchScenarioOutput(
 			source: deps.source,
 			campaign: deps.campaign,
 			ymClientId: deps.ymClientId,
+			consentGranted: true,
 			consentAt: out.contact.consentAt,
 		});
 		if (contactId) {

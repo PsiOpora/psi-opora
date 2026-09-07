@@ -14,7 +14,6 @@ import {
 	startGuideCampaign,
 	startScenario,
 } from "./scenario/engine";
-import { handleStageConsentClick, isStageConsentAction } from "./utils/stage-consent";
 import {
 	handleGuideDiagnosticRequest,
 	loadGuideCampaignContext,
@@ -32,6 +31,12 @@ import {
 import { enrichCrmFromClientMessage } from "./utils/crm-enrichment";
 import { withUserLock } from "./utils/lock";
 import { logBotMessage } from "./utils/message-log";
+import {
+	handleStageConsentClick,
+	parseStageConsentPayload,
+	stageConsentActionLabel,
+	toInlineKeyboard as toStageConsentInlineKeyboard,
+} from "./utils/stage-consent";
 import {
 	createTelegramFetch,
 	resolveTelegramApiRoot,
@@ -191,8 +196,12 @@ export interface BotOptions {
 	enrichCrm?: typeof enrichCrmFromClientMessage;
 }
 
-function toInlineKeyboard(
-	message: ScenarioMessage,
+interface TelegramScenarioMessage extends Omit<ScenarioMessage, "buttons"> {
+	buttons?: Array<Array<{ label: string; action: string }>>;
+}
+
+function toTelegramInlineKeyboard(
+	message: TelegramScenarioMessage,
 ): InlineKeyboard | undefined {
 	if (!message.buttons?.length) return undefined;
 	const keyboard = new InlineKeyboard();
@@ -210,9 +219,9 @@ function toInlineKeyboard(
 export async function sendTelegramScenarioMessage(
 	api: Api,
 	chatId: number,
-	message: ScenarioMessage,
+	message: TelegramScenarioMessage,
 ): Promise<void> {
-	const keyboard = toInlineKeyboard(message);
+	const keyboard = toTelegramInlineKeyboard(message);
 	const options = {
 		reply_markup: keyboard,
 		link_preview_options: { is_disabled: true },
@@ -403,6 +412,7 @@ export function createBot({
 
 	bot.on("callback_query:data", async (ctx) => {
 		const action = ctx.callbackQuery.data;
+		const stageConsent = parseStageConsentPayload(action);
 		await ctx.answerCallbackQuery();
 
 		// Кнопка из follow-up-сообщения кампании гайда (packages/jobs) — не
@@ -440,25 +450,26 @@ export function createBot({
 		// Согласия на стадии «Б/п консультация» (см. utils/stage-consent.ts) —
 		// не часть машины состояний сценария, сделка адресуется через Redis, а не
 		// через ctx.session.scenario.
-		if (isStageConsentAction(action) && redis && ctx.from && ctx.chatId) {
-			await ctx
-				.editMessageReplyMarkup({ reply_markup: undefined })
-				.catch(() => {});
+		if (stageConsent && redis && ctx.from && ctx.chatId) {
 			const texts = await getScenarioTexts();
 			const result = await handleStageConsentClick(
 				redis,
 				"telegram",
 				ctx.from.id,
-				action,
+				stageConsent.dealId,
+				stageConsent.action,
 				texts,
 			);
 			if (!result) return;
+			await ctx
+				.editMessageReplyMarkup({ reply_markup: undefined })
+				.catch(() => {});
 			await logBotMessage({
 				messenger: "telegram",
 				userId: ctx.from.id,
 				direction: "in",
 				source: "scenario",
-				text: action,
+				text: stageConsentActionLabel(stageConsent.action, texts),
 			});
 			await sendTelegramScenarioMessage(ctx.api, ctx.chatId, {
 				text: result.replyText,
@@ -471,11 +482,13 @@ export function createBot({
 				text: result.replyText,
 			});
 			if (result.resendAdsQuestion) {
-				const retryKeyboard = new InlineKeyboard()
-					.text(texts.btn_stage_consent_ads_agree, "stage_ads_agree")
-					.text(texts.btn_stage_consent_ads_decline, "stage_ads_decline");
-				await ctx.api.sendMessage(ctx.chatId, texts.stage_consent_ads_text, {
-					reply_markup: retryKeyboard,
+				await sendTelegramScenarioMessage(ctx.api, ctx.chatId, {
+					text: texts.stage_consent_ads_text,
+					buttons: toStageConsentInlineKeyboard(
+						["stage_ads_agree", "stage_ads_decline"],
+						stageConsent.dealId,
+						texts,
+					),
 				});
 				await logBotMessage({
 					messenger: "telegram",

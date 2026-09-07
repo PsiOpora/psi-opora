@@ -16,7 +16,10 @@ export {
 export {
 	appendDealComment,
 	type BitrixSource,
+	type DealConsentOutboxEntry,
 	listBitrixSources,
+	type ProcessDealConsentOutboxResult,
+	processDealConsentOutbox,
 	registerBitrixSource,
 	setDealConsentTimestamp,
 } from "./sources";

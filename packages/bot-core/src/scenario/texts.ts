@@ -436,7 +436,7 @@ export const SCENARIO_TEXT_DEFS = [
 	},
 	{
 		key: "btn_stage_consent_offer_agree",
-		label: "Кнопка «Согласен»",
+		label: "Кнопка «Согласен» — оферта",
 		group: "Б/п консультация: согласия на стадии",
 		defaultValue: "Согласен",
 	},
@@ -457,7 +457,7 @@ export const SCENARIO_TEXT_DEFS = [
 	},
 	{
 		key: "btn_stage_consent_ads_agree",
-		label: "Кнопка «Согласен»",
+		label: "Кнопка «Согласен» — реклама",
 		group: "Б/п консультация: согласия на стадии",
 		defaultValue: "Согласен",
 	},

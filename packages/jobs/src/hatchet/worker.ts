@@ -9,6 +9,7 @@ import { deliverEmailCampaign, pollEmailCampaigns } from "./email-campaign";
 import { guideFollowUps } from "./guide-follow-ups";
 import { maxWebhookHealthcheck } from "./max-webhook-healthcheck";
 import { scenarioReminders } from "./scenario-reminders";
+import { stageConsentOutbox } from "./stage-consent";
 
 export const hatchetTasks = [
 	deliverBroadcast,
@@ -23,6 +24,7 @@ export const hatchetTasks = [
 	scenarioReminders,
 	guideFollowUps,
 	maxWebhookHealthcheck,
+	stageConsentOutbox,
 ];
 
 export async function startHatchetWorker(): Promise<void> {

@@ -1,6 +1,11 @@
-import { getScenarioTexts, setPendingStageDeal } from "@psi-opora/bot-core";
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
+import {
+	getScenarioTexts,
+	removePendingStageDeal,
+	setPendingStageDeal,
+	toInlineKeyboard,
+} from "@psi-opora/bot-core";
 import type { MessengerButton } from "./messenger";
 import { sendMessengerMessage } from "./messenger";
 import {
@@ -47,19 +52,39 @@ export async function handleStageConsentTrigger(
 		return { action: "skip", reason: "stage_mismatch" };
 	}
 
-	const alreadySent = await redis.get<boolean>(sentFlagKey(dealId));
-	if (alreadySent) return { action: "skip", reason: "already_sent" };
-
 	const contactId = Number(deal.CONTACT_ID ?? 0);
 	if (contactId <= 0) return { action: "skip", reason: "no_client_contact" };
 
-	const contact = await api.call<StageConsentContact | false>("crm.contact.get", {
-		id: contactId,
-	});
+	const contact = await api.call<StageConsentContact | false>(
+		"crm.contact.get",
+		{
+			id: contactId,
+		},
+	);
 	const target = resolveDirectBotTarget(deal, contact);
 	if (!target) return { action: "skip", reason: "bot_target_not_found" };
 
 	const texts = await getScenarioTexts();
+	const offerButtons: MessengerButton[][] = toInlineKeyboard(
+		["stage_offer_agree"],
+		dealId,
+		texts,
+	).map((row) =>
+		row.map((button) => ({ text: button.label, payload: button.action })),
+	);
+	const adsButtons: MessengerButton[][] = toInlineKeyboard(
+		["stage_ads_agree", "stage_ads_decline"],
+		dealId,
+		texts,
+	).map((row) =>
+		row.map((button) => ({ text: button.label, payload: button.action })),
+	);
+
+	const claimed = await redis.set(sentFlagKey(dealId), true, {
+		ex: SENT_TTL_SECONDS,
+		nx: true,
+	});
+	if (claimed !== "OK") return { action: "skip", reason: "already_sent" };
 
 	await sendMessengerMessage(
 		target.messenger,
@@ -67,42 +92,33 @@ export async function handleStageConsentTrigger(
 		texts.stage_consent_notice,
 	);
 
-	const offerButtons: MessengerButton[][] = [
-		[
-			{
-				text: texts.btn_stage_consent_offer_agree,
-				payload: "stage_offer_agree",
-			},
-		],
-	];
-	await sendMessengerMessage(
-		target.messenger,
-		target.userId,
-		texts.stage_consent_offer_text,
-		offerButtons,
-	);
-
-	// Согласие на рассылку задаём отдельным сообщением сразу вслед за офертой —
-	// клиент отвечает кнопками в любом порядке, порядок вопросов только
-	// задаёт, что он увидит раньше.
-	const adsButtons: MessengerButton[][] = [
-		[
-			{ text: texts.btn_stage_consent_ads_agree, payload: "stage_ads_agree" },
-			{
-				text: texts.btn_stage_consent_ads_decline,
-				payload: "stage_ads_decline",
-			},
-		],
-	];
-	await sendMessengerMessage(
-		target.messenger,
-		target.userId,
-		texts.stage_consent_ads_text,
-		adsButtons,
-	);
-
 	await setPendingStageDeal(redis, target.messenger, target.userId, dealId);
-	await redis.set(sentFlagKey(dealId), true, { ex: SENT_TTL_SECONDS });
+	try {
+		await sendMessengerMessage(
+			target.messenger,
+			target.userId,
+			texts.stage_consent_offer_text,
+			offerButtons,
+		);
+
+		// Согласие на рассылку задаём отдельным сообщением сразу вслед за офертой —
+		// клиент отвечает кнопками в любом порядке, порядок вопросов только
+		// задаёт, что он увидит раньше.
+		await sendMessengerMessage(
+			target.messenger,
+			target.userId,
+			texts.stage_consent_ads_text,
+			adsButtons,
+		);
+	} catch (error) {
+		await removePendingStageDeal(
+			redis,
+			target.messenger,
+			target.userId,
+			dealId,
+		);
+		throw error;
+	}
 
 	await api.call("crm.deal.update", {
 		id: dealId,

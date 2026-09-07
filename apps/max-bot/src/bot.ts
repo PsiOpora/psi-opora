@@ -14,24 +14,27 @@ import {
 	type GuideCampaignContext,
 	getScenarioTexts,
 	handleGuideDiagnosticRequest,
+	handleStageConsentClick,
 	loadGuideCampaignContext,
 	logBotMessage,
 	looksLikeDiagnosticConsent,
+	parseStageConsentPayload,
 	parseUtmParams,
 	resolveGuideCampaignStart,
 	resolveGuideFile,
-	handleStageConsentClick,
 	SCENARIO_ACTIONS,
-	STAGE_CONSENT_ACTIONS,
 	type ScenarioMessage,
 	type ScenarioOutput,
 	type ScenarioTexts,
+	STAGE_CONSENT_ACTIONS,
 	type StorageAdapter,
 	sendMessageToOpenLine,
 	setFunnelUpsert,
+	stageConsentActionLabel,
 	startConsultation,
 	startGuideCampaign,
 	startScenario,
+	toInlineKeyboard as toStageConsentInlineKeyboard,
 	triageOffScriptMessage,
 	upsertBotUserProfile,
 	withUserLock,
@@ -511,17 +514,20 @@ export function createMaxBot({
 	// часть машины состояний сценария, сделка адресуется через Redis, а не
 	// через ctx.session.scenario.
 	for (const action of STAGE_CONSENT_ACTIONS) {
-		bot.action(action, async (ctx) => {
+		bot.action(new RegExp(`^${action}:\\d+$`), async (ctx) => {
 			const appCtx = ctx as AppContext;
 			await appCtx.answerOnCallback({}).catch(() => {});
 			const userId = appCtx.user?.user_id;
 			if (!userId || !redis) return;
+			const stageConsent = parseStageConsentPayload(appCtx.match?.[0] ?? "");
+			if (!stageConsent) return;
 			const texts = await getScenarioTexts();
 			const result = await handleStageConsentClick(
 				redis,
 				"max",
 				userId,
-				action,
+				stageConsent.dealId,
+				stageConsent.action,
 				texts,
 			);
 			if (!result) return;
@@ -530,7 +536,7 @@ export function createMaxBot({
 				userId,
 				direction: "in",
 				source: "scenario",
-				text: action,
+				text: stageConsentActionLabel(stageConsent.action, texts),
 			});
 			await replyWithFallback(appCtx, result.replyText);
 			await logBotMessage({
@@ -541,17 +547,17 @@ export function createMaxBot({
 				text: result.replyText,
 			});
 			if (result.resendAdsQuestion) {
+				const buttons = toStageConsentInlineKeyboard(
+					["stage_ads_agree", "stage_ads_decline"],
+					stageConsent.dealId,
+					texts,
+				);
 				const retryKeyboard = Keyboard.inlineKeyboard([
-					[
-						Keyboard.button.callback(
-							texts.btn_stage_consent_ads_agree,
-							"stage_ads_agree",
+					...buttons.map((row) =>
+						row.map((button) =>
+							Keyboard.button.callback(button.label, button.action),
 						),
-						Keyboard.button.callback(
-							texts.btn_stage_consent_ads_decline,
-							"stage_ads_decline",
-						),
-					],
+					),
 				]);
 				await replyWithFallback(appCtx, texts.stage_consent_ads_text, {
 					format: "markdown",
