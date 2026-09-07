@@ -11,7 +11,7 @@ MinIO в кластере не разворачивается: фича «Бэк
 
 Образы для tg-bot/max-bot/tg-userbot-worker/hatchet-worker/bitrix-webhook/dashboard/clients
 собираются и катятся в кластер через GitHub Actions ([.github/workflows/deploy-k3s.yml](../.github/workflows/deploy-k3s.yml))
-в GitHub Container Registry (`ghcr.io/kodermax/psi-opora-*`, приватные пакеты).
+в GitHub Container Registry (`ghcr.io/psiopora/psi-opora-*`, приватные пакеты).
 Разделы ниже — разовая настройка перед первым деплоем.
 
 ## 0. k3s и Traefik на новый сервер
@@ -122,8 +122,8 @@ LoadBalancer`, без отдельного L2Advertisement/IPAddressPool.
 образы и запушить в GHCR можно локально (нужен PAT со scope `write:packages`):
 
 ```powershell
-$Registry = "registry.orixon.ru"
-docker login $Registry -u deploy -p '<пароль>'
+$Registry = "ghcr.io/psiopora"
+docker login ghcr.io -u <github-username> -p '<PAT со scope write:packages>'
 foreach ($app in "tg-bot","max-bot","tg-userbot-worker","hatchet-worker","bitrix-webhook","dashboard","clients") {
   docker build -t "$Registry/psi-opora-${app}:latest" -f "apps/$app/Dockerfile" .
   docker push "$Registry/psi-opora-${app}:latest"
@@ -131,7 +131,7 @@ foreach ($app in "tg-bot","max-bot","tg-userbot-worker","hatchet-worker","bitrix
 ```
 
 После первого пуша зайдите в настройки каждого пакета на GitHub
-(`https://github.com/users/kodermax/packages/container/psi-opora-<app>/settings`)
+(`https://github.com/orgs/PsiOpora/packages/container/psi-opora-<app>/settings`)
 и убедитесь, что видимость — Private, а доступ к репозиторию `psi-opora-tg`
 привязан (обычно подтягивается автоматически из workflow).
 

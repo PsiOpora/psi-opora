@@ -338,6 +338,6 @@ jobs:
       - name: Roll out new image
         run: |
           kubectl set image "deployment/${{ matrix.service }}" \
-            "${{ matrix.service }}=ghcr.io/kodermax/psi-opora-${{ matrix.service }}:${{ github.sha }}" \
+            "${{ matrix.service }}=ghcr.io/psiopora/psi-opora-${{ matrix.service }}:${{ github.sha }}" \
             -n psi-opora
           kubectl rollout status "deployment/${{ matrix.service }}" -n psi-opora --timeout=180s

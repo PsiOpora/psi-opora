@@ -1,4 +1,4 @@
-# Пакеты в ghcr.io/kodermax приватные, поэтому кластеру нужен pull secret.
+# Пакеты в ghcr.io/psiopora приватные, поэтому кластеру нужен pull secret.
 # Не применяйте этот файл как есть — сначала подставьте реальный PAT:
 #
 #   kubectl create secret docker-registry regcred \
@@ -10,7 +10,7 @@
 #
 # PAT создаётся на https://github.com/settings/tokens (classic, scope
 # read:packages достаточно) и должен принадлежать аккаунту с доступом к
-# приватным пакетам ghcr.io/kodermax/psi-opora-*.
+# приватным пакетам ghcr.io/psiopora/psi-opora-*.
 apiVersion: v1
 kind: Secret
 metadata:
@@ -22,8 +22,8 @@ stringData:
     {
       "auths": {
         "ghcr.io": {
-          "username": "<github-username>",
-          "password": "<PAT со scope read:packages>"
+          "username": "kodermax",
+          "password": "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"
         }
       }
     }

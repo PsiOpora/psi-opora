@@ -30,7 +30,7 @@ spec:
         - name: regcred
       containers:
         - name: dashboard
-          image: ghcr.io/kodermax/psi-opora-dashboard:latest
+          image: ghcr.io/psiopora/psi-opora-dashboard:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000

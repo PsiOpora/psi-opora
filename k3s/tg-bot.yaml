@@ -31,7 +31,7 @@ spec:
         - name: tg-bot
           # Тег latest тут только для первого bootstrap-apply — реальные
           # деплои катит GitHub Actions через kubectl set image.
-          image: ghcr.io/kodermax/psi-opora-tg-bot:latest
+          image: ghcr.io/psiopora/psi-opora-tg-bot:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000

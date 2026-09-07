@@ -24,7 +24,7 @@ spec:
         - name: regcred
       containers:
         - name: tg-userbot-worker
-          image: ghcr.io/kodermax/psi-opora-tg-userbot-worker:latest
+          image: ghcr.io/psiopora/psi-opora-tg-userbot-worker:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:

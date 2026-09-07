@@ -22,7 +22,7 @@ spec:
         - name: regcred
       containers:
         - name: hatchet-worker
-          image: ghcr.io/kodermax/psi-opora-hatchet-worker:latest
+          image: ghcr.io/psiopora/psi-opora-hatchet-worker:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:

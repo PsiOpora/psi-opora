@@ -29,7 +29,7 @@ spec:
         - name: regcred
       containers:
         - name: max-bot
-          image: ghcr.io/kodermax/psi-opora-max-bot:latest
+          image: ghcr.io/psiopora/psi-opora-max-bot:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000

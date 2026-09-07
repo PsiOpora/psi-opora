@@ -29,7 +29,7 @@ spec:
         - name: regcred
       containers:
         - name: bitrix-webhook
-          image: ghcr.io/kodermax/psi-opora-bitrix-webhook:latest
+          image: ghcr.io/psiopora/psi-opora-bitrix-webhook:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
