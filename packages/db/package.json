@@ -56,7 +56,7 @@
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
-    "@types/bun": "1.4.0",
+    "@types/bun": "1.4.1",
     "@types/node": "26.4.0",
     "@types/ws": "^8.18.1",
     "drizzle-kit": "^0.31.10",
