@@ -20,7 +20,7 @@
     "@psi-opora/max-userbot": "workspace:*",
     "@psi-opora/tg-userbot": "workspace:*",
     "@psi-opora/waha": "workspace:*",
-    "hono": "4.13.5"
+    "hono": "4.13.7"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
