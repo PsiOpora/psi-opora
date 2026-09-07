@@ -30,13 +30,13 @@
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@psi-opora/emails": "workspace:*",
-    "ai": "^7.0.84",
+    "ai": "^7.0.93",
     "grammy": "^1.46.0",
     "ioredis": "^6.0.0",
     "zod": "4.5.4"
   },
   "devDependencies": {
     "@types/bun": "1.4.1",
-    "tsdown": "^0.22.14"
+    "tsdown": "^0.23.0"
   }
 }

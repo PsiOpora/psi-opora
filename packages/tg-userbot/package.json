@@ -31,7 +31,7 @@
     "@psi-opora/tsconfig": "workspace:*",
     "@types/bun": "1.4.1",
     "@types/node": "26.5.0",
-    "tsdown": "^0.22.14",
+    "tsdown": "^0.23.0",
     "typescript": "7.0.2"
   }
 }
