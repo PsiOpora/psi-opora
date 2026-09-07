@@ -28,6 +28,24 @@ spec:
       port: 5432
       targetPort: postgres
 ---
+# Внешний доступ для администрирования (DBeaver и т.п.) — реальная защита
+# здесь не сетевая, а в pg_hba.conf выше: hostssl-only для 0.0.0.0/0 + пароль,
+# plaintext-подключения снаружи (host, не hostssl) отклоняются явно.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-external
+  namespace: psi-opora
+spec:
+  type: NodePort
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      nodePort: 30432
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -162,10 +180,11 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # Пускает отовсюду на уровне сети — авторизация и TLS требуются самим
+    # Postgres (pg_hba.conf выше), это и есть реальная граница защиты.
     - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: psi-opora
+        - ipBlock:
+            cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
           port: 5432

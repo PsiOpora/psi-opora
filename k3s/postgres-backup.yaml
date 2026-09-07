@@ -1,0 +1,118 @@
+# Cron-бэкап Postgres в S3.
+#
+# Перед применением заполните реальные значения в Secret ниже
+# (endpoint, bucket, ключи, регион), затем:
+#
+#   export KUBECONFIG=k3s/k3s.yml
+#   kubectl apply -f k3s/postgres-backup.yaml
+#
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-s3-backup
+  namespace: psi-opora
+type: Opaque
+stringData:
+  S3_ENDPOINT: "https://storage.yandexcloud.net" # TODO: заполнить
+  S3_BUCKET: "dashboard.psi-opora.ru" # TODO: заполнить
+  S3_REGION: "ru-central1" # TODO: заполнить
+  AWS_ACCESS_KEY_ID: "" # TODO: заполнить
+  AWS_SECRET_ACCESS_KEY: "" # TODO: заполнить
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-s3-backup
+  namespace: psi-opora
+spec:
+  schedule: "0 3 * * *" # каждый день в 03:00 UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: pg-backup
+              image: postgres:18.4-trixie
+              securityContext:
+                runAsNonRoot: false
+                runAsUser: 0
+                allowPrivilegeEscalation: false
+              env:
+                - name: PGHOST
+                  value: postgres
+                - name: PGPORT
+                  value: "5432"
+                - name: PGCONNECT_TIMEOUT
+                  value: "10"
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: POSTGRES_DB
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: POSTGRES_USER
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: POSTGRES_PASSWORD
+                - name: S3_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-s3-backup
+                      key: S3_ENDPOINT
+                - name: S3_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-s3-backup
+                      key: S3_BUCKET
+                - name: AWS_DEFAULT_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-s3-backup
+                      key: S3_REGION
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-s3-backup
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-s3-backup
+                      key: AWS_SECRET_ACCESS_KEY
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+
+                  apt-get -o APT::Sandbox::User=root update -qq && apt-get -o APT::Sandbox::User=root install -y -qq --no-install-recommends awscli >/dev/null
+
+                  TIMESTAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+                  DUMP_FILE="/tmp/${PGDATABASE}-${TIMESTAMP}.sql.gz"
+
+                  echo "Dumping ${PGDATABASE} from ${PGHOST}..."
+                  pg_dump --no-owner --no-privileges | gzip -9 > "${DUMP_FILE}"
+
+                  DEST="s3://${S3_BUCKET}/postgres/${PGDATABASE}/${TIMESTAMP}.sql.gz"
+                  echo "Uploading to ${DEST}..."
+                  aws --endpoint-url "${S3_ENDPOINT}" s3 cp "${DUMP_FILE}" "${DEST}"
+
+                  echo "Backup done: ${DEST}"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi

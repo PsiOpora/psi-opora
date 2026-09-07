@@ -24,7 +24,7 @@ spec:
         - name: regcred
       containers:
         - name: max-userbot-worker
-          image: registry.orixon.ru/psi-opora-max-userbot-worker:latest
+          image: ghcr.io/kodermax/psi-opora-max-userbot-worker:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
