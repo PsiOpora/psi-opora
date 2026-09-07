@@ -260,6 +260,7 @@ export async function dispatchScenarioOutput(
 			flow: out.lead.flow,
 			audience: out.lead.audience,
 			issue: out.lead.issue,
+			consentAt: out.lead.consentAt,
 		});
 		// Мутируем state по ссылке: адаптер уже положил его в сессию,
 		// и сессия сохранится после завершения обработчика
@@ -328,6 +329,7 @@ export async function dispatchScenarioOutput(
 			source: deps.source,
 			campaign: deps.campaign,
 			ymClientId: deps.ymClientId,
+			consentAt: out.contact.consentAt,
 		});
 		if (contactId) {
 			console.log(

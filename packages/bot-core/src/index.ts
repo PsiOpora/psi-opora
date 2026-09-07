@@ -137,6 +137,19 @@ export {
 } from "./utils/message-log";
 export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes";
 export {
+	CONSENT_ADS_DECLINED_FIELD,
+	CONSENT_ADS_FIELD,
+	CONSENT_OFFER_FIELD,
+	getPendingStageDeal,
+	handleStageConsentClick,
+	isStageConsentAction,
+	recordStageConsent,
+	setPendingStageDeal,
+	STAGE_CONSENT_ACTIONS,
+	type StageConsentAction,
+	type StageConsentClickResult,
+} from "./utils/stage-consent";
+export {
 	createTelegramFetch,
 	resolveTelegramApiRoot,
 } from "./utils/telegram-proxy";

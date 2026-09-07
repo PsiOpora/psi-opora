@@ -28,12 +28,20 @@ export function entryQuestion(t: ScenarioTexts): ScenarioMessage {
 	};
 }
 
+/**
+ * Кнопка отказа показывается, только если для неё задан текст —
+ * btn_consent_decline можно очистить в дашборде, чтобы оставить
+ * единственную кнопку согласия (см. бот Андрея Клюева).
+ */
 export function consentQuestion(t: ScenarioTexts): ScenarioMessage {
+	const declineLabel = t.btn_consent_decline?.trim();
 	return {
 		text: t.consent_text,
 		buttons: [
 			[{ label: t.btn_consent_agree, action: "consent_agree" }],
-			[{ label: t.btn_consent_decline, action: "consent_decline" }],
+			...(declineLabel
+				? [[{ label: declineLabel, action: "consent_decline" as const }]]
+				: []),
 		],
 	};
 }

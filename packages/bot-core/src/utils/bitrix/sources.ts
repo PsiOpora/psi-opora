@@ -32,6 +32,36 @@ export async function appendDealComment(
 	}
 }
 
+/**
+ * Пишет дату/время в UF_CRM-поле сделки — используется для меток согласий
+ * (оферта/реклама на стадии «Б/п консультация»), которые клиент подтверждает
+ * кнопкой в боте. Значение проставляется автоматически, без ручного
+ * редактирования оператором. Ошибки не пробрасываются — метка не критична
+ * для доставки самого сообщения.
+ */
+export async function setDealConsentTimestamp(
+	messenger: string,
+	dealId: number,
+	field: string,
+	at: string,
+): Promise<void> {
+	const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
+	if (!webhookUrl || !dealId) return;
+
+	try {
+		await bitrixPost(
+			"crm.deal.update",
+			{ id: dealId, fields: { [field]: at } },
+			messenger,
+		);
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(
+			`[bitrix] не удалось записать согласие (${field}) в сделку ${dealId}: ${message}`,
+		);
+	}
+}
+
 export interface BitrixSource {
 	STATUS_ID: string;
 	NAME: string;

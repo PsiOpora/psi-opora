@@ -31,6 +31,7 @@ import {
 import {
 	handleConsultationDealUpdate,
 	handleDiagnosticDealUpdate,
+	handleStageConsentTrigger,
 	type Messenger,
 	removeSyncedDeal,
 	sendMessengerMessage,
@@ -784,11 +785,12 @@ async function handleConsultationReminderDealUpdate(
 		}
 
 		const redis = createRedisClient();
-		const [consultation, diagnostic] = await Promise.all([
+		const [consultation, diagnostic, stageConsent] = await Promise.all([
 			handleConsultationDealUpdate(api, redis, dealId),
 			handleDiagnosticDealUpdate(api, redis, dealId),
+			handleStageConsentTrigger(api, redis, dealId),
 		]);
-		const result = { consultation, diagnostic };
+		const result = { consultation, diagnostic, stageConsent };
 		return Response.json({ success: true, result });
 	} catch (err) {
 		const message =

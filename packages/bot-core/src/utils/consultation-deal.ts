@@ -37,6 +37,8 @@ export interface SubmitDealParams {
 	flow?: DealData["flow"];
 	audience?: DealData["audience"];
 	issue?: DealData["issue"];
+	/** Момент согласия на ПДн (ISO) — см. ContactData.consentAt. */
+	consentAt?: string;
 }
 
 export interface SubmitContactParams extends Omit<ContactData, "name"> {
@@ -87,6 +89,7 @@ export async function submitConsultationDeal(
 		flow,
 		audience,
 		issue,
+		consentAt,
 	} = params;
 
 	const funnelCtx: FunnelEventContext = {
@@ -122,6 +125,7 @@ export async function submitConsultationDeal(
 			name,
 			phone,
 			consentGranted: true,
+			...(consentAt ? { consentAt } : {}),
 			...(email ? { email } : {}),
 			campaign,
 			source,

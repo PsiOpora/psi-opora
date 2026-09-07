@@ -14,6 +14,7 @@ import {
 	startGuideCampaign,
 	startScenario,
 } from "./scenario/engine";
+import { handleStageConsentClick, isStageConsentAction } from "./utils/stage-consent";
 import {
 	handleGuideDiagnosticRequest,
 	loadGuideCampaignContext,
@@ -433,6 +434,57 @@ export function createBot({
 				source: "scenario",
 				text: reply,
 			});
+			return;
+		}
+
+		// Согласия на стадии «Б/п консультация» (см. utils/stage-consent.ts) —
+		// не часть машины состояний сценария, сделка адресуется через Redis, а не
+		// через ctx.session.scenario.
+		if (isStageConsentAction(action) && redis && ctx.from && ctx.chatId) {
+			await ctx
+				.editMessageReplyMarkup({ reply_markup: undefined })
+				.catch(() => {});
+			const texts = await getScenarioTexts();
+			const result = await handleStageConsentClick(
+				redis,
+				"telegram",
+				ctx.from.id,
+				action,
+				texts,
+			);
+			if (!result) return;
+			await logBotMessage({
+				messenger: "telegram",
+				userId: ctx.from.id,
+				direction: "in",
+				source: "scenario",
+				text: action,
+			});
+			await sendTelegramScenarioMessage(ctx.api, ctx.chatId, {
+				text: result.replyText,
+			});
+			await logBotMessage({
+				messenger: "telegram",
+				userId: ctx.from.id,
+				direction: "out",
+				source: "scenario",
+				text: result.replyText,
+			});
+			if (result.resendAdsQuestion) {
+				const retryKeyboard = new InlineKeyboard()
+					.text(texts.btn_stage_consent_ads_agree, "stage_ads_agree")
+					.text(texts.btn_stage_consent_ads_decline, "stage_ads_decline");
+				await ctx.api.sendMessage(ctx.chatId, texts.stage_consent_ads_text, {
+					reply_markup: retryKeyboard,
+				});
+				await logBotMessage({
+					messenger: "telegram",
+					userId: ctx.from.id,
+					direction: "out",
+					source: "scenario",
+					text: texts.stage_consent_ads_text,
+				});
+			}
 			return;
 		}
 

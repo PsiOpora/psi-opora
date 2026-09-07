@@ -18,6 +18,7 @@ export {
 	type BitrixSource,
 	listBitrixSources,
 	registerBitrixSource,
+	setDealConsentTimestamp,
 } from "./sources";
 export { createBitrixTask } from "./tasks";
 export type { BitrixApiLike, ContactData, DealData } from "./types";

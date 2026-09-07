@@ -12,6 +12,7 @@ export {
 	sendConsultationReminders,
 } from "./consultation-reminders";
 export { syncStageHistory } from "./deal-stage-history-sync";
+export { handleStageConsentTrigger } from "./stage-consent";
 export {
 	removeSyncedDeal,
 	syncAllDeals,
