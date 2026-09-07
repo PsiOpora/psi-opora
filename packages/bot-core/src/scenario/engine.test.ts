@@ -41,7 +41,7 @@ describe("startScenario", () => {
 });
 
 describe("флоу «запись на консультацию»", () => {
-	test("кнопка «Записаться» показывает согласие на ПДн", async () => {
+	test("кнопка «Записаться» показывает согласие на ПДн с одной кнопкой", async () => {
 		const out = await run([{ action: "sc_consult" }]);
 		expect(out.state.step).toBe("consent");
 		expect(out.state.flow).toBe("consult");
@@ -49,80 +49,45 @@ describe("флоу «запись на консультацию»", () => {
 		expect(out.messages[0]?.text).toBe(t.consent_text);
 		expect(out.messages[0]?.buttons?.flat().map((b) => b.action)).toEqual([
 			"consent_agree",
-			"consent_decline",
 		]);
 	});
 
-	test("полный путь: согласие → согласие на рекламу → имя → телефон → email → сделка", async () => {
+	test("полный путь: согласие → имя → телефон → сделка (без рекламы и email)", async () => {
 		const out = await run([
 			{ action: "sc_consult" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ text: "Анна" },
 			{ text: "+7 999 123-45-67" },
-			{ text: "anna@example.com" },
 		]);
 
 		expect(out.state.step).toBe("done");
 		expect(out.lead).toEqual({
 			flow: "consult",
 			phone: "+7 999 123-45-67",
-			email: "anna@example.com",
+			email: undefined,
 			name: "Анна",
-			marketingConsent: true,
+			marketingConsent: undefined,
 		});
 		expect(out.messages[0]?.text).toContain("Анна");
 		expect(out.awaitingInput).toBe(false);
 	});
 
-	test("согласие на ПДн ведёт к отдельному вопросу о рекламной рассылке", async () => {
+	test("согласие на ПДн ведёт сразу к вопросу об имени — без шага о рекламе", async () => {
 		const consent = await run([
 			{ action: "sc_consult" },
 			{ action: "consent_agree" },
 		]);
-		expect(consent.state.step).toBe("marketing_consent");
+		expect(consent.state.step).toBe("name");
 		expect(consent.track).toEqual(["consent"]);
 		expect(consent.messages.map((m) => m.text)).toEqual([
 			t.consent_agreed,
-			t.marketing_consent_text,
-		]);
-		expect(consent.messages[1]?.buttons?.flat().map((b) => b.action)).toEqual([
-			"marketing_consent_agree",
-			"marketing_consent_decline",
-		]);
-	});
-
-	test("имя подставляется в запрос телефона, трекаются marketing_consent и name", async () => {
-		const marketingConsent = await run([
-			{ action: "sc_consult" },
-			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
-		]);
-		expect(marketingConsent.track).toEqual(["marketing_consent"]);
-		expect(marketingConsent.state.marketingConsent).toBe(true);
-		expect(marketingConsent.messages.map((m) => m.text)).toEqual([
-			t.marketing_consent_agreed,
 			t.name_question,
 		]);
 
-		const name = await applyScenarioText(marketingConsent.state, "Пётр", t);
+		const name = await applyScenarioText(consent.state, "Пётр", t);
 		expect(name?.track).toEqual(["name"]);
-		expect(name?.messages[0]?.text).toContain("Пётр");
+		expect(name?.messages[0]?.text).toBe(t.consult_phone_question);
 		expect(name?.state.step).toBe("phone");
-	});
-
-	test("отказ от рекламной рассылки не блокирует основной сценарий", async () => {
-		const out = await run([
-			{ action: "sc_consult" },
-			{ action: "consent_agree" },
-			{ action: "marketing_consent_decline" },
-		]);
-		expect(out.state.step).toBe("name");
-		expect(out.state.marketingConsent).toBe(false);
-		expect(out.messages.map((m) => m.text)).toEqual([
-			t.marketing_consent_declined,
-			t.name_question,
-		]);
 	});
 
 	test("отказ от согласия завершает сценарий без заявки", async () => {
@@ -135,31 +100,12 @@ describe("флоу «запись на консультацию»", () => {
 		expect(out.messages[0]?.text).toBe(t.consent_declined);
 	});
 
-	test("вопрос email в флоу консультации содержит кнопку «без email»", async () => {
+	test("телефон сразу заводит заявку — без вопроса про email", async () => {
 		const out = await run([
 			{ action: "sc_consult" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ text: "Анна" },
 			{ text: "89991234567" },
-		]);
-		expect(out.state.step).toBe("email");
-		expect(
-			out.messages
-				.at(-1)
-				?.buttons?.flat()
-				.map((b) => b.action),
-		).toEqual(["sc_skip_email"]);
-	});
-
-	test("кнопка «без email» в флоу консультации сразу заводит заявку", async () => {
-		const out = await run([
-			{ action: "sc_consult" },
-			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
-			{ text: "Анна" },
-			{ text: "89991234567" },
-			{ action: "sc_skip_email" },
 		]);
 		expect(out.state.step).toBe("done");
 		expect(out.lead?.email).toBeUndefined();
@@ -169,30 +115,10 @@ describe("флоу «запись на консультацию»", () => {
 		expect(out.messages[0]?.text).toContain("Анна");
 	});
 
-	test("после 3 нераспознанных email — сделка без email", async () => {
-		const out = await run([
-			{ action: "sc_consult" },
-			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
-			{ text: "Анна" },
-			{ text: "89991234567" },
-			{ text: "не email" },
-			{ text: "снова нет" },
-			{ text: "и это нет" },
-		]);
-		expect(out.state.step).toBe("done");
-		expect(out.lead?.email).toBeUndefined();
-		expect(out.lead?.phone).toBe("89991234567");
-		expect(out.messages.map((m) => m.text)[0]).toBe(
-			t.consult_email_invalid_final,
-		);
-	});
-
 	test("после 3 нераспознанных телефонов сценарий завершается без заявки", async () => {
 		const out = await run([
 			{ action: "sc_consult" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ text: "Анна" },
 			{ text: "абв" },
 			{ text: "где" },
@@ -243,7 +169,6 @@ describe("флоу гайда: ветка «трудности с ребенко
 		expect(out.track).toEqual(["guide_click"]);
 		expect(out.messages[0]?.buttons?.flat().map((b) => b.action)).toEqual([
 			"consent_agree",
-			"consent_decline",
 		]);
 	});
 
@@ -545,12 +470,11 @@ describe("напоминания", () => {
 		]);
 	});
 
-	test("на шаге согласия — кнопки согласия", async () => {
+	test("на шаге согласия — кнопка согласия", async () => {
 		const out = await run([{ action: "sc_consult" }]);
 		const reminder = buildReminder(out.state, t);
 		expect(reminder?.buttons?.flat().map((b) => b.action)).toEqual([
 			"consent_agree",
-			"consent_decline",
 		]);
 	});
 

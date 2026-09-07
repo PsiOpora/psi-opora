@@ -4,7 +4,6 @@ import { hasPhoneNumber, isValidEmail } from "../utils/validation";
 import {
 	categoryQuestion,
 	consentQuestion,
-	consultEmailQuestion,
 	emailQuestion,
 	entryQuestion,
 	issueQuestion,
@@ -33,7 +32,9 @@ import type {
  *
  *   старт → выбор:
  *   ├── «Записаться на консультацию» (флоу consult)
- *   │     └── согласие на ПДн → имя → телефон → email → сделка
+ *   │     └── согласие на ПДн → имя → телефон → сделка
+ *   │         (без согласия на рекламу и без email — согласие на рекламу
+ *   │         запрашивается позже, CRM-триггером на стадии «б/п консультация»)
  *   ├── «Получить гайд» (флоу guide)
  *   │     └── согласие на ПДн → категория (ребёнок / для себя) → тема
  *   │         ветка «ребёнок»: email → гайд → телефон → сделка
@@ -298,9 +299,21 @@ export function applyScenarioAction(
 
 		case "consent": {
 			if (action === "consent_agree") {
+				const consentReply = { text: t.consent_agreed };
+				// Ветка «Записаться» не спрашивает согласие на рекламу в боте —
+				// его собирает отдельный CRM-триггер на стадии «б/п консультация»
+				// (см. Женины триггеры). «Получить гайд» и кампании по кодовому
+				// слову — как раньше, через отдельный шаг marketing_consent.
+				if (state.flow !== "consult") {
+					return output(
+						{ ...fresh(state), step: "marketing_consent" },
+						[consentReply, marketingConsentQuestion(t)],
+						{ track: ["consent"] },
+					);
+				}
 				return output(
-					{ ...fresh(state), step: "marketing_consent" },
-					[{ text: t.consent_agreed }, marketingConsentQuestion(t)],
+					{ ...fresh(state), step: "name" },
+					[consentReply, { text: t.name_question }],
 					{ track: ["consent"] },
 				);
 			}
@@ -396,8 +409,6 @@ export function applyScenarioAction(
 
 		case "email": {
 			if (action !== "sc_skip_email") return null;
-			if (state.flow === "consult")
-				return submitConsultLead(state, undefined, t);
 			// Кампания требует email — кнопки пропуска в её вопросе нет (см.
 			// questions.ts: campaign.emailQuestion шлётся без buttons), сюда
 			// дойти нельзя, но не обходим правило «материал только за email».
@@ -454,10 +465,10 @@ export async function applyScenarioText(
 ): Promise<ScenarioOutput | null> {
 	switch (state.step) {
 		case "name": {
-			// Клиент иногда присылает на этот вопрос сразу весь блок контактов
-			// (имя, телефон, email) одним сообщением — LLM пытается разложить
-			// его на поля; если это не удалось (нет ключа, ошибка, распознать
-			// не получилось), ведём себя как раньше — весь текст = имя.
+			// Клиент иногда присылает на этот вопрос сразу имя и телефон одним
+			// сообщением — LLM пытается разложить его на поля; если это не
+			// удалось (нет ключа, ошибка, распознать не получилось), ведём себя
+			// как раньше — весь текст = имя.
 			const extracted = await extractContactInfo(text);
 			if (!extracted) {
 				return output(
@@ -477,32 +488,15 @@ export async function applyScenarioText(
 					? extracted.email
 					: undefined;
 
-			if (phone && email) {
+			if (phone) {
 				return submitConsultLead({ ...fresh(state), name, phone }, email, t, [
 					{
-						text: withFields(t.consult_extracted_name_phone_email, {
+						text: withFields(t.consult_extracted_name_phone, {
 							name,
 							phone,
-							email,
 						}),
 					},
 				]);
-			}
-
-			if (phone) {
-				return output(
-					{ ...fresh(state), step: "email", name, phone },
-					[
-						{
-							text: withFields(t.consult_extracted_name_phone, {
-								name,
-								phone,
-							}),
-						},
-						consultEmailQuestion(t),
-					],
-					{ track: ["name", "phone"] },
-				);
 			}
 
 			return output(
@@ -513,25 +507,6 @@ export async function applyScenarioText(
 		}
 
 		case "email": {
-			if (state.flow === "consult") {
-				if (isValidEmail(text)) {
-					return submitConsultLead(state, text, t);
-				}
-				const attempts = (state.emailAttempts ?? 0) + 1;
-				if (attempts >= MAX_ATTEMPTS) {
-					// Продолжаем без email — уточним при звонке
-					return submitConsultLead(
-						{ ...state, emailAttempts: attempts },
-						undefined,
-						t,
-						[{ text: t.consult_email_invalid_final }],
-					);
-				}
-				return output({ ...state, emailAttempts: attempts, reminded: false }, [
-					{ text: t.email_invalid },
-				]);
-			}
-
 			if (isValidEmail(text)) {
 				if (state.campaignId && campaign) {
 					return submitCampaignGuide(state, text, campaign);
@@ -573,11 +548,7 @@ export async function applyScenarioText(
 			if (hasPhoneNumber(text)) {
 				const phone = text.trim();
 				if (state.flow === "consult") {
-					return output(
-						{ ...fresh(state), step: "email", phone },
-						[consultEmailQuestion(t)],
-						{ track: ["phone"] },
-					);
+					return submitConsultLead({ ...state, phone }, undefined, t);
 				}
 				return submitGuidePhone(state, phone, t);
 			}
@@ -663,12 +634,26 @@ export function describeLead(
 	t: ScenarioTexts,
 	campaignTitle?: string,
 ): string {
-	const marketingConsentLine = `Согласие на рекламную рассылку: ${lead.marketingConsent ? "да" : "нет"}`;
+	// Ветка «Записаться» согласие на рекламу в боте не спрашивает (см.
+	// engine.ts, case "consent") — marketingConsent там всегда undefined,
+	// поэтому строку не показываем вовсе, а не пишем вводящее в заблуждение
+	// "нет" вместо "не спрашивали".
+	const marketingConsentLine =
+		lead.marketingConsent === undefined
+			? null
+			: `Согласие на рекламную рассылку: ${lead.marketingConsent ? "да" : "нет"}`;
 	if (lead.flow === "consult") {
-		return `Заявка: ${t.btn_consult}\n${marketingConsentLine}`;
+		return [`Заявка: ${t.btn_consult}`, marketingConsentLine]
+			.filter(Boolean)
+			.join("\n");
 	}
 	if (campaignTitle) {
-		return `Заявка: гайд по кодовому слову «${campaignTitle}»\n${marketingConsentLine}`;
+		return [
+			`Заявка: гайд по кодовому слову «${campaignTitle}»`,
+			marketingConsentLine,
+		]
+			.filter(Boolean)
+			.join("\n");
 	}
 	const audience = lead.audience === "child" ? t.btn_child : t.btn_self;
 	const issue =
@@ -677,5 +662,12 @@ export function describeLead(
 			: lead.issue === "ocd"
 				? t.btn_issue_ocd
 				: t.btn_issue_other;
-	return `Заявка: ${t.btn_guide}\nКатегория: ${audience}\nТема: ${issue}\n${marketingConsentLine}`;
+	return [
+		`Заявка: ${t.btn_guide}`,
+		`Категория: ${audience}`,
+		`Тема: ${issue}`,
+		marketingConsentLine,
+	]
+		.filter(Boolean)
+		.join("\n");
 }

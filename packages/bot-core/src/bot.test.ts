@@ -23,6 +23,26 @@ mock.module("@psi-opora/db/queries", () => ({
 	upsertBotFunnelEvent: () => Promise.resolve(),
 	upsertBitrixCrmLink: () => Promise.resolve(),
 	upsertBotUser: () => Promise.resolve(),
+	markBotMessageGuideEmailSent: () => Promise.resolve(),
+	upsertBotGuideDelivery: () => Promise.resolve(),
+	getBotGuideCampaign: () => Promise.resolve(null),
+	getBotGuideCampaignByKeyword: () => Promise.resolve(null),
+	getPendingGuideDiagnosticDelivery: () => Promise.resolve(null),
+	markGuideDiagnosticRequested: () => Promise.resolve(),
+}));
+
+// Мокаем Bitrix-клиент до импорта бота: без этого сценарий консультации
+// реально бьёт в crm.deal.add/crm.contact.add боевого Bitrix24 (учётные
+// данные приходят из .env, который bun грузит автоматически) — уже
+// создавало настоящие тестовые сделки/контакты в продакшене.
+let dealCounter = 0;
+mock.module("./utils/bitrix", () => ({
+	createBitrixContact: () => Promise.resolve(0),
+	createBitrixDeal: () => Promise.resolve({ dealId: ++dealCounter }),
+	sendMessageToOpenLine: () => Promise.resolve(),
+	updateMessageInOpenLine: () => Promise.resolve(),
+	appendDealComment: () => Promise.resolve(),
+	createBitrixTask: () => Promise.resolve(),
 }));
 
 const { createBot } = await import("./bot");
@@ -158,26 +178,21 @@ describe("телеграм-бот: /start", () => {
 		]);
 	});
 
-	test("флоу консультации: согласие → согласие на рекламу → имя → телефон → email → заявка", async () => {
+	test("флоу консультации: согласие → имя → телефон → заявка (без рекламы и email)", async () => {
 		const { bot, sent } = makeBot();
 		await bot.handleUpdate(commandUpdate("/start"));
 		await bot.handleUpdate(callbackUpdate("sc_consult", 2));
 		await bot.handleUpdate(callbackUpdate("consent_agree", 3));
-		await bot.handleUpdate(callbackUpdate("marketing_consent_agree", 4));
-		await bot.handleUpdate(textUpdate("Анна", 5));
-		await bot.handleUpdate(textUpdate("+7 999 123-45-67", 6));
-		await bot.handleUpdate(textUpdate("anna@example.com", 7));
+		await bot.handleUpdate(textUpdate("Анна", 4));
+		await bot.handleUpdate(textUpdate("+7 999 123-45-67", 5));
 
 		const texts = sentMessages(sent).map((m) => m.payload.text);
 		expect(texts[0]).toBe(t.welcome);
 		expect(texts[1]).toBe(t.consent_text);
 		expect(texts[2]).toBe(t.consent_agreed);
-		expect(texts[3]).toBe(t.marketing_consent_text);
-		expect(texts[4]).toBe(t.marketing_consent_agreed);
-		expect(texts[5]).toBe(t.name_question);
-		expect(texts[6]).toContain("Анна");
-		expect(texts[7]).toBe(t.consult_email_question);
-		expect(texts[8]).toContain("Заявка принята");
+		expect(texts[3]).toBe(t.name_question);
+		expect(texts[4]).toBe(t.consult_phone_question);
+		expect(texts[5]).toContain("Анна");
 	});
 });
 
@@ -214,10 +229,8 @@ describe("телеграм-бот: журнал сообщений (bot_messages
 		await bot.handleUpdate(commandUpdate("/start"));
 		await bot.handleUpdate(callbackUpdate("sc_consult", 2));
 		await bot.handleUpdate(callbackUpdate("consent_agree", 3));
-		await bot.handleUpdate(callbackUpdate("marketing_consent_agree", 4));
-		await bot.handleUpdate(textUpdate("Анна", 5));
-		await bot.handleUpdate(textUpdate("+7 999 123-45-67", 6));
-		await bot.handleUpdate(textUpdate("anna@example.com", 7));
+		await bot.handleUpdate(textUpdate("Анна", 4));
+		await bot.handleUpdate(textUpdate("+7 999 123-45-67", 5));
 
 		const calls = insertBotMessage.mock.calls.map(([entry]) => entry);
 		for (const entry of calls) {
@@ -233,10 +246,6 @@ describe("телеграм-бот: журнал сообщений (bot_messages
 			"out",
 			"in",
 			"out",
-			"in",
-			"out",
-			"out",
-			"in",
 			"out",
 			"in",
 			"out",
@@ -251,15 +260,11 @@ describe("телеграм-бот: журнал сообщений (bot_messages
 		expect(texts[3]).toBe(t.consent_text);
 		expect(texts[4]).toBe(t.btn_consent_agree);
 		expect(texts[5]).toBe(t.consent_agreed);
-		expect(texts[6]).toBe(t.btn_marketing_consent_agree);
-		expect(texts[7]).toBe(t.marketing_consent_agreed);
-		expect(texts[8]).toBe(t.name_question);
-		expect(texts[9]).toBe("Анна");
+		expect(texts[6]).toBe(t.name_question);
+		expect(texts[7]).toBe("Анна");
+		expect(texts[8]).toBe(t.consult_phone_question);
+		expect(texts[9]).toBe("+7 999 123-45-67");
 		expect(texts[10]).toContain("Анна");
-		expect(texts[11]).toBe("+7 999 123-45-67");
-		expect(texts[12]).toBe(t.consult_email_question);
-		expect(texts[13]).toBe("anna@example.com");
-		expect(texts[14]).toContain("Заявка принята");
 	});
 
 	test("кнопка запускает журнал с человекочитаемой подписью, а не с кодом action", async () => {

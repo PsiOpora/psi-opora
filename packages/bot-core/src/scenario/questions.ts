@@ -28,13 +28,13 @@ export function entryQuestion(t: ScenarioTexts): ScenarioMessage {
 	};
 }
 
+// Кнопка отказа под сообщением не показывается — согласие теперь одно
+// действие (см. btn_consent_decline в texts.ts). Обработка consent_decline
+// в engine.ts остаётся ради уже отправленных клиентам старых сообщений.
 export function consentQuestion(t: ScenarioTexts): ScenarioMessage {
 	return {
 		text: t.consent_text,
-		buttons: [
-			[{ label: t.btn_consent_agree, action: "consent_agree" }],
-			[{ label: t.btn_consent_decline, action: "consent_decline" }],
-		],
+		buttons: [[{ label: t.btn_consent_agree, action: "consent_agree" }]],
 	};
 }
 
@@ -86,19 +86,6 @@ export function emailQuestion(t: ScenarioTexts): ScenarioMessage {
 	};
 }
 
-/**
- * Email-вопрос флоу консультации — с кнопкой «продолжить без email»
- * (клиент и так уже оставил телефон, специалист свяжется по нему).
- * Раньше кнопки не было — клиенты, у которых нет/не хочется давать email,
- * упирались в повторяющееся «Не удалось распознать email» по кругу.
- */
-export function consultEmailQuestion(t: ScenarioTexts): ScenarioMessage {
-	return {
-		text: t.consult_email_question,
-		buttons: [[{ label: t.btn_skip_email, action: "sc_skip_email" }]],
-	};
-}
-
 export function phoneQuestion(t: ScenarioTexts): ScenarioMessage {
 	return {
 		text: t.phone_question,
@@ -137,9 +124,7 @@ export function stepQuestion(
 		case "issue":
 			return issueQuestion(t);
 		case "email":
-			return state.flow === "consult"
-				? consultEmailQuestion(t)
-				: emailQuestion(t);
+			return emailQuestion(t);
 		case "phone":
 			return state.flow === "consult"
 				? { text: withName(t.consult_phone_question, state.name) }
