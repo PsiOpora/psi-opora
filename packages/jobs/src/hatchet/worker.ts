@@ -2,23 +2,29 @@ import { deliverBroadcast } from "./broadcast";
 import { getHatchetClient } from "./client";
 import { consultationReminders } from "./consultation-reminders";
 import { crmBackup, crmBackupSchedule } from "./crm-backup";
+import { dealStageHistorySync } from "./deal-stage-history-sync";
+import { dealsSync } from "./deals-sync";
 import { diagnosticReminders } from "./diagnostic-reminders";
 import { deliverEmailCampaign, pollEmailCampaigns } from "./email-campaign";
 import { guideFollowUps } from "./guide-follow-ups";
 import { maxWebhookHealthcheck } from "./max-webhook-healthcheck";
 import { scenarioReminders } from "./scenario-reminders";
+import { stageConsentOutbox } from "./stage-consent";
 
 export const hatchetTasks = [
 	deliverBroadcast,
 	deliverEmailCampaign,
 	crmBackup,
 	crmBackupSchedule,
+	dealsSync,
+	dealStageHistorySync,
 	pollEmailCampaigns,
 	consultationReminders,
 	diagnosticReminders,
 	scenarioReminders,
 	guideFollowUps,
 	maxWebhookHealthcheck,
+	stageConsentOutbox,
 ];
 
 export async function startHatchetWorker(): Promise<void> {

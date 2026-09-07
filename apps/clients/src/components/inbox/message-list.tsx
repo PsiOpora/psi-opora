@@ -6,6 +6,8 @@ import {
 	CheckCheckIcon,
 	CheckIcon,
 	CircleAlertIcon,
+	DownloadIcon,
+	FileIcon,
 	HeadsetIcon,
 	MailCheckIcon,
 	PencilIcon,
@@ -33,9 +35,18 @@ export interface ThreadMessage {
 	canDelete?: boolean;
 	status?: MessageDeliveryStatus;
 	pending?: boolean;
-	/** "voice" — рендерим плеер вместо текста (см. bot_messages.kind). */
-	kind?: "text" | "voice";
+	/** id, реально присвоенный записи в bot_messages сервером (см.
+	 * messages.send) — по нему mergeThread опознаёт «своё» pending-сообщение
+	 * при подтверждении поллингом, не полагаясь на совпадение текста (текст
+	 * может разойтись, например у фото без подписи сервер подставляет
+	 * заглушку «Фото»). */
+	expectedId?: string;
+	/** "voice"/"image"/"file" — рендерим плеер/превью/ссылку вместо текста
+	 * (см. bot_messages.kind). */
+	kind?: "text" | "voice" | "image" | "file";
 	mediaUrl?: string | null;
+	/** Исходное имя файла (kind="file"/"image") — подпись под вложением. */
+	mediaFileName?: string | null;
 	/** Только для telegram-personal/whatsapp-personal — с какого из нескольких
 	 * личных номеров портала отправлено/получено сообщение. */
 	connectorId?: string | null;
@@ -118,7 +129,7 @@ export function mergeThread(
 			(item) =>
 				item.id.startsWith("pending-") &&
 				item.direction === msg.direction &&
-				item.text === msg.text,
+				(item.expectedId ? item.expectedId === msg.id : item.text === msg.text),
 		);
 		if (pendingIdx !== -1) {
 			next = [...next.slice(0, pendingIdx), msg, ...next.slice(pendingIdx + 1)];
@@ -266,6 +277,46 @@ export function MessageList({
 									/>
 									{item.text && item.text !== VOICE_PLACEHOLDER_TEXT && (
 										<p className="mt-1.5">{item.text}</p>
+									)}
+								</>
+							) : item.kind === "image" && item.mediaUrl ? (
+								<>
+									<a href={item.mediaUrl} target="_blank" rel="noreferrer">
+										<img
+											src={item.mediaUrl}
+											alt={item.mediaFileName ?? "Изображение"}
+											className="max-h-64 max-w-full rounded-lg object-contain"
+										/>
+									</a>
+									{item.text && (
+										<p className="mt-1.5 whitespace-pre-wrap">{item.text}</p>
+									)}
+								</>
+							) : item.kind === "file" ? (
+								<>
+									{item.mediaUrl ? (
+										<a
+											href={item.mediaUrl}
+											target="_blank"
+											rel="noreferrer"
+											className="flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2 hover:bg-black/10"
+										>
+											<FileIcon className="size-5 shrink-0" />
+											<span className="min-w-0 flex-1 truncate">
+												{item.mediaFileName ?? "Файл"}
+											</span>
+											<DownloadIcon className="size-4 shrink-0" />
+										</a>
+									) : (
+										<div className="flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2">
+											<FileIcon className="size-5 shrink-0" />
+											<span className="min-w-0 flex-1 truncate">
+												{item.mediaFileName ?? "Файл"}
+											</span>
+										</div>
+									)}
+									{item.text && (
+										<p className="mt-1.5 whitespace-pre-wrap">{item.text}</p>
 									)}
 								</>
 							) : (

@@ -30,6 +30,15 @@ export interface OutboundMessage {
 	externalId?: string;
 	/** Строка bot_messages, которой worker допишет ID после отправки. */
 	journalMessageId?: string;
+	/** Фото/файл — воркер сам скачивает байты из S3 по s3Key (см.
+	 * downloadOutboundAttachment в apps/tg-userbot-worker), в очередь кладём
+	 * только ссылку, не бинарник. text выше используется как подпись. */
+	attachment?: {
+		s3Key: string;
+		fileName: string;
+		mimeType: string;
+		kind: "image" | "file" | "voice";
+	};
 }
 
 export interface SendResult {

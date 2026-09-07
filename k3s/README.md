@@ -28,9 +28,17 @@ LoadBalancer`, без отдельного L2Advertisement/IPAddressPool.
    всегда bash/sh, PowerShell тут ни при чём:
 
    ```bash
-   curl -sfL https://get.k3s.io | sh -s - --disable=traefik
+   curl -sfL https://get.k3s.io | sh -s - --disable=traefik \
+     --kubelet-arg=image-gc-high-threshold-percent=70 \
+     --kubelet-arg=image-gc-low-threshold-percent=60
    sudo k3s kubectl get nodes
    ```
+
+   Пороги image GC занижены с дефолтных 85%/80% — containerd на одной ноде
+   иначе чистит неиспользуемые образы слишком поздно, диск успевает
+   заполниться раньше, чем сработает уборка (так уже было один раз — под
+   `disk-pressure` legли новые деплои, пока реестр не мог выдать TLS-сертификат
+   и containerd копил неудачные попытки pull).
 
    Дальше все команды — уже с локальной машины (PowerShell), через
    `kubectl`/`helm`, указывающие на этот кластер через `$env:KUBECONFIG`.
@@ -65,30 +73,43 @@ LoadBalancer`, без отдельного L2Advertisement/IPAddressPool.
 на новом сервере, и примените `kubectl apply -f k3s/coredns-custom.yaml`
 (поправив домен хостера), иначе поды могут не резолвить внешние адреса.
 
-Дальше — обычные шаги деплоя приложений: 1) GHCR, 2) образы, 3) namespace и секреты, 4) Hatchet, 5) манифесты.
+Дальше — обычные шаги деплоя приложений: 1) свой реестр, 2) образы, 3) namespace и секреты, 4) Hatchet, 5) манифесты.
 
-## 1. GitHub Container Registry (ghcr.io)
+## 1. Свой реестр (registry.yaml, zot)
 
-Образы хранятся в приватных пакетах `ghcr.io/kodermax/psi-opora-*` — своего
-реестра в кластере больше нет. GitHub Actions пушит их через встроенный
-`GITHUB_TOKEN` (см. "Настройка GitHub Actions" ниже), а кластеру для `docker
-pull` приватных образов нужен отдельный pull secret на основе Personal
-Access Token (classic, scope `read:packages`), выпущенный на аккаунте с
-доступом к этим пакетам:
+Установка с нуля, когда k3s на сервере ещё нет вообще. Встроенный `traefik`
+в k3s отключён — вместо него ставится отдельный Traefik через Helm с ACME
+`certResolver: letsencrypt`, на который опираются все `IngressRoute` в этом
+репозитории (см. "Домены" ниже). Встроенный `servicelb` (klipper-lb) не
+трогаем — для одной ноды он и так делает то же самое, что MetalLB на
+multi-node bare metal: сам вешает внешний IP ноды на `Service type:
+LoadBalancer`, без отдельного L2Advertisement/IPAddressPool.
 
-```powershell
-kubectl apply -f k3s/namespace.yaml
-kubectl create secret docker-registry regcred `
-  --namespace psi-opora `
-  --docker-server=ghcr.io `
-  --docker-username=<github-username> `
-  --docker-password=<PAT со scope read:packages>
-```
+В `registry-config` в `accessControl` захардкожен пользователь `deploy` с
+правами на чтение/запись (остальным — только чтение). Если нужен другой
+логин, поменяйте имя в `k3s/registry.yaml` (`accessControl.repositories."**".policies[0].users`)
+на своё.
 
-Комментарий в `k3s/regcred.yaml` описывает то же самое — держите файл на
-диске только как шаблон, реальный секрет создавайте командой выше (или
-`--dry-run=client -o yaml`, если хотите положить готовый YAML в файл вручную;
-в git при этом уходить он не должен).
+1. Направить DNS A-запись `registry.orixon.ru` на IP сервера с k3s.
+
+2. Создать namespace psi-opora (если ещё не создан):
+
+   ```powershell
+   kubectl apply -f k3s/namespace.yaml
+   ```
+
+3. Создать htpasswd-секрет с пользователем `deploy` (файл с паролем в git не
+   попадает — секрет создаётся вручную, один раз). Утилиты `htpasswd` в
+   Windows нет — используем образ `httpd` в Docker, хэш сразу уходит в
+   Secret без временного файла на диске:
+
+   ```powershell
+   $HtpasswdLine = docker run --rm httpd:2.4-alpine htpasswd -Bbn deploy '<пароль>'
+   kubectl create secret generic registry-htpasswd --from-literal=htpasswd="$HtpasswdLine" --namespace psi-opora
+   ```
+
+   На Linux/macOS с установленным `apache2-utils`/`httpd-tools` подойдёт и
+   исходный вариант без Docker: `htpasswd -Bbn deploy '<пароль>' > /tmp/htpasswd`.
 
 Тег `:latest` в манифестах — только для самого первого `kubectl apply`.
 Дальнейшие деплои катит GitHub Actions через `kubectl set image` (см. ниже),
@@ -101,10 +122,11 @@ kubectl create secret docker-registry regcred `
 образы и запушить в GHCR можно локально (нужен PAT со scope `write:packages`):
 
 ```powershell
-docker login ghcr.io -u <github-username> -p '<PAT со scope write:packages>'
+$Registry = "registry.orixon.ru"
+docker login $Registry -u deploy -p '<пароль>'
 foreach ($app in "tg-bot","max-bot","tg-userbot-worker","hatchet-worker","bitrix-webhook","dashboard","clients") {
-  docker build -t "ghcr.io/kodermax/psi-opora-${app}:latest" -f "apps/$app/Dockerfile" .
-  docker push "ghcr.io/kodermax/psi-opora-${app}:latest"
+  docker build -t "$Registry/psi-opora-${app}:latest" -f "apps/$app/Dockerfile" .
+  docker push "$Registry/psi-opora-${app}:latest"
 }
 ```
 
@@ -294,6 +316,7 @@ notes и миграции на тестовом окружении.
 kubectl apply -f k3s/namespace.yaml
 kubectl apply -f k3s/middleware.yaml
 kubectl apply -f k3s/regcred.yaml
+kubectl apply -f k3s/registry.yaml
 kubectl apply -f k3s/redis.yaml
 kubectl apply -f k3s/postgres.yaml
 kubectl apply -f k3s/waha.yaml
@@ -385,6 +408,9 @@ Grafana торчит через `IngressRoute` (см. "Домены" ниже), 
 `tg-userbot-worker` без Service — ему не нужен входящий трафик (MTProto
 исходящий).
 
+`registry` — без NodePort, доступен через `IngressRoute` (см. шаг 1 и
+раздел "Домены" ниже).
+
 ## Домены (IngressRoute)
 
 Наружу торчат через Traefik `IngressRoute` (не стандартный `networking.k8s.io/v1
@@ -396,6 +422,7 @@ IngressRoute: на `web` (порт 80) с редиректом на https чер
 
 | Сервис         | Домен                              |
 | -------------- | ---------------------------------- |
+| registry       | registry.orixon.ru                 |
 | clients        | psi-opora-clients.orixon.ru        |
 | dashboard      | psi-opora-dashboard.orixon.ru      |
 | bitrix-webhook | psi-opora-bitrix-webhook.orixon.ru |
@@ -460,15 +487,11 @@ RBAC-правами (deploy, get, list pods/deployments в namespace psi-opora).
 Доступ к API на порту 6443 ограничьте через VPN, SSH-туннель или используйте
 self-hosted runner.
 
-Пуш образов в `ghcr.io` идёт под встроенным `secrets.GITHUB_TOKEN`
-(job `deploy` уже объявляет `permissions: packages: write`) — заводить
-отдельные `REGISTRY`/`REGISTRY_USER`/`REGISTRY_PASSWORD` не нужно, их можно
-удалить из репозитория, если остались от старой настройки.
-
 В репозитории (Settings → Secrets and variables → Actions) нужно завести:
 
 **Secrets:**
 
+- `REGISTRY_USER`, `REGISTRY_PASSWORD` — логин/пароль из шага 1 выше (htpasswd).
 - `KUBECONFIG` — содержимое `/etc/rancher/k3s/k3s.yaml` в base64, с полем
   `server:` переписанным на реальный адрес сервера (по умолчанию там
   `https://127.0.0.1:6443`, что снаружи не резолвится). Скопируйте файл на

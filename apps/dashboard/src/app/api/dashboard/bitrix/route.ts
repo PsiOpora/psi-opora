@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
-import { previousRange } from "@/lib/analytics/date-range";
-import type { DateRange } from "@/lib/analytics/types";
 import {
 	fetchCategoryNames,
-	fetchDeals,
-	fetchOpenDeals,
+	fetchFailReasonNames,
 	fetchSourceNames,
 	fetchStageNames,
 } from "@/lib/analytics/deals";
@@ -13,22 +10,15 @@ import { getBitrixApi } from "@/lib/bitrix/session";
 
 export const dynamic = "force-dynamic";
 
-function rangeFromParams(url: URL): DateRange {
-	const fromParam = url.searchParams.get("from");
-	const toParam = url.searchParams.get("to");
-	const to = toParam ? new Date(toParam) : new Date();
-	const from = fromParam
-		? new Date(fromParam)
-		: new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
-	return { from, to };
-}
-
 /**
- * Общий эндпоинт для дашборд-страниц, читающих сделки/справочники Bitrix24 —
- * заменяет прямой вызов getBitrixApi()/fetchDeals() из серверных компонентов
- * страниц (см. CONTEXT в задаче про клиентские страницы). `need` — список
- * через запятую: deals, previousDeals, sourceNames, categoryNames,
- * stageNames, dealDomain, openDeals.
+ * Справочники сделок (имена источников/стадий/воронок) — из локального
+ * зеркала (packages/db, таблица deal_dictionaries), синкается вместе со
+ * сделками (packages/jobs/src/deals-sync.ts). Сами сделки читаются оттуда же
+ * через /api/dashboard/deals* — см. hooks/use-deals-report.ts,
+ * use-deals-summary.ts. `connected`/`dealDomain` — единственное, что ещё
+ * зависит от live-подключения к Bitrix (для ссылок на карточки CRM и баннера
+ * "не подключено"). `need` — список через запятую: sourceNames,
+ * categoryNames, stageNames, failReasonNames, dealDomain.
  */
 export async function GET(request: Request) {
 	const url = new URL(request.url);
@@ -37,50 +27,37 @@ export async function GET(request: Request) {
 	);
 
 	const api = await getBitrixApi();
-	if (!api) {
-		return NextResponse.json({ connected: false });
-	}
-
-	const range = rangeFromParams(url);
 
 	try {
 		const [
-			deals,
-			previousDeals,
 			sourceNames,
 			categoryNames,
 			stageNames,
+			failReasonNames,
 			dealDomain,
-			openDeals,
 		] = await Promise.all([
-			need.has("deals") ? fetchDeals(api, range) : Promise.resolve(undefined),
-			need.has("previousDeals")
-				? fetchDeals(api, previousRange(range))
-				: Promise.resolve(undefined),
-			need.has("sourceNames")
-				? fetchSourceNames(api)
-				: Promise.resolve(undefined),
+			need.has("sourceNames") ? fetchSourceNames() : Promise.resolve(undefined),
 			need.has("categoryNames")
-				? fetchCategoryNames(api)
+				? fetchCategoryNames()
 				: Promise.resolve(undefined),
-			need.has("stageNames")
-				? fetchStageNames(api)
+			need.has("stageNames") ? fetchStageNames() : Promise.resolve(undefined),
+			need.has("failReasonNames")
+				? fetchFailReasonNames()
 				: Promise.resolve(undefined),
-			need.has("dealDomain")
+			api && need.has("dealDomain")
 				? getBitrixPortalDomain()
 				: Promise.resolve(undefined),
-			need.has("openDeals") ? fetchOpenDeals(api) : Promise.resolve(undefined),
 		]);
 
 		return NextResponse.json({
-			connected: true,
-			deals,
-			previousDeals,
+			connected: !!api,
 			sourceNames: sourceNames ? [...sourceNames.entries()] : undefined,
 			categoryNames: categoryNames ? [...categoryNames.entries()] : undefined,
 			stageNames: stageNames ? [...stageNames.entries()] : undefined,
+			failReasonNames: failReasonNames
+				? [...failReasonNames.entries()]
+				: undefined,
 			dealDomain,
-			openDeals,
 		});
 	} catch (error) {
 		if (

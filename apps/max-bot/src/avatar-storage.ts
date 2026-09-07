@@ -55,12 +55,16 @@ const MEDIA_PREFIX = "bot/media/";
 /** Голосовые/аудио MAX обычно в пределах пары МБ — с запасом. */
 export const MAX_MEDIA_SIZE = 20 * 1024 * 1024;
 
-/** Скачивает и заливает аудио-вложение MAX в S3, возвращает внутренний ключ
- * (публичный URL строится по id сообщения, см. packages/api/routers/messages). */
+/** Скачивает и заливает вложение MAX (голосовое/фото/файл) в S3, возвращает
+ * внутренний ключ (публичный URL строится по id сообщения, см.
+ * packages/api/routers/messages). fileName — только для kind="image"/"file"
+ * (см. bot_messages.media_file_name); голосовые (единственный вызывающий
+ * раньше) продолжают писаться под расширением .m4a по умолчанию. */
 export async function uploadMaxMedia(params: {
 	bytes: Uint8Array;
 	contentType: string;
 	attachmentId: string;
+	fileName?: string;
 }): Promise<{ mediaS3Key: string }> {
 	if (
 		params.bytes.byteLength === 0 ||
@@ -72,7 +76,10 @@ export async function uploadMaxMedia(params: {
 	}
 
 	const { client, bucket } = await createS3Client();
-	const key = `${MEDIA_PREFIX}max/${params.attachmentId}.m4a`;
+	const suffix = params.fileName
+		? params.fileName.replace(/[^\p{L}\p{N}._-]+/gu, "_")
+		: "audio.m4a";
+	const key = `${MEDIA_PREFIX}max/${params.attachmentId}-${suffix}`;
 
 	await uploadObject({
 		client,

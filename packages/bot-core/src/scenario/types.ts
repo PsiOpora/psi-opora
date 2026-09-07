@@ -76,6 +76,9 @@ export interface ScenarioState {
 	pendingGuideEmailMissing?: boolean;
 	/** Явное согласие на рекламную рассылку (отдельное от согласия на обработку ПДн). */
 	marketingConsent?: boolean;
+	/** Момент нажатия «Согласен(а)» на шаге согласия на ПДн (ISO) — уходит в
+	 * карточку контакта как дата/время согласия, без ручного заполнения. */
+	consentAt?: string;
 	/**
 	 * Вход по кодовому слову кампании (bot_guide_campaigns.id) — вместо
 	 * обычного выбора категории/темы сразу ведёт к выдаче гайда кампании
@@ -111,11 +114,22 @@ export interface ScenarioLead {
 	marketingConsent?: boolean;
 	/** Кампания, по кодовому слову которой пришла заявка (bot_guide_campaigns.id). */
 	campaignId?: string;
+	/** Момент согласия на ПДн (ISO) — см. ScenarioState.consentAt. */
+	consentAt?: string;
 }
 
 /** Контакт, который нужно сохранить в CRM без создания сделки. */
 export interface ScenarioContact {
 	email: string;
+	/** Момент согласия на ПДн (ISO) — см. ScenarioState.consentAt. */
+	consentAt?: string;
+}
+
+/** Причина, по которой пользователь не пошёл дальше конкретного шага
+ * воронки — не прогресс, а явный отказ/тупик сценария (см. FunnelEventContext.reason). */
+export interface ScenarioDropReason {
+	step: FunnelStep;
+	reason: string;
 }
 
 export interface ScenarioOutput {
@@ -131,4 +145,7 @@ export interface ScenarioOutput {
 	subscribeChoice?: "yes" | "no";
 	/** true — ждём ответа пользователя (при молчании сработает напоминание). */
 	awaitingInput: boolean;
+	/** Пользователь явно отказался продолжать на этом шаге (не молчание) —
+	 * см. дашборд "Причины отвала". */
+	dropReason?: ScenarioDropReason;
 }

@@ -1,4 +1,8 @@
-import { resolveTelegramBotToken } from "@psi-opora/bot-core";
+import {
+	createTelegramFetch,
+	resolveTelegramApiRoot,
+	resolveTelegramBotToken,
+} from "@psi-opora/bot-core";
 import { Bot } from "grammy";
 
 const token = await resolveTelegramBotToken();
@@ -10,7 +14,9 @@ if (!token) {
 	process.exit(1);
 }
 
-const bot = new Bot(token);
+const bot = new Bot(token, {
+	client: { apiRoot: resolveTelegramApiRoot(), fetch: createTelegramFetch() },
+});
 
 await bot.api.deleteWebhook({ drop_pending_updates: true });
 const info = await bot.api.getWebhookInfo();

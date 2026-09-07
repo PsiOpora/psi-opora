@@ -4,6 +4,9 @@ import {
 	isRedisConfigured,
 	type RedisClient,
 } from "../storage/redis";
+import { FUNNEL_STEPS, type FunnelStep } from "./funnel-steps";
+
+export { FUNNEL_STEPS, type FunnelStep };
 
 /**
  * Тип функции upsert для событий воронки.
@@ -15,6 +18,9 @@ export type UpsertFunnelFn = (data: {
 	step: string;
 	source?: string;
 	campaign?: string;
+	userId?: string | number;
+	flow?: string;
+	reason?: string;
 }) => Promise<void>;
 
 /**
@@ -31,33 +37,20 @@ export function setFunnelUpsert(fn: UpsertFunnelFn): void {
 	_upsertFn = fn;
 }
 
-/**
- * Шаги воронки бота в порядке прохождения сценария.
- * После start пользователь идёт одной из двух веток:
- * консультация (consult_click → consent → name → phone → deal) или
- * гайд (guide_click → consent → category → issue → email → phone → deal → subscribe).
- * Конверсии между шагами разных веток читаются с поправкой на ветвление.
- */
-export const FUNNEL_STEPS = [
-	"start",
-	"consult_click",
-	"consent",
-	"marketing_consent",
-	"name",
-	"guide_click",
-	"category",
-	"issue",
-	"email",
-	"phone",
-	"deal",
-	"subscribe",
-] as const;
-export type FunnelStep = (typeof FUNNEL_STEPS)[number];
-
 export interface FunnelEventContext {
 	messenger: string;
 	source?: string;
 	campaign?: string;
+	/** ID пользователя мессенджера — нужен для дедупликации: без него шаг
+	 * попадёт только в общий (неуникальный) счётчик bot_funnel_events. */
+	userId?: string | number;
+	/** Ветка сценария ("consult" | "guide") — не задана до её выбора (шаг start). */
+	flow?: string;
+	/** Не задано — обычное успешное прохождение шага. Задано — это не
+	 * прогресс, а причина, по которой пользователь остановился именно на
+	 * этом шаге ("declined", "timeout", "blocked" и т.п.), см. дашборд
+	 * "Причины отвала". */
+	reason?: string;
 }
 
 const FIELD_SEP = "|";
@@ -116,6 +109,9 @@ export async function trackFunnelStep(
 			step,
 			source,
 			campaign,
+			userId: ctx.userId,
+			flow: ctx.flow,
+			reason: ctx.reason,
 		});
 	} catch (err) {
 		console.error(

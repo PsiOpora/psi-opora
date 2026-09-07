@@ -2,30 +2,44 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
+import { z } from "zod";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import type { StageInfo } from "@/lib/analytics/deals";
-import { reviveDeals, type WireDeal } from "@/lib/analytics/revive";
-import type { DealRecord } from "@/lib/analytics/types";
 
 export type BitrixNeed =
-	| "deals"
-	| "previousDeals"
 	| "sourceNames"
 	| "categoryNames"
 	| "stageNames"
-	| "dealDomain"
-	| "openDeals";
+	| "failReasonNames"
+	| "dealDomain";
 
 interface BitrixDataResult {
 	connected: boolean;
-	deals?: DealRecord[];
-	previousDeals?: DealRecord[];
 	sourceNames?: Map<string, string>;
 	categoryNames?: Map<string, string>;
 	stageNames?: Map<string, StageInfo>;
+	failReasonNames?: Map<string, string>;
 	dealDomain?: string | null;
-	openDeals?: DealRecord[];
 }
+
+const bitrixResponseSchema = z.object({
+	connected: z.boolean(),
+	sourceNames: z.array(z.tuple([z.string(), z.string()])).optional(),
+	categoryNames: z.array(z.tuple([z.string(), z.string()])).optional(),
+	stageNames: z
+		.array(
+			z.tuple([
+				z.string(),
+				z.object({
+					name: z.string(),
+					sort: z.number(),
+				}),
+			]),
+		)
+		.optional(),
+	failReasonNames: z.array(z.tuple([z.string(), z.string()])).optional(),
+	dealDomain: z.string().nullable().optional(),
+});
 
 /** Диапазон дат из ?from=&to= — как раньше в серверных страницах, но на клиенте. */
 export function useDashboardRange() {
@@ -34,8 +48,10 @@ export function useDashboardRange() {
 }
 
 /**
- * Данные Bitrix24 (сделки + справочники) через /api/dashboard/bitrix — замена
- * прямому getBitrixApi()/fetchDeals() в серверных компонентах страниц.
+ * Справочники Bitrix24 через /api/dashboard/bitrix (имена источников/стадий/
+ * воронок, домен портала — дешёвые нефильтруемые запросы, живьём). Сами
+ * сделки читаются из локального зеркала — см. hooks/use-deals-report.ts,
+ * use-deals-summary.ts.
  */
 export function useBitrixData(need: BitrixNeed[]) {
 	const range = useDashboardRange();
@@ -49,27 +65,60 @@ export function useBitrixData(need: BitrixNeed[]) {
 			const params = new URLSearchParams({ from, to, need: needKey });
 			const res = await fetch(`/api/dashboard/bitrix?${params}`);
 			if (!res.ok) throw new Error("Не удалось загрузить данные Bitrix24");
-			const json = await res.json();
+			const rawJson = await res.json();
+
+			// Validate response structure before processing
+			const validated = bitrixResponseSchema.safeParse(rawJson);
+			if (!validated.success) {
+				console.error(
+					"[useBitrixData] Invalid response structure:",
+					validated.error,
+				);
+				throw new Error("Некорректный формат данных от сервера");
+			}
+
+			const json = validated.data;
 			if (!json.connected) return { connected: false };
+
 			return {
 				connected: true,
-				deals: json.deals ? reviveDeals(json.deals as WireDeal[]) : undefined,
-				previousDeals: json.previousDeals
-					? reviveDeals(json.previousDeals as WireDeal[])
-					: undefined,
 				sourceNames: json.sourceNames
-					? new Map<string, string>(json.sourceNames)
+					? new Map<string, string>(
+							json.sourceNames.filter(
+								(pair): pair is [string, string] =>
+									Array.isArray(pair) &&
+									pair.length === 2 &&
+									typeof pair[0] === "string" &&
+									typeof pair[1] === "string",
+							),
+						)
 					: undefined,
 				categoryNames: json.categoryNames
-					? new Map<string, string>(json.categoryNames)
+					? new Map<string, string>(
+							json.categoryNames.filter(
+								(pair): pair is [string, string] =>
+									Array.isArray(pair) &&
+									pair.length === 2 &&
+									typeof pair[0] === "string" &&
+									typeof pair[1] === "string",
+							),
+						)
 					: undefined,
 				stageNames: json.stageNames
 					? new Map<string, StageInfo>(json.stageNames)
 					: undefined,
-				dealDomain: json.dealDomain ?? null,
-				openDeals: json.openDeals
-					? reviveDeals(json.openDeals as WireDeal[])
+				failReasonNames: json.failReasonNames
+					? new Map<string, string>(
+							json.failReasonNames.filter(
+								(pair): pair is [string, string] =>
+									Array.isArray(pair) &&
+									pair.length === 2 &&
+									typeof pair[0] === "string" &&
+									typeof pair[1] === "string",
+							),
+						)
 					: undefined,
+				dealDomain: json.dealDomain ?? null,
 			};
 		},
 	});

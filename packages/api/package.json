@@ -38,13 +38,13 @@
     "@psi-opora/validators": "workspace:*",
     "@orpc/contract": "1.15.0",
     "@orpc/server": "1.15.0",
-    "better-auth": "1.7.1",
+    "better-auth": "1.7.2",
     "superjson": "2.2.6",
-    "zod": "4.4.3"
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
-    "@types/node": "26.2.0",
+    "@types/node": "26.4.0",
     "typescript": "7.0.2"
   }
 }

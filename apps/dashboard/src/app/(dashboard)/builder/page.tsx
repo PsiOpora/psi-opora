@@ -14,12 +14,7 @@ export default function BuilderPage() {
 }
 
 function BuilderPageContent() {
-	const { data, isLoading, isError } = useBitrixData([
-		"deals",
-		"sourceNames",
-		"categoryNames",
-		"stageNames",
-	]);
+	const { data, isLoading, isError } = useBitrixData([]);
 
 	if (isLoading) {
 		return <p className="text-sm text-muted-foreground">Загрузка…</p>;
@@ -33,21 +28,5 @@ function BuilderPageContent() {
 	}
 	if (!data?.connected) return <NotConnected />;
 
-	const deals = data.deals ?? [];
-	const sourceNames = data.sourceNames ?? new Map<string, string>();
-	const categoryNames = data.categoryNames ?? new Map<string, string>();
-	const stageNames = data.stageNames ?? new Map();
-
-	return (
-		<ReportBuilder
-			deals={deals}
-			dictionaries={{
-				sources: Object.fromEntries(sourceNames),
-				categories: Object.fromEntries(categoryNames),
-				stages: Object.fromEntries(
-					[...stageNames].map(([id, stage]) => [id, stage.name]),
-				),
-			}}
-		/>
-	);
+	return <ReportBuilder />;
 }

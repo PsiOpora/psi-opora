@@ -1,3 +1,4 @@
+import type { RedisClient } from "../../storage/redis";
 import { bitrixPost, getEnv, getSourceId, getSourceName } from "./client";
 
 /**
@@ -30,6 +31,84 @@ export async function appendDealComment(
 			`[bitrix] не удалось добавить комментарий к сделке ${dealId}: ${message}`,
 		);
 	}
+}
+
+/**
+ * Сначала надёжно ставит запись согласия в Redis-outbox. Отдельная фоновая
+ * задача вызывает crm.deal.update и удаляет запись только после успеха.
+ */
+export async function setDealConsentTimestamp(
+	redis: RedisClient,
+	messenger: string,
+	dealId: number,
+	field: string,
+	at: string,
+): Promise<void> {
+	if (!dealId) throw new Error("Не задана сделка для записи согласия");
+	await redis.zadd(DEAL_CONSENT_OUTBOX_KEY, {
+		score: Date.now(),
+		member: { messenger, dealId, field, at } satisfies DealConsentOutboxEntry,
+	});
+}
+
+const DEAL_CONSENT_OUTBOX_KEY = "stage-consent:deal-update-outbox";
+
+export interface DealConsentOutboxEntry {
+	messenger: string;
+	dealId: number;
+	field: string;
+	at: string;
+}
+
+export interface ProcessDealConsentOutboxResult {
+	processed: number;
+	failed: number;
+}
+
+async function deliverDealConsent(
+	entry: DealConsentOutboxEntry,
+): Promise<void> {
+	await bitrixPost(
+		"crm.deal.update",
+		{ id: entry.dealId, fields: { [entry.field]: entry.at } },
+		entry.messenger,
+	);
+}
+
+/** Повторяет недоставленные crm.deal.update; ошибочные записи остаются в outbox. */
+export async function processDealConsentOutbox(
+	redis: RedisClient,
+	limit = 100,
+	deliver: (
+		entry: DealConsentOutboxEntry,
+	) => Promise<void> = deliverDealConsent,
+): Promise<ProcessDealConsentOutboxResult> {
+	const entries = (
+		await redis.zrange<DealConsentOutboxEntry[]>(
+			DEAL_CONSENT_OUTBOX_KEY,
+			0,
+			Date.now(),
+			{ byScore: true },
+		)
+	).slice(0, limit);
+	let processed = 0;
+	let failed = 0;
+
+	for (const entry of entries) {
+		try {
+			await deliver(entry);
+			await redis.zrem(DEAL_CONSENT_OUTBOX_KEY, entry);
+			processed++;
+		} catch (err: unknown) {
+			failed++;
+			const message = err instanceof Error ? err.message : String(err);
+			console.error(
+				`[bitrix] не удалось записать согласие (${entry.field}) в сделку ${entry.dealId}: ${message}`,
+			);
+		}
+	}
+
+	return { processed, failed };
 }
 
 export interface BitrixSource {

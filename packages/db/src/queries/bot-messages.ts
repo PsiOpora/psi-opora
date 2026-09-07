@@ -4,6 +4,7 @@ import {
 	desc,
 	eq,
 	gt,
+	inArray,
 	isNotNull,
 	isNull,
 	or,
@@ -32,6 +33,11 @@ function identitiesFilter(identities: ClientIdentityRef[]) {
 		),
 	);
 }
+
+// Автосообщения без привязки к оператору (напоминания, виджет) — правит и
+// удаляет любой оператор, а не только тот, кто их отправил, ведь отправил их
+// не человек.
+const UNOWNED_EDITABLE_SOURCES = ["widget", "reminder"] as const;
 
 export type BotMessage = typeof botMessages.$inferSelect;
 export type NewBotMessage = typeof botMessages.$inferInsert;
@@ -63,12 +69,15 @@ export interface BotMessageEntry {
 	/** Только для telegram-personal/whatsapp-personal — какой из нескольких
 	 * личных номеров портала отправил/принял сообщение. */
 	connectorId?: string;
-	/** По умолчанию "text". "voice" — заливаем mediaS3Key в раздающий роут
-	 * (apps/dashboard/src/app/api/message-media). */
-	kind?: "text" | "voice";
+	/** По умолчанию "text". voice/image/file — заливаем mediaS3Key в
+	 * раздающий роут (apps/dashboard/src/app/api/message-media). */
+	kind?: "text" | "voice" | "image" | "file";
 	mediaS3Key?: string;
 	mediaMimeType?: string;
 	mediaDurationSec?: number;
+	/** Исходное имя файла (kind="file"/"image") — для Content-Disposition и
+	 * подписи в списке сообщений. */
+	mediaFileName?: string;
 }
 
 export async function insertBotMessage(
@@ -97,6 +106,7 @@ export async function insertBotMessage(
 		mediaS3Key: entry.mediaS3Key,
 		mediaMimeType: entry.mediaMimeType,
 		mediaDurationSec: entry.mediaDurationSec,
+		mediaFileName: entry.mediaFileName,
 		createdAt: now,
 		updatedAt: now,
 	});
@@ -106,10 +116,11 @@ export async function insertBotMessage(
 export interface BotMessageMedia {
 	mediaS3Key: string;
 	mediaMimeType: string | null;
+	mediaFileName: string | null;
 }
 
-/** Ключ и mime-type голосового вложения по id сообщения — для раздающего
- * роута apps/dashboard/src/app/api/message-media/[id]. */
+/** Ключ, mime-type и имя файла вложения (voice/image/file) по id сообщения —
+ * для раздающего роута apps/dashboard/src/app/api/message-media/[id]. */
 export async function getBotMessageMedia(
 	db: Database,
 	id: string,
@@ -119,12 +130,17 @@ export async function getBotMessageMedia(
 		.select({
 			mediaS3Key: botMessages.mediaS3Key,
 			mediaMimeType: botMessages.mediaMimeType,
+			mediaFileName: botMessages.mediaFileName,
 		})
 		.from(botMessages)
 		.where(and(eq(botMessages.id, id), isNull(botMessages.deletedAt)))
 		.limit(1);
 	if (!row?.mediaS3Key) return null;
-	return { mediaS3Key: row.mediaS3Key, mediaMimeType: row.mediaMimeType };
+	return {
+		mediaS3Key: row.mediaS3Key,
+		mediaMimeType: row.mediaMimeType,
+		mediaFileName: row.mediaFileName,
+	};
 }
 
 /** Обновляет статус доставки по внешнему id сообщения (сейчас — только
@@ -158,7 +174,10 @@ export async function getEditableBotMessage(
 				eq(botMessages.kind, "text"),
 				or(
 					eq(botMessages.operatorId, operatorId),
-					and(isNull(botMessages.operatorId), eq(botMessages.source, "widget")),
+					and(
+						isNull(botMessages.operatorId),
+						inArray(botMessages.source, UNOWNED_EDITABLE_SOURCES),
+					),
 				),
 				isNotNull(botMessages.externalId),
 				isNull(botMessages.deletedAt),
@@ -198,7 +217,10 @@ export async function getDeletableBotMessage(
 				eq(botMessages.direction, "out"),
 				or(
 					eq(botMessages.operatorId, operatorId),
-					and(isNull(botMessages.operatorId), eq(botMessages.source, "widget")),
+					and(
+						isNull(botMessages.operatorId),
+						inArray(botMessages.source, UNOWNED_EDITABLE_SOURCES),
+					),
 				),
 				isNotNull(botMessages.externalId),
 				isNull(botMessages.deletedAt),
@@ -271,19 +293,27 @@ export async function markBotMessageGuideEmailSent(
 		.where(eq(botMessages.id, id));
 }
 
-/** Последние сообщения диалога с клиентом (новые первыми). */
+/** Последние сообщения диалога с клиентом (новые первыми). `connectorId`
+ * сужает до конкретного личного номера (telegram-personal/whatsapp-personal),
+ * когда на одну messenger+userId приходится несколько подключённых номеров —
+ * иначе тред одного номера подмешивает сообщения другого. */
 export async function listBotMessages(
 	db: Database,
 	messenger: string,
 	userId: string,
 	limit = 50,
+	connectorId?: string,
 ): Promise<BotMessage[]> {
 	if (!db) return [];
 	return db
 		.select()
 		.from(botMessages)
 		.where(
-			and(eq(botMessages.messenger, messenger), eq(botMessages.userId, userId)),
+			and(
+				eq(botMessages.messenger, messenger),
+				eq(botMessages.userId, userId),
+				...(connectorId ? [eq(botMessages.connectorId, connectorId)] : []),
+			),
 		)
 		.orderBy(desc(botMessages.createdAt))
 		.limit(limit);
@@ -332,6 +362,7 @@ export async function listBotMessagesSince(
 	userId: string,
 	since: Date,
 	limit = 50,
+	connectorId?: string,
 ): Promise<BotMessage[]> {
 	if (!db) return [];
 	return db
@@ -342,6 +373,7 @@ export async function listBotMessagesSince(
 				eq(botMessages.messenger, messenger),
 				eq(botMessages.userId, userId),
 				gt(botMessages.updatedAt, since),
+				...(connectorId ? [eq(botMessages.connectorId, connectorId)] : []),
 			),
 		)
 		.orderBy(asc(botMessages.updatedAt))

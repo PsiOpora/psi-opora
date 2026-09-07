@@ -199,6 +199,18 @@ export async function wahaCreateSession(
 				// Статусы («сторис») в линию не тащим; группы пропускает сам
 				// вебхук-обработчик — здесь фильтр не у всех движков одинаков.
 				ignore: { status: true },
+				// Сервер в РФ — само WhatsApp-соединение (не наш HTTP до
+				// контейнера WAHA) идёт через прокси, иначе WhatsApp не
+				// присылает коды подтверждения (см. WAHA_PROXY_* в env.ts).
+				...(env.WAHA_PROXY_SERVER
+					? {
+							proxy: {
+								server: env.WAHA_PROXY_SERVER,
+								username: env.WAHA_PROXY_USERNAME,
+								password: env.WAHA_PROXY_PASSWORD,
+							},
+						}
+					: {}),
 			},
 		},
 	});
@@ -284,6 +296,66 @@ export async function wahaSendText(
 	// WAHA отвечает 201, когда приняла команду, но WhatsApp может сразу после
 	// этого отозвать связанное устройство (401 device_removed). Короткая
 	// проверка не является повторной отправкой и защищает UI от ложного «ушло».
+	await new Promise((resolve) => setTimeout(resolve, 3_000));
+	const after = wahaSessionHealth(await wahaGetSession(session));
+	if (after.status !== "connected") {
+		throw new WahaError(
+			after.error ?? "WhatsApp отключил сессию сразу после отправки",
+		);
+	}
+	return { id: res?.id };
+}
+
+/**
+ * Отправка фото/файла/голосового в чат WhatsApp. Байты передаются как base64
+ * в теле запроса (`file.data`) — в отличие от wahaSendText, здесь нет публичного
+ * URL, по которому WAHA могла бы сама скачать вложение (оно только что
+ * загружено оператором в наше S3, см. packages/api/message-attachment-storage),
+ * а сетевая доступность нашего бакета из контейнера WAHA не гарантирована.
+ */
+export async function wahaSendFile(
+	session: string,
+	chatId: string,
+	attachment: {
+		bytes: Uint8Array;
+		fileName: string;
+		mimeType: string;
+		kind: "image" | "file" | "voice";
+	},
+	caption?: string,
+): Promise<{ id?: string }> {
+	const before = wahaSessionHealth(await wahaGetSession(session));
+	if (before.status !== "connected") {
+		throw new WahaError(before.error ?? "Сессия WhatsApp не готова к отправке");
+	}
+	const mediaType = attachment.mimeType.split(";", 1)[0]?.trim().toLowerCase();
+	const sendAsVoice =
+		attachment.kind === "voice" &&
+		(mediaType === "audio/ogg" || mediaType === "audio/opus");
+	const endpoint =
+		attachment.kind === "image"
+			? "/api/sendImage"
+			: sendAsVoice
+				? "/api/sendVoice"
+				: "/api/sendFile";
+	const data = Buffer.from(attachment.bytes).toString("base64");
+	const res = await wahaFetch<{ id?: string } | undefined>(endpoint, {
+		method: "POST",
+		body: {
+			session,
+			chatId,
+			file: {
+				mimetype: attachment.mimeType,
+				filename: attachment.fileName,
+				data,
+			},
+			...(caption ? { caption } : {}),
+		},
+	});
+
+	// Та же короткая проверка сессии после отправки, что и в wahaSendText —
+	// WAHA может принять команду (201), а WhatsApp сразу после этого отозвать
+	// связанное устройство.
 	await new Promise((resolve) => setTimeout(resolve, 3_000));
 	const after = wahaSessionHealth(await wahaGetSession(session));
 	if (after.status !== "connected") {

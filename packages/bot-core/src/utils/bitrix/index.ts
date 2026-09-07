@@ -16,8 +16,12 @@ export {
 export {
 	appendDealComment,
 	type BitrixSource,
+	type DealConsentOutboxEntry,
 	listBitrixSources,
+	type ProcessDealConsentOutboxResult,
+	processDealConsentOutbox,
 	registerBitrixSource,
+	setDealConsentTimestamp,
 } from "./sources";
 export { createBitrixTask } from "./tasks";
 export type { BitrixApiLike, ContactData, DealData } from "./types";

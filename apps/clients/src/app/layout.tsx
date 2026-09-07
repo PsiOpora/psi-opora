@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Geist } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
 import { BitrixFrameProvider } from "@/components/bitrix/frame-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
 	title: "Пси-Опора — Клиенты",
@@ -24,7 +22,7 @@ export default function RootLayout({
 		<html
 			lang="ru"
 			suppressHydrationWarning
-			className={cn("font-sans", geist.variable)}
+			className={cn("font-sans", GeistSans.variable)}
 		>
 			<body>
 				<QueryProvider>

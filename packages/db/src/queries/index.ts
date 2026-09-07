@@ -22,7 +22,10 @@ import {
 	type ConversationAssignment,
 } from "./bot-conversations";
 import {
+	getBotFunnelDropReasonsByDateRange as _getBotFunnelDropReasonsByDateRange,
 	getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
+	getBotFunnelStepClients as _getBotFunnelStepClients,
+	getBotFunnelUniqueStepCountsByDateRange as _getBotFunnelUniqueStepCountsByDateRange,
 	upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
 import {
@@ -119,7 +122,13 @@ export type {
 	BotConversation,
 	ConversationAssignment,
 } from "./bot-conversations";
-export type { BotFunnelEvent, NewBotFunnelEvent } from "./bot-funnel";
+export type {
+	BotFunnelDropReasonCount,
+	BotFunnelEvent,
+	BotFunnelStepClient,
+	BotFunnelUniqueStepCount,
+	NewBotFunnelEvent,
+} from "./bot-funnel";
 export type {
 	BotGuideCampaign,
 	NewBotGuideCampaign,
@@ -157,6 +166,9 @@ export type {
 	MergeClientIdentitiesEntry,
 } from "./client-identity-links";
 export type { ClientNote, NewClientNoteEntry } from "./client-notes";
+export * from "./deal-dictionaries";
+export * from "./deal-stage-history";
+export * from "./deals";
 export * from "./email-campaign";
 export * from "./email-provider";
 export * from "./email-templates";
@@ -168,6 +180,7 @@ export * from "./smtp-bz";
 export * from "./telegram-personal";
 export * from "./unisender";
 export * from "./whatsapp-personal";
+export * from "./yandex-metrika";
 
 export async function getBotConnector(messenger: string) {
 	return _getBotConnector(db, messenger);
@@ -257,8 +270,9 @@ export async function listBotMessages(
 	messenger: string,
 	userId: string,
 	limit?: number,
+	connectorId?: string,
 ) {
-	return _listBotMessages(db, messenger, userId, limit);
+	return _listBotMessages(db, messenger, userId, limit, connectorId);
 }
 
 export async function listAllBotMessages(messenger: string, userId: string) {
@@ -276,8 +290,16 @@ export async function listBotMessagesSince(
 	userId: string,
 	since: Date,
 	limit?: number,
+	connectorId?: string,
 ) {
-	return _listBotMessagesSince(db, messenger, userId, since, limit);
+	return _listBotMessagesSince(
+		db,
+		messenger,
+		userId,
+		since,
+		limit,
+		connectorId,
+	);
 }
 
 export async function listBotMessagesSinceForGroup(
@@ -309,6 +331,26 @@ export async function getBotFunnelEventsByDateRange(
 	toDate: string,
 ) {
 	return _getBotFunnelEventsByDateRange(db, fromDate, toDate);
+}
+
+export async function getBotFunnelUniqueStepCountsByDateRange(
+	fromDate: string,
+	toDate: string,
+) {
+	return _getBotFunnelUniqueStepCountsByDateRange(db, fromDate, toDate);
+}
+
+export async function getBotFunnelDropReasonsByDateRange(
+	fromDate: string,
+	toDate: string,
+) {
+	return _getBotFunnelDropReasonsByDateRange(db, fromDate, toDate);
+}
+
+export async function getBotFunnelStepClients(
+	params: Parameters<typeof _getBotFunnelStepClients>[1],
+) {
+	return _getBotFunnelStepClients(db, params);
 }
 
 export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {

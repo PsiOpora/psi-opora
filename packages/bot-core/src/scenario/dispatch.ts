@@ -37,6 +37,10 @@ export interface ScenarioDispatchDeps {
 	chatId?: number;
 	source?: string;
 	campaign?: string;
+	/** ClientID Яндекс.Метрики визита, с которого клиент открыл бота (см.
+	 * extractYmClientId) — нужен, чтобы при записи на консультацию отправить
+	 * в Метрику офлайн-конверсию, привязанную к исходному визиту. */
+	ymClientId?: string;
 	/** Данные кампании гайда при out.state.campaignId — переопределяет тему/текст письма и фиксирует выдачу. */
 	guideCampaign?: GuideCampaignContext | null;
 }
@@ -219,6 +223,19 @@ export async function dispatchScenarioOutput(
 			messenger: deps.messenger,
 			source: deps.source,
 			campaign: deps.campaign,
+			userId: deps.userId,
+			flow: out.state.flow,
+		});
+	}
+
+	if (out.dropReason) {
+		await trackFunnelStep(out.dropReason.step, {
+			messenger: deps.messenger,
+			source: deps.source,
+			campaign: deps.campaign,
+			userId: deps.userId,
+			flow: out.state.flow,
+			reason: out.dropReason.reason,
 		});
 	}
 
@@ -238,10 +255,12 @@ export async function dispatchScenarioOutput(
 			chatId: deps.chatId,
 			source: deps.source,
 			campaign: deps.campaign,
+			ymClientId: deps.ymClientId,
 			comment: describeLead(out.lead, deps.texts, deps.guideCampaign?.title),
 			flow: out.lead.flow,
 			audience: out.lead.audience,
 			issue: out.lead.issue,
+			consentAt: out.lead.consentAt,
 		});
 		// Мутируем state по ссылке: адаптер уже положил его в сессию,
 		// и сессия сохранится после завершения обработчика
@@ -309,6 +328,9 @@ export async function dispatchScenarioOutput(
 			chatId: deps.chatId,
 			source: deps.source,
 			campaign: deps.campaign,
+			ymClientId: deps.ymClientId,
+			consentGranted: true,
+			consentAt: out.contact.consentAt,
 		});
 		if (contactId) {
 			console.log(

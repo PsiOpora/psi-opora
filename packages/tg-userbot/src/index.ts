@@ -23,6 +23,8 @@ export {
 	listenForUserPresence,
 	resolveClientPhoneNumber,
 	resolveClientUsername,
+	sendUserbotMedia,
 	sendUserbotMessage,
+	type UserbotMediaAttachment,
 	type UserbotPresence,
 } from "./relay";

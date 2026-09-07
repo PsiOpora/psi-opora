@@ -16,9 +16,10 @@ export const botMessages = pgTable(
 		/** scenario | reminder | widget | broadcast | operator. */
 		source: text("source").notNull().default("scenario"),
 		text: text("text").notNull(),
-		/** text | voice — голосовые/аудио-вложения (Telegram voice/audio, MAX
-		 * audio-attachment, WAHA аудио с hasMedia). Фото/видео/документы в это
-		 * поле не попадают — они как были текстом-заглушкой, так и остались. */
+		/** text | voice | image | file — voice/image используют то же S3-вложение,
+		 * что и раньше только голосовые (Telegram voice/audio, MAX
+		 * audio-attachment, WAHA аудио с hasMedia); image/file — фото и
+		 * документы, входящие от клиента и исходящие из вкладки «Клиенты». */
 		kind: text("kind").notNull().default("text"),
 		/** Внутренний ключ файла в S3 (bot/media/...) — наружу, в API/фронт,
 		 * не отдаётся, только через раздающий роут по id сообщения. */
@@ -26,6 +27,9 @@ export const botMessages = pgTable(
 		mediaMimeType: text("media_mime_type"),
 		/** Длительность голосового в секундах — не все мессенджеры её отдают. */
 		mediaDurationSec: integer("media_duration_sec"),
+		/** Исходное имя файла (kind="file"/"image") — для Content-Disposition в
+		 * раздающем роуте и подписи в списке сообщений; голосовые её не задают. */
+		mediaFileName: text("media_file_name"),
 		/** Bitrix-ID оператора, реально написавшего сообщение — заполняется и
 		 * для source="operator" (ответ прямо из Открытой линии, см.
 		 * apps/bitrix-webhook), и для source="widget" (ответ из инбокса

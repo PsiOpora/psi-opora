@@ -1,7 +1,22 @@
 import { MemoryStorage, MtPeerNotFoundError, type tl } from "@mtcute/core";
 import type { Message } from "@mtcute/node";
-import { TelegramClient } from "@mtcute/node";
+import {
+	InputMedia,
+	proxyTransportFromUrl,
+	TelegramClient,
+} from "@mtcute/node";
+import { env } from "@psi-opora/config";
 import type { TelegramApiCredentials } from "./login";
+
+/** Фото/файл, уже скачанный из нашего S3 (см. packages/api/
+ * message-attachment-storage.ts downloadOutboundAttachment) — передаётся
+ * mtcute байтами напрямую, без промежуточного публичного URL. */
+export interface UserbotMediaAttachment {
+	bytes: Uint8Array;
+	fileName: string;
+	mimeType: string;
+	kind: "image" | "file" | "voice";
+}
 
 export interface UserbotPresence {
 	userId: number;
@@ -32,6 +47,9 @@ export async function createUserbotClient(
 		apiId: credentials.apiId,
 		apiHash: credentials.apiHash,
 		storage: new MemoryStorage(),
+		transport: env.TG_USERBOT_PROXY
+			? proxyTransportFromUrl(env.TG_USERBOT_PROXY)
+			: undefined,
 	});
 	await tg.importSession(session);
 	return tg;
@@ -87,6 +105,31 @@ export async function sendUserbotMessage(
 	text: string,
 ): Promise<string> {
 	const message = await client.sendText(target, text);
+	return String(message.id);
+}
+
+/** Отправляет фото/файл (с опциональной подписью) через личный аккаунт. */
+export async function sendUserbotMedia(
+	client: TelegramClient,
+	target: number | tl.TypeInputPeer,
+	attachment: UserbotMediaAttachment,
+	caption?: string,
+): Promise<string> {
+	const mediaType = attachment.mimeType.split(";", 1)[0]?.trim().toLowerCase();
+	const sendAsVoice =
+		attachment.kind === "voice" &&
+		(mediaType === "audio/ogg" || mediaType === "audio/opus");
+	const media =
+		attachment.kind === "image"
+			? InputMedia.photo(attachment.bytes, { caption })
+			: sendAsVoice
+				? InputMedia.voice(attachment.bytes, { caption })
+				: InputMedia.document(attachment.bytes, {
+						fileName: attachment.fileName,
+						fileMime: attachment.mimeType,
+						caption,
+					});
+	const message = await client.sendMedia(target, media);
 	return String(message.id);
 }
 

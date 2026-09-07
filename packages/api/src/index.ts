@@ -43,6 +43,11 @@ export {
 	handleGuideUpload,
 	MAX_GUIDE_SIZE,
 } from "./guide-storage";
+export {
+	downloadOutboundAttachment,
+	type UploadedAttachment,
+	uploadOutboundAttachment,
+} from "./message-attachment-storage";
 export { createORPCContext } from "./orpc";
 export { type AppRouter, appRouter } from "./routers";
 export type { BotConnectorView } from "./routers/bot-connector";

@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import {
+	fetchBotFunnelDropReasons,
 	fetchBotFunnelEvents,
 	funnelByMessenger,
 	funnelBySourceCampaign,
-	funnelStepStats,
+	funnelStepStatsByFlow,
 } from "@/lib/analytics/bot-funnel";
-import { isRedisConfigured } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Считаем производные метрики (шаги/по мессенджеру/по источнику) здесь, а не
- * в клиентском компоненте — funnelStepStats и т.п. живут в одном файле с
- * fetchBotFunnelEvents, который тянет @psi-opora/db/queries (pg → net/tls),
+ * в клиентском компоненте — funnelStepStatsByFlow и т.п. живут в одном файле
+ * с fetchBotFunnelEvents, который тянет @psi-opora/db/queries (pg → net/tls),
  * несовместимые с клиентским бандлом.
  */
 export async function GET(request: Request) {
@@ -24,22 +24,13 @@ export async function GET(request: Request) {
 		? new Date(fromParam)
 		: new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-	if (!isRedisConfigured()) {
-		return NextResponse.json({
-			events: [],
-			steps: [],
-			byMessenger: [],
-			bySource: [],
-			redisConfigured: false,
-		});
-	}
-
 	const events = await fetchBotFunnelEvents({ from, to });
+	const dropReasons = await fetchBotFunnelDropReasons({ from, to });
 	return NextResponse.json({
 		events,
-		steps: funnelStepStats(events),
+		flows: funnelStepStatsByFlow(events),
 		byMessenger: funnelByMessenger(events),
 		bySource: funnelBySourceCampaign(events),
-		redisConfigured: true,
+		dropReasons,
 	});
 }

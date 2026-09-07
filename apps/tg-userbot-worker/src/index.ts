@@ -10,6 +10,11 @@ import {
 	upsertBotUserPresence,
 } from "@psi-opora/db/queries";
 import {
+	createS3Client,
+	getObjectStream,
+	uploadObject,
+} from "@psi-opora/storage";
+import {
 	createUserbotClient,
 	decryptSecret,
 	deleteUserbotMessage,
@@ -19,12 +24,48 @@ import {
 	listenForUserPresence,
 	resolveClientPhoneNumber,
 	resolveClientUsername,
+	sendUserbotMedia,
 	sendUserbotMessage,
 	setSendResult,
 } from "@psi-opora/tg-userbot";
 
 const OUTBOX_POLL_INTERVAL_MS = 3000;
 const ACCOUNTS_RESCAN_INTERVAL_MS = 60_000;
+const MAX_INBOUND_MEDIA_SIZE = 20 * 1024 * 1024;
+
+/** Скачивает вложение, загруженное оператором (apps/clients/api/attachments)
+ * в bot/media/outbound/ — тот же бакет, что и остальное S3-хранилище, здесь
+ * своя копия вместо импорта из packages/api, т.к. воркер не тянет весь oRPC-
+ * роутер ради одной функции (см. apps/bitrix-webhook/src/media-storage.ts —
+ * тот же приём для голосовых WhatsApp). */
+async function downloadOutboundAttachment(s3Key: string): Promise<Uint8Array> {
+	const { client, bucket } = await createS3Client();
+	const { stream } = await getObjectStream({ client, bucket, key: s3Key });
+	const buffer = await new Response(stream).arrayBuffer();
+	return new Uint8Array(buffer);
+}
+
+/** Заливает фото/файл, полученный от клиента по MTProto, в наше S3 — тот же
+ * bot/media/ префикс, что и у остальных каналов (см. apps/bitrix-webhook/src/
+ * media-storage.ts, apps/max-bot/src/avatar-storage.ts). */
+async function uploadInboundMedia(params: {
+	bytes: Uint8Array;
+	contentType: string;
+	fileName: string;
+	messageId: string;
+}): Promise<{ mediaS3Key: string }> {
+	const { client, bucket } = await createS3Client();
+	const safeName = params.fileName.replace(/[^\p{L}\p{N}._-]+/gu, "_");
+	const key = `bot/media/telegram-personal/${params.messageId}-${crypto.randomUUID()}-${safeName}`;
+	await uploadObject({
+		client,
+		bucket,
+		key,
+		body: params.bytes,
+		contentType: params.contentType,
+	});
+	return { mediaS3Key: key };
+}
 
 async function saveTelegramPresence(
 	presence: {
@@ -65,6 +106,12 @@ async function logInboundMessage(
 		username?: string | null;
 		isPremium?: boolean;
 	},
+	media?: {
+		kind: "image" | "file";
+		mediaS3Key: string;
+		mediaMimeType?: string;
+		mediaFileName?: string;
+	},
 ): Promise<void> {
 	const userId = String(senderId);
 	try {
@@ -83,6 +130,7 @@ async function logInboundMessage(
 			source: "scenario",
 			text,
 			connectorId,
+			...media,
 		});
 	} catch (err) {
 		console.error(
@@ -187,8 +235,22 @@ function startOutboxPolling(
 					await setSendResult(msg.jobId, { ok: true });
 					continue;
 				}
-				if (!msg.text) throw new Error("В задаче отправки нет текста");
-				const externalId = await sendUserbotMessage(client, target, msg.text);
+				if (!msg.text && !msg.attachment) {
+					throw new Error("В задаче отправки нет ни текста, ни вложения");
+				}
+				const externalId = msg.attachment
+					? await sendUserbotMedia(
+							client,
+							target,
+							{
+								bytes: await downloadOutboundAttachment(msg.attachment.s3Key),
+								fileName: msg.attachment.fileName,
+								mimeType: msg.attachment.mimeType,
+								kind: msg.attachment.kind,
+							},
+							msg.text || undefined,
+						)
+					: await sendUserbotMessage(client, target, msg.text ?? "");
 				if (msg.journalMessageId) {
 					await updateBotMessageExternalResult(
 						msg.journalMessageId,
@@ -277,8 +339,84 @@ async function startAccountWorker(
 			),
 		);
 
-		listenForMessages(client, (message) => {
-			const text = message.text;
+		listenForMessages(client, async (message) => {
+			const caption = message.text;
+			// Фото/документ/видео — перезаливаем в наше S3, чтобы инбокс «Клиенты»
+			// показывал превью/ссылку на скачивание, а не молчал (голосовые для
+			// этого канала пока не перезаливаются — не было запроса на них).
+			const media = message.media;
+			const mediaKind =
+				media?.type === "photo"
+					? "image"
+					: media?.type === "document" || media?.type === "video"
+						? "file"
+						: undefined;
+			let mediaUpload:
+				| {
+						kind: "image" | "file";
+						mediaS3Key: string;
+						mediaMimeType?: string;
+						mediaFileName?: string;
+				  }
+				| undefined;
+			if (
+				media?.type === "photo" ||
+				media?.type === "document" ||
+				media?.type === "video"
+			) {
+				const kind = media.type === "photo" ? "image" : "file";
+				try {
+					if (
+						media.fileSize !== undefined &&
+						media.fileSize > MAX_INBOUND_MEDIA_SIZE
+					) {
+						throw new Error("Вложение больше 20 МБ");
+					}
+					const chunks: Uint8Array[] = [];
+					let downloadedSize = 0;
+					const downloadController = new AbortController();
+					for await (const chunk of client.downloadAsIterable(media, {
+						limit: MAX_INBOUND_MEDIA_SIZE + 1,
+						abortSignal: downloadController.signal,
+					})) {
+						downloadedSize += chunk.byteLength;
+						if (downloadedSize > MAX_INBOUND_MEDIA_SIZE) {
+							downloadController.abort();
+							throw new Error("Вложение больше 20 МБ");
+						}
+						chunks.push(chunk);
+					}
+					const bytes = Buffer.concat(chunks, downloadedSize);
+					const mimeType =
+						"mimeType" in media
+							? media.mimeType
+							: kind === "image"
+								? "image/jpeg"
+								: undefined;
+					const fileName =
+						"fileName" in media && media.fileName
+							? media.fileName
+							: `${media.type}.${kind === "image" ? "jpg" : "bin"}`;
+					const uploaded = await uploadInboundMedia({
+						bytes,
+						contentType: mimeType || "application/octet-stream",
+						fileName,
+						messageId: String(message.id),
+					});
+					mediaUpload = {
+						kind,
+						mediaS3Key: uploaded.mediaS3Key,
+						mediaMimeType: mimeType,
+						mediaFileName: kind === "file" ? fileName : undefined,
+					};
+				} catch (err) {
+					console.error(
+						`[tg-userbot-worker] не удалось перезалить вложение user=${message.sender.id}: ${(err as Error).message}`,
+					);
+				}
+			}
+			const text =
+				caption || (mediaKind ? (mediaKind === "image" ? "Фото" : "Файл") : "");
 			if (!text) return;
 			const rawPhone =
 				"phoneNumber" in message.sender ? message.sender.phoneNumber : null;
@@ -287,17 +425,27 @@ async function startAccountWorker(
 					? rawPhone
 					: `+${rawPhone}`
 				: null;
-			void logInboundMessage(message.sender.id, text, account.connectorId, {
-				firstName:
-					"firstName" in message.sender ? message.sender.firstName : undefined,
-				lastName:
-					"lastName" in message.sender
-						? (message.sender.lastName ?? undefined)
-						: undefined,
-				username: message.sender.username,
-				isPremium:
-					"isPremium" in message.sender ? message.sender.isPremium : undefined,
-			});
+			void logInboundMessage(
+				message.sender.id,
+				text,
+				account.connectorId,
+				{
+					firstName:
+						"firstName" in message.sender
+							? message.sender.firstName
+							: undefined,
+					lastName:
+						"lastName" in message.sender
+							? (message.sender.lastName ?? undefined)
+							: undefined,
+					username: message.sender.username,
+					isPremium:
+						"isPremium" in message.sender
+							? message.sender.isPremium
+							: undefined,
+				},
+				mediaUpload,
+			);
 			if (
 				"status" in message.sender &&
 				typeof message.sender.status === "string"

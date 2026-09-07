@@ -145,7 +145,7 @@ export async function createBitrixDeal(
 	const dealId = await bitrixPost<number>(
 		"crm.deal.add",
 		{
-			fields: buildDealFields(data, contactId),
+			fields: await buildDealFields(data, contactId),
 		},
 		messenger,
 	);

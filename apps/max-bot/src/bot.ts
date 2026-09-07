@@ -9,13 +9,16 @@ import {
 	decodeStartParam,
 	dispatchScenarioOutput,
 	enrichCrmFromClientMessage,
+	extractYmClientId,
 	formatUtmLog,
 	type GuideCampaignContext,
 	getScenarioTexts,
 	handleGuideDiagnosticRequest,
+	handleStageConsentClick,
 	loadGuideCampaignContext,
 	logBotMessage,
 	looksLikeDiagnosticConsent,
+	parseStageConsentPayload,
 	parseUtmParams,
 	resolveGuideCampaignStart,
 	resolveGuideFile,
@@ -23,12 +26,15 @@ import {
 	type ScenarioMessage,
 	type ScenarioOutput,
 	type ScenarioTexts,
+	STAGE_CONSENT_ACTIONS,
 	type StorageAdapter,
 	sendMessageToOpenLine,
 	setFunnelUpsert,
+	stageConsentActionLabel,
 	startConsultation,
 	startGuideCampaign,
 	startScenario,
+	toInlineKeyboard as toStageConsentInlineKeyboard,
 	triageOffScriptMessage,
 	upsertBotUserProfile,
 	withUserLock,
@@ -392,6 +398,7 @@ export function createMaxBot({
 			userId: ctx.user?.user_id,
 			source: ctx.session.source,
 			campaign: ctx.session.campaign,
+			ymClientId: ctx.session.ymClientId,
 			guideCampaign,
 		});
 	};
@@ -412,7 +419,13 @@ export function createMaxBot({
 		// с источником рекламы через `_` (SCHOOL_VK, см. splitStartParam). См.
 		// такую же ветку в bot.command("start") у TG-бота (packages/bot-core/src/bot.ts).
 		// Декодируем до сравнения: кириллица в ссылке приходит percent-encoded.
-		const startParam = decodeStartParam(startPayload);
+		// ClientID Яндекс.Метрики сайт приклеивает суффиксом `_ymNNN` (см.
+		// extractYmClientId) — отрезаем его до разбора кампании/UTM, чтобы
+		// SITE_CODES и splitStartParam видели параметр как раньше.
+		const { code: startParam, ymClientId } = extractYmClientId(
+			decodeStartParam(startPayload),
+		);
+		if (ymClientId) ctx.session.ymClientId = ymClientId;
 		const resolved = startParam
 			? await resolveGuideCampaignStart(startParam)
 			: null;
@@ -497,6 +510,70 @@ export function createMaxBot({
 		});
 	});
 
+	// Согласия на стадии «Б/п консультация» (см. utils/stage-consent.ts) — не
+	// часть машины состояний сценария, сделка адресуется через Redis, а не
+	// через ctx.session.scenario.
+	for (const action of STAGE_CONSENT_ACTIONS) {
+		bot.action(new RegExp(`^${action}:\\d+$`), async (ctx) => {
+			const appCtx = ctx as AppContext;
+			await appCtx.answerOnCallback({}).catch(() => {});
+			const userId = appCtx.user?.user_id;
+			if (!userId || !redis) return;
+			const stageConsent = parseStageConsentPayload(appCtx.match?.[0] ?? "");
+			if (!stageConsent) return;
+			const texts = await getScenarioTexts();
+			const result = await handleStageConsentClick(
+				redis,
+				"max",
+				userId,
+				stageConsent.dealId,
+				stageConsent.action,
+				texts,
+			);
+			if (!result) return;
+			await logBotMessage({
+				messenger: "max",
+				userId,
+				direction: "in",
+				source: "scenario",
+				text: stageConsentActionLabel(stageConsent.action, texts),
+			});
+			await replyWithFallback(appCtx, result.replyText);
+			await logBotMessage({
+				messenger: "max",
+				userId,
+				direction: "out",
+				source: "scenario",
+				text: result.replyText,
+			});
+			if (result.resendAdsQuestion) {
+				const buttons = toStageConsentInlineKeyboard(
+					["stage_ads_agree", "stage_ads_decline"],
+					stageConsent.dealId,
+					texts,
+				);
+				const retryKeyboard = Keyboard.inlineKeyboard([
+					...buttons.map((row) =>
+						row.map((button) =>
+							Keyboard.button.callback(button.label, button.action),
+						),
+					),
+				]);
+				await replyWithFallback(appCtx, texts.stage_consent_ads_text, {
+					format: "markdown",
+					attachments: [retryKeyboard],
+				});
+				await logBotMessage({
+					messenger: "max",
+					userId,
+					direction: "out",
+					source: "scenario",
+					text: texts.stage_consent_ads_text,
+				});
+			}
+		});
+	}
+
 	for (const action of SCENARIO_ACTIONS) {
 		bot.action(action, async (ctx) => {
 			const appCtx = ctx as AppContext;
@@ -535,36 +612,74 @@ export function createMaxBot({
 	bot.on("message_created", async (ctx) => {
 		const appCtx = ctx as unknown as AppContext;
 		const text = appCtx.message?.body.text?.trim() ?? "";
-		const audioAttachment = appCtx.message?.body.attachments?.find(
-			(a) => a.type === "audio",
-		) as { type: "audio"; payload: { url: string; token: string } } | undefined;
-		if (!text && !audioAttachment) return;
-		if (!audioAttachment && text.startsWith("/")) return;
+		// Реальные поля вложений MAX (см. @maxhub/max-bot-api
+		// core/network/api/types/attachment.d.ts, не экспортируется наружу
+		// пакетом — типизируем вручную): payload.url/token общие для всех
+		// медиа-типов, filename — только у file, отдельным полем, не в payload.
+		const attachments = appCtx.message?.body.attachments as
+			| Array<{
+					type: string;
+					payload: { url?: string; token?: string };
+					filename?: string;
+			  }>
+			| null
+			| undefined;
+		const audioAttachment = attachments?.find((a) => a.type === "audio") as
+			| { type: "audio"; payload: { url: string; token: string } }
+			| undefined;
+		// image — фото, остальное некрасноречивое (file/video/sticker/...) —
+		// общий kind="file" со ссылкой на скачивание.
+		const mediaAttachment = attachments?.find(
+			(a) => a.type === "image" || a.type === "file" || a.type === "video",
+		) as
+			| {
+					type: "image" | "file" | "video";
+					payload: { url?: string; token?: string };
+					filename?: string;
+			  }
+			| undefined;
+		if (!text && !audioAttachment && !mediaAttachment) return;
+		if (!audioAttachment && !mediaAttachment && text.startsWith("/")) return;
 
 		// В журнал попадают все входящие — даже вне сценария
 		const userId = appCtx.user?.user_id ?? appCtx.message?.sender?.user_id;
 
-		// Голосовое/аудио-вложение — перезаливаем в наше S3, чтобы инбокс
-		// «Клиенты» показывал плеер, а не молчал (без вложения пустой text
-		// раньше отбрасывался ранним return выше).
+		// Голосовое/фото/файл — перезаливаем в наше S3, чтобы инбокс «Клиенты»
+		// показывал плеер/превью/ссылку на скачивание, а не молчал (без
+		// вложения пустой text раньше отбрасывался ранним return выше).
 		let mediaS3Key: string | undefined;
 		let mediaMimeType: string | undefined;
-		if (audioAttachment) {
+		let mediaKind: "voice" | "image" | "file" | undefined;
+		let mediaFileName: string | undefined;
+		const attachment = audioAttachment ?? mediaAttachment;
+		if (attachment?.payload.url) {
 			try {
-				const res = await fetch(audioAttachment.payload.url);
+				const res = await fetch(attachment.payload.url);
 				if (res.ok) {
 					const bytes = new Uint8Array(await res.arrayBuffer());
-					mediaMimeType = res.headers.get("content-type") || "audio/mp4";
+					mediaKind = audioAttachment
+						? "voice"
+						: mediaAttachment?.type === "image"
+							? "image"
+							: "file";
+					mediaMimeType =
+						res.headers.get("content-type") ||
+						(mediaKind === "voice" ? "audio/mp4" : "application/octet-stream");
+					mediaFileName =
+						mediaKind === "file"
+							? (mediaAttachment?.filename ?? "file")
+							: undefined;
 					const uploaded = await uploadMaxMedia({
 						bytes,
 						contentType: mediaMimeType,
 						attachmentId: String(appCtx.message?.body.mid ?? Date.now()),
+						fileName: mediaFileName,
 					});
 					mediaS3Key = uploaded.mediaS3Key;
 				}
 			} catch (err) {
 				console.error(
-					`[media] не удалось перезалить аудио user=${userId}: ${(err as Error).message}`,
+					`[media] не удалось перезалить вложение user=${userId}: ${(err as Error).message}`,
 				);
 			}
 		}
@@ -574,8 +689,16 @@ export function createMaxBot({
 			userId,
 			direction: "in",
 			source: "scenario",
-			text: text || (audioAttachment ? "Голосовое сообщение" : ""),
-			...(mediaS3Key ? { kind: "voice", mediaS3Key, mediaMimeType } : {}),
+			text:
+				text ||
+				(audioAttachment
+					? "Голосовое сообщение"
+					: mediaAttachment
+						? `[${mediaFileName ?? mediaAttachment.type}]`
+						: ""),
+			...(mediaS3Key && mediaKind
+				? { kind: mediaKind, mediaS3Key, mediaMimeType, mediaFileName }
+				: {}),
 		});
 
 		// Дублируем в Открытую линию Bitrix24 — вся переписка видна оператору,
@@ -590,8 +713,12 @@ export function createMaxBot({
 				chatId: userId,
 				text,
 				name: appCtx.user?.name,
-				...(audioAttachment
-					? { files: [{ url: audioAttachment.payload.url, name: "audio" }] }
+				...(attachment?.payload.url
+					? {
+							files: [
+								{ url: attachment.payload.url, name: mediaKind ?? "file" },
+							],
+						}
 					: {}),
 			});
 		}

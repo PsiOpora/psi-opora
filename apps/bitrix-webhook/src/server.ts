@@ -31,8 +31,11 @@ import {
 import {
 	handleConsultationDealUpdate,
 	handleDiagnosticDealUpdate,
+	handleStageConsentTrigger,
 	type Messenger,
+	removeSyncedDeal,
 	sendMessengerMessage,
+	syncOneDeal,
 } from "@psi-opora/jobs";
 import { pushMaxOutboundMessage } from "@psi-opora/max-userbot";
 import { pushOutboundMessage } from "@psi-opora/tg-userbot";
@@ -581,20 +584,24 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 	const { session, payload } = event;
 	const chatId = payload?.from;
 	const text = payload?.body?.trim();
+	const hasMedia = Boolean(payload?.hasMedia) && Boolean(payload?.media?.url);
 	const isAudio =
-		Boolean(payload?.hasMedia) &&
-		Boolean(payload?.media?.url) &&
-		(payload?.media?.mimetype?.startsWith("audio/") ?? false);
+		hasMedia && (payload?.media?.mimetype?.startsWith("audio/") ?? false);
+	const isImage =
+		hasMedia && (payload?.media?.mimetype?.startsWith("image/") ?? false);
 	// fromMe: и собственные сообщения оператора (мы сами их отправили через
 	// sendText — Bitrix уже показал их в чате), и сообщения владельца номера
 	// с телефона — их дублировать в линию нечем идентифицировать, пропускаем.
-	if (!session || !chatId || (!text && !isAudio) || payload?.fromMe) {
+	if (!session || !chatId || (!text && !hasMedia) || payload?.fromMe) {
 		return Response.json({ ok: true });
 	}
 	// Группы и статусы в Открытую линию не тащим: чат линии — диалог 1:1.
 	if (!chatId.endsWith("@c.us")) return Response.json({ ok: true });
 
-	const effectiveText = text || (isAudio ? "Голосовое сообщение" : "");
+	const mediaFileName = payload?.media?.filename ?? "file";
+	const effectiveText =
+		text ||
+		(isAudio ? "Голосовое сообщение" : hasMedia ? `[${mediaFileName}]` : "");
 
 	const account = await getWhatsappPersonalAccountBySession(session);
 	if (!account) {
@@ -619,10 +626,15 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 		payload?._data?.pushName ??
 		`WhatsApp ${senderPhone ?? chatId}`;
 
-	// Голосовое/аудио — перезаливаем в наше S3, чтобы инбокс «Клиенты»
-	// показывал плеер, а не просто заглушку.
+	// Голосовое/фото/файл — перезаливаем в наше S3, чтобы инбокс «Клиенты»
+	// показывал плеер/превью/ссылку на скачивание, а не просто заглушку.
 	let mediaS3Key: string | undefined;
-	if (isAudio && payload?.media?.url) {
+	const mediaKind: "voice" | "image" | "file" = isAudio
+		? "voice"
+		: isImage
+			? "image"
+			: "file";
+	if (hasMedia && payload?.media?.url) {
 		try {
 			const res = await fetch(
 				payload.media.url,
@@ -635,17 +647,18 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 				const contentType =
 					payload.media.mimetype ||
 					res.headers.get("content-type") ||
-					"audio/ogg";
+					(isAudio ? "audio/ogg" : "application/octet-stream");
 				const uploaded = await uploadWahaMedia({
 					bytes,
 					contentType,
 					messageId: payload?.id ?? `wa-personal-${Date.now()}`,
+					fileName: mediaKind === "file" ? mediaFileName : undefined,
 				});
 				mediaS3Key = uploaded.mediaS3Key;
 			}
 		} catch (err) {
 			console.error(
-				`[waha-webhook] не удалось перезалить аудио-вложение: ${(err as Error).message}`,
+				`[waha-webhook] не удалось перезалить вложение: ${(err as Error).message}`,
 			);
 		}
 	}
@@ -668,9 +681,10 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 			connectorId: account.connectorId,
 			...(mediaS3Key
 				? {
-						kind: "voice",
+						kind: mediaKind,
 						mediaS3Key,
 						mediaMimeType: payload?.media?.mimetype,
+						mediaFileName: mediaKind === "file" ? mediaFileName : undefined,
 					}
 				: {}),
 		});
@@ -696,12 +710,12 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 						id: payload?.id ?? `wa-personal-${Date.now()}`,
 						date: payload?.timestamp ?? Math.floor(Date.now() / 1000),
 						text: effectiveText,
-						...(isAudio && payload?.media?.url
+						...(hasMedia && payload?.media?.url
 							? {
 									files: [
 										{
 											url: payload.media.url,
-											name: payload.media.filename ?? "audio",
+											name: payload.media.filename ?? mediaKind,
 										},
 									],
 								}
@@ -721,6 +735,32 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 }
 
 /**
+ * Проверка `auth[application_token]` в вебхуке Bitrix24 (application/x-www-form-urlencoded)
+ * против общего пула токенов приложения. Возвращает распарсенную форму или null,
+ * если тело некорректно/токен не совпал — используется всеми CRM-вебхук-обработчиками.
+ */
+async function verifyCrmWebhookForm(
+	request: Request,
+): Promise<FormData | null> {
+	const webhookTokens = [
+		env.BITRIX_CRM_WEBHOOK_TOKEN,
+		...(env.BITRIX_WEBHOOK_TOKEN ?? "").split(","),
+	]
+		.map((token) => token?.trim())
+		.filter((token): token is string => Boolean(token));
+	if (webhookTokens.length === 0) return null;
+
+	const form = await request.formData().catch(() => null);
+	if (!form) return null;
+	if (
+		!webhookTokens.includes(String(form.get("auth[application_token]") ?? ""))
+	) {
+		return null;
+	}
+	return form;
+}
+
+/**
  * Обработчик события ONCRMDEALUPDATE (привязывается через event.bind).
  * Bitrix шлёт его как application/x-www-form-urlencoded, а не JSON.
  */
@@ -728,29 +768,8 @@ async function handleConsultationReminderDealUpdate(
 	request: Request,
 ): Promise<Response> {
 	try {
-		const webhookTokens = [
-			env.BITRIX_CRM_WEBHOOK_TOKEN,
-			...(env.BITRIX_WEBHOOK_TOKEN ?? "").split(","),
-		]
-			.map((token) => token?.trim())
-			.filter((token): token is string => Boolean(token));
-		if (webhookTokens.length === 0) {
-			return Response.json(
-				{ success: false, message: "Токен CRM-вебхука не задан" },
-				{ status: 500 },
-			);
-		}
-
-		const form = await request.formData().catch(() => null);
-		if (!form) {
-			return new Response("Invalid form data", { status: 400 });
-		}
-
-		if (
-			!webhookTokens.includes(String(form.get("auth[application_token]") ?? ""))
-		) {
-			return new Response("Unauthorized", { status: 401 });
-		}
+		const form = await verifyCrmWebhookForm(request);
+		if (!form) return new Response("Unauthorized", { status: 401 });
 
 		const dealId = Number(form.get("data[FIELDS][ID]") ?? 0);
 		if (!dealId) {
@@ -766,11 +785,12 @@ async function handleConsultationReminderDealUpdate(
 		}
 
 		const redis = createRedisClient();
-		const [consultation, diagnostic] = await Promise.all([
+		const [consultation, diagnostic, stageConsent] = await Promise.all([
 			handleConsultationDealUpdate(api, redis, dealId),
 			handleDiagnosticDealUpdate(api, redis, dealId),
+			handleStageConsentTrigger(api, redis, dealId),
 		]);
-		const result = { consultation, diagnostic };
+		const result = { consultation, diagnostic, stageConsent };
 		return Response.json({ success: true, result });
 	} catch (err) {
 		const message =
@@ -787,11 +807,84 @@ async function handleConsultationReminderDealUpdate(
 	}
 }
 
+/**
+ * Обработчик OnCrmDealAdd/OnCrmDealUpdate для локального зеркала сделок
+ * (packages/db, таблица deals — см. packages/jobs/src/deals-sync.ts). Отдельно
+ * от handleConsultationReminderDealUpdate: разная ответственность, разные
+ * подписки на событие (Bitrix поддерживает несколько handler-ов на одно событие).
+ */
+async function handleDealSyncUpsert(request: Request): Promise<Response> {
+	try {
+		const form = await verifyCrmWebhookForm(request);
+		if (!form) return new Response("Unauthorized", { status: 401 });
+
+		const dealId = String(form.get("data[FIELDS][ID]") ?? "");
+		if (!dealId) {
+			return Response.json({ success: false, message: "No deal id" });
+		}
+
+		const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
+		if (!api) {
+			return Response.json(
+				{ success: false, message: "Bitrix24 не подключён" },
+				{ status: 500 },
+			);
+		}
+
+		const result = await syncOneDeal(api, dealId);
+		return Response.json({ success: true, result });
+	} catch (err) {
+		console.error("[deal-sync] upsert error:", err);
+		return Response.json(
+			{
+				success: false,
+				message: err instanceof Error ? err.message : String(err),
+			},
+			{ status: 500 },
+		);
+	}
+}
+
+/** Обработчик OnCrmDealDelete — убирает сделку из локального зеркала. */
+async function handleDealSyncDelete(request: Request): Promise<Response> {
+	try {
+		const form = await verifyCrmWebhookForm(request);
+		if (!form) return new Response("Unauthorized", { status: 401 });
+
+		const dealId = String(form.get("data[FIELDS][ID]") ?? "");
+		if (!dealId) {
+			return Response.json({ success: false, message: "No deal id" });
+		}
+
+		await removeSyncedDeal(dealId);
+		return Response.json({ success: true });
+	} catch (err) {
+		console.error("[deal-sync] delete error:", err);
+		return Response.json(
+			{
+				success: false,
+				message: err instanceof Error ? err.message : String(err),
+			},
+			{ status: 500 },
+		);
+	}
+}
+
 const CRM_DEAL_UPDATE_HANDLER_URL =
 	process.env.BITRIX_CRM_DEAL_UPDATE_HANDLER_URL?.trim() ||
 	"https://psi-opora-bitrix-webhook.orixon.ru/api/consultation-reminder-deal-update";
+const DEAL_SYNC_UPSERT_HANDLER_URL =
+	process.env.BITRIX_DEAL_SYNC_UPSERT_HANDLER_URL?.trim() ||
+	"https://psi-opora-bitrix-webhook.orixon.ru/api/deal-sync-upsert";
+const DEAL_SYNC_DELETE_HANDLER_URL =
+	process.env.BITRIX_DEAL_SYNC_DELETE_HANDLER_URL?.trim() ||
+	"https://psi-opora-bitrix-webhook.orixon.ru/api/deal-sync-delete";
 
-async function ensureCrmDealUpdateSubscription(): Promise<void> {
+/** Идемпотентная регистрация обработчика события через event.bind (см. ensureCrmDealUpdateSubscription — исходный прецедент для OnCrmDealUpdate). */
+async function ensureCrmEventSubscription(
+	event: string,
+	handlerUrl: string,
+): Promise<void> {
 	try {
 		const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
 		if (!api) throw new Error("Bitrix24 не подключён");
@@ -800,22 +893,17 @@ async function ensureCrmDealUpdateSubscription(): Promise<void> {
 			await api.call<Array<{ event?: string; handler?: string }>>("event.get");
 		const alreadyBound = handlers.some(
 			(item) =>
-				String(item.event ?? "").toUpperCase() === "ONCRMDEALUPDATE" &&
+				String(item.event ?? "").toUpperCase() === event.toUpperCase() &&
 				String(item.handler ?? "").replace(/\/$/, "") ===
-					CRM_DEAL_UPDATE_HANDLER_URL.replace(/\/$/, ""),
+					handlerUrl.replace(/\/$/, ""),
 		);
 		if (alreadyBound) return;
 
-		await api.call("event.bind", {
-			event: "OnCrmDealUpdate",
-			handler: CRM_DEAL_UPDATE_HANDLER_URL,
-		});
-		console.log(
-			`[diagnostic-schedule] подписка OnCrmDealUpdate создана: ${CRM_DEAL_UPDATE_HANDLER_URL}`,
-		);
+		await api.call("event.bind", { event, handler: handlerUrl });
+		console.log(`[deal-sync] подписка ${event} создана: ${handlerUrl}`);
 	} catch (error) {
 		console.error(
-			`[diagnostic-schedule] не удалось проверить/создать подписку OnCrmDealUpdate: ${(error as Error).message}`,
+			`[deal-sync] не удалось проверить/создать подписку ${event} → ${handlerUrl}: ${(error as Error).message}`,
 		);
 	}
 }
@@ -839,10 +927,28 @@ app.post("/api/consultation-reminder-deal-update", (c) =>
 	handleConsultationReminderDealUpdate(c.req.raw),
 );
 
+app.get("/api/deal-sync-upsert", (c) => c.json({ status: "ok" }));
+app.post("/api/deal-sync-upsert", (c) => handleDealSyncUpsert(c.req.raw));
+
+app.get("/api/deal-sync-delete", (c) => c.json({ status: "ok" }));
+app.post("/api/deal-sync-delete", (c) => handleDealSyncDelete(c.req.raw));
+
 const port = Number(process.env.PORT ?? 3000);
 const server = serve({ fetch: app.fetch, port }, (info) => {
 	console.log(`[bitrix-webhook] слушает на :${info.port}`);
-	void ensureCrmDealUpdateSubscription();
+	void ensureCrmEventSubscription(
+		"OnCrmDealUpdate",
+		CRM_DEAL_UPDATE_HANDLER_URL,
+	);
+	void ensureCrmEventSubscription("OnCrmDealAdd", DEAL_SYNC_UPSERT_HANDLER_URL);
+	void ensureCrmEventSubscription(
+		"OnCrmDealUpdate",
+		DEAL_SYNC_UPSERT_HANDLER_URL,
+	);
+	void ensureCrmEventSubscription(
+		"OnCrmDealDelete",
+		DEAL_SYNC_DELETE_HANDLER_URL,
+	);
 });
 
 // При rollout k8s шлёт SIGTERM до SIGKILL — дожидаемся завершения активных

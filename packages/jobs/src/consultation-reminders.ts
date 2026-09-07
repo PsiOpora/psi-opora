@@ -274,14 +274,15 @@ async function syncConsultationCalendarEvent(params: {
  */
 async function safeSyncConsultationCalendarEvent(
 	params: Parameters<typeof syncConsultationCalendarEvent>[0],
-): Promise<number | undefined> {
+): Promise<{ success: boolean; calendarEventId?: number }> {
 	try {
-		return await syncConsultationCalendarEvent(params);
+		const calendarEventId = await syncConsultationCalendarEvent(params);
+		return { success: true, calendarEventId };
 	} catch (error) {
 		console.error(
 			`[consultation-reminder] не удалось синхронизировать событие календаря для сделки ${params.dealId}: ${(error as Error).message}`,
 		);
-		return params.previousCalendarEventId;
+		return { success: false, calendarEventId: params.previousCalendarEventId };
 	}
 }
 
@@ -385,10 +386,21 @@ export async function handleConsultationDealUpdate(
 	const token = crypto.randomUUID();
 	const acquired = await redis.set(key, token, { px: LOCK_TTL_MS, nx: true });
 	if (!acquired) {
+		console.log(`[consultation-reminder] deal-update dealId=${dealId} action=skip reason=locked`);
 		return { action: "skip", reason: "locked" };
 	}
 	try {
-		return await handleConsultationDealUpdateLocked(api, redis, dealId);
+		const result = await handleConsultationDealUpdateLocked(api, redis, dealId);
+		// Единая точка логирования всех исходов вебхука (включая "тихие" skip) —
+		// раньше расследование пропавших уведомлений требовало вручную сверять
+		// таймлайн и активности сделки в Bitrix, т.к. успешные и часть
+		// пропущенных веток не оставляли следа в логах пода.
+		console.log(
+			`[consultation-reminder] deal-update dealId=${dealId} action=${result.action}${
+				"reason" in result && result.reason ? ` reason=${result.reason}` : ""
+			}`,
+		);
+		return result;
 	} finally {
 		await releaseLock(redis, key, token);
 	}
@@ -426,7 +438,7 @@ async function handleConsultationDealUpdateLocked(
 	const contactId = extractClientContactId(deal);
 
 	if (!state?.lastConsultationAt) {
-		const calendarEventId = await safeSyncConsultationCalendarEvent({
+		const syncResult = await safeSyncConsultationCalendarEvent({
 			api,
 			dealId,
 			deal,
@@ -434,19 +446,6 @@ async function handleConsultationDealUpdateLocked(
 			consultationAt: newConsultationAt,
 			previousCalendarEventId: state?.calendarEventId,
 		});
-		await writeState(redis, dealId, {
-			lastConsultationAt: newConsultationAt,
-			calendarEventId,
-			reminderSentAt: null,
-			updatedAt: now,
-		});
-		if (calendarEventId) {
-			await appendReminderSentComment(
-				api,
-				dealId,
-				`📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${calendarEventId}.`,
-			);
-		}
 		await sendConsultationBookedNotification(
 			api,
 			dealId,
@@ -454,10 +453,23 @@ async function handleConsultationDealUpdateLocked(
 			contactId,
 			newConsultationAt,
 		);
+		await writeState(redis, dealId, {
+			lastConsultationAt: newConsultationAt,
+			calendarEventId: syncResult.calendarEventId,
+			reminderSentAt: null,
+			updatedAt: now,
+		});
+		if (syncResult.success && syncResult.calendarEventId) {
+			await appendReminderSentComment(
+				api,
+				dealId,
+				`📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${syncResult.calendarEventId}.`,
+			);
+		}
 		return {
 			action: "init",
 			lastConsultationAt: newConsultationAt,
-			calendarEventId,
+			calendarEventId: syncResult.calendarEventId,
 		};
 	}
 
@@ -473,7 +485,7 @@ async function handleConsultationDealUpdateLocked(
 
 	const oldTs = toTimestamp(oldConsultationAt);
 	if (oldTs > 0 && oldTs <= Date.now()) {
-		const calendarEventId = await safeSyncConsultationCalendarEvent({
+		const syncResult = await safeSyncConsultationCalendarEvent({
 			api,
 			dealId,
 			deal,
@@ -485,7 +497,7 @@ async function handleConsultationDealUpdateLocked(
 		await writeState(redis, dealId, {
 			...state,
 			lastConsultationAt: newConsultationAt,
-			calendarEventId,
+			calendarEventId: syncResult.calendarEventId,
 			updatedAt: now,
 		});
 		return {
@@ -511,7 +523,12 @@ async function handleConsultationDealUpdateLocked(
 		oldConsultationAt,
 	);
 	if (!oldActivity) {
-		const calendarEventId = await safeSyncConsultationCalendarEvent({
+		// Старая CRM-задача не найдена среди незавершённых (например, менеджер
+		// уже закрыл её вручную после несостоявшейся встречи) — раньше в этом
+		// случае перенос консультации молча проходил без уведомления клиента:
+		// календарь и Redis обновлялись, а sendConsultationBookedNotification
+		// не вызывался вовсе.
+		const syncResult = await safeSyncConsultationCalendarEvent({
 			api,
 			dealId,
 			deal,
@@ -520,13 +537,27 @@ async function handleConsultationDealUpdateLocked(
 			previousConsultationAt: oldConsultationAt,
 			previousCalendarEventId: state.calendarEventId,
 		});
+		await sendConsultationBookedNotification(
+			api,
+			dealId,
+			deal,
+			contactId,
+			newConsultationAt,
+		);
 		await writeState(redis, dealId, {
 			...state,
 			lastConsultationAt: newConsultationAt,
-			calendarEventId,
+			calendarEventId: syncResult.calendarEventId,
 			reminderSentAt: null,
 			updatedAt: now,
 		});
+		if (syncResult.success && syncResult.calendarEventId) {
+			await appendReminderSentComment(
+				api,
+				dealId,
+				`📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${syncResult.calendarEventId}.`,
+			);
+		}
 		return { action: "skip", reason: "no_active_activity_found" };
 	}
 
@@ -570,7 +601,7 @@ async function handleConsultationDealUpdateLocked(
 		);
 	}
 
-	const calendarEventId = await safeSyncConsultationCalendarEvent({
+	const syncResult = await safeSyncConsultationCalendarEvent({
 		api,
 		dealId,
 		deal,
@@ -580,23 +611,6 @@ async function handleConsultationDealUpdateLocked(
 		previousCalendarEventId: state.calendarEventId,
 	});
 
-	await writeState(redis, dealId, {
-		lastConsultationAt: newConsultationAt,
-		lastActivityId: newActivityId ?? undefined,
-		lastDescription: oldDescription,
-		calendarEventId,
-		reminderSentAt: null,
-		updatedAt: now,
-	});
-
-	if (calendarEventId) {
-		await appendReminderSentComment(
-			api,
-			dealId,
-			`📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${calendarEventId}.`,
-		);
-	}
-
 	await sendConsultationBookedNotification(
 		api,
 		dealId,
@@ -605,13 +619,30 @@ async function handleConsultationDealUpdateLocked(
 		newConsultationAt,
 	);
 
+	await writeState(redis, dealId, {
+		lastConsultationAt: newConsultationAt,
+		lastActivityId: newActivityId ?? undefined,
+		lastDescription: oldDescription,
+		calendarEventId: syncResult.calendarEventId,
+		reminderSentAt: null,
+		updatedAt: now,
+	});
+
+	if (syncResult.success && syncResult.calendarEventId) {
+		await appendReminderSentComment(
+			api,
+			dealId,
+			`📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${syncResult.calendarEventId}.`,
+		);
+	}
+
 	return {
 		action: "recreate",
 		oldConsultationAt,
 		newConsultationAt,
 		oldActivityId,
 		newActivityId,
-		calendarEventId,
+		calendarEventId: syncResult.calendarEventId,
 		completedOld,
 	};
 }

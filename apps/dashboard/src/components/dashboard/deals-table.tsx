@@ -1,523 +1,410 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import {
-  type ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  type PaginationState,
-  type SortingState,
-  useReactTable,
+	flexRender,
+	getCoreRowModel,
+	type PaginationState,
+	type SortingState,
+	useReactTable,
 } from "@tanstack/react-table";
-import {
-  ArrowDownIcon,
-  ArrowUpDownIcon,
-  ArrowUpIcon,
-  FilterXIcon,
-  SearchIcon,
-} from "lucide-react";
-import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { InfoIcon, SearchIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
 } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
 } from "@/components/ui/table";
+import { useDashboardRange } from "@/hooks/use-bitrix-data";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { formatDateParam } from "@/lib/analytics/date-range";
 import type { StageInfo } from "@/lib/analytics/deals";
-import { STATUS_LABEL } from "@/lib/analytics/status-label";
-import type { DealRecord, DealStatus } from "@/lib/analytics/types";
-import { dealUrl } from "@/lib/deal-url";
-import { formatMoney, formatNumber } from "@/lib/format";
+import { DealsResponseSchema } from "@/lib/api/deals-schema";
+import { buildColumns } from "./deals-table-columns";
+import { ALL, DealsTableFilters } from "./deals-table-filters";
+import { DealsTablePagination } from "./deals-table-pagination";
 
 const PAGE_SIZE = 20;
-const ALL = "__all";
+/** Задержка перед отправкой запроса на сервер после ввода в поиск — без неё
+ * каждое нажатие клавиши гоняло бы отдельный HTTP-запрос. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 interface DealsTableProps {
-  deals: DealRecord[];
-  sourceNames?: Map<string, string>;
-  categoryNames?: Map<string, string>;
-  stageNames?: Map<string, StageInfo>;
-  dealDomain?: string | null;
-  /** Начальные значения фильтров — например, при переходе из другого отчёта. */
-  initialStatus?: string;
-  initialCategory?: string;
-  initialStage?: string;
-  initialSource?: string;
-  initialSearch?: string;
-}
-
-function sortableHeader(label: string) {
-  return function Header({
-    column,
-  }: {
-    column: {
-      toggleSorting: (desc?: boolean) => void;
-      getIsSorted: () => false | "asc" | "desc";
-    };
-  }) {
-    const direction = column.getIsSorted();
-    const SortIcon =
-      direction === "asc"
-        ? ArrowUpIcon
-        : direction === "desc"
-          ? ArrowDownIcon
-          : ArrowUpDownIcon;
-
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        className="-ml-3"
-        onClick={() => column.toggleSorting(direction === "asc")}
-      >
-        {label}
-        <SortIcon data-icon="inline-end" />
-      </Button>
-    );
-  };
-}
-
-function buildColumns({
-  sourceNames,
-  categoryNames,
-  stageNames,
-  dealDomain,
-}: Omit<DealsTableProps, "deals">): ColumnDef<DealRecord>[] {
-  return [
-    {
-      accessorKey: "title",
-      header: sortableHeader("Сделка"),
-      cell: ({ row }) => {
-        const deal = row.original;
-        const title = dealDomain ? (
-          <a
-            href={dealUrl(dealDomain, deal.id)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex max-w-72 items-center gap-1 font-medium hover:underline"
-          >
-            <span className="truncate">{deal.title}</span>
-          </a>
-        ) : (
-          <span className="block max-w-72 truncate font-medium">
-            {deal.title}
-          </span>
-        );
-
-        return (
-          <div className="flex flex-col gap-0.5">
-            {title}
-            {deal.utmCampaign !== "(не указано)" && (
-              <span className="max-w-72 truncate text-xs text-muted-foreground">
-                {deal.utmCampaign}
-              </span>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "status",
-      header: sortableHeader("Статус"),
-      sortingFn: (rowA, rowB, columnId) =>
-        STATUS_LABEL[rowA.getValue<DealStatus>(columnId)].label.localeCompare(
-          STATUS_LABEL[rowB.getValue<DealStatus>(columnId)].label,
-          "ru",
-        ),
-      cell: ({ getValue }) => {
-        const info = STATUS_LABEL[getValue<DealStatus>()];
-        return <Badge variant={info.variant}>{info.label}</Badge>;
-      },
-    },
-    {
-      id: "stage",
-      accessorFn: (deal) => stageNames?.get(deal.stageId)?.name ?? deal.stageId,
-      header: sortableHeader("Стадия"),
-    },
-    {
-      id: "category",
-      accessorFn: (deal) =>
-        categoryNames?.get(deal.categoryId) ?? `Воронка ${deal.categoryId}`,
-      header: sortableHeader("Воронка"),
-    },
-    {
-      id: "source",
-      accessorFn: (deal) => sourceNames?.get(deal.sourceId) ?? deal.sourceId,
-      header: sortableHeader("Источник"),
-      cell: ({ row, getValue }) => (
-        <div className="flex flex-col gap-0.5">
-          <span>{getValue<string>()}</span>
-          {row.original.utmSource !== "(не указано)" && (
-            <span className="text-xs text-muted-foreground">
-              UTM: {row.original.utmSource}
-            </span>
-          )}
-        </div>
-      ),
-    },
-    {
-      accessorKey: "opportunity",
-      header: sortableHeader("Сумма"),
-      cell: ({ row }) => (
-        <span className="tabular-nums">
-          {formatMoney(row.original.opportunity, row.original.currency)}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "dateCreate",
-      header: sortableHeader("Создана"),
-      cell: ({ getValue }) => getValue<Date>().toLocaleDateString("ru-RU"),
-    },
-  ];
-}
-
-function includesSearch(
-  deal: DealRecord,
-  search: string,
-  sourceNames?: Map<string, string>,
-  categoryNames?: Map<string, string>,
-  stageNames?: Map<string, StageInfo>,
-): boolean {
-  if (!search) return true;
-  const query = search.toLocaleLowerCase("ru-RU");
-  return [
-    deal.id,
-    deal.title,
-    deal.utmSource,
-    deal.utmMedium,
-    deal.utmCampaign,
-    deal.utmContent,
-    deal.utmTerm,
-    sourceNames?.get(deal.sourceId),
-    categoryNames?.get(deal.categoryId),
-    stageNames?.get(deal.stageId)?.name,
-  ].some((value) => value?.toLocaleLowerCase("ru-RU").includes(query));
+	sourceNames?: Map<string, string>;
+	categoryNames?: Map<string, string>;
+	stageNames?: Map<string, StageInfo>;
+	failReasonNames?: Map<string, string>;
+	dealDomain?: string | null;
+	/** Начальные значения фильтров — например, при переходе из другого отчёта. */
+	initialStatus?: string;
+	initialCategory?: string;
+	initialStage?: string;
+	initialSource?: string;
+	initialFailReason?: string;
+	initialSearch?: string;
+	/**
+	 * Показать сделки, у которых была история входа на конкретный этап
+	 * (packages/db, таблица deal_stage_history) в текущем диапазоне дат
+	 * (общий DateRangePicker), а не отфильтрованные по дате создания. Ссылка
+	 * приходит с историческую воронки (funnel/page.tsx, режим "Достигли этапа").
+	 */
+	reachedStage?: { stageId: string; categoryId: string; stageLabel: string };
 }
 
 export function DealsTable({
-  deals,
-  sourceNames,
-  categoryNames,
-  stageNames,
-  dealDomain,
-  initialStatus,
-  initialCategory,
-  initialStage,
-  initialSource,
-  initialSearch,
+	sourceNames,
+	categoryNames,
+	stageNames,
+	failReasonNames,
+	dealDomain,
+	initialStatus,
+	initialCategory,
+	initialStage,
+	initialSource,
+	initialFailReason,
+	initialSearch,
+	reachedStage,
 }: DealsTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "dateCreate", desc: true },
-  ]);
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: PAGE_SIZE,
-  });
-  const [search, setSearch] = useState(initialSearch ?? "");
-  const [status, setStatus] = useState(initialStatus ?? ALL);
-  const [category, setCategory] = useState(initialCategory ?? ALL);
-  const [stage, setStage] = useState(initialStage ?? ALL);
-  const [source, setSource] = useState(initialSource ?? ALL);
+	const router = useRouter();
+	const range = useDashboardRange();
+	const [sorting, setSorting] = useState<SortingState>([
+		{ id: "dateCreate", desc: true },
+	]);
+	const [pagination, setPagination] = useState<PaginationState>({
+		pageIndex: 0,
+		pageSize: PAGE_SIZE,
+	});
+	const [searchInput, setSearchInput] = useState(initialSearch ?? "");
+	const search = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS);
+	const [status, setStatus] = useState(initialStatus ?? ALL);
+	const [category, setCategory] = useState(initialCategory ?? ALL);
+	const [stage, setStage] = useState(initialStage ?? ALL);
+	const [source, setSource] = useState(initialSource ?? ALL);
+	const [failReason, setFailReason] = useState(initialFailReason ?? ALL);
 
-  const columns = useMemo(
-    () => buildColumns({ sourceNames, categoryNames, stageNames, dealDomain }),
-    [sourceNames, categoryNames, stageNames, dealDomain],
-  );
+	// Reset pagination when range changes
+	const rangeFrom = formatDateParam(range.from);
+	const rangeTo = formatDateParam(range.to);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: rangeFrom/rangeTo are intentionally used only to trigger the reset, not read inside the effect
+	useEffect(() => {
+		setPagination((current) => ({ ...current, pageIndex: 0 }));
+	}, [rangeFrom, rangeTo]);
 
-  const filteredDeals = useMemo(
-    () =>
-      deals.filter(
-        (deal) =>
-          (status === ALL || deal.status === status) &&
-          (category === ALL || deal.categoryId === category) &&
-          (stage === ALL || deal.stageId === stage) &&
-          (source === ALL || deal.sourceId === source) &&
-          includesSearch(
-            deal,
-            search.trim(),
-            sourceNames,
-            categoryNames,
-            stageNames,
-          ),
-      ),
-    [
-      deals,
-      status,
-      category,
-      stage,
-      source,
-      search,
-      sourceNames,
-      categoryNames,
-      stageNames,
-    ],
-  );
+	const columns = useMemo(
+		() =>
+			buildColumns({
+				sourceNames,
+				categoryNames,
+				stageNames,
+				failReasonNames,
+				dealDomain,
+			}),
+		[sourceNames, categoryNames, stageNames, failReasonNames, dealDomain],
+	);
 
-  const categoryOptions = useMemo(
-    () =>
-      [...new Set(deals.map((deal) => deal.categoryId))]
-        .map((id) => ({
-          id,
-          label: categoryNames?.get(id) ?? `Воронка ${id}`,
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label, "ru")),
-    [deals, categoryNames],
-  );
-  const stageOptions = useMemo(
-    () =>
-      [...new Set(deals.map((deal) => deal.stageId))]
-        .map((id) => ({ id, label: stageNames?.get(id)?.name ?? id }))
-        .sort((a, b) => a.label.localeCompare(b.label, "ru")),
-    [deals, stageNames],
-  );
-  const sourceOptions = useMemo(
-    () =>
-      [...new Set(deals.map((deal) => deal.sourceId))]
-        .map((id) => ({ id, label: sourceNames?.get(id) ?? id }))
-        .sort((a, b) => a.label.localeCompare(b.label, "ru")),
-    [deals, sourceNames],
-  );
+	// Справочники Bitrix24 уже содержат ВСЕ категории/стадии/источники CRM
+	// (не только те, что попали в текущую страницу) — используем их напрямую
+	// вместо сканирования уже загруженных сделок.
+	const categoryOptions = useMemo(
+		() =>
+			[...(categoryNames ?? new Map()).entries()]
+				.map(([id, label]) => ({ id, label }))
+				.sort((a, b) => a.label.localeCompare(b.label, "ru")),
+		[categoryNames],
+	);
+	// У разных воронок нередко совпадают названия стадий (например, "Новая"
+	// или "Сделка провалена" в каждой воронке) — id стадии из Bitrix при этом
+	// разный (префикс "C{categoryId}:", без префикса — воронка по умолчанию).
+	// Без уточнения такие стадии выглядели бы в списке как дубли.
+	const stageOptions = useMemo(() => {
+		const entries = [...(stageNames ?? new Map()).entries()];
+		const nameCounts = new Map<string, number>();
+		for (const [, info] of entries) {
+			nameCounts.set(info.name, (nameCounts.get(info.name) ?? 0) + 1);
+		}
+		return entries
+			.map(([id, info]) => {
+				const isDuplicate = (nameCounts.get(info.name) ?? 0) > 1;
+				if (!isDuplicate) return { id, label: info.name };
+				const categoryId = /^C(\d+):/.exec(id)?.[1] ?? "0";
+				const categoryLabel = categoryNames?.get(categoryId);
+				return {
+					id,
+					label: categoryLabel ? `${info.name} · ${categoryLabel}` : info.name,
+				};
+			})
+			.sort((a, b) => a.label.localeCompare(b.label, "ru"));
+	}, [stageNames, categoryNames]);
+	const sourceOptions = useMemo(
+		() =>
+			[...(sourceNames ?? new Map()).entries()]
+				.map(([id, label]) => ({ id, label }))
+				.sort((a, b) => a.label.localeCompare(b.label, "ru")),
+		[sourceNames],
+	);
+	const failReasonOptions = useMemo(
+		() =>
+			[...(failReasonNames ?? new Map()).entries()]
+				.map(([id, label]) => ({ id, label }))
+				.sort((a, b) => a.label.localeCompare(b.label, "ru")),
+		[failReasonNames],
+	);
 
-  const table = useReactTable({
-    data: filteredDeals,
-    columns,
-    state: { sorting, pagination },
-    onSortingChange: setSorting,
-    onPaginationChange: setPagination,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-  });
+	const sort = sorting[0];
+	const sortField =
+		sort?.id === "opportunity" ||
+		sort?.id === "dateCreate" ||
+		sort?.id === "title" ||
+		sort?.id === "status"
+			? sort.id
+			: undefined;
 
-  const resetFilters = () => {
-    setSearch("");
-    setStatus(ALL);
-    setCategory(ALL);
-    setStage(ALL);
-    setSource(ALL);
-    setPagination((current) => ({ ...current, pageIndex: 0 }));
-  };
-  const updateFilter = (setter: (value: string) => void, value: string) => {
-    setter(value);
-    setPagination((current) => ({ ...current, pageIndex: 0 }));
-  };
+	const queryKey = [
+		"dashboard-deals",
+		formatDateParam(range.from),
+		formatDateParam(range.to),
+		status,
+		category,
+		stage,
+		source,
+		failReason,
+		search,
+		sortField,
+		sort?.desc,
+		pagination.pageIndex,
+		pagination.pageSize,
+		reachedStage?.stageId,
+		reachedStage?.categoryId,
+	];
 
-  const rows = table.getRowModel().rows;
-  const pageIndex = table.getState().pagination.pageIndex;
-  const pageCount = table.getPageCount();
-  const from = filteredDeals.length === 0 ? 0 : pageIndex * PAGE_SIZE + 1;
-  const to = Math.min(filteredDeals.length, (pageIndex + 1) * PAGE_SIZE);
-  const hasFilters =
-    search.length > 0 ||
-    status !== ALL ||
-    category !== ALL ||
-    stage !== ALL ||
-    source !== ALL;
+	const { data, isLoading, isFetching, isError, refetch } = useQuery({
+		queryKey,
+		queryFn: async () => {
+			const params = new URLSearchParams({
+				from: formatDateParam(range.from),
+				to: formatDateParam(range.to),
+				page: String(pagination.pageIndex + 1),
+				pageSize: String(pagination.pageSize),
+				sortDir: sort?.desc === false ? "asc" : "desc",
+			});
+			if (status !== ALL) params.set("status", status);
+			if (category !== ALL) params.set("category", category);
+			if (stage !== ALL) params.set("stage", stage);
+			if (source !== ALL) params.set("source", source);
+			if (failReason !== ALL) params.set("failReason", failReason);
+			if (search.trim()) params.set("search", search.trim());
+			if (sortField) params.set("sort", sortField);
+			if (reachedStage) {
+				params.set("reachedStage", reachedStage.stageId);
+				params.set("reachedCategory", reachedStage.categoryId);
+			}
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-56 flex-1">
-          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            aria-label="Поиск сделок"
-            placeholder="Название, UTM, стадия или источник…"
-            value={search}
-            onChange={(event) => updateFilter(setSearch, event.target.value)}
-            className="pl-8"
-          />
-        </div>
-        <Select
-          value={status}
-          onValueChange={(value) => updateFilter(setStatus, value)}
-        >
-          <SelectTrigger aria-label="Фильтр по статусу" className="min-w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value={ALL}>Все статусы</SelectItem>
-              {(
-                Object.entries(STATUS_LABEL) as Array<
-                  [DealStatus, (typeof STATUS_LABEL)[DealStatus]]
-                >
-              ).map(([value, info]) => (
-                <SelectItem key={value} value={value}>
-                  {info.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <Select
-          value={category}
-          onValueChange={(value) => updateFilter(setCategory, value)}
-        >
-          <SelectTrigger aria-label="Фильтр по воронке" className="min-w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value={ALL}>Все воронки</SelectItem>
-              {categoryOptions.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <Select
-          value={stage}
-          onValueChange={(value) => updateFilter(setStage, value)}
-        >
-          <SelectTrigger aria-label="Фильтр по стадии" className="min-w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value={ALL}>Все стадии</SelectItem>
-              {stageOptions.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <Select
-          value={source}
-          onValueChange={(value) => updateFilter(setSource, value)}
-        >
-          <SelectTrigger aria-label="Фильтр по источнику" className="min-w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value={ALL}>Все источники</SelectItem>
-              {sourceOptions.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={resetFilters}>
-            <FilterXIcon data-icon="inline-start" />
-            Сбросить
-          </Button>
-        )}
-      </div>
+			const res = await fetch(`/api/dashboard/deals?${params}`);
+			if (!res.ok) throw new Error("Не удалось загрузить сделки");
+			const json = await res.json();
+			return DealsResponseSchema.parse(json);
+		},
+	});
 
-      {filteredDeals.length === 0 ? (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <SearchIcon />
-            </EmptyMedia>
-            <EmptyTitle>Сделки не найдены</EmptyTitle>
-            <EmptyDescription>
-              Измените поисковый запрос или сбросьте выбранные фильтры.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button variant="outline" size="sm" onClick={resetFilters}>
-              Сбросить фильтры
-            </Button>
-          </EmptyContent>
-        </Empty>
-      ) : (
-        <>
-          <div className="rounded-lg border">
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+	const rows = data?.rows ?? [];
+	const total = data?.total ?? 0;
 
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-            <span>
-              {formatNumber(from)}–{formatNumber(to)} из{" "}
-              {formatNumber(filteredDeals.length)}
-              {hasFilters && ` · всего ${formatNumber(deals.length)}`}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-              >
-                Назад
-              </Button>
-              <span className="tabular-nums">
-                {pageIndex + 1} / {Math.max(pageCount, 1)}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-              >
-                Вперёд
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
+	const table = useReactTable({
+		data: rows,
+		columns,
+		state: { sorting, pagination },
+		onSortingChange: setSorting,
+		onPaginationChange: setPagination,
+		manualSorting: true,
+		manualPagination: true,
+		manualFiltering: true,
+		pageCount: Math.max(1, Math.ceil(total / pagination.pageSize)),
+		getCoreRowModel: getCoreRowModel(),
+	});
+
+	const resetFilters = () => {
+		setSearchInput("");
+		setStatus(ALL);
+		setCategory(ALL);
+		setStage(ALL);
+		setSource(ALL);
+		setFailReason(ALL);
+		setPagination((current) => ({ ...current, pageIndex: 0 }));
+		if (reachedStage) {
+			router.push("/deals");
+		}
+	};
+	const updateFilter = (setter: (value: string) => void, value: string) => {
+		setter(value);
+		setPagination((current) => ({ ...current, pageIndex: 0 }));
+	};
+
+	const pageIndex = pagination.pageIndex;
+	const pageCount = table.getPageCount();
+	const from = total === 0 ? 0 : pageIndex * pagination.pageSize + 1;
+	const to = Math.min(total, (pageIndex + 1) * pagination.pageSize);
+	const hasFilters =
+		search.length > 0 ||
+		status !== ALL ||
+		category !== ALL ||
+		stage !== ALL ||
+		source !== ALL ||
+		failReason !== ALL ||
+		reachedStage !== undefined;
+
+	if (isError) {
+		return (
+			<Empty className="border">
+				<EmptyHeader>
+					<EmptyTitle>Не удалось загрузить сделки</EmptyTitle>
+					<EmptyDescription>Попробуйте обновить страницу.</EmptyDescription>
+				</EmptyHeader>
+				<EmptyContent>
+					<Button variant="outline" size="sm" onClick={() => void refetch()}>
+						Попробовать снова
+					</Button>
+				</EmptyContent>
+			</Empty>
+		);
+	}
+
+	return (
+		<div className="flex flex-col gap-4">
+			{reachedStage && (
+				<div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+					<InfoIcon className="mt-0.5 size-4 shrink-0" />
+					<p>
+						Показаны сделки, у которых был переход на этап «
+						<span className="font-medium text-foreground">
+							{reachedStage.stageLabel}
+						</span>
+						» с {formatDateParam(range.from)} по {formatDateParam(range.to)} —
+						независимо от того, в какой стадии сделка находится сейчас, и без
+						учёта даты её создания. Сделка, заходившая на этап несколько раз,
+						показана один раз.
+					</p>
+				</div>
+			)}
+			<DealsTableFilters
+				searchInput={searchInput}
+				onSearchInputChange={(value) => {
+					setSearchInput(value);
+					setPagination((current) => ({ ...current, pageIndex: 0 }));
+				}}
+				status={status}
+				onStatusChange={(value) => updateFilter(setStatus, value)}
+				category={category}
+				onCategoryChange={(value) => updateFilter(setCategory, value)}
+				categoryOptions={categoryOptions}
+				stage={stage}
+				onStageChange={(value) => updateFilter(setStage, value)}
+				stageOptions={stageOptions}
+				source={source}
+				onSourceChange={(value) => updateFilter(setSource, value)}
+				sourceOptions={sourceOptions}
+				failReason={failReason}
+				onFailReasonChange={(value) => updateFilter(setFailReason, value)}
+				failReasonOptions={failReasonOptions}
+				hasFilters={hasFilters}
+				onReset={resetFilters}
+				isFetching={isFetching}
+				isLoading={isLoading}
+			/>
+
+			{!isLoading && total === 0 ? (
+				<Empty className="border">
+					<EmptyHeader>
+						<EmptyMedia variant="icon">
+							<SearchIcon />
+						</EmptyMedia>
+						<EmptyTitle>Сделки не найдены</EmptyTitle>
+						<EmptyDescription>
+							Измените поисковый запрос или сбросьте выбранные фильтры.
+						</EmptyDescription>
+					</EmptyHeader>
+					<EmptyContent>
+						<Button variant="outline" size="sm" onClick={resetFilters}>
+							Сбросить фильтры
+						</Button>
+					</EmptyContent>
+				</Empty>
+			) : (
+				<>
+					<div className="rounded-lg border">
+						<Table>
+							<TableHeader>
+								{table.getHeaderGroups().map((headerGroup) => (
+									<TableRow key={headerGroup.id}>
+										{headerGroup.headers.map((header) => (
+											<TableHead key={header.id}>
+												{header.isPlaceholder
+													? null
+													: flexRender(
+															header.column.columnDef.header,
+															header.getContext(),
+														)}
+											</TableHead>
+										))}
+									</TableRow>
+								))}
+							</TableHeader>
+							<TableBody>
+								{isLoading ? (
+									<TableRow>
+										<TableCell
+											colSpan={columns.length}
+											className="h-24 text-center text-muted-foreground"
+										>
+											Загрузка…
+										</TableCell>
+									</TableRow>
+								) : (
+									table.getRowModel().rows.map((row) => (
+										<TableRow key={row.id}>
+											{row.getVisibleCells().map((cell) => (
+												<TableCell key={cell.id}>
+													{flexRender(
+														cell.column.columnDef.cell,
+														cell.getContext(),
+													)}
+												</TableCell>
+											))}
+										</TableRow>
+									))
+								)}
+							</TableBody>
+						</Table>
+					</div>
+
+					<DealsTablePagination
+						pageIndex={pageIndex}
+						pageCount={Math.max(pageCount, 1)}
+						pageSize={pagination.pageSize}
+						from={from}
+						to={to}
+						total={total}
+						canPreviousPage={table.getCanPreviousPage()}
+						canNextPage={table.getCanNextPage()}
+						onPageChange={(index) => table.setPageIndex(index)}
+						onPageSizeChange={(size) =>
+							setPagination({ pageIndex: 0, pageSize: size })
+						}
+					/>
+				</>
+			)}
+		</div>
+	);
 }

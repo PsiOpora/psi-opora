@@ -31,13 +31,33 @@ import {
 import { enrichCrmFromClientMessage } from "./utils/crm-enrichment";
 import { withUserLock } from "./utils/lock";
 import { logBotMessage } from "./utils/message-log";
+import {
+	handleStageConsentClick,
+	parseStageConsentPayload,
+	stageConsentActionLabel,
+	toInlineKeyboard as toStageConsentInlineKeyboard,
+} from "./utils/stage-consent";
+import {
+	createTelegramFetch,
+	resolveTelegramApiRoot,
+} from "./utils/telegram-proxy";
 import { triageOffScriptMessage } from "./utils/triage";
 import { upsertBotUserProfile } from "./utils/user-profile";
-import { decodeStartParam, formatUtmLog, parseUtmParams } from "./utils/utm";
+import {
+	decodeStartParam,
+	extractYmClientId,
+	formatUtmLog,
+	parseUtmParams,
+} from "./utils/utm";
 
 export const log = (msg: string) => {
 	console.log(`${new Date().toISOString()} ${msg}`);
 };
+
+// Вычисляются один раз при загрузке модуля — TG_API_PROXY_* не меняются на
+// лету, только через переменные окружения и передеплой (см. utils/telegram-proxy).
+const telegramApiRoot = resolveTelegramApiRoot();
+const telegramFetch = createTelegramFetch();
 
 function createInitialSession(): ConsultationSession {
 	return { step: "name" };
@@ -115,7 +135,7 @@ async function collectTelegramProfile(
 		try {
 			const url = await resolveTelegramFileUrl(ctx.api, token, photoFileId);
 			if (url) {
-				const res = await fetch(url);
+				const res = await telegramFetch(url);
 				if (res.ok) {
 					const bytes = new Uint8Array(await res.arrayBuffer());
 					const contentType = res.headers.get("content-type") || "image/jpeg";
@@ -176,8 +196,12 @@ export interface BotOptions {
 	enrichCrm?: typeof enrichCrmFromClientMessage;
 }
 
-function toInlineKeyboard(
-	message: ScenarioMessage,
+interface TelegramScenarioMessage extends Omit<ScenarioMessage, "buttons"> {
+	buttons?: Array<Array<{ label: string; action: string }>>;
+}
+
+function toTelegramInlineKeyboard(
+	message: TelegramScenarioMessage,
 ): InlineKeyboard | undefined {
 	if (!message.buttons?.length) return undefined;
 	const keyboard = new InlineKeyboard();
@@ -195,9 +219,9 @@ function toInlineKeyboard(
 export async function sendTelegramScenarioMessage(
 	api: Api,
 	chatId: number,
-	message: ScenarioMessage,
+	message: TelegramScenarioMessage,
 ): Promise<void> {
-	const keyboard = toInlineKeyboard(message);
+	const keyboard = toTelegramInlineKeyboard(message);
 	const options = {
 		reply_markup: keyboard,
 		link_preview_options: { is_disabled: true },
@@ -228,6 +252,10 @@ export async function sendTelegramScenarioMessage(
  * в Открытую линию (message.files в imconnector.send.messages). Ссылка
  * держится ограниченное время — этого достаточно, чтобы оператор открыл её
  * вскоре после получения; постоянного хранилища для вложений бота нет.
+ *
+ * Всегда возвращает прямой URL api.telegram.org, даже если включён прокси —
+ * URL используется для передачи в Bitrix24, который не имеет доступа к
+ * защищённому прокси (нет x-proxy-secret заголовка).
  */
 async function resolveTelegramFileUrl(
 	api: Api,
@@ -257,10 +285,13 @@ export function createBot({
 	enrichCrm = enrichCrmFromClientMessage,
 }: BotOptions = {}) {
 	const resolvedToken = token || "";
-	const bot = new Bot<AppContext>(
-		resolvedToken,
-		client ? { client } : undefined,
-	);
+	const bot = new Bot<AppContext>(resolvedToken, {
+		client: {
+			apiRoot: telegramApiRoot,
+			fetch: telegramFetch,
+			...client,
+		},
+	});
 
 	// Сериализуем обработку апдейтов одного чата (см. utils/lock.ts) — без
 	// этого чтение и запись сессии двумя раздельными Redis-вызовами гонятся
@@ -303,6 +334,7 @@ export function createBot({
 			userId: ctx.from?.id,
 			source: ctx.session.source,
 			campaign: ctx.session.campaign,
+			ymClientId: ctx.session.ymClientId,
 			guideCampaign,
 		});
 	};
@@ -326,7 +358,13 @@ export function createBot({
 		// метки, коллизия с кодовым словом кампании маловероятна, а кампания
 		// конкретнее. Декодируем до сравнения: кириллица в ссылке приходит
 		// percent-encoded.
-		const startParam = decodeStartParam(rawParam);
+		// ClientID Яндекс.Метрики сайт приклеивает суффиксом `_ymNNN` к обычной
+		// ссылке (см. extractYmClientId) — отрезаем его до разбора кампании/UTM,
+		// чтобы SITE_CODES и splitStartParam видели параметр как раньше.
+		const { code: startParam, ymClientId } = extractYmClientId(
+			decodeStartParam(rawParam),
+		);
+		if (ymClientId) ctx.session.ymClientId = ymClientId;
 		const resolved = startParam
 			? await resolveGuideCampaignStart(startParam)
 			: null;
@@ -374,6 +412,7 @@ export function createBot({
 
 	bot.on("callback_query:data", async (ctx) => {
 		const action = ctx.callbackQuery.data;
+		const stageConsent = parseStageConsentPayload(action);
 		await ctx.answerCallbackQuery();
 
 		// Кнопка из follow-up-сообщения кампании гайда (packages/jobs) — не
@@ -405,6 +444,60 @@ export function createBot({
 				source: "scenario",
 				text: reply,
 			});
+			return;
+		}
+
+		// Согласия на стадии «Б/п консультация» (см. utils/stage-consent.ts) —
+		// не часть машины состояний сценария, сделка адресуется через Redis, а не
+		// через ctx.session.scenario.
+		if (stageConsent && redis && ctx.from && ctx.chatId) {
+			const texts = await getScenarioTexts();
+			const result = await handleStageConsentClick(
+				redis,
+				"telegram",
+				ctx.from.id,
+				stageConsent.dealId,
+				stageConsent.action,
+				texts,
+			);
+			if (!result) return;
+			await ctx
+				.editMessageReplyMarkup({ reply_markup: undefined })
+				.catch(() => {});
+			await logBotMessage({
+				messenger: "telegram",
+				userId: ctx.from.id,
+				direction: "in",
+				source: "scenario",
+				text: stageConsentActionLabel(stageConsent.action, texts),
+			});
+			await sendTelegramScenarioMessage(ctx.api, ctx.chatId, {
+				text: result.replyText,
+			});
+			await logBotMessage({
+				messenger: "telegram",
+				userId: ctx.from.id,
+				direction: "out",
+				source: "scenario",
+				text: result.replyText,
+			});
+			if (result.resendAdsQuestion) {
+				await sendTelegramScenarioMessage(ctx.api, ctx.chatId, {
+					text: texts.stage_consent_ads_text,
+					buttons: toStageConsentInlineKeyboard(
+						["stage_ads_agree", "stage_ads_decline"],
+						stageConsent.dealId,
+						texts,
+					),
+				});
+				await logBotMessage({
+					messenger: "telegram",
+					userId: ctx.from.id,
+					direction: "out",
+					source: "scenario",
+					text: texts.stage_consent_ads_text,
+				});
+			}
 			return;
 		}
 
@@ -620,44 +713,51 @@ export function createBot({
 			let fileName = "file";
 			let mimeType: string | undefined;
 			let durationSec: number | undefined;
+			/** voice/audio — плеер (как раньше); photo — фото; document/video —
+			 * файл (видео в отдельный тип плеера не выделяем — только звук). */
+			let kind: "voice" | "image" | "file" = "file";
 			if (ctx.message.photo) {
 				fileId = ctx.message.photo[ctx.message.photo.length - 1]?.file_id;
 				fileName = "photo.jpg";
+				mimeType = "image/jpeg";
+				kind = "image";
 			} else if (ctx.message.document) {
 				fileId = ctx.message.document.file_id;
 				fileName = ctx.message.document.file_name ?? "document";
+				mimeType = ctx.message.document.mime_type;
 			} else if (ctx.message.voice) {
 				fileId = ctx.message.voice.file_id;
 				fileName = "voice.ogg";
 				mimeType = ctx.message.voice.mime_type;
 				durationSec = ctx.message.voice.duration;
+				kind = "voice";
 			} else if (ctx.message.video) {
 				fileId = ctx.message.video.file_id;
 				fileName = "video.mp4";
+				mimeType = ctx.message.video.mime_type;
 			} else if (ctx.message.audio) {
 				fileId = ctx.message.audio.file_id;
 				fileName = ctx.message.audio.file_name ?? "audio.mp3";
 				mimeType = ctx.message.audio.mime_type;
 				durationSec = ctx.message.audio.duration;
+				kind = "voice";
 			}
 			if (!fileId) return;
 
 			const url = await resolveTelegramFileUrl(ctx.api, resolvedToken, fileId);
+			const isVoice = kind === "voice";
 
-			// Голосовые/аудио сохраняем как отдельный вид сообщения (kind="voice")
-			// с перезаливкой в наше S3 — чтобы инбокс «Клиенты» показывал плеер,
-			// а не заглушку `[voice.ogg]`. Остальные типы вложений (фото/документ/
-			// видео) — как раньше, без сохранения самого файла у нас.
-			const isVoice = Boolean(ctx.message.voice || ctx.message.audio);
+			// Перезаливаем вложение в наше S3 — чтобы инбокс «Клиенты» показывал
+			// плеер/превью/ссылку на скачивание, а не заглушку `[file.ext]`.
 			let mediaS3Key: string | undefined;
-			if (isVoice && uploadMedia && url) {
+			if (uploadMedia && url) {
 				try {
-					const res = await fetch(url);
+					const res = await telegramFetch(url);
 					if (res.ok) {
 						const bytes = new Uint8Array(await res.arrayBuffer());
 						const uploaded = await uploadMedia({
 							bytes,
-							contentType: mimeType || "audio/ogg",
+							contentType: mimeType || "application/octet-stream",
 							messenger: "telegram",
 							fileId,
 						});
@@ -665,7 +765,7 @@ export function createBot({
 					}
 				} catch (err) {
 					console.error(
-						`[media] не удалось перезалить голосовое user=${ctx.from.id}: ${(err as Error).message}`,
+						`[media] не удалось перезалить вложение user=${ctx.from.id}: ${(err as Error).message}`,
 					);
 				}
 			}
@@ -678,10 +778,11 @@ export function createBot({
 				text: caption || (isVoice ? "Голосовое сообщение" : `[${fileName}]`),
 				...(mediaS3Key
 					? {
-							kind: "voice",
+							kind,
 							mediaS3Key,
 							mediaMimeType: mimeType,
 							mediaDurationSec: durationSec,
+							mediaFileName: kind === "file" ? fileName : undefined,
 						}
 					: {}),
 			});

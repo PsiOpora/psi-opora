@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { env } from "@psi-opora/config";
+import { z } from "zod";
 import { MaxProtocolClient } from "./protocol/client";
 import { OPCODE } from "./protocol/opcodes";
 
@@ -72,9 +73,28 @@ function readInteger(value: unknown): number | undefined {
 
 export interface SessionInitResult {
 	/** `callsSeed` из ответа SESSION_INIT — используется для вычисления
-	 * ChatCacheFingerprint (поле `mode` в AUTH_REQUEST), как у Komet. */
-	callsSeed: number | undefined;
+	 * ChatCacheFingerprint (поле `mode` в AUTH_REQUEST), как у Komet.
+	 * Приходит как 64-битное целое; decodePayload (frame.ts) декодирует int64
+	 * через useBigInt64 и normalizeBigInts переводит bigint в десятичную
+	 * строку (чтобы не терять точность вне Number.MAX_SAFE_INTEGER) — поэтому
+	 * здесь ждём string, а не number, иначе поле никогда не распознаётся. */
+	callsSeed: string | undefined;
 }
+
+const callsSeedSchema = z
+	.string()
+	.regex(/^-?\d+$/)
+	.refine(
+		(value) => {
+			try {
+				const seed = BigInt(value);
+				return seed >= -(1n << 63n) && seed <= (1n << 63n) - 1n;
+			} catch {
+				return false;
+			}
+		},
+		{ message: "callsSeed must be a signed int64" },
+	);
 
 /** Экспортируется для переиспользования в relay.ts (Фаза 2). */
 export async function sessionInit(
@@ -89,8 +109,7 @@ export async function sessionInit(
 	console.log(
 		`[max-personal-login] SESSION_INIT response: ${JSON.stringify(response)}`,
 	);
-	const callsSeed =
-		typeof response.callsSeed === "number" ? response.callsSeed : undefined;
+	const callsSeed = callsSeedSchema.safeParse(response.callsSeed).data;
 	return { callsSeed };
 }
 
@@ -106,22 +125,23 @@ export async function sessionInit(
  *
  * Дайджесты — публичные константы из исходников Komet (chat_cache_fingerprint.dart).
  */
-function chatCacheFingerprint(callsSeed: number, deviceId: string): Uint8Array {
+function chatCacheFingerprint(callsSeed: string, deviceId: string): Uint8Array {
 	const SIGNATURE_DIGEST = Buffer.from(
 		"1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
 		"hex",
 	);
 	const SO_DIGEST = Buffer.from(
-		"90e2fb8745b17b42a10182f8d8ac590e3fca5b311e2ce2d5144fa2c18cb3090d",
+		"634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
 		"hex",
 	);
 	const DEX_DIGEST = Buffer.from(
-		"0a6265f6e5d8231b9cba641f8c40475e6f3baeb06ed41b804b9bf7307aa4214e",
+		"38cff46f392dc1734c308be011c2f0d8da152a390b41063dbb2c913e3032f4b3",
 		"hex",
 	);
 
 	const seed = Buffer.allocUnsafe(8);
-	// callsSeed — 32-битное целое от сервера, пишем в int64 big-endian как Dart
+	// callsSeed — 64-битное целое от сервера (в строке, см. SessionInitResult),
+	// пишем в int64 big-endian как Dart
 	seed.writeBigInt64BE(BigInt(callsSeed), 0);
 	const device = Buffer.from(deviceId, "utf8");
 
@@ -137,10 +157,8 @@ function chatCacheFingerprint(callsSeed: number, deviceId: string): Uint8Array {
 }
 async function connectAndInit(
 	deviceId: string,
-): Promise<{ client: MaxProtocolClient; callsSeed: number | undefined }> {
-	const client = new MaxProtocolClient({
-		proxy: env.MAX_USERBOT_PROXY,
-	});
+): Promise<{ client: MaxProtocolClient; callsSeed: string | undefined }> {
+	const client = new MaxProtocolClient();
 	await client.connect();
 	const { callsSeed } = await sessionInit(client, deviceId);
 	return { client, callsSeed };

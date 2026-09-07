@@ -48,11 +48,17 @@ function buildProfileComment(data: ContactData): string | undefined {
 		: undefined;
 }
 
+// Ответственный по умолчанию для контактов/сделок из ботов — Евгения
+// Степанова (ID 18 в Bitrix24). Без этого поля Bitrix назначает ответственным
+// владельца вебхука, которым сейчас является техническая учётка Максима.
+export const DEFAULT_ASSIGNED_BY_ID = 18;
+
 export function buildContactFields(data: ContactData, imol?: string | null) {
 	const messenger = data.messenger ?? "telegram";
 	const profileComment = buildProfileComment(data);
 	return {
 		NAME: data.name,
+		ASSIGNED_BY_ID: DEFAULT_ASSIGNED_BY_ID,
 		...(data.phone
 			? { PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }] }
 			: {}),
@@ -67,6 +73,11 @@ export function buildContactFields(data: ContactData, imol?: string | null) {
 		// согласия. Контакт, созданный из произвольного входящего телефона/email,
 		// не получает этот флаг автоматически.
 		...(data.consentGranted ? { UF_CRM_CONTACT_1779910236669: 1 } : {}),
+		// Дата/время согласия на ПДн — фиксируется автоматически в момент нажатия
+		// кнопки в боте, без ручного редактирования оператором.
+		...(data.consentGranted && data.consentAt
+			? { UF_CRM_CONTACT_CONSENT_PDN_DT: data.consentAt }
+			: {}),
 		...(profileComment ? { COMMENTS: profileComment } : {}),
 		...(buildMessengerLinkFields(data, imol) ?? {}),
 	};
