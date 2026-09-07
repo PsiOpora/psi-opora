@@ -7,7 +7,7 @@
       "devDependencies": {
         "@biomejs/biome": "^2.5.12",
         "@types/bun": "1.4.1",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "turbo": "^2.10.12",
         "typescript": "7.0.2",
       },
@@ -31,7 +31,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "typescript": "7.0.2",
       },
     },
@@ -131,7 +131,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "typescript": "7.0.2",
       },
     },
@@ -150,7 +150,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "typescript": "7.0.2",
       },
     },
@@ -165,7 +165,7 @@
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
         "@types/bun": "1.4.1",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "tsdown": "^0.22.14",
         "typescript": "7.0.2",
       },
@@ -185,7 +185,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "typescript": "7.0.2",
       },
     },
@@ -200,7 +200,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "typescript": "7.0.2",
       },
     },
@@ -238,7 +238,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "typescript": "7.0.2",
       },
     },
@@ -251,7 +251,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "tsdown": "^0.22.14",
         "typescript": "7.0.2",
       },
@@ -264,7 +264,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "tsdown": "^0.22.14",
         "typescript": "7.0.2",
       },
@@ -296,7 +296,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "tsdown": "0.22.14",
         "typescript": "7.0.2",
       },
@@ -316,7 +316,7 @@
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
         "@types/bun": "1.4.1",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "@types/ws": "^8.18.1",
         "drizzle-kit": "^0.31.10",
         "tsdown": "^0.22.14",
@@ -344,7 +344,7 @@
       },
       "devDependencies": {
         "@react-email/preview-server": "5.2.10",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "@types/nodemailer": "^8.0.1",
         "@types/react": "19.2.18",
         "@types/react-dom": "19.2.7",
@@ -370,7 +370,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "dotenv": "^17.4.2",
         "esbuild": "^0.28.2",
         "tsdown": "^0.22.14",
@@ -389,7 +389,7 @@
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
         "@types/bun": "1.4.1",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "tsdown": "^0.22.14",
         "typescript": "7.0.2",
       },
@@ -399,7 +399,7 @@
       "version": "0.0.1",
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "tsdown": "^0.22.14",
         "typescript": "7.0.2",
       },
@@ -412,7 +412,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "typescript": "7.0.2",
       },
     },
@@ -428,7 +428,7 @@
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
         "@types/bun": "1.4.1",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "tsdown": "^0.22.14",
         "typescript": "7.0.2",
       },
@@ -438,7 +438,7 @@
       "version": "0.0.1",
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "tsdown": "^0.22.14",
         "typescript": "7.0.2",
       },
@@ -463,7 +463,7 @@
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
         "@types/bun": "1.4.1",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "tsdown": "^0.22.14",
         "typescript": "7.0.2",
       },
@@ -480,7 +480,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
-        "@types/node": "26.4.0",
+        "@types/node": "26.5.0",
         "typescript": "7.0.2",
       },
     },
@@ -1256,7 +1256,7 @@
 
     "@types/luxon": ["@types/luxon@3.7.5", "", {}, "sha512-jJ41Q4z6ZVO260MNDdHfW7+7a5iMiX8Mr6ZJHcmgrvhZha6dz5704o/lF2kKl6URjH6ivEL97w9xS/MgpJEphg=="],
 
-    "@types/node": ["@types/node@26.4.0", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-faiGnoIrLH/V8cibOMEAZ8pMw6oXqSukl29ra4mN8GdaB2ZewzeaLj+INpV5N+Z1eKWzY+IzaIZH2EIR6YZRNQ=="],
+    "@types/node": ["@types/node@26.5.0", "", { "dependencies": { "undici-types": "~8.9.0" } }, "sha512-dVSGpriSoCgz8WnDNTuSSuSv1PC/ALXihO4ulRZt7Md8k9mlbdin3lGOcDE8SnWOgf513ByWlXd7BK4azmyg/A=="],
 
     "@types/nodemailer": ["@types/nodemailer@8.0.1", "", { "dependencies": { "@types/node": "*" } }, "sha512-PxpaInm8V1JQDd4j0ds5HfvWQk8JupS1C0Picb96QJsrrRDjBH+DlK7L4ZdNSqNULhiZRQHc40nLVShaGxXAMw=="],
 
@@ -2282,7 +2282,7 @@
 
     "undici": ["undici@7.29.0", "", {}, "sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw=="],
 
-    "undici-types": ["undici-types@8.3.0", "", {}, "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="],
+    "undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
 
     "unicorn-magic": ["unicorn-magic@0.3.0", "", {}, "sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA=="],
 
