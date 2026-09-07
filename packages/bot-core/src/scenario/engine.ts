@@ -175,6 +175,7 @@ function submitGuidePhone(
 		issue: state.issue ?? "other",
 		marketingConsent: state.marketingConsent,
 		campaignId: state.campaignId,
+		consentAt: state.consentAt,
 	};
 
 	if (state.audience === "self") {
@@ -210,6 +211,7 @@ function submitCampaignGuide(
 		issue: "other",
 		marketingConsent: state.marketingConsent,
 		campaignId: state.campaignId,
+		consentAt: state.consentAt,
 	};
 	return output(
 		{ ...state, email, step: "done" },
@@ -265,6 +267,7 @@ function submitConsultLead(
 		email,
 		name: state.name,
 		marketingConsent: state.marketingConsent,
+		consentAt: state.consentAt,
 	};
 	return output(
 		{ ...state, email, step: "done" },
@@ -299,7 +302,11 @@ export function applyScenarioAction(
 		case "consent": {
 			if (action === "consent_agree") {
 				return output(
-					{ ...fresh(state), step: "marketing_consent" },
+					{
+						...fresh(state),
+						step: "marketing_consent",
+						consentAt: new Date().toISOString(),
+					},
 					[{ text: t.consent_agreed }, marketingConsentQuestion(t)],
 					{ track: ["consent"] },
 				);
@@ -541,7 +548,7 @@ export async function applyScenarioText(
 					t,
 					[{ text: t.lead_magnet, guide: true }],
 					["email"],
-					{ email: text },
+					{ email: text, consentAt: state.consentAt },
 				);
 			}
 			const attempts = (state.emailAttempts ?? 0) + 1;

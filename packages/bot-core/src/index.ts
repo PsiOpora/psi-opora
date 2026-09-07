@@ -87,6 +87,7 @@ export {
 	consumeOperatorMirrorEcho,
 	createBitrixContact,
 	createBitrixDeal,
+	type DealConsentOutboxEntry,
 	type DealData,
 	enqueueOperatorMirrorEcho,
 	listBitrixSources,
@@ -96,6 +97,8 @@ export {
 	type OperatorMirrorEcho,
 	type OperatorReplyData,
 	operatorMirrorEchoKey,
+	type ProcessDealConsentOutboxResult,
+	processDealConsentOutbox,
 	registerBitrixSource,
 	sendMessageToOpenLine,
 	updateMessageInOpenLine,
@@ -136,6 +139,25 @@ export {
 	logBotMessage,
 } from "./utils/message-log";
 export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes";
+export {
+	CONSENT_ADS_DECLINED_FIELD,
+	CONSENT_ADS_FIELD,
+	CONSENT_OFFER_FIELD,
+	getPendingStageDeal,
+	handleStageConsentClick,
+	isStageConsentAction,
+	parseStageConsentPayload,
+	recordStageConsent,
+	removePendingStageDeal,
+	STAGE_CONSENT_ACTIONS,
+	type StageConsentAction,
+	type StageConsentClickResult,
+	type StageConsentInlineButton,
+	setPendingStageDeal,
+	stageConsentActionLabel,
+	stageConsentPayload,
+	toInlineKeyboard,
+} from "./utils/stage-consent";
 export {
 	createTelegramFetch,
 	resolveTelegramApiRoot,

@@ -73,6 +73,11 @@ export function buildContactFields(data: ContactData, imol?: string | null) {
 		// согласия. Контакт, созданный из произвольного входящего телефона/email,
 		// не получает этот флаг автоматически.
 		...(data.consentGranted ? { UF_CRM_CONTACT_1779910236669: 1 } : {}),
+		// Дата/время согласия на ПДн — фиксируется автоматически в момент нажатия
+		// кнопки в боте, без ручного редактирования оператором.
+		...(data.consentGranted && data.consentAt
+			? { UF_CRM_CONTACT_CONSENT_PDN_DT: data.consentAt }
+			: {}),
 		...(profileComment ? { COMMENTS: profileComment } : {}),
 		...(buildMessengerLinkFields(data, imol) ?? {}),
 	};

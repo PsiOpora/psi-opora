@@ -14,9 +14,11 @@ import {
 	type GuideCampaignContext,
 	getScenarioTexts,
 	handleGuideDiagnosticRequest,
+	handleStageConsentClick,
 	loadGuideCampaignContext,
 	logBotMessage,
 	looksLikeDiagnosticConsent,
+	parseStageConsentPayload,
 	parseUtmParams,
 	resolveGuideCampaignStart,
 	resolveGuideFile,
@@ -24,12 +26,15 @@ import {
 	type ScenarioMessage,
 	type ScenarioOutput,
 	type ScenarioTexts,
+	STAGE_CONSENT_ACTIONS,
 	type StorageAdapter,
 	sendMessageToOpenLine,
 	setFunnelUpsert,
+	stageConsentActionLabel,
 	startConsultation,
 	startGuideCampaign,
 	startScenario,
+	toInlineKeyboard as toStageConsentInlineKeyboard,
 	triageOffScriptMessage,
 	upsertBotUserProfile,
 	withUserLock,
@@ -504,6 +509,70 @@ export function createMaxBot({
 			text: reply,
 		});
 	});
+
+	// Согласия на стадии «Б/п консультация» (см. utils/stage-consent.ts) — не
+	// часть машины состояний сценария, сделка адресуется через Redis, а не
+	// через ctx.session.scenario.
+	for (const action of STAGE_CONSENT_ACTIONS) {
+		bot.action(new RegExp(`^${action}:\\d+$`), async (ctx) => {
+			const appCtx = ctx as AppContext;
+			await appCtx.answerOnCallback({}).catch(() => {});
+			const userId = appCtx.user?.user_id;
+			if (!userId || !redis) return;
+			const stageConsent = parseStageConsentPayload(appCtx.match?.[0] ?? "");
+			if (!stageConsent) return;
+			const texts = await getScenarioTexts();
+			const result = await handleStageConsentClick(
+				redis,
+				"max",
+				userId,
+				stageConsent.dealId,
+				stageConsent.action,
+				texts,
+			);
+			if (!result) return;
+			await logBotMessage({
+				messenger: "max",
+				userId,
+				direction: "in",
+				source: "scenario",
+				text: stageConsentActionLabel(stageConsent.action, texts),
+			});
+			await replyWithFallback(appCtx, result.replyText);
+			await logBotMessage({
+				messenger: "max",
+				userId,
+				direction: "out",
+				source: "scenario",
+				text: result.replyText,
+			});
+			if (result.resendAdsQuestion) {
+				const buttons = toStageConsentInlineKeyboard(
+					["stage_ads_agree", "stage_ads_decline"],
+					stageConsent.dealId,
+					texts,
+				);
+				const retryKeyboard = Keyboard.inlineKeyboard([
+					...buttons.map((row) =>
+						row.map((button) =>
+							Keyboard.button.callback(button.label, button.action),
+						),
+					),
+				]);
+				await replyWithFallback(appCtx, texts.stage_consent_ads_text, {
+					format: "markdown",
+					attachments: [retryKeyboard],
+				});
+				await logBotMessage({
+					messenger: "max",
+					userId,
+					direction: "out",
+					source: "scenario",
+					text: texts.stage_consent_ads_text,
+				});
+			}
+		});
+	}
 
 	for (const action of SCENARIO_ACTIONS) {
 		bot.action(action, async (ctx) => {
