@@ -47,17 +47,17 @@ describe("флоу «запись на консультацию»", () => {
 		expect(out.state.flow).toBe("consult");
 		expect(out.track).toEqual(["consult_click"]);
 		expect(out.messages[0]?.text).toBe(t.consent_text);
+		// btn_consent_decline по умолчанию пустой — кнопка отказа скрыта
+		// (см. бот Андрея Клюева, hint в texts.ts).
 		expect(out.messages[0]?.buttons?.flat().map((b) => b.action)).toEqual([
 			"consent_agree",
-			"consent_decline",
 		]);
 	});
 
-	test("полный путь: согласие → согласие на рекламу → имя → телефон → email → сделка", async () => {
+	test("полный путь: согласие → имя → телефон → email → сделка", async () => {
 		const out = await run([
 			{ action: "sc_consult" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ text: "Анна" },
 			{ text: "+7 999 123-45-67" },
 			{ text: "anna@example.com" },
@@ -69,60 +69,32 @@ describe("флоу «запись на консультацию»", () => {
 			phone: "+7 999 123-45-67",
 			email: "anna@example.com",
 			name: "Анна",
-			marketingConsent: true,
+			consentAt: out.lead?.consentAt,
 		});
+		expect(out.lead?.consentAt).toBeTruthy();
 		expect(out.messages[0]?.text).toContain("Анна");
 		expect(out.awaitingInput).toBe(false);
 	});
 
-	test("согласие на ПДн ведёт к отдельному вопросу о рекламной рассылке", async () => {
+	test("согласие на ПДн ведёт сразу к вопросу об имени, без шага рекламы", async () => {
 		const consent = await run([
 			{ action: "sc_consult" },
 			{ action: "consent_agree" },
 		]);
-		expect(consent.state.step).toBe("marketing_consent");
+		expect(consent.state.step).toBe("name");
+		expect(consent.state.consentAt).toBeTruthy();
 		expect(consent.track).toEqual(["consent"]);
 		expect(consent.messages.map((m) => m.text)).toEqual([
 			t.consent_agreed,
-			t.marketing_consent_text,
-		]);
-		expect(consent.messages[1]?.buttons?.flat().map((b) => b.action)).toEqual([
-			"marketing_consent_agree",
-			"marketing_consent_decline",
-		]);
-	});
-
-	test("имя подставляется в запрос телефона, трекаются marketing_consent и name", async () => {
-		const marketingConsent = await run([
-			{ action: "sc_consult" },
-			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
-		]);
-		expect(marketingConsent.track).toEqual(["marketing_consent"]);
-		expect(marketingConsent.state.marketingConsent).toBe(true);
-		expect(marketingConsent.messages.map((m) => m.text)).toEqual([
-			t.marketing_consent_agreed,
 			t.name_question,
 		]);
 
-		const name = await applyScenarioText(marketingConsent.state, "Пётр", t);
+		// consult_phone_question по умолчанию не содержит {name} — см. ТЗ
+		// (сообщение 3: «Введите ваш номер телефона...», без обращения по имени).
+		const name = await applyScenarioText(consent.state, "Пётр", t);
 		expect(name?.track).toEqual(["name"]);
-		expect(name?.messages[0]?.text).toContain("Пётр");
+		expect(name?.messages[0]?.text).toBe(t.consult_phone_question);
 		expect(name?.state.step).toBe("phone");
-	});
-
-	test("отказ от рекламной рассылки не блокирует основной сценарий", async () => {
-		const out = await run([
-			{ action: "sc_consult" },
-			{ action: "consent_agree" },
-			{ action: "marketing_consent_decline" },
-		]);
-		expect(out.state.step).toBe("name");
-		expect(out.state.marketingConsent).toBe(false);
-		expect(out.messages.map((m) => m.text)).toEqual([
-			t.marketing_consent_declined,
-			t.name_question,
-		]);
 	});
 
 	test("отказ от согласия завершает сценарий без заявки", async () => {
@@ -139,7 +111,6 @@ describe("флоу «запись на консультацию»", () => {
 		const out = await run([
 			{ action: "sc_consult" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ text: "Анна" },
 			{ text: "89991234567" },
 		]);
@@ -156,7 +127,6 @@ describe("флоу «запись на консультацию»", () => {
 		const out = await run([
 			{ action: "sc_consult" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ text: "Анна" },
 			{ text: "89991234567" },
 			{ action: "sc_skip_email" },
@@ -173,7 +143,6 @@ describe("флоу «запись на консультацию»", () => {
 		const out = await run([
 			{ action: "sc_consult" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ text: "Анна" },
 			{ text: "89991234567" },
 			{ text: "не email" },
@@ -192,7 +161,6 @@ describe("флоу «запись на консультацию»", () => {
 		const out = await run([
 			{ action: "sc_consult" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ text: "Анна" },
 			{ text: "абв" },
 			{ text: "где" },
@@ -212,11 +180,10 @@ describe("флоу «запись на консультацию»", () => {
 });
 
 describe("флоу гайда: ветка «трудности с ребенком»", () => {
-	test("полный путь: гайд → согласие → согласие на рекламу → категория → тема → email → телефон → заявка", async () => {
+	test("полный путь: гайд → согласие → категория → тема → email → телефон → заявка", async () => {
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_child" },
 			{ action: "sc_eating" },
 			{ text: "parent@example.com" },
@@ -230,8 +197,9 @@ describe("флоу гайда: ветка «трудности с ребенко
 			email: "parent@example.com",
 			audience: "child",
 			issue: "eating",
-			marketingConsent: true,
+			consentAt: out.lead?.consentAt,
 		});
+		expect(out.lead?.consentAt).toBeTruthy();
 		expect(out.track).toEqual(["phone"]);
 		expect(out.messages.map((m) => m.text)).toEqual([t.phone_thanks]);
 	});
@@ -243,33 +211,18 @@ describe("флоу гайда: ветка «трудности с ребенко
 		expect(out.track).toEqual(["guide_click"]);
 		expect(out.messages[0]?.buttons?.flat().map((b) => b.action)).toEqual([
 			"consent_agree",
-			"consent_decline",
 		]);
 	});
 
-	test("согласие в флоу гайда ведёт к отдельному вопросу о рекламной рассылке", async () => {
+	test("согласие в флоу гайда ведёт сразу к вопросу о категории, без шага рекламы", async () => {
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
 		]);
-		expect(out.state.step).toBe("marketing_consent");
+		expect(out.state.step).toBe("category");
 		expect(out.track).toEqual(["consent"]);
 		expect(out.messages.map((m) => m.text)).toEqual([
 			t.consent_agreed,
-			t.marketing_consent_text,
-		]);
-	});
-
-	test("согласие на рекламу в флоу гайда ведёт к вопросу о категории", async () => {
-		const out = await run([
-			{ action: "sc_guide" },
-			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
-		]);
-		expect(out.state.step).toBe("category");
-		expect(out.track).toEqual(["marketing_consent"]);
-		expect(out.messages.map((m) => m.text)).toEqual([
-			t.marketing_consent_agreed,
 			t.category_question,
 		]);
 		expect(out.messages[1]?.buttons?.flat().map((b) => b.action)).toEqual([
@@ -292,7 +245,6 @@ describe("флоу гайда: ветка «трудности с ребенко
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_child" },
 			{ action: "sc_other" },
 			{ text: "parent@example.com" },
@@ -303,14 +255,17 @@ describe("флоу гайда: ветка «трудности с ребенко
 			t.lead_magnet,
 			t.phone_question,
 		]);
-		expect(out.contact).toEqual({ email: "parent@example.com" });
+		expect(out.contact).toEqual({
+			email: "parent@example.com",
+			consentAt: out.contact?.consentAt,
+		});
+		expect(out.contact?.consentAt).toBeTruthy();
 	});
 
 	test("кнопка «без email» всё равно выдаёт гайд в чат перед вопросом о телефоне", async () => {
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_child" },
 			{ action: "sc_eating" },
 			{ action: "sc_skip_email" },
@@ -328,7 +283,6 @@ describe("флоу гайда: ветка «трудности с ребенко
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_child" },
 			{ action: "sc_eating" },
 			{ text: "не email" },
@@ -350,7 +304,6 @@ describe("флоу гайда: ветка «помощь для себя»", () 
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_self" },
 			{ action: "sc_other" },
 			{ text: "89991234567" },
@@ -365,7 +318,6 @@ describe("флоу гайда: ветка «помощь для себя»", () 
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_self" },
 			{ action: "sc_eating" },
 			{ text: "89991234567" },
@@ -381,7 +333,6 @@ describe("флоу гайда: ветка «помощь для себя»", () 
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_self" },
 			{ action: "sc_other" },
 			{ text: "89991234567" },
@@ -398,7 +349,6 @@ describe("отказ от телефона и лимиты (флоу гайда)
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_self" },
 			{ action: "sc_other" },
 			{ action: "sc_skip_phone" },
@@ -415,7 +365,6 @@ describe("отказ от телефона и лимиты (флоу гайда)
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_child" },
 			{ action: "sc_eating" },
 			{ action: "sc_skip_email" },
@@ -430,7 +379,6 @@ describe("отказ от телефона и лимиты (флоу гайда)
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_child" },
 			{ action: "sc_eating" },
 			{ action: "sc_skip_email" },
@@ -446,7 +394,6 @@ describe("отказ от телефона и лимиты (флоу гайда)
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_self" },
 			{ action: "sc_other" },
 			{ text: "абв" },
@@ -463,7 +410,6 @@ describe("флоу гайда: тема «ОКР»", () => {
 		const category = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_self" },
 		]);
 		expect(category.messages[0]?.buttons?.flat().map((b) => b.action)).toEqual([
@@ -480,7 +426,6 @@ describe("флоу гайда: тема «ОКР»", () => {
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_self" },
 			{ action: "sc_ocd" },
 			{ text: "89991234567" },
@@ -513,7 +458,6 @@ describe("устойчивость к неожиданному вводу", () =
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_child" },
 			{ action: "sc_eating" },
 			{ action: "sc_skip_email" },
@@ -550,7 +494,6 @@ describe("напоминания", () => {
 		const reminder = buildReminder(out.state, t);
 		expect(reminder?.buttons?.flat().map((b) => b.action)).toEqual([
 			"consent_agree",
-			"consent_decline",
 		]);
 	});
 
@@ -558,7 +501,6 @@ describe("напоминания", () => {
 		const out = await run([
 			{ action: "sc_guide" },
 			{ action: "consent_agree" },
-			{ action: "marketing_consent_agree" },
 			{ action: "sc_child" },
 			{ action: "sc_eating" },
 			{ action: "sc_skip_email" },
