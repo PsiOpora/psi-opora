@@ -43,7 +43,9 @@ export const crmBackup = CreateTaskWorkflow({
  */
 export const crmBackupSchedule = CreateTaskWorkflow({
 	name: "crm-backup-schedule",
-	on: { cron: "0 0 * * *" },
+	// Сдвиг минуты от "0 0" — чтобы не стартовать в ту же минуту, что
+	// guide-follow-ups и другие крон-задачи на границе часа/суток.
+	on: { cron: "20 0 * * *" },
 	retries: 0,
 	executionTimeout: "1h",
 	scheduleTimeout: "24h",

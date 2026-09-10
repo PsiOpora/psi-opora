@@ -239,7 +239,8 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
  */
 export const pollEmailCampaigns = CreateTaskWorkflow({
 	name: "email-campaign-poll",
-	on: { cron: "*/15 * * * *" },
+	// Сдвиг от */15 — чтобы не стартовать в ту же минуту, что другие крон-задачи.
+	on: { cron: "9-59/15 * * * *" },
 	retries: 0,
 	executionTimeout: "5m",
 	fn: async () => {

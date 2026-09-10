@@ -10,7 +10,9 @@ import { sendDiagnosticReminders } from "../diagnostic-reminders";
  */
 export const diagnosticReminders = CreateTaskWorkflow({
 	name: "diagnostic-reminders",
-	on: { cron: "*/5 * * * *" },
+	// Сдвиг от */5 — чтобы не стартовать в ту же минуту, что consultation-reminders
+	// и другие крон-задачи, дёргающие Bitrix REST (лимит ~2 запроса/сек).
+	on: { cron: "1-59/5 * * * *" },
 	retries: 0,
 	executionTimeout: "5m",
 	fn: async () => {
