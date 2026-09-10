@@ -113,109 +113,6 @@ jobs:
           echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
           echo "Затронутые сервисы: $SERVICES"
 
-  infrastructure:
-    name: Apply k3s manifests
-    needs: detect
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-
-      - name: Write kubeconfig
-        env:
-          KUBECONFIG_SECRET: ${{ secrets.KUBECONFIG }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "$KUBECONFIG_SECRET" ]; then
-            echo "::error::GitHub Secret KUBECONFIG пуст или недоступен этому workflow"
-            exit 1
-          fi
-
-          CONFIG="$RUNNER_TEMP/kubeconfig"
-          DECODED="$RUNNER_TEMP/kubeconfig.decoded"
-
-          if printf '%s' "$KUBECONFIG_SECRET" | base64 -d > "$DECODED" 2>/dev/null \
-            && grep -q '^apiVersion:' "$DECODED"; then
-            mv "$DECODED" "$CONFIG"
-            echo "kubeconfig: декодирован из base64"
-          else
-            rm -f "$DECODED"
-            printf '%s\n' "$KUBECONFIG_SECRET" > "$CONFIG"
-            echo "kubeconfig: записан как YAML"
-          fi
-
-          chmod 600 "$CONFIG"
-          echo "KUBECONFIG=$CONFIG" >> "$GITHUB_ENV"
-
-          kubectl --kubeconfig="$CONFIG" config current-context
-          kubectl --kubeconfig="$CONFIG" config view --minify \
-            -o jsonpath='{.clusters[0].cluster.server}'
-          echo
-
-      - name: Diagnose Kubernetes connection
-        run: |
-          env | grep -iE '^(http|https|no)_proxy=' || true
-          kubectl --request-timeout=10s get --raw=/version -v=8
-
-      - name: Check Redis password
-        run: |
-          VALUE=$(kubectl get secret psi-opora-env -n psi-opora \
-            -o jsonpath='{.data.REDIS_PASSWORD}')
-          if [ -z "$VALUE" ]; then
-            echo "::error::В secret/psi-opora-env отсутствует REDIS_PASSWORD"
-            exit 1
-          fi
-
-      - name: Check PostgreSQL secrets
-        run: |
-          for secret in postgres-credentials postgres-tls; do
-            if ! kubectl get "secret/$secret" -n psi-opora >/dev/null 2>&1; then
-              echo "::error::В namespace psi-opora отсутствует secret/$secret"
-              exit 1
-            fi
-          done
-
-      - name: Check Hatchet Cloud client token
-        run: |
-          VALUE=$(kubectl get secret psi-opora-env -n psi-opora \
-            -o jsonpath='{.data.HATCHET_CLIENT_TOKEN}')
-          if [ -z "$VALUE" ]; then
-            echo "::error::secret/psi-opora-env не содержит HATCHET_CLIENT_TOKEN для Hatchet Cloud"
-            exit 1
-          fi
-
-      - name: Check Clients Bitrix OAuth credentials
-        if: contains(needs.detect.outputs.services, '"clients"')
-        run: |
-          for key in \
-            CLIENTS_BITRIX_CLIENT_ID \
-            CLIENTS_BITRIX_CLIENT_SECRET \
-            BITRIX_MEMBER_ID \
-            DASHBOARD_BITRIX_WEBHOOK_URL; do
-            VALUE=$(kubectl get secret psi-opora-env -n psi-opora \
-              -o "jsonpath={.data.${key}}" 2>/dev/null || true)
-            if [ -z "$VALUE" ]; then
-              echo "::error::secret/psi-opora-env не содержит $key для приложения clients"
-              exit 1
-            fi
-          done
-
-      - name: Apply PostgreSQL, Redis and application configuration
-        run: |
-          kubectl apply -f k3s/postgres.yaml
-          kubectl apply -f k3s/redis.yaml
-          kubectl apply -f k3s/hatchet-worker.yaml
-          for service in tg-bot max-bot tg-userbot-worker max-userbot-worker hatchet-worker bitrix-webhook dashboard clients; do
-            kubectl patch "deployment/$service" -n psi-opora --type=strategic \
-              -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"$service\",\"envFrom\":[{\"secretRef\":{\"name\":\"psi-opora-env\"}},{\"configMapRef\":{\"name\":\"redis-connection\"}}],\"env\":[{\"name\":\"LOG_LEVEL\",\"value\":\"error\"}]}]}}}}"
-          done
-          kubectl rollout status statefulset/postgres -n psi-opora --timeout=180s
-          kubectl rollout status statefulset/redis -n psi-opora --timeout=120s
-
   migrate:
     name: Apply database migrations
     needs: detect
@@ -253,7 +150,6 @@ jobs:
     name: Build & deploy ${{ matrix.service }}
     needs:
       - detect
-      - infrastructure
     if: needs.detect.outputs.services != '[]'
     runs-on: ubuntu-latest
     permissions:
