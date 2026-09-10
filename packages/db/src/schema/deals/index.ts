@@ -21,6 +21,9 @@ export const deals = pgTable(
 		// стадии "Анализ причины провала" воронки. ID пункта списка Bitrix, имя —
 		// в deal_dictionaries (type=failReason).
 		failReasonId: text("fail_reason_id"),
+		// Страница сайта, с которой пришла заявка (UF_CRM_PAGE_URL) — заполняется
+		// формой на сайте (вне этого репозитория), сюда попадает синхронизацией.
+		pageUrl: text("page_url"),
 		utmSource: text("utm_source"),
 		utmMedium: text("utm_medium"),
 		utmCampaign: text("utm_campaign"),

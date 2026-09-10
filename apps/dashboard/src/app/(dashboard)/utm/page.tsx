@@ -13,7 +13,9 @@ import {
 	fetchAllDealsReportRows,
 	useDealsReport,
 } from "@/hooks/use-deals-report";
+import { useDealsSummary } from "@/hooks/use-deals-summary";
 import { utmHint } from "@/lib/analytics/utm-tags";
+import { formatNumber } from "@/lib/format";
 
 const DIMENSIONS: Array<{
 	value: string;
@@ -107,6 +109,9 @@ function UtmReportPageContent() {
 		page: tablePage,
 		pageSize: TABLE_PAGE_SIZE,
 	});
+	// Тот же range без фильтров, что и в отчёте ниже — сверка «сумма строк
+	// разбивки == сколько всего сделок за период», включая «(не указано)».
+	const summary = useDealsSummary({ range });
 
 	if (isLoading) {
 		return <p className="text-sm text-muted-foreground">Загрузка…</p>;
@@ -154,6 +159,13 @@ function UtmReportPageContent() {
 				<h1 className="font-heading text-xl font-semibold">UTM-отчёт</h1>
 				<p className="text-sm text-muted-foreground">
 					Сравнивайте каналы по количеству сделок и по заполненной сумме
+				</p>
+				<p className="text-sm text-muted-foreground">
+					Всего сделок за период:{" "}
+					<span className="font-medium text-foreground tabular-nums">
+						{summary.data ? formatNumber(summary.data.summary.totalDeals) : "…"}
+					</span>{" "}
+					— включая сделки без UTM-меток (группа «(не указано)» в таблице ниже)
 				</p>
 			</div>
 			<UtmLegendCard />

@@ -132,6 +132,26 @@ export function buildColumns({
 					: "",
 		},
 		{
+			id: "pageUrl",
+			header: "Страница сайта",
+			accessorFn: (deal) => deal.pageUrl ?? "",
+			cell: ({ getValue }) => {
+				const url = getValue<string>();
+				if (!url) return null;
+				return (
+					<a
+						href={url}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="block max-w-56 truncate text-xs hover:underline"
+						title={url}
+					>
+						{url}
+					</a>
+				);
+			},
+		},
+		{
 			accessorKey: "opportunity",
 			header: sortableHeader("Сумма"),
 			cell: ({ row }) => (

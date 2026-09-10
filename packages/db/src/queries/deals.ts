@@ -44,6 +44,7 @@ export async function upsertDeals(rows: NewDeal[]): Promise<void> {
 				currency: sql`excluded.currency`,
 				sourceId: sql`excluded.source_id`,
 				failReasonId: sql`excluded.fail_reason_id`,
+				pageUrl: sql`excluded.page_url`,
 				utmSource: sql`excluded.utm_source`,
 				utmMedium: sql`excluded.utm_medium`,
 				utmCampaign: sql`excluded.utm_campaign`,

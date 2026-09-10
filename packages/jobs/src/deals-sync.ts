@@ -29,6 +29,8 @@ const DEAL_SYNC_SELECT = [
 	"SOURCE_ID",
 	// Поле "Причина провала" — заполняется на стадии "Анализ причины провала".
 	"UF_CRM_1779838990",
+	// Страница сайта, с которой пришла заявка — заполняется формой на сайте.
+	"UF_CRM_PAGE_URL",
 	"UTM_SOURCE",
 	"UTM_MEDIUM",
 	"UTM_CAMPAIGN",
@@ -49,6 +51,7 @@ interface RawSyncDeal {
 	DATE_MODIFY: string;
 	SOURCE_ID?: string;
 	UF_CRM_1779838990?: string | number | null;
+	UF_CRM_PAGE_URL?: string | null;
 	UTM_SOURCE?: string;
 	UTM_MEDIUM?: string;
 	UTM_CAMPAIGN?: string;
@@ -89,6 +92,7 @@ function normalizeSyncDeal(raw: RawSyncDeal): NewDeal {
 		currency: raw.CURRENCY_ID || null,
 		sourceId: raw.SOURCE_ID || null,
 		failReasonId: raw.UF_CRM_1779838990 ? String(raw.UF_CRM_1779838990) : null,
+		pageUrl: raw.UF_CRM_PAGE_URL || null,
 		utmSource: decodeUtm(raw.UTM_SOURCE),
 		utmMedium: decodeUtm(raw.UTM_MEDIUM),
 		utmCampaign: decodeUtm(raw.UTM_CAMPAIGN),
