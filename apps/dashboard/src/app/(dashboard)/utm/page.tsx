@@ -163,7 +163,11 @@ function UtmReportPageContent() {
 				<p className="text-sm text-muted-foreground">
 					Всего сделок за период:{" "}
 					<span className="font-medium text-foreground tabular-nums">
-						{summary.data ? formatNumber(summary.data.summary.totalDeals) : "…"}
+						{summary.data
+							? formatNumber(summary.data.summary.totalDeals)
+							: summary.isError
+								? "Ошибка"
+								: "…"}
 					</span>{" "}
 					— включая сделки без UTM-меток (группа «(не указано)» в таблице ниже)
 				</p>

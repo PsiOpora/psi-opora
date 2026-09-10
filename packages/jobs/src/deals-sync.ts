@@ -81,7 +81,25 @@ function statusOf(deal: RawSyncDeal): "won" | "lost" | "in_progress" {
 	return "won";
 }
 
+function normalizePageUrl(value: string | null): string | null {
+	if (value === null) return null;
+	const trimmed = value.trim();
+	if (!trimmed) return null;
+	try {
+		const url = new URL(trimmed);
+		return url.protocol === "http:" || url.protocol === "https:"
+			? trimmed
+			: null;
+	} catch {
+		return null;
+	}
+}
+
 function normalizeSyncDeal(raw: RawSyncDeal): NewDeal {
+	const pageUrl =
+		Object.hasOwn(raw, "UF_CRM_PAGE_URL") && raw.UF_CRM_PAGE_URL !== undefined
+			? { pageUrl: normalizePageUrl(raw.UF_CRM_PAGE_URL) }
+			: {};
 	return {
 		id: raw.ID,
 		title: raw.TITLE,
@@ -92,7 +110,7 @@ function normalizeSyncDeal(raw: RawSyncDeal): NewDeal {
 		currency: raw.CURRENCY_ID || null,
 		sourceId: raw.SOURCE_ID || null,
 		failReasonId: raw.UF_CRM_1779838990 ? String(raw.UF_CRM_1779838990) : null,
-		pageUrl: raw.UF_CRM_PAGE_URL || null,
+		...pageUrl,
 		utmSource: decodeUtm(raw.UTM_SOURCE),
 		utmMedium: decodeUtm(raw.UTM_MEDIUM),
 		utmCampaign: decodeUtm(raw.UTM_CAMPAIGN),

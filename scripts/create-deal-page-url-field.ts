@@ -18,9 +18,20 @@ interface BitrixResponse<T> {
 }
 
 function webhookBase(): string {
-	const value = process.env.TG_BITRIX_WEBHOOK_URL ?? process.env.BITRIX_WEBHOOK_URL;
+	const value =
+		process.env.TG_BITRIX_WEBHOOK_URL ?? process.env.BITRIX_WEBHOOK_URL;
 	if (!value) throw new Error("BITRIX_WEBHOOK_URL не задан");
-	return value.replace(/\/+$/, "");
+	const normalized = value.trim().replace(/\/+$/, "");
+	let url: URL;
+	try {
+		url = new URL(normalized);
+	} catch {
+		throw new Error("BITRIX_WEBHOOK_URL должен быть корректным HTTPS URL");
+	}
+	if (url.protocol !== "https:") {
+		throw new Error("BITRIX_WEBHOOK_URL должен использовать HTTPS");
+	}
+	return normalized;
 }
 
 async function callBitrix<T>(method: string, body: unknown): Promise<T> {
@@ -41,7 +52,7 @@ async function callBitrix<T>(method: string, body: unknown): Promise<T> {
 async function main() {
 	const existing = await callBitrix<Array<{ ID: string; FIELD_NAME: string }>>(
 		"crm.deal.userfield.list",
-		{ filter: { FIELD_NAME } },
+		{ filter: { FIELD_NAME: FULL_FIELD_NAME } },
 	);
 	if (existing.length > 0) {
 		console.log(

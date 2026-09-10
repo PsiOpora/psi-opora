@@ -29,33 +29,47 @@ export const FAIL_REASON_NOT_SPECIFIED = "__NOT_SPECIFIED__";
 /** Батч-апсерт по id — используется бэкафиллом и периодической сверкой. */
 export async function upsertDeals(rows: NewDeal[]): Promise<void> {
 	if (!db || rows.length === 0) return;
-	await db
-		.insert(deals)
-		.values(rows)
-		.onConflictDoUpdate({
-			target: deals.id,
-			setWhere: sql`excluded.date_modify >= ${deals.dateModify}`,
-			set: {
-				title: sql`excluded.title`,
-				stageId: sql`excluded.stage_id`,
-				categoryId: sql`excluded.category_id`,
-				status: sql`excluded.status`,
-				opportunity: sql`excluded.opportunity`,
-				currency: sql`excluded.currency`,
-				sourceId: sql`excluded.source_id`,
-				failReasonId: sql`excluded.fail_reason_id`,
-				pageUrl: sql`excluded.page_url`,
-				utmSource: sql`excluded.utm_source`,
-				utmMedium: sql`excluded.utm_medium`,
-				utmCampaign: sql`excluded.utm_campaign`,
-				utmContent: sql`excluded.utm_content`,
-				utmTerm: sql`excluded.utm_term`,
-				dateCreate: sql`excluded.date_create`,
-				closeDate: sql`excluded.close_date`,
-				dateModify: sql`excluded.date_modify`,
-				syncedAt: sql`now()`,
-			},
-		});
+	const batches = [
+		{
+			rows: rows.filter((row) => row.pageUrl !== undefined),
+			updatePageUrl: true,
+		},
+		{
+			rows: rows.filter((row) => row.pageUrl === undefined),
+			updatePageUrl: false,
+		},
+	];
+
+	for (const batch of batches) {
+		if (batch.rows.length === 0) continue;
+		await db
+			.insert(deals)
+			.values(batch.rows)
+			.onConflictDoUpdate({
+				target: deals.id,
+				setWhere: sql`excluded.date_modify >= ${deals.dateModify}`,
+				set: {
+					title: sql`excluded.title`,
+					stageId: sql`excluded.stage_id`,
+					categoryId: sql`excluded.category_id`,
+					status: sql`excluded.status`,
+					opportunity: sql`excluded.opportunity`,
+					currency: sql`excluded.currency`,
+					sourceId: sql`excluded.source_id`,
+					failReasonId: sql`excluded.fail_reason_id`,
+					...(batch.updatePageUrl ? { pageUrl: sql`excluded.page_url` } : {}),
+					utmSource: sql`excluded.utm_source`,
+					utmMedium: sql`excluded.utm_medium`,
+					utmCampaign: sql`excluded.utm_campaign`,
+					utmContent: sql`excluded.utm_content`,
+					utmTerm: sql`excluded.utm_term`,
+					dateCreate: sql`excluded.date_create`,
+					closeDate: sql`excluded.close_date`,
+					dateModify: sql`excluded.date_modify`,
+					syncedAt: sql`now()`,
+				},
+			});
+	}
 }
 
 /** Апсерт одной сделки — вебхук-обработчик (OnCrmDealAdd/Update). */
