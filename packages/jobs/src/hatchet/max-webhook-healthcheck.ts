@@ -20,7 +20,9 @@ interface MaxSubscriptionsResponse {
  */
 export const maxWebhookHealthcheck = CreateTaskWorkflow({
 	name: "max-webhook-healthcheck",
-	on: { cron: "0 */2 * * *" },
+	// Сдвиг минуты от "0 */2" — чтобы не стартовать в ту же минуту, что остальные
+	// крон-задачи на границе часа.
+	on: { cron: "45 */2 * * *" },
 	retries: 0,
 	executionTimeout: "5m",
 	fn: async () => {

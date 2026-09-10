@@ -16,7 +16,9 @@ import { syncChangedDeals, syncDealDictionaries } from "../deals-sync";
  */
 export const dealsSync = CreateTaskWorkflow({
 	name: "deals-sync",
-	on: { cron: "*/10 * * * *" },
+	// Сдвиг от */10 — чтобы не стартовать в ту же минуту, что другие крон-задачи,
+	// дёргающие Bitrix REST (лимит ~2 запроса/сек).
+	on: { cron: "2-59/10 * * * *" },
 	retries: 0,
 	executionTimeout: "10m",
 	// Один прогон за раз — параллельная сверка лишь дублирует нагрузку на Bitrix REST.
