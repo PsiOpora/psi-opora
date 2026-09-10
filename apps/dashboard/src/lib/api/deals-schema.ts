@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+const HttpUrlSchema = z.string().refine(
+	(value) => {
+		try {
+			const url = new URL(value);
+			return url.protocol === "http:" || url.protocol === "https:";
+		} catch {
+			return false;
+		}
+	},
+	{ message: "Ожидается абсолютный HTTP(S) URL" },
+);
+
 /**
  * Zod-схема одной сделки, как её отдаёт /api/dashboard/deals* (JSON — даты
  * строками, без ревайва в Date). Валидация ответа на клиенте — защита от
@@ -16,6 +28,7 @@ export const DealRowSchema = z.object({
 	currency: z.string().nullable(),
 	sourceId: z.string().nullable(),
 	failReasonId: z.string().nullable(),
+	pageUrl: HttpUrlSchema.nullable(),
 	utmSource: z.string().nullable(),
 	utmMedium: z.string().nullable(),
 	utmCampaign: z.string().nullable(),

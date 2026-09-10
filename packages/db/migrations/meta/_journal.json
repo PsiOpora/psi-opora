@@ -336,6 +336,13 @@
       "when": 1788439342942,
       "tag": "0047_nebulous_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1789039198748,
+      "tag": "0048_pale_riptide",
+      "breakpoints": true
     }
   ]
 }

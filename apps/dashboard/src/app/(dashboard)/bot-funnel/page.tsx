@@ -109,6 +109,12 @@ function BotFunnelPageContent() {
 	const byMessenger = data?.byMessenger ?? [];
 	const bySource = data?.bySource ?? [];
 	const dropReasons = data?.dropReasons ?? [];
+	// "start" общий для обеих веток (см. flowCascade в bot-funnel-shared.ts),
+	// поэтому берём его из любой ветки — дублирования между flows нет.
+	const reachedBot = flows[0]?.steps.find((s) => s.step === "start")?.count ?? 0;
+	const declinedConsent = dropReasons
+		.filter((r) => r.step === "consent" && r.reason === "declined")
+		.reduce((sum, r) => sum + r.count, 0);
 	const isEmpty =
 		flows.every((f) => f.steps.every((s) => s.count === 0)) &&
 		dropReasons.length === 0;
@@ -143,6 +149,33 @@ function BotFunnelPageContent() {
 
 	return (
 		<div className="flex flex-col gap-4">
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				<Card>
+					<CardHeader>
+						<CardDescription>Дошли до бота</CardDescription>
+						<CardTitle className="text-2xl tabular-nums">
+							{formatNumber(reachedBot)}
+						</CardTitle>
+					</CardHeader>
+					<CardContent className="text-xs text-muted-foreground">
+						Уникальные пользователи, запустившие бота (/start) за выбранный
+						период
+					</CardContent>
+				</Card>
+				<Card>
+					<CardHeader>
+						<CardDescription>Не приняли согласие на ПДн</CardDescription>
+						<CardTitle className="text-2xl tabular-nums">
+							{formatNumber(declinedConsent)}
+						</CardTitle>
+					</CardHeader>
+					<CardContent className="text-xs text-muted-foreground">
+						{reachedBot > 0
+							? `${formatPercent(declinedConsent / reachedBot)} от дошедших до бота`
+							: "Отказались от обработки персональных данных на шаге согласия"}
+					</CardContent>
+				</Card>
+			</div>
 			<Card>
 				<CardHeader>
 					<CardTitle>Воронка бота</CardTitle>

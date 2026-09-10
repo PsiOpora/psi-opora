@@ -25,6 +25,48 @@ const ISSUE_LABELS: Record<NonNullable<DealData["issue"]>, string> = {
 	other: "Другое",
 };
 
+// Поле "Расстройство" (UF_CRM_1779041362411, множественный список) в Bitrix24 —
+// сейчас заполняется операторами вручную и непоследовательно, хотя тема почти
+// всегда уже видна из названия рекламной кампании (см. site-codes.ts и
+// значения UTM_CAMPAIGN вида search_anorexia_..., direct_okr, РК- ОКР...).
+// Проставляем автоматически по ключевым словам; если ни одно не совпало,
+// поле не трогаем — ошибочная категория хуже отсутствующей.
+const DISORDER_FIELD = "UF_CRM_1779041362411";
+const DISORDER_SUBSTRING_KEYWORDS: Array<[RegExp, string]> = [
+	[/анорекси|anorexia/, "46"], // Анорексия
+	[/булими|bulimia/, "48"], // Булимия
+	[/депресси|depression/, "50"], // Депрессия
+	[/онколог|oncology/, "54"], // Онкология
+	[/паническ|panic/, "58"], // Панические атаки
+	[/переедан/, "60"], // Переедание
+	[/психосоматик|psychosomatic/, "62"], // Психосоматика
+	[/тревог|anxiety/, "66"], // Тревога
+	[/созависим|codependen/, "72"], // Созависимость
+	[/алко|нарко|\balko\b|\bnarco\b/, "44"], // Алко-Нарко
+];
+// Короткие/неоднозначные метки сверяем только по целому токену кампании
+// (после разбиения по не-буквенным символам), чтобы "окр" не сработал как
+// часть случайной подстроки.
+const DISORDER_TOKEN_KEYWORDS: Record<string, string> = {
+	окр: "56", // Окр
+	okr: "56",
+	ocd: "56",
+};
+
+export function resolveDisorderIds(campaign: string | undefined): string[] {
+	if (!campaign) return [];
+	const lower = campaign.toLowerCase();
+	const ids = new Set<string>();
+	for (const [pattern, id] of DISORDER_SUBSTRING_KEYWORDS) {
+		if (pattern.test(lower)) ids.add(id);
+	}
+	for (const token of lower.split(/[^a-zа-яё0-9]+/)) {
+		const id = DISORDER_TOKEN_KEYWORDS[token];
+		if (id) ids.add(id);
+	}
+	return [...ids];
+}
+
 /** Короткая метка ветки сценария для заголовка сделки — видна в канбане без открытия карточки. */
 function buildFlowLabel(data: DealData): string | undefined {
 	if (data.flow === "consult") return "Консультация";
@@ -52,6 +94,7 @@ export async function buildDealFields(data: DealData, contactId: number) {
 		? await getYandexMetrikaSettings()
 		: null;
 	const clientIdField = metrikaSettings?.bitrixClientIdField;
+	const disorderIds = resolveDisorderIds(data.campaign);
 
 	return {
 		TITLE: `Заявка (${[flowLabel, botId].filter(Boolean).join(", ")}): ${data.name}`,
@@ -71,6 +114,7 @@ export async function buildDealFields(data: DealData, contactId: number) {
 		...(data.flow === "consult"
 			? { UF_CRM_1779045469683: PRODUCT_CONSULT_ID }
 			: {}),
+		...(disorderIds.length ? { [DISORDER_FIELD]: disorderIds } : {}),
 		COMMENTS: [
 			`Бот: ${botId}`,
 			data.telegramUserId ? `${messenger} user_id: ${data.telegramUserId}` : "",
