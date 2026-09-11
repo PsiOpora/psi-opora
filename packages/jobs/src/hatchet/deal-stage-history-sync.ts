@@ -16,9 +16,9 @@ import { syncStageHistory } from "../deal-stage-history-sync";
  */
 export const dealStageHistorySync = CreateTaskWorkflow({
 	name: "deal-stage-history-sync",
-	// Сдвиг от */10 — чтобы не стартовать в ту же минуту, что другие крон-задачи,
+	// Сдвиг от */20 — чтобы не стартовать в ту же минуту, что другие крон-задачи,
 	// дёргающие Bitrix REST (лимит ~2 запроса/сек).
-	on: { cron: "7-59/10 * * * *" },
+	on: { cron: "7-59/20 * * * *" },
 	retries: 0,
 	executionTimeout: "10m",
 	// Один прогон за раз — параллельная синхронизация лишь дублирует нагрузку на Bitrix REST.

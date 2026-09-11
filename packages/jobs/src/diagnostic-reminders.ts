@@ -16,12 +16,13 @@ import {
 	normalizeConsultationDt,
 	renderReminderMessage,
 	sendReminderBotMessage,
+	sendReminderWhatsappMessage,
 	toTimestamp,
 } from "./reminders/shared";
 
-// Напоминание шлём, если диагностика через 0–65 минут — запас на случай
-// редких прогонов крона.
-const REMINDER_WINDOW_MS = 65 * 60 * 1000;
+// Напоминание шлём, если диагностика через 0–70 минут — запас на случай
+// редких прогонов крона (крон раз в 10 минут).
+const REMINDER_WINDOW_MS = 70 * 60 * 1000;
 const SENT_TTL_SECONDS = 2 * 24 * 60 * 60;
 
 /**
@@ -99,6 +100,7 @@ async function trySendReminder(
 				NAME?: string;
 				EMAIL?: Array<{ VALUE?: string }>;
 				IM?: Array<{ VALUE?: string; VALUE_TYPE?: string }>;
+				PHONE?: Array<{ VALUE?: string }>;
 		  }
 		| false
 	>("crm.contact.get", { id: clientContactId });
@@ -125,6 +127,21 @@ async function trySendReminder(
 		} else {
 			reasons.push(botDelivery.reason);
 			hadError ||= botDelivery.status === "error";
+
+			// Клиент без Telegram/MAX (например, писал только в WhatsApp) — пробуем
+			// личный номер WhatsApp (WAHA) по телефону контакта, см.
+			// sendReminderWhatsappMessage.
+			const whatsappDelivery = await sendReminderWhatsappMessage(
+				contact,
+				message,
+			);
+			if (whatsappDelivery.status === "sent") {
+				await redis.set(chatKey, "1", { ex: SENT_TTL_SECONDS });
+				delivered.push(botDeliveryLabel(whatsappDelivery.messenger));
+			} else {
+				reasons.push(whatsappDelivery.reason);
+				hadError ||= whatsappDelivery.status === "error";
+			}
 		}
 	}
 

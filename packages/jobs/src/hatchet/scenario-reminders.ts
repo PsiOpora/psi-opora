@@ -25,8 +25,8 @@ function toButtons(message: ScenarioMessage) {
  */
 export const scenarioReminders = CreateTaskWorkflow({
 	name: "scenario-reminders",
-	// Сдвиг от */15 — чтобы не стартовать в ту же минуту, что другие крон-задачи.
-	on: { cron: "4-59/15 * * * *" },
+	// Сдвиг от */30 — чтобы не стартовать в ту же минуту, что другие крон-задачи.
+	on: { cron: "4-59/30 * * * *" },
 	retries: 0,
 	executionTimeout: "10m",
 	fn: async () => {

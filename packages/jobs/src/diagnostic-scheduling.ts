@@ -10,6 +10,7 @@ import {
 	extractClientContactId,
 	normalizeConsultationDt,
 	sendReminderBotMessage,
+	sendReminderWhatsappMessage,
 } from "./reminders/shared";
 import type { Messenger } from "./messenger";
 
@@ -237,7 +238,7 @@ async function sendBot(params: {
 }): Promise<{
 	status: "sent" | "skipped" | "error";
 	reason?: string;
-	messenger?: Messenger;
+	messenger?: Messenger | "whatsapp-personal";
 }> {
 	return sendReminderBotMessage(params.deal, params.contact, params.message);
 }
@@ -414,7 +415,7 @@ export async function handleDiagnosticDealUpdate(
 
 		let chat: DiagnosticDealUpdateResult["chat"] = "already_sent";
 		let chatReason: string | undefined;
-		let botMessenger: Messenger | undefined;
+		let botMessenger: Messenger | "whatsapp-personal" | undefined;
 		const chatDeliveryNeeded = state.lastChatStageId !== stageId;
 		if (chatDeliveryNeeded) {
 			if (stageId === PAYMENT_PENDING_STAGE_ID && !paymentUrl) {
@@ -425,6 +426,22 @@ export async function handleDiagnosticDealUpdate(
 				chat = result.status;
 				chatReason = result.reason;
 				botMessenger = result.messenger;
+
+				// Клиент без Telegram/MAX (например, писал только в WhatsApp) —
+				// пробуем личный номер WhatsApp (WAHA) по телефону контакта.
+				if (chat !== "sent") {
+					const whatsappResult = await sendReminderWhatsappMessage(
+						contact,
+						message,
+					);
+					if (whatsappResult.status === "sent") {
+						chat = "sent";
+						chatReason = undefined;
+						botMessenger = whatsappResult.messenger;
+					} else {
+						chatReason = `${chatReason}; whatsapp: ${whatsappResult.reason}`;
+					}
+				}
 			}
 			// Ошибка фиксируется как завершённая попытка для этой стадии. Иначе
 			// timeline-комментарий сам вызывает OnCrmDealUpdate и создаёт цикл.
