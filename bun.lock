@@ -366,6 +366,7 @@
         "@psi-opora/rusender-client": "workspace:*",
         "@psi-opora/storage": "workspace:*",
         "@psi-opora/unisender-client": "workspace:*",
+        "@psi-opora/waha": "workspace:*",
         "zod": "^4.6.1",
       },
       "devDependencies": {

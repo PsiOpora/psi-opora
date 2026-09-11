@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { resolveDirectBotTarget } from "./shared";
+import { extractContactPhone, resolveDirectBotTarget } from "./shared";
 
 describe("resolveDirectBotTarget", () => {
 	it("выбирает Telegram ID контакта для значения 328 в сделке", () => {
@@ -43,5 +43,19 @@ describe("resolveDirectBotTarget", () => {
 				{ IM: [{ VALUE_TYPE: "telegram", VALUE: "@username" }] },
 			),
 		).toBeNull();
+	});
+});
+
+describe("extractContactPhone", () => {
+	it("возвращает телефон контакта для резолва WhatsApp-получателя", () => {
+		expect(extractContactPhone({ PHONE: [{ VALUE: "+79219612671" }] })).toBe(
+			"+79219612671",
+		);
+	});
+
+	it("возвращает null без контакта или без телефона", () => {
+		expect(extractContactPhone(false)).toBeNull();
+		expect(extractContactPhone({})).toBeNull();
+		expect(extractContactPhone({ PHONE: [{ VALUE: "" }] })).toBeNull();
 	});
 });

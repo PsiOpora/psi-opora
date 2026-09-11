@@ -16,6 +16,7 @@ import {
 	normalizeConsultationDt,
 	renderReminderMessage,
 	sendReminderBotMessage,
+	sendReminderWhatsappMessage,
 	toTimestamp,
 } from "./reminders/shared";
 
@@ -24,9 +25,9 @@ const CONSULTATION_DT_FIELD = "UF_CRM_1779802779513";
 // за CRM-активность консультации, и как владелец календаря по умолчанию.
 const RESPONSIBLE_USER_ID = 1;
 
-// Напоминание шлём, если консультация через 0–65 минут — запас на случай
-// редких прогонов крона.
-const REMINDER_WINDOW_MS = 65 * 60 * 1000;
+// Напоминание шлём, если консультация через 0–70 минут — запас на случай
+// редких прогонов крона (крон раз в 10 минут).
+const REMINDER_WINDOW_MS = 70 * 60 * 1000;
 const STATE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 // Бесплатная консультация проходит по телефону, без видеозвонка.
@@ -663,7 +664,10 @@ export interface SendConsultationRemindersResult {
  * общая доставка для уведомления о записи и напоминания за час. Поле
  * "Мессенджер" в сделке — не единственный источник истины: если оно не
  * заполнено/не распознано, определяем нашего бота по IM-полю контакта.
- * Email отправляется независимо от результата доставки ботом.
+ * Если у контакта нет Telegram/MAX (например, клиент писал только в
+ * WhatsApp), пробуем личный номер WhatsApp (WAHA) по телефону контакта —
+ * см. sendReminderWhatsappMessage. Email отправляется независимо от
+ * результата доставки ботом/WhatsApp.
  */
 async function deliverConsultationMessage(params: {
 	api: BitrixApi;
@@ -685,6 +689,17 @@ async function deliverConsultationMessage(params: {
 	} else {
 		reasons.push(botDelivery.reason);
 		hadError ||= botDelivery.status === "error";
+
+		const whatsappDelivery = await sendReminderWhatsappMessage(
+			contact,
+			message,
+		);
+		if (whatsappDelivery.status === "sent") {
+			delivered.push(botDeliveryLabel(whatsappDelivery.messenger));
+		} else {
+			reasons.push(whatsappDelivery.reason);
+			hadError ||= whatsappDelivery.status === "error";
+		}
 	}
 
 	const email = findContactEmail(contact);

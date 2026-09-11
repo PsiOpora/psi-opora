@@ -1,4 +1,6 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
+import { env } from "@psi-opora/config";
+import { jidFromPhone, wahaSendText } from "@psi-opora/waha";
 import { sendMessengerMessage, type Messenger } from "../messenger";
 
 /**
@@ -108,7 +110,7 @@ export interface DirectBotTarget {
 }
 
 export type BotDeliveryResult =
-	| { status: "sent"; messenger: Messenger; userId: string }
+	| { status: "sent"; messenger: Messenger | "whatsapp-personal"; userId: string }
 	| { status: "skipped" | "error"; reason: string };
 
 function messengerFromImType(raw: unknown): Messenger | null {
@@ -148,7 +150,10 @@ export function resolveDirectBotTarget(
 	);
 }
 
-export function botDeliveryLabel(messenger: Messenger): string {
+export function botDeliveryLabel(
+	messenger: Messenger | "whatsapp-personal",
+): string {
+	if (messenger === "whatsapp-personal") return "WhatsApp";
 	return messenger === "telegram" ? "Telegram-бот" : "MAX-бот";
 }
 
@@ -165,10 +170,11 @@ export function botDeliveryLabel(messenger: Messenger): string {
  * hatchet/broadcast.ts). Ошибка записи не должна отменять сам факт отправки.
  */
 async function logReminderMessage(params: {
-	target: DirectBotTarget;
+	target: { messenger: Messenger | "whatsapp-personal"; userId: string };
 	text: string;
 	status: "sent" | "failed";
 	externalId?: string;
+	connectorId?: string;
 }): Promise<void> {
 	const text = params.text.trim();
 	if (!text) return;
@@ -201,6 +207,7 @@ async function logReminderMessage(params: {
 			text,
 			status: params.status,
 			externalId: params.externalId,
+			connectorId: params.connectorId,
 		});
 	} catch (err) {
 		console.error(
@@ -238,6 +245,89 @@ export async function sendReminderBotMessage(
 		return {
 			status: "error",
 			reason: `bot_send_failed: ${(error as Error).message}`,
+		};
+	}
+}
+
+interface ContactPhone {
+	VALUE?: string;
+}
+
+export function extractContactPhone(
+	contact: { PHONE?: ContactPhone[] } | false,
+): string | null {
+	if (!contact) return null;
+	const value = String(contact.PHONE?.[0]?.VALUE ?? "").trim();
+	return value || null;
+}
+
+interface WhatsappTarget {
+	sessionName: string;
+	connectorId: string;
+	jid: string;
+}
+
+/**
+ * Резолвит канал WhatsApp Personal (WAHA) по телефону контакта — единственный
+ * устойчивый идентификатор для WhatsApp (в отличие от Telegram/MAX здесь нет
+ * IM-записи, см. resolveDirectBotTarget). Берёт первый подключённый номер
+ * портала, как и CRM-виджет (resolveContact в
+ * packages/api/src/routers/widget-message/helpers.ts) — несколько
+ * одновременно подключённых номеров на практике не встречаются.
+ */
+async function resolveWhatsappTarget(
+	contact: { PHONE?: ContactPhone[] } | false,
+): Promise<WhatsappTarget | null> {
+	const phone = extractContactPhone(contact);
+	if (!phone || !env.BITRIX_MEMBER_ID) return null;
+
+	const { listWhatsappPersonalAccounts } = await import("@psi-opora/db/queries");
+	const account = (
+		await listWhatsappPersonalAccounts(env.BITRIX_MEMBER_ID)
+	).find((a) => a.status === "connected");
+	if (!account) return null;
+
+	return {
+		sessionName: account.sessionName,
+		connectorId: account.connectorId,
+		jid: jidFromPhone(phone),
+	};
+}
+
+/**
+ * Отправляет уведомление через личный номер WhatsApp (WAHA) — канал для
+ * клиентов без Telegram/MAX-бота (см. sendReminderBotMessage), но с
+ * телефоном в CRM и подключённым к порталу номером WhatsApp.
+ */
+export async function sendReminderWhatsappMessage(
+	contact: { PHONE?: ContactPhone[] } | false,
+	message: string,
+): Promise<BotDeliveryResult> {
+	const target = await resolveWhatsappTarget(contact);
+	if (!target) {
+		return { status: "skipped", reason: "whatsapp_target_not_found" };
+	}
+
+	try {
+		const { id } = await wahaSendText(target.sessionName, target.jid, message);
+		await logReminderMessage({
+			target: { messenger: "whatsapp-personal", userId: target.jid },
+			text: message,
+			status: "sent",
+			externalId: id,
+			connectorId: target.connectorId,
+		});
+		return { status: "sent", messenger: "whatsapp-personal", userId: target.jid };
+	} catch (error) {
+		await logReminderMessage({
+			target: { messenger: "whatsapp-personal", userId: target.jid },
+			text: message,
+			status: "failed",
+			connectorId: target.connectorId,
+		});
+		return {
+			status: "error",
+			reason: `whatsapp_send_failed: ${(error as Error).message}`,
 		};
 	}
 }

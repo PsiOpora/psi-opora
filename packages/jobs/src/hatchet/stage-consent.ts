@@ -10,7 +10,7 @@ import {
 /** Доставляет сохранённые ответы о согласии в поля сделок Bitrix24. */
 export const stageConsentOutbox = CreateTaskWorkflow({
 	name: "stage-consent-outbox",
-	on: { cron: "*/1 * * * *" },
+	on: { cron: "*/5 * * * *" },
 	retries: 0,
 	executionTimeout: "5m",
 	concurrency: {
