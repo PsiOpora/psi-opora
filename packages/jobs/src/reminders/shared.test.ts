@@ -1,5 +1,21 @@
-import { describe, expect, it } from "bun:test";
-import { extractContactPhone, resolveDirectBotTarget } from "./shared";
+import { describe, expect, it, mock } from "bun:test";
+import { env } from "@psi-opora/config";
+
+const listWhatsappPersonalAccounts = mock(() =>
+	Promise.reject(new Error("database unavailable")),
+);
+mock.module("@psi-opora/db/queries", () => ({
+	listWhatsappPersonalAccounts,
+}));
+mock.module("../messenger", () => ({
+	sendMessengerMessage: mock(() => Promise.resolve()),
+}));
+
+const {
+	extractContactPhone,
+	resolveDirectBotTarget,
+	sendReminderWhatsappMessage,
+} = await import("./shared");
 
 describe("resolveDirectBotTarget", () => {
 	it("выбирает Telegram ID контакта для значения 328 в сделке", () => {
@@ -57,5 +73,35 @@ describe("extractContactPhone", () => {
 		expect(extractContactPhone(false)).toBeNull();
 		expect(extractContactPhone({})).toBeNull();
 		expect(extractContactPhone({ PHONE: [{ VALUE: "" }] })).toBeNull();
+	});
+
+	it("пропускает пустой первый телефон и возвращает следующий", () => {
+		expect(
+			extractContactPhone({
+				PHONE: [{ VALUE: "   " }, { VALUE: " +79219612671 " }],
+			}),
+		).toBe("+79219612671");
+	});
+});
+
+describe("sendReminderWhatsappMessage", () => {
+	it("возвращает ошибку, если не удалось разрешить WhatsApp-получателя", async () => {
+		const mutableEnv = env as { BITRIX_MEMBER_ID?: string };
+		const originalMemberId = mutableEnv.BITRIX_MEMBER_ID;
+		mutableEnv.BITRIX_MEMBER_ID = "test-member";
+
+		try {
+			expect(
+				await sendReminderWhatsappMessage(
+					{ PHONE: [{ VALUE: "+79219612671" }] },
+					"Напоминание",
+				),
+			).toEqual({
+				status: "error",
+				reason: "whatsapp_target_resolve_failed: database unavailable",
+			});
+		} finally {
+			mutableEnv.BITRIX_MEMBER_ID = originalMemberId;
+		}
 	});
 });

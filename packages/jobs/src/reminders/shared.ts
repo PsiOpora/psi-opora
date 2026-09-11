@@ -1,7 +1,7 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
 import { jidFromPhone, wahaSendText } from "@psi-opora/waha";
-import { sendMessengerMessage, type Messenger } from "../messenger";
+import { type Messenger, sendMessengerMessage } from "../messenger";
 
 /**
  * Общие константы и хелперы для напоминаний о консультации и диагностике
@@ -110,7 +110,11 @@ export interface DirectBotTarget {
 }
 
 export type BotDeliveryResult =
-	| { status: "sent"; messenger: Messenger | "whatsapp-personal"; userId: string }
+	| {
+			status: "sent";
+			messenger: Messenger | "whatsapp-personal";
+			userId: string;
+	  }
 	| { status: "skipped" | "error"; reason: string };
 
 function messengerFromImType(raw: unknown): Messenger | null {
@@ -257,8 +261,11 @@ export function extractContactPhone(
 	contact: { PHONE?: ContactPhone[] } | false,
 ): string | null {
 	if (!contact) return null;
-	const value = String(contact.PHONE?.[0]?.VALUE ?? "").trim();
-	return value || null;
+	for (const phone of contact.PHONE ?? []) {
+		const value = String(phone.VALUE ?? "").trim();
+		if (value) return value;
+	}
+	return null;
 }
 
 interface WhatsappTarget {
@@ -281,7 +288,9 @@ async function resolveWhatsappTarget(
 	const phone = extractContactPhone(contact);
 	if (!phone || !env.BITRIX_MEMBER_ID) return null;
 
-	const { listWhatsappPersonalAccounts } = await import("@psi-opora/db/queries");
+	const { listWhatsappPersonalAccounts } = await import(
+		"@psi-opora/db/queries"
+	);
 	const account = (
 		await listWhatsappPersonalAccounts(env.BITRIX_MEMBER_ID)
 	).find((a) => a.status === "connected");
@@ -303,7 +312,16 @@ export async function sendReminderWhatsappMessage(
 	contact: { PHONE?: ContactPhone[] } | false,
 	message: string,
 ): Promise<BotDeliveryResult> {
-	const target = await resolveWhatsappTarget(contact);
+	let target: WhatsappTarget | null;
+	try {
+		target = await resolveWhatsappTarget(contact);
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		return {
+			status: "error",
+			reason: `whatsapp_target_resolve_failed: ${errorMessage}`,
+		};
+	}
 	if (!target) {
 		return { status: "skipped", reason: "whatsapp_target_not_found" };
 	}
@@ -317,7 +335,11 @@ export async function sendReminderWhatsappMessage(
 			externalId: id,
 			connectorId: target.connectorId,
 		});
-		return { status: "sent", messenger: "whatsapp-personal", userId: target.jid };
+		return {
+			status: "sent",
+			messenger: "whatsapp-personal",
+			userId: target.jid,
+		};
 	} catch (error) {
 		await logReminderMessage({
 			target: { messenger: "whatsapp-personal", userId: target.jid },
