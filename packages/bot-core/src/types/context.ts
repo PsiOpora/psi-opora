@@ -1,10 +1,14 @@
 import type { Context, SessionFlavor } from "grammy";
+import type { BookPreorderState } from "../scenario/book-preorder/engine";
 import type { ScenarioState } from "../scenario/engine";
 
 export interface ConsultationSession {
 	step: "name" | "phone" | "email" | "done";
 	/** Состояние сценария (категория → тема → email → телефон → рассылка). */
 	scenario?: ScenarioState;
+	/** Состояние отдельного сценария предзаказа книги (см.
+	 * scenario/book-preorder/engine.ts) — независимо от scenario выше. */
+	bookPreorder?: BookPreorderState;
 	consentGiven?: boolean;
 	name?: string;
 	phone?: string;

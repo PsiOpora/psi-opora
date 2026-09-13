@@ -127,6 +127,23 @@ function stripAt(botUsername: string): string {
 	return botUsername.trim().replace(/^@/, "");
 }
 
+/**
+ * Кодовое слово входа в сценарий предзаказа книги «Тело берёт своё»
+ * (psi-opora.ru/telo-beret-svoe/) — в отличие от bot_guide_campaigns это
+ * единственная, не настраиваемая через дашборд кампания, поэтому сверяем с
+ * константой, а не ходим в БД. Источник рекламы — как у гайд-кампаний, через
+ * `_` (см. splitStartParam), напр. `TELO_VK`.
+ */
+const BOOK_PREORDER_KEYWORD = "TELO";
+
+export function matchesBookPreorderStartParam(
+	startParam: string | undefined,
+): { source?: string } | null {
+	if (!startParam) return null;
+	const { keyword, source } = splitStartParam(startParam);
+	return keyword.toUpperCase() === BOOK_PREORDER_KEYWORD ? { source } : null;
+}
+
 export function formatUtmLog(params: UtmParams): string {
 	const parts = [
 		params.source && `source=${params.source}`,

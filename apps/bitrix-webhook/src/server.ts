@@ -54,6 +54,7 @@ import {
 	claimOperatorReply,
 	isMirroredOperatorReply,
 } from "./operator-reply-guard.js";
+import { handlePayformWebhook } from "./payform-webhook.js";
 
 const operatorReplyRedis: RedisClient | null = isRedisConfigured()
 	? createRedisClient()
@@ -919,6 +920,7 @@ app.post("/api/bitrix-webhook", (c) => bitrixHandler(c.req.raw));
 
 app.get("/api/waha-webhook", (c) => c.json({ status: "ok" }));
 app.post("/api/waha-webhook", (c) => handleWahaWebhook(c.req.raw));
+app.post("/api/payform-webhook", (c) => handlePayformWebhook(c.req.raw));
 
 app.get("/api/consultation-reminder-deal-update", (c) =>
 	c.json({ status: "ok" }),

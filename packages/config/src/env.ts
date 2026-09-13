@@ -79,6 +79,11 @@ export const env = createEnv({
 		BITRIX_WEBHOOK_TOKEN: z.string().optional(),
 		BITRIX_CRM_WEBHOOK_TOKEN: z.string().optional(),
 		DASHBOARD_BITRIX_CLIENT_ID: z.string().optional(),
+
+		// Prodamus (payform.ru) — оплата предзаказа книги «Тело берёт своё».
+		// Ключ подписи вебхука из личного кабинета payform: Настройки →
+		// Оповещения → ключ для подписи (apps/bitrix-webhook/src/payform-webhook.ts).
+		PRODAMUS_SECRET_KEY: z.string().optional(),
 		DASHBOARD_BITRIX_CLIENT_SECRET: z.string().optional(),
 		DASHBOARD_BITRIX_WEBHOOK_URL: z.string().optional(),
 		CLIENTS_BITRIX_CLIENT_ID: z.string().optional(),
@@ -217,6 +222,7 @@ export const env = createEnv({
 		BITRIX_WEBHOOK_TOKEN: process.env.BITRIX_WEBHOOK_TOKEN,
 		BITRIX_CRM_WEBHOOK_TOKEN: process.env.BITRIX_CRM_WEBHOOK_TOKEN,
 		DASHBOARD_BITRIX_CLIENT_ID: process.env.DASHBOARD_BITRIX_CLIENT_ID,
+		PRODAMUS_SECRET_KEY: process.env.PRODAMUS_SECRET_KEY,
 		DASHBOARD_BITRIX_CLIENT_SECRET: process.env.DASHBOARD_BITRIX_CLIENT_SECRET,
 		DASHBOARD_BITRIX_WEBHOOK_URL: process.env.DASHBOARD_BITRIX_WEBHOOK_URL,
 		CLIENTS_BITRIX_CLIENT_ID: process.env.CLIENTS_BITRIX_CLIENT_ID,
