@@ -7,8 +7,18 @@ import { Button } from "@/components/ui/button";
 
 function escapeCell(value: string | number): string {
 	const text = String(value);
-	// CSV formula injection protection: prefix strings starting with =, +, -, @ with apostrophe
-	const needsPrefix = typeof value === "string" && /^[=+\-@]/.test(text);
+	// CSV formula injection protection: spreadsheet apps may ignore leading
+	// whitespace/control characters before a formula marker.
+	let formulaStart = 0;
+	while (formulaStart < text.length) {
+		const char = text[formulaStart] ?? "";
+		const code = text.charCodeAt(formulaStart);
+		const isControl = code <= 0x1f || (code >= 0x7f && code <= 0x9f);
+		if (char.trim() !== "" && !isControl) break;
+		formulaStart += 1;
+	}
+	const needsPrefix =
+		typeof value === "string" && /^[=+\-@]/.test(text.slice(formulaStart));
 	const prefixed = needsPrefix ? `'${text}` : text;
 	return /[";\n]/.test(prefixed)
 		? `"${prefixed.replace(/"/g, '""')}"`

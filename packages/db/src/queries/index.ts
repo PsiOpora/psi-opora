@@ -355,8 +355,12 @@ export async function getBotFunnelStepClients(
 	return _getBotFunnelStepClients(db, params);
 }
 
-export async function getBotFunnelTrendByDay(fromDate: string, toDate: string) {
-	return _getBotFunnelTrendByDay(db, fromDate, toDate);
+export async function getBotFunnelTrendByDay(
+	fromDate: string,
+	toDate: string,
+	includeTest = false,
+) {
+	return _getBotFunnelTrendByDay(db, fromDate, toDate, includeTest);
 }
 
 export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {

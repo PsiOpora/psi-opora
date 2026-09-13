@@ -32,6 +32,23 @@ const UTM_GROUP_KEY_SEPARATOR = String.fromCharCode(31);
  * чтобы сматчить расход из ad_daily_stats без отдельной таблицы соответствий. */
 const CAMPAIGN_ID_SUFFIX_RE = /(\d{6,})$/;
 
+const DEAL_GROUP_PAGE_SIZE = 1000;
+
+async function fetchAllDealGroups(range: DateRange) {
+	const options = { from: range.from, to: range.to };
+	const firstPage = await groupDealsBy("utmCampaign", {
+		...options,
+		limit: DEAL_GROUP_PAGE_SIZE,
+	});
+	if (firstPage.rows.length >= firstPage.total) return firstPage.rows;
+
+	const allGroups = await groupDealsBy("utmCampaign", {
+		...options,
+		limit: firstPage.total,
+	});
+	return allGroups.rows;
+}
+
 export async function fetchBotFunnelEvents(
 	range: DateRange,
 	options: { includeTest?: boolean } = {},
@@ -70,15 +87,15 @@ export async function fetchBotFunnelSourceEnriched(
 	if (rows.length === 0) return rows;
 
 	const [dealGroups, adStats] = await Promise.all([
-		groupDealsBy("utmCampaign", { from: range.from, to: range.to, limit: 1000 }),
+		fetchAllDealGroups(range),
 		getAdStatsByDateRange(
 			formatDateParam(range.from),
 			formatDateParam(range.to),
 		),
 	]);
 
-	const dealsByKey = new Map<string, (typeof dealGroups.rows)[number]>();
-	for (const group of dealGroups.rows) {
+	const dealsByKey = new Map<string, (typeof dealGroups)[number]>();
+	for (const group of dealGroups) {
 		const [source, campaign] = group.key.split(UTM_GROUP_KEY_SEPARATOR);
 		dealsByKey.set(`${source ?? ""}|${campaign ?? ""}`, group);
 	}
@@ -115,10 +132,12 @@ export async function fetchBotFunnelSourceEnriched(
 
 export async function fetchBotFunnelTrend(
 	range: DateRange,
+	options: { includeTest?: boolean } = {},
 ): Promise<BotFunnelTrendPoint[]> {
 	return getBotFunnelTrendByDay(
 		formatDateParam(range.from),
 		formatDateParam(range.to),
+		options.includeTest,
 	);
 }
 

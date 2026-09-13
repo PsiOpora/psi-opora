@@ -49,6 +49,7 @@ interface BotFunnelResponse {
 	trend: BotFunnelTrendPoint[];
 	previous: {
 		flows: BotFunnelFlowStats[];
+		byMessenger: Array<{ messenger: string; flows: BotFunnelFlowStats[] }>;
 		dropReasons: BotFunnelDropReasonRow[];
 	};
 }
@@ -137,6 +138,7 @@ function BotFunnelPageContent() {
 	const dropReasons = data?.dropReasons ?? [];
 	const trend = data?.trend ?? [];
 	const previousFlows = data?.previous.flows ?? [];
+	const previousByMessenger = data?.previous.byMessenger ?? [];
 	const previousDropReasons = data?.previous.dropReasons ?? [];
 
 	// "start" общий для обеих веток (см. flowCascade в bot-funnel-shared.ts),
@@ -153,17 +155,35 @@ function BotFunnelPageContent() {
 	const isEmpty =
 		flows.every((f) => f.steps.every((s) => s.count === 0)) &&
 		dropReasons.length === 0;
+	const includeTestToggle = (
+		<label
+			htmlFor="include-test-traffic"
+			className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"
+		>
+			<Checkbox
+				id="include-test-traffic"
+				checked={includeTest}
+				onCheckedChange={(checked) => setIncludeTest(checked === true)}
+			/>
+			Показывать тестовый трафик
+		</label>
+	);
 
 	if (isEmpty) {
 		return (
 			<Card>
 				<CardHeader>
-					<CardTitle>Воронка бота</CardTitle>
-					<CardDescription>
-						За выбранный период событий нет. Счётчики шагов начинают
-						накапливаться после деплоя ботов с трекингом — исторические данные
-						до этого момента недоступны.
-					</CardDescription>
+					<div className="flex items-start justify-between gap-4">
+						<div>
+							<CardTitle>Воронка бота</CardTitle>
+							<CardDescription>
+								За выбранный период событий нет. Счётчики шагов начинают
+								накапливаться после деплоя ботов с трекингом — исторические
+								данные до этого момента недоступны.
+							</CardDescription>
+						</div>
+						{includeTestToggle}
+					</div>
 				</CardHeader>
 			</Card>
 		);
@@ -173,13 +193,23 @@ function BotFunnelPageContent() {
 		value: string;
 		label: string;
 		flows: BotFunnelFlowStats[];
+		previousFlows: BotFunnelFlowStats[];
 		sourceRows: BotFunnelSourceRow[];
 	}> = [
-		{ value: "all", label: "Все мессенджеры", flows, sourceRows: bySource },
+		{
+			value: "all",
+			label: "Все мессенджеры",
+			flows,
+			previousFlows,
+			sourceRows: bySource,
+		},
 		...byMessenger.map(({ messenger, flows: ms }) => ({
 			value: messenger,
 			label: MESSENGER_LABELS[messenger] ?? messenger,
 			flows: ms,
+			previousFlows:
+				previousByMessenger.find((item) => item.messenger === messenger)
+					?.flows ?? [],
 			sourceRows:
 				bySourceByMessenger.find((s) => s.messenger === messenger)?.rows ?? [],
 		})),
@@ -253,17 +283,7 @@ function BotFunnelPageContent() {
 								один раз. Клик по числу открывает список этих клиентов.
 							</CardDescription>
 						</div>
-						<label
-							htmlFor="include-test-traffic"
-							className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"
-						>
-							<Checkbox
-								id="include-test-traffic"
-								checked={includeTest}
-								onCheckedChange={(checked) => setIncludeTest(checked === true)}
-							/>
-							Показывать тестовый трафик
-						</label>
+						{includeTestToggle}
 					</div>
 				</CardHeader>
 				<CardContent>
@@ -296,7 +316,7 @@ function BotFunnelPageContent() {
 											})
 										}
 										previousFinalShare={finalShareOf(
-											previousFlows,
+											tab.previousFlows,
 											flow.flow,
 										)}
 									/>
@@ -542,7 +562,12 @@ function SortableHead({
 	const active = sort.key === sortKey;
 	const Icon = sort.dir === "asc" ? ArrowUpIcon : ArrowDownIcon;
 	return (
-		<TableHead className={align === "right" ? "text-right" : undefined}>
+		<TableHead
+			aria-sort={
+				active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"
+			}
+			className={align === "right" ? "text-right" : undefined}
+		>
 			<button
 				type="button"
 				onClick={() => onSort(sortKey)}

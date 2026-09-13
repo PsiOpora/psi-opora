@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notLike, sql } from "drizzle-orm";
 import type { Database } from "../client.types";
 import { botFunnelEvents, botFunnelUserSteps } from "../schema/bot-funnel";
 import { botUsers } from "../schema/bot-users";
@@ -183,8 +183,17 @@ export async function getBotFunnelTrendByDay(
 	db: Database,
 	fromDate: string,
 	toDate: string,
+	includeTest = false,
 ): Promise<BotFunnelTrendDay[]> {
 	if (!db) return [];
+	const conditions = [
+		eq(botFunnelUserSteps.reason, NO_REASON),
+		inArray(botFunnelUserSteps.step, ["start", "deal"]),
+		sql`${botFunnelUserSteps.day} >= ${fromDate} AND ${botFunnelUserSteps.day} <= ${toDate}`,
+	];
+	if (!includeTest) {
+		conditions.push(notLike(botFunnelUserSteps.campaign, "%\\_test"));
+	}
 
 	const rows = await db
 		.select({
@@ -193,13 +202,7 @@ export async function getBotFunnelTrendByDay(
 			uniqueUsers: sql<number>`count(distinct ${botFunnelUserSteps.userId})`,
 		})
 		.from(botFunnelUserSteps)
-		.where(
-			and(
-				eq(botFunnelUserSteps.reason, NO_REASON),
-				inArray(botFunnelUserSteps.step, ["start", "deal"]),
-				sql`${botFunnelUserSteps.day} >= ${fromDate} AND ${botFunnelUserSteps.day} <= ${toDate}`,
-			),
-		)
+		.where(and(...conditions))
 		.groupBy(botFunnelUserSteps.day, botFunnelUserSteps.step);
 
 	const byDay = new Map<string, BotFunnelTrendDay>();
