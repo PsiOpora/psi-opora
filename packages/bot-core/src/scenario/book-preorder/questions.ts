@@ -22,6 +22,18 @@ export function bpAboutBookQuestion(
 	};
 }
 
+/**
+ * Тот же рассказ о книге, но без кнопок выбора — для входа с лендинга по
+ * кнопке с уже известным намерением (см. BookPreorderState.intent):
+ * контекст читателю нужен, а повторный выбор — нет, он его уже сделал на сайте.
+ */
+export function bpAboutBookInfoMessage(
+	name: string | undefined,
+	t: ScenarioTexts,
+): BookPreorderMessage {
+	return { text: withName(t.bp_about_book_text, name) };
+}
+
 export function bpReservedQuestion(
 	name: string | undefined,
 	t: ScenarioTexts,
@@ -55,11 +67,13 @@ export function bpStepQuestion(
 
 export function bpPaymentLinkMessage(
 	url: string,
+	sum: number,
 	t: ScenarioTexts,
 ): BookPreorderMessage {
 	return {
 		text: withFields(t.bp_payment_link_text, {
 			ссылка: url,
+			сумма: `${sum} ₽`,
 			оферта: "https://psi-opora.ru/oferta-predzakaz-knigi/",
 		}),
 	};

@@ -20,6 +20,13 @@ export function isBookPreorderAction(
 	return (BOOK_PREORDER_ACTIONS as readonly string[]).includes(value);
 }
 
+/**
+ * Ветка, выбранная кнопкой на лендинге ещё до диалога (см.
+ * matchesBookPreorderStartParam в utils/utm.ts): "pay" — «Оформить
+ * предзаказ» (оплата сразу), "reserve" — «Забронировать» (бесплатная бронь).
+ */
+export type BookPreorderIntent = "pay" | "reserve";
+
 export type BookPreorderStep =
 	| "consent"
 	| "name"
@@ -51,6 +58,9 @@ export interface BookPreorderState {
 	orderNo?: number;
 	/** Источник рекламы из /start-ссылки (см. matchesBookPreorderStartParam). */
 	source?: string;
+	/** undefined — вход по голому /start TELO, обычный выбор внутри диалога
+	 * (см. bpAboutBookQuestion в engine.ts). */
+	intent?: BookPreorderIntent;
 }
 
 export interface BookPreorderButton {

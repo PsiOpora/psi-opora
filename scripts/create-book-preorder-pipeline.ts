@@ -19,6 +19,8 @@
  *   bun --env-file=.env run scripts/create-book-preorder-pipeline.ts
  */
 
+import { z } from "zod";
+
 const CATEGORY_NAME = "Предзаказ книги";
 const STAGE_LABELS = {
 	reserved: "Бронь",
@@ -27,25 +29,28 @@ const STAGE_LABELS = {
 	declined: "Отказ",
 } as const;
 
-interface BitrixResponse<T> {
-	result?: T;
-	error?: string;
-	error_description?: string;
+function bitrixResponseSchema<T extends z.ZodType>(result: T) {
+	return z.object({
+		result: result.optional(),
+		error: z.string().optional(),
+		error_description: z.string().optional(),
+	});
 }
 
-interface DealCategory {
-	ID: string;
-	NAME: string;
-}
+const dealCategorySchema = z.object({
+	ID: z.string(),
+	NAME: z.string(),
+});
 
-interface DealStatus {
-	ID: string;
-	STATUS_ID: string;
-	NAME: string;
-	SORT: string;
-	SEMANTICS?: "P" | "S" | "F" | "";
-	CATEGORY_ID?: string;
-}
+const dealStatusSchema = z.object({
+	ID: z.string(),
+	STATUS_ID: z.string(),
+	NAME: z.string(),
+	SORT: z.string(),
+	SEMANTICS: z.enum(["P", "S", "F", ""]).optional(),
+	CATEGORY_ID: z.string().optional(),
+});
+type DealStatus = z.infer<typeof dealStatusSchema>;
 
 function webhookBase(): string {
 	const value =
@@ -59,33 +64,45 @@ function webhookBase(): string {
 	return normalized;
 }
 
-async function callBitrix<T>(method: string, body: unknown): Promise<T> {
+async function callBitrix<T extends z.ZodType>(
+	method: string,
+	body: unknown,
+	resultSchema: T,
+): Promise<z.infer<T>> {
 	const response = await fetch(`${webhookBase()}/${method}.json`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(body),
 	});
-	const json = (await response.json()) as BitrixResponse<T>;
-	if (json.error) {
+	const raw: unknown = await response.json();
+	const envelope = bitrixResponseSchema(resultSchema).parse(raw);
+	if (envelope.error) {
 		throw new Error(
-			`Bitrix24 [${method}]: ${json.error} — ${json.error_description ?? ""}`,
+			`Bitrix24 [${method}]: ${envelope.error} — ${envelope.error_description ?? ""}`,
 		);
 	}
-	return json.result as T;
+	if (envelope.result === undefined) {
+		throw new Error(`Bitrix24 [${method}]: ответ без result`);
+	}
+	return envelope.result;
 }
 
 async function findOrCreateCategory(): Promise<number> {
-	const existing = await callBitrix<DealCategory[]>("crm.dealcategory.list", {
-		filter: { NAME: CATEGORY_NAME },
-	});
+	const existing = await callBitrix(
+		"crm.dealcategory.list",
+		{ filter: { NAME: CATEGORY_NAME } },
+		z.array(dealCategorySchema),
+	);
 	if (existing.length > 0) {
 		const id = Number(existing[0]?.ID);
 		console.log(`Воронка «${CATEGORY_NAME}» уже существует (ID=${id})`);
 		return id;
 	}
-	const id = await callBitrix<number>("crm.dealcategory.add", {
-		fields: { NAME: CATEGORY_NAME },
-	});
+	const id = await callBitrix(
+		"crm.dealcategory.add",
+		{ fields: { NAME: CATEGORY_NAME } },
+		z.number(),
+	);
 	console.log(`Создана воронка «${CATEGORY_NAME}» (ID=${id})`);
 	return id;
 }
@@ -95,10 +112,11 @@ async function renameStage(
 	label: string,
 ): Promise<{ stageId: string; label: string }> {
 	if (stage.NAME !== label) {
-		await callBitrix("crm.status.update", {
-			id: stage.ID,
-			fields: { NAME: label },
-		});
+		await callBitrix(
+			"crm.status.update",
+			{ id: stage.ID, fields: { NAME: label } },
+			z.unknown(),
+		);
 	}
 	console.log(`  ${label.padEnd(14)} → STAGE_ID=${stage.STATUS_ID}`);
 	return { stageId: stage.STATUS_ID, label };
@@ -106,10 +124,14 @@ async function renameStage(
 
 async function main() {
 	const categoryId = await findOrCreateCategory();
-	const stages = await callBitrix<DealStatus[]>("crm.status.list", {
-		filter: { ENTITY_ID: `DEAL_STAGE_${categoryId}` },
-		order: { SORT: "ASC" },
-	});
+	const stages = await callBitrix(
+		"crm.status.list",
+		{
+			filter: { ENTITY_ID: `DEAL_STAGE_${categoryId}` },
+			order: { SORT: "ASC" },
+		},
+		z.array(dealStatusSchema),
+	);
 	if (stages.length === 0) {
 		throw new Error(
 			`У воронки ${categoryId} нет стадий — Bitrix не успел их создать? Повтори запуск через пару секунд.`,

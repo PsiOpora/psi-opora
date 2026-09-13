@@ -123,6 +123,73 @@ export async function markBookPreorderPaid(
 	return rows[0] ?? null;
 }
 
+/**
+ * Атомарно бронирует отправку клиенту подтверждения оплаты — CAS по
+ * paid_notified_at IS NULL. Повторный вебхук по уже оплаченному заказу
+ * (order.status уже "paid") доходит сюда и, если бронь ещё не подтверждена
+ * (см. releaseBookPreorderPaidNotification), может повторить попытку.
+ */
+export async function claimBookPreorderPaidNotification(
+	db: Database,
+	id: string,
+): Promise<boolean> {
+	if (!db) return false;
+	const rows = await db
+		.update(bookPreorderOrders)
+		.set({ paidNotifiedAt: sql`now()` })
+		.where(
+			and(
+				eq(bookPreorderOrders.id, id),
+				isNull(bookPreorderOrders.paidNotifiedAt),
+			),
+		)
+		.returning({ id: bookPreorderOrders.id });
+	return rows.length > 0;
+}
+
+/** Снимает бронь после неудачной отправки — оставляет операцию повторяемой. */
+export async function releaseBookPreorderPaidNotification(
+	db: Database,
+	id: string,
+): Promise<void> {
+	if (!db) return;
+	await db
+		.update(bookPreorderOrders)
+		.set({ paidNotifiedAt: null })
+		.where(eq(bookPreorderOrders.id, id));
+}
+
+/** Тот же CAS-паттерн для перевода сделки Bitrix на стадию "Оплачен". */
+export async function claimBookPreorderDealPaidSync(
+	db: Database,
+	id: string,
+): Promise<boolean> {
+	if (!db) return false;
+	const rows = await db
+		.update(bookPreorderOrders)
+		.set({ dealPaidSyncedAt: sql`now()` })
+		.where(
+			and(
+				eq(bookPreorderOrders.id, id),
+				isNull(bookPreorderOrders.dealPaidSyncedAt),
+			),
+		)
+		.returning({ id: bookPreorderOrders.id });
+	return rows.length > 0;
+}
+
+/** Снимает бронь после неудачного обновления сделки — оставляет операцию повторяемой. */
+export async function releaseBookPreorderDealPaidSync(
+	db: Database,
+	id: string,
+): Promise<void> {
+	if (!db) return;
+	await db
+		.update(bookPreorderOrders)
+		.set({ dealPaidSyncedAt: null })
+		.where(eq(bookPreorderOrders.id, id));
+}
+
 export async function markBookPreorderDeclined(
 	db: Database,
 	id: string,
@@ -162,16 +229,72 @@ export async function setBookPreorderPriceDeadline(
 		.where(eq(bookPreorderOrders.id, id));
 }
 
-export async function recordBookPreorderDripStep(
+/**
+ * Атомарно "бронирует" следующий Б-шаг заказа — переводит dripStep только
+ * если он всё ещё равен previousStep (compare-and-swap условием в WHERE).
+ * Если параллельный запуск джобы уже забронировал этот шаг, dripStep не
+ * совпадёт и запрос не затронет ни одной строки — вызывающая сторона по
+ * false пропускает заказ, не отправляя сообщение повторно.
+ */
+export async function reserveBookPreorderDripStep(
 	db: Database,
 	id: string,
-	dripStep: number,
+	previousStep: number,
+	nextStep: number,
+): Promise<boolean> {
+	if (!db) return false;
+	const rows = await db
+		.update(bookPreorderOrders)
+		.set({ dripStep: nextStep, updatedAt: sql`now()` })
+		.where(
+			and(
+				eq(bookPreorderOrders.id, id),
+				eq(bookPreorderOrders.dripStep, previousStep),
+			),
+		)
+		.returning({ id: bookPreorderOrders.id });
+	return rows.length > 0;
+}
+
+/** Подтверждает бронь шага после успешной отправки — фиксирует время отправки. */
+export async function finalizeBookPreorderDripStep(
+	db: Database,
+	id: string,
+	step: number,
 ): Promise<void> {
 	if (!db) return;
 	await db
 		.update(bookPreorderOrders)
-		.set({ dripStep, dripLastSentAt: sql`now()`, updatedAt: sql`now()` })
-		.where(eq(bookPreorderOrders.id, id));
+		.set({ dripLastSentAt: sql`now()`, updatedAt: sql`now()` })
+		.where(
+			and(
+				eq(bookPreorderOrders.id, id),
+				eq(bookPreorderOrders.dripStep, step),
+			),
+		);
+}
+
+/**
+ * Снимает бронь шага после неудачной отправки/записи — откатывает dripStep
+ * назад к previousStep, чтобы шаг остался доступен для повторной попытки на
+ * следующем запуске джобы.
+ */
+export async function releaseBookPreorderDripStep(
+	db: Database,
+	id: string,
+	claimedStep: number,
+	previousStep: number,
+): Promise<void> {
+	if (!db) return;
+	await db
+		.update(bookPreorderOrders)
+		.set({ dripStep: previousStep, updatedAt: sql`now()` })
+		.where(
+			and(
+				eq(bookPreorderOrders.id, id),
+				eq(bookPreorderOrders.dripStep, claimedStep),
+			),
+		);
 }
 
 export async function recordBookPreorderDripDeferred(

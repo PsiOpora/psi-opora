@@ -7,6 +7,9 @@ import {
 	upsertBitrixCrmLink as _upsertBitrixCrmLink,
 } from "./bitrix-crm-links";
 import {
+	claimBookPreorderDealPaidSync as _claimBookPreorderDealPaidSync,
+	claimBookPreorderPaidNotification as _claimBookPreorderPaidNotification,
+	finalizeBookPreorderDripStep as _finalizeBookPreorderDripStep,
 	getBookPreorderOrder as _getBookPreorderOrder,
 	getBookPreorderOrderByOrderNo as _getBookPreorderOrderByOrderNo,
 	listReservedBookPreorderOrders as _listReservedBookPreorderOrders,
@@ -15,7 +18,10 @@ import {
 	markBookPreorderPaid as _markBookPreorderPaid,
 	recordBookPreorderDripAnyClick as _recordBookPreorderDripAnyClick,
 	recordBookPreorderDripDeferred as _recordBookPreorderDripDeferred,
-	recordBookPreorderDripStep as _recordBookPreorderDripStep,
+	releaseBookPreorderDealPaidSync as _releaseBookPreorderDealPaidSync,
+	releaseBookPreorderDripStep as _releaseBookPreorderDripStep,
+	releaseBookPreorderPaidNotification as _releaseBookPreorderPaidNotification,
+	reserveBookPreorderDripStep as _reserveBookPreorderDripStep,
 	setBookPreorderPriceDeadline as _setBookPreorderPriceDeadline,
 	setBookPreorderShipping as _setBookPreorderShipping,
 	upsertBookPreorderOrder as _upsertBookPreorderOrder,
@@ -646,6 +652,22 @@ export async function markBookPreorderPaid(orderNo: number) {
 	return _markBookPreorderPaid(db, orderNo);
 }
 
+export async function claimBookPreorderPaidNotification(id: string) {
+	return _claimBookPreorderPaidNotification(db, id);
+}
+
+export async function releaseBookPreorderPaidNotification(id: string) {
+	return _releaseBookPreorderPaidNotification(db, id);
+}
+
+export async function claimBookPreorderDealPaidSync(id: string) {
+	return _claimBookPreorderDealPaidSync(db, id);
+}
+
+export async function releaseBookPreorderDealPaidSync(id: string) {
+	return _releaseBookPreorderDealPaidSync(db, id);
+}
+
 export async function markBookPreorderDeclined(id: string) {
 	return _markBookPreorderDeclined(db, id);
 }
@@ -664,8 +686,24 @@ export async function setBookPreorderPriceDeadline(
 	return _setBookPreorderPriceDeadline(db, id, preorderPriceExpiresAt);
 }
 
-export async function recordBookPreorderDripStep(id: string, dripStep: number) {
-	return _recordBookPreorderDripStep(db, id, dripStep);
+export async function reserveBookPreorderDripStep(
+	id: string,
+	previousStep: number,
+	nextStep: number,
+) {
+	return _reserveBookPreorderDripStep(db, id, previousStep, nextStep);
+}
+
+export async function finalizeBookPreorderDripStep(id: string, step: number) {
+	return _finalizeBookPreorderDripStep(db, id, step);
+}
+
+export async function releaseBookPreorderDripStep(
+	id: string,
+	claimedStep: number,
+	previousStep: number,
+) {
+	return _releaseBookPreorderDripStep(db, id, claimedStep, previousStep);
 }
 
 export async function recordBookPreorderDripDeferred(id: string) {
