@@ -12,12 +12,12 @@ import type { Summary } from "@/lib/analytics/types";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-function deltaOf(current: number, previous: number): number | null {
+export function deltaOf(current: number, previous: number): number | null {
 	if (previous <= 0) return null;
 	return (current - previous) / previous;
 }
 
-function DeltaBadge({ delta }: { delta: number | null }) {
+export function DeltaBadge({ delta }: { delta: number | null }) {
 	if (delta === null) return null;
 	const positive = delta >= 0;
 	const Icon = positive ? TrendingUpIcon : TrendingDownIcon;
