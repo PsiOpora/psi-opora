@@ -1,5 +1,6 @@
 import {
 	getBookPreorderOrderByOrderNo,
+	markBookPreorderAwaitingPayment,
 	markBookPreorderDeclined,
 	recordBookPreorderDripAnyClick,
 	recordBookPreorderDripDeferred,
@@ -49,16 +50,29 @@ const PREORDER_PRICE_RUB = 1980;
 
 /**
  * Обрабатывает клик по кнопке напоминания — обновляет заказ/сделку в Bitrix
- * и возвращает ответное сообщение. null — заказ не найден (устаревшая
- * кнопка/чужой callback), вызывающая сторона молча игнорирует.
+ * и возвращает ответное сообщение. null — заказ не найден, чужой callback
+ * (messenger/userId/chatId не совпадают с заказом) или устаревшая кнопка;
+ * вызывающая сторона молча игнорирует.
  */
 export async function handleBookPreorderDripCallback(
 	messenger: string,
+	userId: string | number,
+	chatId: string | number | undefined,
 	parsed: ParsedDripCallback,
 	t: ScenarioTexts,
 ): Promise<BookPreorderMessage | null> {
 	const order = await getBookPreorderOrderByOrderNo(parsed.orderNo);
 	if (!order) return null;
+	if (order.messenger !== messenger || order.userId !== String(userId)) {
+		return null;
+	}
+	if (
+		order.chatId !== null &&
+		chatId !== undefined &&
+		order.chatId !== String(chatId)
+	) {
+		return null;
+	}
 
 	switch (parsed.action) {
 		case "pay":
@@ -66,6 +80,10 @@ export async function handleBookPreorderDripCallback(
 			await recordBookPreorderDripAnyClick(order.id);
 			const sum =
 				parsed.action === "buy2480" ? REGULAR_PRICE_RUB : PREORDER_PRICE_RUB;
+			// Переводим заказ в awaiting_payment до выдачи ссылки — иначе
+			// markBookPreorderPaid (вебхук Prodamus) не найдёт заказ в нужном
+			// статусе и подтверждение оплаты будет молча потеряно.
+			await markBookPreorderAwaitingPayment(order.id, {});
 			const url = buildProdamusPaymentUrl({
 				orderId: order.orderNo,
 				phone: order.phone ?? undefined,
@@ -84,7 +102,7 @@ export async function handleBookPreorderDripCallback(
 					`💳 Ссылка на оплату отправлена повторно (напоминание): ${url}`,
 				);
 			}
-			return bpPaymentLinkMessage(url, t);
+			return bpPaymentLinkMessage(url, sum, t);
 		}
 
 		case "defer": {
@@ -115,7 +133,7 @@ export async function handleBookPreorderDripCallback(
 					"Просит уведомить о выходе электронной версии книги.",
 				);
 			}
-			return { text: t.bp_drip_defer_reply };
+			return { text: t.bp_drip_notify_ebook_reply };
 		}
 
 		case "stop": {

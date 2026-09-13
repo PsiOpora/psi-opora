@@ -1,15 +1,16 @@
 import {
 	appendDealComment,
-	buildProdamusPaymentUrl,
 	getBookReadyDate,
 	getScenarioTexts,
 	type ScenarioTexts,
 } from "@psi-opora/bot-core";
 import {
 	type BookPreorderOrder,
+	finalizeBookPreorderDripStep,
 	insertBotMessage,
 	listReservedBookPreorderOrders,
-	recordBookPreorderDripStep,
+	releaseBookPreorderDripStep,
+	reserveBookPreorderDripStep,
 } from "@psi-opora/db/queries";
 import {
 	type Messenger,
@@ -26,8 +27,6 @@ import {
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const PREORDER_PRICE_RUB = 1980;
-const REGULAR_PRICE_RUB = 2480;
 const PRICE_DEADLINE_DAY = 10;
 const CLOSE_DAY = 11;
 
@@ -43,7 +42,11 @@ function daysSince(bookReadyDate: Date, now: Date): number {
 /**
  * Следующий Б-шаг, который пора отправить, или null — рано либо уже
  * отправлено всё, что положено. dripStep — последний реально отправленный
- * шаг (может перескакивать через пропущенные, см. пояснение выше).
+ * шаг. Считаем наивысший шаг, для которого уже настало время (по
+ * daysSinceReady), а не следующий по порядку — иначе после простоя джобы
+ * (например, кроном на несколько дней) hourly-запуски досылали бы все
+ * пропущенные шаги по одному за раз вместо того, чтобы сразу перескочить на
+ * актуальный.
  */
 export function computeDueDripStep(
 	order: Pick<
@@ -54,17 +57,18 @@ export function computeDueDripStep(
 ): number | null {
 	const { dripStep, dripDeferredAt, dripAnyClickAt } = order;
 	if (dripStep >= 6) return null;
-	if (dripStep < 1) return daysSinceReady >= 0 ? 1 : null;
 
+	let due = 0;
+	if (daysSinceReady >= 0) due = 1;
 	if (!dripDeferredAt) {
-		if (dripStep < 2) return daysSinceReady >= 3 ? 2 : null;
-		if (dripStep < 3) return daysSinceReady >= 6 ? 3 : null;
-		if (dripStep < 4 && dripAnyClickAt && daysSinceReady >= 9) return 4;
+		if (daysSinceReady >= 3) due = 2;
+		if (daysSinceReady >= 6) due = 3;
+		if (dripAnyClickAt && daysSinceReady >= 9) due = 4;
 	}
+	if (daysSinceReady >= PRICE_DEADLINE_DAY) due = 5;
+	if (daysSinceReady >= CLOSE_DAY) due = 6;
 
-	if (dripStep < 5) return daysSinceReady >= PRICE_DEADLINE_DAY ? 5 : null;
-	if (dripStep < 6) return daysSinceReady >= CLOSE_DAY ? 6 : null;
-	return null;
+	return due > dripStep ? due : null;
 }
 
 function formatRuDate(date: Date): string {
@@ -91,12 +95,6 @@ function buildStepMessage(
 ): { text: string; buttons?: MessengerButton[][] } {
 	const name = order.name?.trim() || "друг";
 	const дата = formatRuDate(priceDeadline);
-	const payUrl = buildProdamusPaymentUrl({
-		orderId: order.orderNo,
-		phone: order.phone ?? undefined,
-		email: order.email ?? undefined,
-		sum: PREORDER_PRICE_RUB,
-	});
 	const payButton: MessengerButton = {
 		text: t.bp_btn_drip_pay,
 		payload: `bpd_pay:${order.orderNo}`,
@@ -105,7 +103,7 @@ function buildStepMessage(
 	switch (step) {
 		case 1:
 			return {
-				text: render(t.bp_drip_1_text, { name, дата, ссылка: payUrl }),
+				text: render(t.bp_drip_1_text, { name, дата }),
 				buttons: [
 					[payButton],
 					[
@@ -124,7 +122,7 @@ function buildStepMessage(
 			};
 		case 2:
 			return {
-				text: render(t.bp_drip_2_text, { name, дата, ссылка: payUrl }),
+				text: render(t.bp_drip_2_text, { name, дата }),
 				buttons: [
 					[payButton],
 					[
@@ -137,7 +135,7 @@ function buildStepMessage(
 			};
 		case 3:
 			return {
-				text: render(t.bp_drip_3_text, { name, дата, ссылка: payUrl }),
+				text: render(t.bp_drip_3_text, { name, дата }),
 				buttons: [
 					[payButton],
 					[
@@ -150,23 +148,17 @@ function buildStepMessage(
 			};
 		case 4:
 			return {
-				text: render(t.bp_drip_4_text, { name, ссылка: payUrl }),
+				text: render(t.bp_drip_4_text, { name }),
 				buttons: [[payButton]],
 			};
 		case 5:
 			return {
-				text: render(t.bp_drip_5_text, { name, ссылка: payUrl }),
+				text: render(t.bp_drip_5_text, { name }),
 				buttons: [[payButton]],
 			};
 		default: {
-			const regularUrl = buildProdamusPaymentUrl({
-				orderId: order.orderNo,
-				phone: order.phone ?? undefined,
-				email: order.email ?? undefined,
-				sum: REGULAR_PRICE_RUB,
-			});
 			return {
-				text: render(t.bp_drip_6_text, { name, ссылка: regularUrl }),
+				text: render(t.bp_drip_6_text, { name }),
 				buttons: [
 					[
 						{
@@ -208,6 +200,16 @@ export async function sendBookPreorderDrip(): Promise<SendBookPreorderDripResult
 		const step = computeDueDripStep(order, daysSinceReady);
 		if (!step) continue;
 
+		// Бронируем шаг до отправки — если параллельный запуск джобы уже забрал
+		// этот же шаг для заказа (CAS по dripStep), пропускаем без повторной
+		// отправки. См. reserveBookPreorderDripStep.
+		const claimed = await reserveBookPreorderDripStep(
+			order.id,
+			order.dripStep,
+			step,
+		);
+		if (!claimed) continue;
+
 		const messenger = order.messenger as Messenger;
 		const message = buildStepMessage(step, order, priceDeadline, t);
 		try {
@@ -226,7 +228,7 @@ export async function sendBookPreorderDrip(): Promise<SendBookPreorderDripResult
 				status: "sent",
 				externalId,
 			});
-			await recordBookPreorderDripStep(order.id, step);
+			await finalizeBookPreorderDripStep(order.id, step);
 			if (order.dealId) {
 				await appendDealComment(
 					messenger,
@@ -237,6 +239,10 @@ export async function sendBookPreorderDrip(): Promise<SendBookPreorderDripResult
 			sent++;
 		} catch (err) {
 			errors++;
+			// Снимаем бронь — иначе шаг больше никогда не будет due (dripStep уже
+			// продвинут) и клиент молча не получит ни это напоминание, ни
+			// следующие по цепочке.
+			await releaseBookPreorderDripStep(order.id, step, order.dripStep);
 			await insertBotMessage({
 				messenger,
 				userId: order.userId,

@@ -404,15 +404,16 @@ export function createBot({
 		);
 		if (ymClientId) ctx.session.ymClientId = ymClientId;
 
-		// Диплинк с лендинга предзаказа книги (t.me/bot?start=TELO, опционально
-		// с источником через `_`, см. matchesBookPreorderStartParam) — отдельный
-		// сценарий (scenario/book-preorder/), проверяем до кампаний гайда, т.к.
-		// это фиксированное кодовое слово, не требующее похода в БД.
+		// Диплинк с лендинга предзаказа книги (t.me/bot?start=TELOPAY|TELOBOOK,
+		// опционально с источником через `_`, см.
+		// matchesBookPreorderStartParam) — отдельный сценарий
+		// (scenario/book-preorder/), проверяем до кампаний гайда, т.к. это
+		// фиксированные кодовые слова, не требующие похода в БД.
 		const bookPreorder = matchesBookPreorderStartParam(startParam);
 		if (bookPreorder) {
 			if (bookPreorder.source) ctx.session.source = bookPreorder.source;
 			log(
-				`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} book_preorder${bookPreorder.source ? ` source=${bookPreorder.source}` : ""} messenger=telegram`,
+				`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} book_preorder${bookPreorder.intent ? ` intent=${bookPreorder.intent}` : ""}${bookPreorder.source ? ` source=${bookPreorder.source}` : ""} messenger=telegram`,
 			);
 			await collectTelegramProfile(
 				ctx,
@@ -424,7 +425,7 @@ export function createBot({
 			const texts = await getScenarioTexts();
 			await dispatchBookPreorder(
 				ctx,
-				startBookPreorder(texts, bookPreorder.source),
+				startBookPreorder(texts, bookPreorder.source, bookPreorder.intent),
 				texts,
 			);
 			return;
@@ -488,10 +489,12 @@ export function createBot({
 			await ctx
 				.editMessageReplyMarkup({ reply_markup: undefined })
 				.catch(() => {});
-			if (!ctx.chatId) return;
+			if (!ctx.chatId || !ctx.from) return;
 			const texts = await getScenarioTexts();
 			const reply = await handleBookPreorderDripCallback(
 				"telegram",
+				ctx.from.id,
+				ctx.chatId,
 				dripCallback,
 				texts,
 			);

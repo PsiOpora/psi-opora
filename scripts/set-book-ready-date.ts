@@ -1,4 +1,5 @@
-import pg from "../packages/db/node_modules/pg/lib/index.js";
+import pg from "pg";
+import { z } from "zod";
 
 const { Pool } = pg;
 
@@ -20,10 +21,18 @@ async function main() {
 			"Укажите дату (ISO, напр. 2026-10-15): bun run scripts/set-book-ready-date.ts 2026-10-15",
 		);
 	}
-	const date = new Date(raw);
-	if (Number.isNaN(date.getTime())) {
-		throw new Error(`Не удалось разобрать дату: ${raw}`);
+	const parsed = z.iso.date().safeParse(raw);
+	if (!parsed.success) {
+		throw new Error(
+			`Ожидается календарная дата в формате YYYY-MM-DD, без времени и часового пояса: ${raw}`,
+		);
 	}
+	const [year, month, day] = parsed.data.split("-").map(Number) as [
+		number,
+		number,
+		number,
+	];
+	const date = new Date(Date.UTC(year, month - 1, day));
 
 	const connectionString = process.env.POSTGRES_URL;
 	if (!connectionString) throw new Error("POSTGRES_URL не задан");

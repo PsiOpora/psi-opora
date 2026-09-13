@@ -22,6 +22,7 @@ export {
 	applyBookPreorderText,
 	BOOK_PREORDER_ACTIONS,
 	type BookPreorderAction,
+	type BookPreorderIntent,
 	type BookPreorderLead,
 	type BookPreorderMessage,
 	type BookPreorderOutput,

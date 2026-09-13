@@ -5,7 +5,14 @@ import {
 	verifyProdamusSignature,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
-import { markBookPreorderPaid } from "@psi-opora/db/queries";
+import {
+	claimBookPreorderDealPaidSync,
+	claimBookPreorderPaidNotification,
+	getBookPreorderOrderByOrderNo,
+	markBookPreorderPaid,
+	releaseBookPreorderDealPaidSync,
+	releaseBookPreorderPaidNotification,
+} from "@psi-opora/db/queries";
 import { type Messenger, sendMessengerMessage } from "@psi-opora/jobs";
 
 /**
@@ -17,20 +24,28 @@ import { type Messenger, sendMessengerMessage } from "@psi-opora/jobs";
  * тестовый платёж и логи — см. допущение 2 в плане реализации сценария.
  */
 
+/** Ключи, которые нельзя пускать в путь параметра — иначе `node[segment] = {}`
+ * на объекте с обычным прототипом дотягивается до Object.prototype
+ * (`__proto__`) или его конструктора ещё до проверки подписи вебхука. */
+const UNSAFE_PATH_SEGMENTS = new Set(["__proto__", "prototype", "constructor"]);
+
 /** Разбирает form-urlencoded тело с PHP-style вложенностью (`products[0][price]`)
- * в обычный объект — так же, как это видит Prodamus при формировании подписи. */
+ * в обычный объект — так же, как это видит Prodamus при формировании подписи.
+ * Объекты без прототипа (Object.create(null)) — дополнительный барьер на
+ * случай, если сегмент пути всё же похож на `__proto__`. */
 function parseFormFields(raw: string): Record<string, unknown> {
 	const params = new URLSearchParams(raw);
-	const root: Record<string, unknown> = {};
+	const root: Record<string, unknown> = Object.create(null);
 	for (const [rawKey, value] of params.entries()) {
 		const path = rawKey.replace(/\]/g, "").split("[").filter(Boolean);
 		if (path.length === 0) continue;
+		if (path.some((segment) => UNSAFE_PATH_SEGMENTS.has(segment))) continue;
 		let node = root;
 		for (let i = 0; i < path.length - 1; i++) {
 			const segment = path[i] as string;
 			const child = node[segment];
 			if (typeof child !== "object" || child === null) {
-				node[segment] = {};
+				node[segment] = Object.create(null);
 			}
 			node = node[segment] as Record<string, unknown>;
 		}
@@ -77,30 +92,52 @@ export async function handlePayformWebhook(
 		return Response.json({ ok: true });
 	}
 
-	// Идемпотентность: markBookPreorderPaid обновляет только заказы в статусе
-	// "awaiting_payment" — повторный вебхук по уже оплаченному заказу вернёт
-	// null и просьба клиенту про адрес не уйдёт дважды.
-	const order = await markBookPreorderPaid(orderNo);
-	if (!order) return Response.json({ ok: true });
+	// markBookPreorderPaid переводит в paid только заказы в статусе
+	// "awaiting_payment" и вернёт null на повторный вебхук по уже оплаченному
+	// заказу — тогда договариваем недоделанные побочные операции по заказу,
+	// найденному напрямую (см. ниже claim*/release*): статус "paid" не
+	// обязан означать, что клиенту ушло уведомление или сделка обновилась.
+	const order =
+		(await markBookPreorderPaid(orderNo)) ??
+		(await getBookPreorderOrderByOrderNo(orderNo));
+	if (order?.status !== "paid") return Response.json({ ok: true });
 
 	const messenger = order.messenger as Messenger;
-	const texts = await getScenarioTexts();
-	const text = texts.bp_paid_reply.replaceAll("{номер}", String(order.orderNo));
-	try {
-		await sendMessengerMessage(messenger, order.userId, text);
-	} catch (err) {
-		console.error(
-			`[payform-webhook] не удалось отправить подтверждение оплаты order=${order.id}: ${(err as Error).message}`,
-		);
+
+	if (!order.paidNotifiedAt && (await claimBookPreorderPaidNotification(order.id))) {
+		try {
+			const texts = await getScenarioTexts();
+			const text = texts.bp_paid_reply.replaceAll(
+				"{номер}",
+				String(order.orderNo),
+			);
+			await sendMessengerMessage(messenger, order.userId, text);
+		} catch (err) {
+			console.error(
+				`[payform-webhook] не удалось отправить подтверждение оплаты order=${order.id}: ${(err as Error).message}`,
+			);
+			await releaseBookPreorderPaidNotification(order.id);
+		}
 	}
 
-	if (order.dealId) {
-		await moveBookPreorderDealStage(messenger, order.dealId, "paid");
-		await appendDealComment(
-			messenger,
-			order.dealId,
-			`💰 Оплата получена (Prodamus), заказ №${order.orderNo}.`,
-		);
+	if (
+		order.dealId &&
+		!order.dealPaidSyncedAt &&
+		(await claimBookPreorderDealPaidSync(order.id))
+	) {
+		try {
+			await moveBookPreorderDealStage(messenger, order.dealId, "paid");
+			await appendDealComment(
+				messenger,
+				order.dealId,
+				`💰 Оплата получена (Prodamus), заказ №${order.orderNo}.`,
+			);
+		} catch (err) {
+			console.error(
+				`[payform-webhook] не удалось обновить сделку Bitrix order=${order.id}: ${(err as Error).message}`,
+			);
+			await releaseBookPreorderDealPaidSync(order.id);
+		}
 	}
 
 	return Response.json({ ok: true });

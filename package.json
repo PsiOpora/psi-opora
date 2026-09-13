@@ -22,10 +22,14 @@
     "build": "bun --env-file=.env turbo run build",
     "typecheck": "turbo typecheck"
   },
+  "dependencies": {
+    "pg": "^8.23.0"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",
     "@types/bun": "1.4.2",
     "@types/node": "26.5.1",
+    "@types/pg": "^8.11.6",
     "turbo": "^2.10.12",
     "typescript": "7.0.2"
   },

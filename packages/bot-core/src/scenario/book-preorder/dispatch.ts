@@ -131,7 +131,11 @@ export async function dispatchBookPreorderOutput(
 			email: out.state.email,
 			sum: PREORDER_PRICE_RUB,
 		});
-		const linkMessage = bpPaymentLinkMessage(url, deps.texts);
+		const linkMessage = bpPaymentLinkMessage(
+			url,
+			PREORDER_PRICE_RUB,
+			deps.texts,
+		);
 		try {
 			await deps.sendMessage(linkMessage);
 			await logBotMessage({

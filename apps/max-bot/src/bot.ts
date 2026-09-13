@@ -466,13 +466,13 @@ export function createMaxBot({
 		if (bookPreorder) {
 			if (bookPreorder.source) ctx.session.source = bookPreorder.source;
 			log(
-				`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} book_preorder${bookPreorder.source ? ` source=${bookPreorder.source}` : ""} messenger=max`,
+				`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} book_preorder${bookPreorder.intent ? ` intent=${bookPreorder.intent}` : ""}${bookPreorder.source ? ` source=${bookPreorder.source}` : ""} messenger=max`,
 			);
 			await collectMaxProfile(ctx, ctx.session.source, ctx.session.campaign);
 			const texts = await getScenarioTexts();
 			await dispatchBookPreorder(
 				ctx,
-				startBookPreorder(texts, bookPreorder.source),
+				startBookPreorder(texts, bookPreorder.source, bookPreorder.intent),
 				texts,
 			);
 			return;
@@ -638,14 +638,17 @@ export function createMaxBot({
 			if (!raw) return;
 			const dripCallback = parseDripCallback(raw);
 			if (!dripCallback) return;
+			const userId = appCtx.user?.user_id;
+			if (!userId) return;
 			const texts = await getScenarioTexts();
 			const reply = await handleBookPreorderDripCallback(
 				"max",
+				userId,
+				userId,
 				dripCallback,
 				texts,
 			);
 			if (!reply) return;
-			const userId = appCtx.user?.user_id;
 			if (userId) {
 				await logBotMessage({
 					messenger: "max",

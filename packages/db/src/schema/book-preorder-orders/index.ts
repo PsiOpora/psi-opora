@@ -38,6 +38,12 @@ export const bookPreorderOrders = pgTable("book_preorder_orders", {
 	reservedAt: timestamp("reserved_at").defaultNow().notNull(),
 	paidAt: timestamp("paid_at"),
 	declinedAt: timestamp("declined_at"),
+	/** Побочные операции вебхука об оплате (apps/bitrix-webhook) отмечаются
+	 * отдельно от paidAt — иначе повторный вебхук по уже оплаченному заказу
+	 * не смог бы доставить упавшее с первого раза уведомление клиенту или
+	 * обновление сделки в Bitrix (см. handlePayformWebhook). */
+	paidNotifiedAt: timestamp("paid_notified_at"),
+	dealPaidSyncedAt: timestamp("deal_paid_synced_at"),
 
 	/** Снимок дедлайна цены предзаказа (1980 ₽) на момент старта цепочки Б1–Б6. */
 	preorderPriceExpiresAt: timestamp("preorder_price_expires_at"),

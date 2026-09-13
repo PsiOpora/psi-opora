@@ -1,6 +1,7 @@
-import { hasPhoneNumber, isValidEmail } from "../../utils/validation";
+import { isValidEmail, parsePhoneNumber } from "../../utils/validation";
 import type { ScenarioTexts } from "../texts";
 import {
+	bpAboutBookInfoMessage,
 	bpAboutBookQuestion,
 	bpConsentQuestion,
 	bpReservedQuestion,
@@ -8,12 +9,14 @@ import {
 } from "./questions";
 import type {
 	BookPreorderAction,
+	BookPreorderIntent,
 	BookPreorderMessage,
 	BookPreorderOutput,
 	BookPreorderState,
 } from "./types";
 
 export type {
+	BookPreorderIntent,
 	BookPreorderLead,
 	BookPreorderMessage,
 	BookPreorderOutput,
@@ -35,12 +38,19 @@ export {
  * почти нет, кроме общего key-value хранилища текстов (../texts.ts).
  *
  * Дерево:
- *   /start TELO → согласие на ПДн → имя → телефон → рассказ о книге →
- *   ├── «Забронировать бесплатно» → бронь (создаётся сделка/заказ,
- *   │     paymentChoice=deferred) → «Оплатить сейчас» / «Ещё отрывок» / «Вопрос»
- *   └── «Оплатить 1 980 ₽» (сразу или из брони) → email → ссылка на оплату
- *         (сделка/заказ создаются здесь, если ещё не было брони) → ждём
- *         вебхук Prodamus (см. apps/bitrix-webhook/src/payform-webhook.ts)
+ *   /start TELO|TELOPAY|TELOBOOK → согласие на ПДн → имя → телефон →
+ *   ├── /start TELOBOOK (кнопка «Забронировать» на лендинге, intent=reserve)
+ *   │     → рассказ о книге без кнопок → бронь (создаётся сделка/заказ,
+ *   │       paymentChoice=deferred) → «Оплатить сейчас» / «Ещё отрывок» / «Вопрос»
+ *   ├── /start TELOPAY (кнопка «Оформить предзаказ», intent=pay)
+ *   │     → рассказ о книге без кнопок → email → ссылка на оплату сразу
+ *   └── /start TELO (без выбора на сайте) → рассказ о книге с двумя кнопками
+ *         «Забронировать бесплатно» / «Оплатить 1 980 ₽» — дальше как выше
+ *
+ * В любой из веток «Оплатить» ведёт к email → ссылке на оплату (сделка/заказ
+ * создаются здесь, если ещё не было брони) → ждём вебхук Prodamus (см.
+ * apps/bitrix-webhook/src/payform-webhook.ts). Матчинг /start-параметра —
+ * см. matchesBookPreorderStartParam в utils/utm.ts.
  *
  * Кнопки цепочки напоминаний Б1–Б6 не проходят через этот движок — сессия к
  * моменту рассылки давно истекла, они адресуются напрямую по orderId
@@ -72,11 +82,52 @@ function output(
 	};
 }
 
+/**
+ * Шаг сразу после телефона: если человек пришёл с лендинга уже с выбранной
+ * веткой (state.intent — см. matchesBookPreorderStartParam), показываем
+ * рассказ о книге без кнопок выбора и сразу ведём по этой ветке — повторно
+ * спрашивать «забронировать или оплатить» незачем, кнопку на сайте он уже
+ * нажал. Без intent (голый /start TELO) — прежнее поведение: рассказ с
+ * двумя кнопками (см. bpAboutBookQuestion).
+ */
+function afterPhoneOutput(
+	state: BookPreorderState,
+	t: ScenarioTexts,
+): BookPreorderOutput {
+	if (state.intent === "reserve") {
+		return output(
+			{ ...state, step: "reserved" },
+			[
+				bpAboutBookInfoMessage(state.name, t),
+				bpReservedQuestion(state.name, t),
+			],
+			{
+				lead: {
+					name: state.name,
+					phone: state.phone,
+					consentAt: state.consentAt,
+					paymentChoice: "deferred",
+				},
+			},
+		);
+	}
+	if (state.intent === "pay") {
+		return output({ ...state, step: "email_for_payment" }, [
+			bpAboutBookInfoMessage(state.name, t),
+			{ text: t.bp_payment_intro_text },
+		]);
+	}
+	return output({ ...state, step: "about_book" }, [
+		bpAboutBookQuestion(state.name, t),
+	]);
+}
+
 export function startBookPreorder(
 	t: ScenarioTexts,
 	source?: string,
+	intent?: BookPreorderIntent,
 ): BookPreorderOutput {
-	return output({ step: "consent", source }, [bpConsentQuestion(t)]);
+	return output({ step: "consent", source, intent }, [bpConsentQuestion(t)]);
 }
 
 export function applyBookPreorderAction(
@@ -206,23 +257,17 @@ export async function applyBookPreorderText(
 		}
 
 		case "phone": {
-			if (hasPhoneNumber(trimmed)) {
-				return output({ ...state, step: "about_book", phone: trimmed }, [
-					bpAboutBookQuestion(state.name, t),
-				]);
+			const phone = parsePhoneNumber(trimmed);
+			if (phone) {
+				return afterPhoneOutput({ ...state, phone }, t);
 			}
 			const attempts = (state.phoneAttempts ?? 0) + 1;
 			if (attempts >= MAX_PHONE_ATTEMPTS) {
 				// Не теряем человека из-за формата — идём дальше без телефона,
 				// в сделке остаётся пометка (см. dispatch.ts: phoneSkipped).
-				return output(
-					{
-						...state,
-						step: "about_book",
-						phoneAttempts: attempts,
-						phoneSkipped: true,
-					},
-					[bpAboutBookQuestion(state.name, t)],
+				return afterPhoneOutput(
+					{ ...state, phoneAttempts: attempts, phoneSkipped: true },
+					t,
 				);
 			}
 			return output({ ...state, phoneAttempts: attempts }, [
@@ -234,7 +279,7 @@ export async function applyBookPreorderText(
 			if (isValidEmail(trimmed)) {
 				const next = {
 					...state,
-					step: "email_for_payment" as const,
+					step: "awaiting_payment" as const,
 					email: trimmed,
 				};
 				return output(next, [], {

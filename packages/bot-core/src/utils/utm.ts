@@ -1,3 +1,5 @@
+import { z } from "zod";
+import type { BookPreorderIntent } from "../scenario/book-preorder/types";
 import { SITE_CODES } from "./site-codes";
 
 export interface UtmParams {
@@ -128,20 +130,43 @@ function stripAt(botUsername: string): string {
 }
 
 /**
- * Кодовое слово входа в сценарий предзаказа книги «Тело берёт своё»
+ * Кодовые слова входа в сценарий предзаказа книги «Тело берёт своё»
  * (psi-opora.ru/telo-beret-svoe/) — в отличие от bot_guide_campaigns это
- * единственная, не настраиваемая через дашборд кампания, поэтому сверяем с
- * константой, а не ходим в БД. Источник рекламы — как у гайд-кампаний, через
- * `_` (см. splitStartParam), напр. `TELO_VK`.
+ * не настраиваемая через дашборд кампания, поэтому сверяем с константами, а
+ * не ходим в БД. Источник рекламы — как у гайд-кампаний, через `_` (см.
+ * splitStartParam), напр. `TELOPAY_VK`.
+ *
+ * На лендинге две кнопки, каждая ведёт на свой keyword и сразу выбирает ветку
+ * сценария (см. BookPreorderIntent в scenario/book-preorder/types.ts) —
+ * человек не видит повторного выбора внутри диалога:
+ *   - «Оформить предзаказ» → TELOPAY  → оплата сразу (email → ссылка Prodamus)
+ *   - «Забронировать»      → TELOBOOK → бесплатная бронь (оплата потом, Б1–Б6)
+ * Голый TELO без интента оставлен для тестов/старых ссылок — показывает
+ * обычный выбор двух кнопок внутри диалога (см. bpAboutBookQuestion).
  */
-const BOOK_PREORDER_KEYWORD = "TELO";
+const BOOK_PREORDER_KEYWORD_INTENTS: Record<
+	string,
+	BookPreorderIntent | undefined
+> = {
+	TELO: undefined,
+	TELOPAY: "pay",
+	TELOBOOK: "reserve",
+};
+
+/** Тот же формат, что и isValidStartParam выше — до 64 латинских
+ * букв/цифр/`_`/`-`, как реально приходит в start-параметре мессенджера. */
+const startParamSchema = z.string().regex(START_PARAM_RE);
 
 export function matchesBookPreorderStartParam(
 	startParam: string | undefined,
-): { source?: string } | null {
+): { source?: string; intent?: BookPreorderIntent } | null {
 	if (!startParam) return null;
-	const { keyword, source } = splitStartParam(startParam);
-	return keyword.toUpperCase() === BOOK_PREORDER_KEYWORD ? { source } : null;
+	const parsed = startParamSchema.safeParse(startParam);
+	if (!parsed.success) return null;
+	const { keyword, source } = splitStartParam(parsed.data);
+	const normalized = keyword.toUpperCase();
+	if (!(normalized in BOOK_PREORDER_KEYWORD_INTENTS)) return null;
+	return { source, intent: BOOK_PREORDER_KEYWORD_INTENTS[normalized] };
 }
 
 export function formatUtmLog(params: UtmParams): string {
