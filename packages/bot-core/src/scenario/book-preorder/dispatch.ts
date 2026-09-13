@@ -113,20 +113,18 @@ export async function dispatchBookPreorderOutput(
 		if (order) out.state.orderNo = order.orderNo;
 	}
 
-	if (
-		out.buildPaymentLink &&
-		out.state.dealId &&
-		out.state.orderNo !== undefined
-	) {
+	if (out.buildPaymentLink && out.state.orderNo !== undefined) {
 		await markBookPreorderAwaitingPayment(key, {
 			email: out.state.email,
 			dealId: out.state.dealId,
 		});
-		await moveBookPreorderDealStage(
-			deps.messenger,
-			out.state.dealId,
-			"awaitingPayment",
-		);
+		if (out.state.dealId) {
+			await moveBookPreorderDealStage(
+				deps.messenger,
+				out.state.dealId,
+				"awaitingPayment",
+			);
+		}
 		const url = buildProdamusPaymentUrl({
 			orderId: out.state.orderNo,
 			phone: out.state.phone,
@@ -154,11 +152,13 @@ export async function dispatchBookPreorderOutput(
 			});
 			throw err;
 		}
-		await appendDealComment(
-			deps.messenger,
-			out.state.dealId,
-			`💳 Ссылка на оплату отправлена клиенту: ${url}`,
-		);
+		if (out.state.dealId) {
+			await appendDealComment(
+				deps.messenger,
+				out.state.dealId,
+				`💳 Ссылка на оплату отправлена клиенту: ${url}`,
+			);
+		}
 	}
 
 	if (out.manualPaymentCheck && out.state.dealId) {

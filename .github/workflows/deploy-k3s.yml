@@ -117,7 +117,6 @@ jobs:
     name: Apply database migrations
     needs: detect
     runs-on: ubuntu-latest
-    if: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -150,6 +149,7 @@ jobs:
     name: Build & deploy ${{ matrix.service }}
     needs:
       - detect
+      - migrate
     if: needs.detect.outputs.services != '[]'
     runs-on: ubuntu-latest
     permissions:
