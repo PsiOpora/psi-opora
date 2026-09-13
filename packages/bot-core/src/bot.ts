@@ -1,6 +1,19 @@
 import { logger } from "@psi-opora/config";
 import type { Api, StorageAdapter } from "grammy";
 import { Bot, InlineKeyboard, session } from "grammy";
+import { dispatchBookPreorderOutput } from "./scenario/book-preorder/dispatch";
+import {
+	handleBookPreorderDripCallback,
+	parseDripCallback,
+} from "./scenario/book-preorder/drip-actions";
+import {
+	applyBookPreorderAction,
+	applyBookPreorderText,
+	type BookPreorderOutput,
+	bpActionLabel,
+	isBookPreorderAction,
+	startBookPreorder,
+} from "./scenario/book-preorder/engine";
 import { dispatchScenarioOutput } from "./scenario/dispatch";
 import {
 	actionLabel,
@@ -47,6 +60,7 @@ import {
 	decodeStartParam,
 	extractYmClientId,
 	formatUtmLog,
+	matchesBookPreorderStartParam,
 	parseUtmParams,
 } from "./utils/utm";
 
@@ -339,6 +353,30 @@ export function createBot({
 		});
 	};
 
+	const dispatchBookPreorder = async (
+		ctx: AppContext,
+		out: BookPreorderOutput,
+		texts: ScenarioTexts,
+	) => {
+		const chatId = ctx.chatId;
+		if (!chatId) return;
+		ctx.session.bookPreorder = out.state;
+		await dispatchBookPreorderOutput(out, {
+			messenger: "telegram",
+			chatId,
+			texts,
+			sendMessage: (message) =>
+				sendTelegramScenarioMessage(ctx.api, chatId, message),
+			userName: [ctx.from?.first_name, ctx.from?.last_name]
+				.filter(Boolean)
+				.join(" "),
+			userId: ctx.from?.id,
+			source: ctx.session.source,
+			campaign: ctx.session.campaign,
+			ymClientId: ctx.session.ymClientId,
+		});
+	};
+
 	bot.command("start", async (ctx) => {
 		const rawParam = typeof ctx.match === "string" ? ctx.match : undefined;
 
@@ -365,6 +403,33 @@ export function createBot({
 			decodeStartParam(rawParam),
 		);
 		if (ymClientId) ctx.session.ymClientId = ymClientId;
+
+		// Диплинк с лендинга предзаказа книги (t.me/bot?start=TELO, опционально
+		// с источником через `_`, см. matchesBookPreorderStartParam) — отдельный
+		// сценарий (scenario/book-preorder/), проверяем до кампаний гайда, т.к.
+		// это фиксированное кодовое слово, не требующее похода в БД.
+		const bookPreorder = matchesBookPreorderStartParam(startParam);
+		if (bookPreorder) {
+			if (bookPreorder.source) ctx.session.source = bookPreorder.source;
+			log(
+				`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} book_preorder${bookPreorder.source ? ` source=${bookPreorder.source}` : ""} messenger=telegram`,
+			);
+			await collectTelegramProfile(
+				ctx,
+				ctx.session.source,
+				ctx.session.campaign,
+				resolvedToken,
+				uploadAvatar,
+			);
+			const texts = await getScenarioTexts();
+			await dispatchBookPreorder(
+				ctx,
+				startBookPreorder(texts, bookPreorder.source),
+				texts,
+			);
+			return;
+		}
+
 		const resolved = startParam
 			? await resolveGuideCampaignStart(startParam)
 			: null;
@@ -414,6 +479,42 @@ export function createBot({
 		const action = ctx.callbackQuery.data;
 		const stageConsent = parseStageConsentPayload(action);
 		await ctx.answerCallbackQuery();
+
+		// Кнопка из напоминания о предзаказе книги (Б1–Б6, packages/jobs) — не
+		// привязана к сессии, адресуется напрямую по номеру заказа (см.
+		// scenario/book-preorder/drip-actions.ts).
+		const dripCallback = parseDripCallback(action);
+		if (dripCallback) {
+			await ctx
+				.editMessageReplyMarkup({ reply_markup: undefined })
+				.catch(() => {});
+			if (!ctx.chatId) return;
+			const texts = await getScenarioTexts();
+			const reply = await handleBookPreorderDripCallback(
+				"telegram",
+				dripCallback,
+				texts,
+			);
+			if (!reply) return;
+			if (ctx.from) {
+				await logBotMessage({
+					messenger: "telegram",
+					userId: ctx.from.id,
+					direction: "in",
+					source: "scenario",
+					text: `[напоминание о предзаказе] ${dripCallback.action}`,
+				});
+			}
+			await sendTelegramScenarioMessage(ctx.api, ctx.chatId, reply);
+			await logBotMessage({
+				messenger: "telegram",
+				userId: ctx.from?.id,
+				direction: "out",
+				source: "scenario",
+				text: reply.text,
+			});
+			return;
+		}
 
 		// Кнопка из follow-up-сообщения кампании гайда (packages/jobs) — не
 		// часть машины состояний сценария, обрабатывается отдельно.
@@ -505,6 +606,29 @@ export function createBot({
 		let out: ScenarioOutput | null = null;
 		let guideCampaign: GuideCampaignContext | null = null;
 
+		if (isBookPreorderAction(action)) {
+			const bpState = ctx.session.bookPreorder;
+			const bpOut = bpState
+				? applyBookPreorderAction(bpState, action, texts)
+				: null;
+			if (!bpOut) return;
+			await ctx
+				.editMessageReplyMarkup({ reply_markup: undefined })
+				.catch(() => {});
+			log(
+				`[BOOK_PREORDER] user=${ctx.from?.id} action=${action} messenger=telegram`,
+			);
+			await logBotMessage({
+				messenger: "telegram",
+				userId: ctx.from?.id,
+				direction: "in",
+				source: "scenario",
+				text: bpActionLabel(action, texts),
+			});
+			await dispatchBookPreorder(ctx, bpOut, texts);
+			return;
+		}
+
 		if (action === "start_consultation") {
 			// Кнопка «Записаться» из сообщений старого бота — сразу в флоу записи
 			out = startConsultation(texts);
@@ -585,6 +709,31 @@ export function createBot({
 					campaign: ctx.session.campaign,
 				})
 			: Promise.resolve();
+
+		// Активный сценарий предзаказа книги — раньше основного движка, чтобы
+		// текст на его шагах не путался с веткой консультации/гайда (см.
+		// scenario/book-preorder/engine.ts).
+		const bookPreorderState = ctx.session.bookPreorder;
+		if (bookPreorderState && bookPreorderState.step !== "done") {
+			const texts = await getScenarioTexts();
+			const bpOut = await applyBookPreorderText(bookPreorderState, text, texts);
+			if (!bpOut) {
+				await Promise.all([
+					crmEnrichment,
+					ctx.from
+						? triageOffScriptMessage({
+								messenger: "telegram",
+								userId: String(ctx.from.id),
+								text,
+							})
+						: Promise.resolve(),
+				]);
+				return;
+			}
+			await dispatchBookPreorder(ctx, bpOut, texts);
+			await crmEnrichment;
+			return;
+		}
 
 		const state = ctx.session.scenario;
 		if (!state) {

@@ -2,22 +2,31 @@ import { Bot, Context, Keyboard, type MiddlewareFn } from "@maxhub/max-bot-api";
 import type { RedisClient } from "@psi-opora/bot-core";
 import {
 	actionLabel,
+	applyBookPreorderAction,
+	applyBookPreorderText,
 	applyScenarioAction,
 	applyScenarioText,
 	type BitrixApiLike,
+	BOOK_PREORDER_ACTIONS,
+	type BookPreorderOutput,
+	bpActionLabel,
 	type ConsultationSession,
 	decodeStartParam,
+	dispatchBookPreorderOutput,
 	dispatchScenarioOutput,
 	enrichCrmFromClientMessage,
 	extractYmClientId,
 	formatUtmLog,
 	type GuideCampaignContext,
 	getScenarioTexts,
+	handleBookPreorderDripCallback,
 	handleGuideDiagnosticRequest,
 	handleStageConsentClick,
 	loadGuideCampaignContext,
 	logBotMessage,
 	looksLikeDiagnosticConsent,
+	matchesBookPreorderStartParam,
+	parseDripCallback,
 	parseStageConsentPayload,
 	parseUtmParams,
 	resolveGuideCampaignStart,
@@ -31,6 +40,7 @@ import {
 	sendMessageToOpenLine,
 	setFunnelUpsert,
 	stageConsentActionLabel,
+	startBookPreorder,
 	startConsultation,
 	startGuideCampaign,
 	startScenario,
@@ -403,6 +413,29 @@ export function createMaxBot({
 		});
 	};
 
+	const dispatchBookPreorder = async (
+		ctx: AppContext,
+		out: BookPreorderOutput,
+		texts: ScenarioTexts,
+	) => {
+		ctx.session.bookPreorder = out.state;
+		await dispatchBookPreorderOutput(out, {
+			messenger: "max",
+			chatId: ctx.user?.user_id,
+			texts,
+			// BookPreorderMessage — тот же {text, buttons?}, что и ScenarioMessage,
+			// но с более узким литеральным типом action у кнопок; toMaxKeyboard
+			// использует его только как строку в Keyboard.button.callback.
+			sendMessage: (message) =>
+				replyScenarioMessage(ctx, message as ScenarioMessage),
+			userName: ctx.user?.name,
+			userId: ctx.user?.user_id,
+			source: ctx.session.source,
+			campaign: ctx.session.campaign,
+			ymClientId: ctx.session.ymClientId,
+		});
+	};
+
 	async function handleStart(
 		ctx: AppContext,
 		startPayload: string | undefined,
@@ -426,6 +459,25 @@ export function createMaxBot({
 			decodeStartParam(startPayload),
 		);
 		if (ymClientId) ctx.session.ymClientId = ymClientId;
+
+		// Диплинк с лендинга предзаказа книги (см. такую же ветку в
+		// packages/bot-core/src/bot.ts, matchesBookPreorderStartParam).
+		const bookPreorder = matchesBookPreorderStartParam(startParam);
+		if (bookPreorder) {
+			if (bookPreorder.source) ctx.session.source = bookPreorder.source;
+			log(
+				`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} book_preorder${bookPreorder.source ? ` source=${bookPreorder.source}` : ""} messenger=max`,
+			);
+			await collectMaxProfile(ctx, ctx.session.source, ctx.session.campaign);
+			const texts = await getScenarioTexts();
+			await dispatchBookPreorder(
+				ctx,
+				startBookPreorder(texts, bookPreorder.source),
+				texts,
+			);
+			return;
+		}
+
 		const resolved = startParam
 			? await resolveGuideCampaignStart(startParam)
 			: null;
@@ -571,6 +623,72 @@ export function createMaxBot({
 					text: texts.stage_consent_ads_text,
 				});
 			}
+		});
+	}
+
+	// Кнопка из напоминания о предзаказе книги (Б1–Б6, packages/jobs) — не
+	// привязана к сессии, адресуется напрямую по номеру заказа (см.
+	// scenario/book-preorder/drip-actions.ts).
+	bot.action(
+		/^bpd_(pay|defer|cancel|buy2480|notify_ebook|stop):\d+$/,
+		async (ctx) => {
+			const appCtx = ctx as AppContext;
+			await appCtx.answerOnCallback({}).catch(() => {});
+			const raw = appCtx.match?.[0];
+			if (!raw) return;
+			const dripCallback = parseDripCallback(raw);
+			if (!dripCallback) return;
+			const texts = await getScenarioTexts();
+			const reply = await handleBookPreorderDripCallback(
+				"max",
+				dripCallback,
+				texts,
+			);
+			if (!reply) return;
+			const userId = appCtx.user?.user_id;
+			if (userId) {
+				await logBotMessage({
+					messenger: "max",
+					userId,
+					direction: "in",
+					source: "scenario",
+					text: `[напоминание о предзаказе] ${dripCallback.action}`,
+				});
+			}
+			await replyWithFallback(appCtx, reply.text, { format: "markdown" });
+			await logBotMessage({
+				messenger: "max",
+				userId,
+				direction: "out",
+				source: "scenario",
+				text: reply.text,
+			});
+		},
+	);
+
+	for (const action of BOOK_PREORDER_ACTIONS) {
+		bot.action(action, async (ctx) => {
+			const appCtx = ctx as AppContext;
+			await appCtx.answerOnCallback({}).catch(() => {});
+
+			const texts = await getScenarioTexts();
+			const bpState = appCtx.session.bookPreorder;
+			const bpOut = bpState
+				? applyBookPreorderAction(bpState, action, texts)
+				: null;
+			if (!bpOut) return;
+
+			log(
+				`[BOOK_PREORDER] user=${appCtx.user?.user_id} action=${action} messenger=max`,
+			);
+			await logBotMessage({
+				messenger: "max",
+				userId: appCtx.user?.user_id,
+				direction: "in",
+				source: "scenario",
+				text: bpActionLabel(action, texts),
+			});
+			await dispatchBookPreorder(appCtx, bpOut, texts);
 		});
 	}
 
@@ -736,6 +854,30 @@ export function createMaxBot({
 					campaign: appCtx.session.campaign,
 				})
 			: Promise.resolve();
+
+		// Активный сценарий предзаказа книги — раньше основного движка (см.
+		// такую же ветку в packages/bot-core/src/bot.ts).
+		const bookPreorderState = appCtx.session.bookPreorder;
+		if (bookPreorderState && bookPreorderState.step !== "done") {
+			const texts = await getScenarioTexts();
+			const bpOut = await applyBookPreorderText(bookPreorderState, text, texts);
+			if (!bpOut) {
+				await Promise.all([
+					crmEnrichment,
+					userId
+						? triageOffScriptMessage({
+								messenger: "max",
+								userId: String(userId),
+								text,
+							})
+						: Promise.resolve(),
+				]);
+				return;
+			}
+			await dispatchBookPreorder(appCtx, bpOut, texts);
+			await crmEnrichment;
+			return;
+		}
 
 		const state = appCtx.session.scenario;
 		if (!state) {

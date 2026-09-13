@@ -6,6 +6,11 @@ export {
 	runCrmBackup,
 } from "./backup";
 export {
+	computeDueDripStep,
+	type SendBookPreorderDripResult,
+	sendBookPreorderDrip,
+} from "./book-preorder-drip";
+export {
 	type ConsultationDealUpdateResult,
 	handleConsultationDealUpdate,
 	type SendConsultationRemindersResult,
@@ -30,6 +35,7 @@ export {
 	type SendGuideFollowUpsResult,
 	sendGuideFollowUps,
 } from "./guide-follow-ups";
+export { bookPreorderDrip } from "./hatchet/book-preorder-drip";
 export {
 	type DeliverBroadcastPayload,
 	deliverBroadcast,

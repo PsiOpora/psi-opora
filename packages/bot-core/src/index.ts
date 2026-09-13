@@ -7,6 +7,31 @@ export {
 	sendTelegramScenarioMessage,
 } from "./bot";
 export {
+	type BookPreorderDispatchDeps,
+	dispatchBookPreorderOutput,
+} from "./scenario/book-preorder/dispatch";
+export {
+	DRIP_CALLBACK_ACTIONS,
+	type DripCallbackAction,
+	handleBookPreorderDripCallback,
+	type ParsedDripCallback,
+	parseDripCallback,
+} from "./scenario/book-preorder/drip-actions";
+export {
+	applyBookPreorderAction,
+	applyBookPreorderText,
+	BOOK_PREORDER_ACTIONS,
+	type BookPreorderAction,
+	type BookPreorderLead,
+	type BookPreorderMessage,
+	type BookPreorderOutput,
+	type BookPreorderState,
+	type BookPreorderStep,
+	bpActionLabel,
+	isBookPreorderAction,
+	startBookPreorder,
+} from "./scenario/book-preorder/engine";
+export {
 	dispatchScenarioOutput,
 	type ScenarioDispatchDeps,
 } from "./scenario/dispatch";
@@ -52,12 +77,14 @@ export {
 	runScenarioReminders,
 } from "./scenario/reminders";
 export {
+	BOOK_READY_DATE_KEY,
 	DEFAULT_SCENARIO_TEXTS,
 	GUIDE_FILE_NAME_KEY,
 	GUIDE_FILE_S3_KEY,
 	GUIDE_FILE_SIZE_KEY,
 	GUIDE_FILE_URL_KEY,
 	type GuideFile,
+	getBookReadyDate,
 	getGuideFile,
 	getScenarioTexts,
 	MAX_BOT_USERNAME_KEY,
@@ -83,6 +110,9 @@ export {
 	appendDealComment,
 	type BitrixApiLike,
 	type BitrixSource,
+	BOOK_PREORDER_CATEGORY_ID,
+	BOOK_PREORDER_STAGE_IDS,
+	type BookPreorderStage,
 	type ContactData,
 	consumeOperatorMirrorEcho,
 	createBitrixContact,
@@ -92,6 +122,7 @@ export {
 	enqueueOperatorMirrorEcho,
 	listBitrixSources,
 	mirrorOperatorMessageToOpenLine,
+	moveBookPreorderDealStage,
 	type OpenLineConnector,
 	type OpenLineMessageData,
 	type OperatorMirrorEcho,
@@ -138,6 +169,11 @@ export {
 	type BotMessageSource,
 	logBotMessage,
 } from "./utils/message-log";
+export {
+	buildProdamusPaymentUrl,
+	type ProdamusPaymentLinkParams,
+	verifyProdamusSignature,
+} from "./utils/prodamus";
 export { SITE_CODES, type SiteCodeEntry } from "./utils/site-codes";
 export {
 	CONSENT_ADS_DECLINED_FIELD,
@@ -176,6 +212,7 @@ export {
 	formatUtmLog,
 	isValidCampaignKeyword,
 	isValidStartParam,
+	matchesBookPreorderStartParam,
 	parseUtmParams,
 	type StartParamWithClientId,
 	splitStartParam,

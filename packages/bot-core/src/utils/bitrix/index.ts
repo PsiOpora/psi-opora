@@ -1,3 +1,9 @@
+export {
+	BOOK_PREORDER_CATEGORY_ID,
+	BOOK_PREORDER_STAGE_IDS,
+	type BookPreorderStage,
+	moveBookPreorderDealStage,
+} from "./book-preorder-pipeline";
 export { createBitrixContact, createBitrixDeal } from "./create-deal";
 export {
 	mirrorOperatorMessageToOpenLine,

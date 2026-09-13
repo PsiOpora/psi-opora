@@ -1,3 +1,4 @@
+import { bookPreorderDrip } from "./book-preorder-drip";
 import { deliverBroadcast } from "./broadcast";
 import { getHatchetClient } from "./client";
 import { consultationReminders } from "./consultation-reminders";
@@ -25,6 +26,7 @@ export const hatchetTasks = [
 	guideFollowUps,
 	maxWebhookHealthcheck,
 	stageConsentOutbox,
+	bookPreorderDrip,
 ];
 
 export async function startHatchetWorker(): Promise<void> {

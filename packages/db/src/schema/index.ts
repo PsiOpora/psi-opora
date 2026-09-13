@@ -1,6 +1,7 @@
 export * from "./ads";
 export * from "./backup";
 export * from "./bitrix-crm-links";
+export * from "./book-preorder-orders";
 export * from "./bot-connectors";
 export * from "./bot-conversations";
 export * from "./bot-funnel";

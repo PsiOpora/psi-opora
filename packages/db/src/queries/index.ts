@@ -7,6 +7,21 @@ import {
 	upsertBitrixCrmLink as _upsertBitrixCrmLink,
 } from "./bitrix-crm-links";
 import {
+	getBookPreorderOrder as _getBookPreorderOrder,
+	getBookPreorderOrderByOrderNo as _getBookPreorderOrderByOrderNo,
+	listReservedBookPreorderOrders as _listReservedBookPreorderOrders,
+	markBookPreorderAwaitingPayment as _markBookPreorderAwaitingPayment,
+	markBookPreorderDeclined as _markBookPreorderDeclined,
+	markBookPreorderPaid as _markBookPreorderPaid,
+	recordBookPreorderDripAnyClick as _recordBookPreorderDripAnyClick,
+	recordBookPreorderDripDeferred as _recordBookPreorderDripDeferred,
+	recordBookPreorderDripStep as _recordBookPreorderDripStep,
+	setBookPreorderPriceDeadline as _setBookPreorderPriceDeadline,
+	setBookPreorderShipping as _setBookPreorderShipping,
+	upsertBookPreorderOrder as _upsertBookPreorderOrder,
+	type NewBookPreorderOrderEntry,
+} from "./book-preorder-orders";
+import {
 	getBotConnector as _getBotConnector,
 	markBotConnectorWebhookConfigured as _markBotConnectorWebhookConfigured,
 	removeBotConnector as _removeBotConnector,
@@ -118,6 +133,11 @@ import {
 export * from "./ads";
 export * from "./backup";
 export type { BitrixCrmLink } from "./bitrix-crm-links";
+export type {
+	BookPreorderOrder,
+	BookPreorderOrderStatus,
+	NewBookPreorderOrderEntry,
+} from "./book-preorder-orders";
 export type { BotConnector } from "./bot-connectors";
 export type {
 	BotConversation,
@@ -595,4 +615,63 @@ export async function listGuideViewers(
 	opts?: Parameters<typeof _listGuideViewers>[1],
 ) {
 	return _listGuideViewers(db, opts);
+}
+
+export async function upsertBookPreorderOrder(
+	entry: NewBookPreorderOrderEntry,
+) {
+	return _upsertBookPreorderOrder(db, entry);
+}
+
+export async function getBookPreorderOrder(messenger: string, userId: string) {
+	return _getBookPreorderOrder(db, messenger, userId);
+}
+
+export async function getBookPreorderOrderByOrderNo(orderNo: number) {
+	return _getBookPreorderOrderByOrderNo(db, orderNo);
+}
+
+export async function listReservedBookPreorderOrders() {
+	return _listReservedBookPreorderOrders(db);
+}
+
+export async function markBookPreorderAwaitingPayment(
+	id: string,
+	patch: Parameters<typeof _markBookPreorderAwaitingPayment>[2],
+) {
+	return _markBookPreorderAwaitingPayment(db, id, patch);
+}
+
+export async function markBookPreorderPaid(orderNo: number) {
+	return _markBookPreorderPaid(db, orderNo);
+}
+
+export async function markBookPreorderDeclined(id: string) {
+	return _markBookPreorderDeclined(db, id);
+}
+
+export async function setBookPreorderShipping(
+	id: string,
+	shipping: Parameters<typeof _setBookPreorderShipping>[2],
+) {
+	return _setBookPreorderShipping(db, id, shipping);
+}
+
+export async function setBookPreorderPriceDeadline(
+	id: string,
+	preorderPriceExpiresAt: Date,
+) {
+	return _setBookPreorderPriceDeadline(db, id, preorderPriceExpiresAt);
+}
+
+export async function recordBookPreorderDripStep(id: string, dripStep: number) {
+	return _recordBookPreorderDripStep(db, id, dripStep);
+}
+
+export async function recordBookPreorderDripDeferred(id: string) {
+	return _recordBookPreorderDripDeferred(db, id);
+}
+
+export async function recordBookPreorderDripAnyClick(id: string) {
+	return _recordBookPreorderDripAnyClick(db, id);
 }

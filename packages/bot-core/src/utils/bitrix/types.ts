@@ -57,8 +57,10 @@ export interface DealData extends ContactData {
 	phone: string;
 	/** Дополнительный комментарий к сделке (выбор пользователя в сценарии). */
 	comment?: string;
-	/** Ветка сценария (см. scenario/engine.ts) — попадает в заголовок и «Продукт». */
-	flow?: "consult" | "guide";
+	/** Ветка сценария (см. scenario/engine.ts) — попадает в заголовок и «Продукт».
+	 * "book_preorder" — отдельный сценарий предзаказа книги (см.
+	 * scenario/book-preorder/), уходит в свою воронку/стадии Bitrix. */
+	flow?: "consult" | "guide" | "book_preorder";
 	/** Выбор в флоу гайда: кому нужна помощь. */
 	audience?: "child" | "self";
 	/** Выбор в флоу гайда: с чем связаны трудности. */
