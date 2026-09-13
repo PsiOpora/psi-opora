@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notLike, sql } from "drizzle-orm";
 import type { Database } from "../client.types";
 import { botFunnelEvents, botFunnelUserSteps } from "../schema/bot-funnel";
 import { botUsers } from "../schema/bot-users";
@@ -168,6 +168,51 @@ export async function getBotFunnelUniqueStepCountsByDateRange(
 		);
 
 	return rows.map((row) => ({ ...row, uniqueUsers: Number(row.uniqueUsers) }));
+}
+
+export interface BotFunnelTrendDay {
+	day: string;
+	starts: number;
+	deals: number;
+}
+
+/** Уникальные пользователи, дошедшие до "start"/"deal" по дням — для графика
+ * динамики воронки (обе ветки сценария объединены в один шаг "deal", т.к.
+ * пользователь идёт только по одной ветке — двойного счёта нет). */
+export async function getBotFunnelTrendByDay(
+	db: Database,
+	fromDate: string,
+	toDate: string,
+	includeTest = false,
+): Promise<BotFunnelTrendDay[]> {
+	if (!db) return [];
+	const conditions = [
+		eq(botFunnelUserSteps.reason, NO_REASON),
+		inArray(botFunnelUserSteps.step, ["start", "deal"]),
+		sql`${botFunnelUserSteps.day} >= ${fromDate} AND ${botFunnelUserSteps.day} <= ${toDate}`,
+	];
+	if (!includeTest) {
+		conditions.push(notLike(botFunnelUserSteps.campaign, "%\\_test"));
+	}
+
+	const rows = await db
+		.select({
+			day: botFunnelUserSteps.day,
+			step: botFunnelUserSteps.step,
+			uniqueUsers: sql<number>`count(distinct ${botFunnelUserSteps.userId})`,
+		})
+		.from(botFunnelUserSteps)
+		.where(and(...conditions))
+		.groupBy(botFunnelUserSteps.day, botFunnelUserSteps.step);
+
+	const byDay = new Map<string, BotFunnelTrendDay>();
+	for (const row of rows) {
+		const entry = byDay.get(row.day) ?? { day: row.day, starts: 0, deals: 0 };
+		if (row.step === "start") entry.starts = Number(row.uniqueUsers);
+		else entry.deals = Number(row.uniqueUsers);
+		byDay.set(row.day, entry);
+	}
+	return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
 }
 
 export interface BotFunnelDropReasonCount {

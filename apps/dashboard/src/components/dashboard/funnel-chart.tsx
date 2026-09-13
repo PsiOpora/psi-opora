@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { HelpHint } from "@/components/dashboard/funnel-stages";
+import { DeltaBadge, deltaOf } from "@/components/dashboard/kpi-cards";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,9 @@ interface FunnelChartProps {
 	/** Ссылка для клика по числу на шаге — например, на таблицу сделок с
 	 * предзаполненным фильтром. Если не задана, число не кликабельно. */
 	stepHref?: (step: FunnelStepStats) => string;
+	/** shareOfStart последнего шага за предыдущий период той же длины — если
+	 * задан, в подвале рядом с "Общая конверсия" показывается дельта. */
+	previousFinalShare?: number;
 }
 
 const STEP_COLORS = [
@@ -50,6 +54,7 @@ export function FunnelChart({
 	showConversion = true,
 	hint,
 	stepHref,
+	previousFinalShare,
 }: FunnelChartProps) {
 	const normalizationBase = showConversion
 		? (steps[0]?.count ?? 1)
@@ -184,6 +189,14 @@ export function FunnelChart({
 							({formatNumber(steps[0]?.count ?? 0)} →{" "}
 							{formatNumber(steps[steps.length - 1]?.count ?? 0)})
 						</span>
+						{previousFinalShare !== undefined && (
+							<DeltaBadge
+								delta={deltaOf(
+									steps[steps.length - 1]?.shareOfStart ?? 0,
+									previousFinalShare,
+								)}
+							/>
+						)}
 					</div>
 				</div>
 			)}

@@ -176,6 +176,21 @@ export interface BotFunnelSourceRow {
 	deals: number;
 	/** Конверсия старт → заявка. */
 	conversion: number;
+	/** Ниже — обогащение из CRM (groupDealsBy) и рекламных кабинетов
+	 * (ad_daily_stats), см. fetchBotFunnelSourceEnriched в bot-funnel.ts.
+	 * undefined, если для этой пары source/campaign нет данных (не показывать
+	 * как 0 — это "нет данных", а не "ноль"). */
+	wonDeals?: number;
+	opportunitySum?: number;
+	wonSum?: number;
+	/** Расход из ad_daily_stats, найденный по числовому ID кампании в её имени. */
+	spend?: number;
+	/** Расход / стартов. */
+	cpl?: number;
+	/** Расход / заявок. */
+	cac?: number;
+	/** Сумма выигранных / расход. */
+	roas?: number;
 }
 
 export function funnelBySourceCampaign(
@@ -211,6 +226,32 @@ export function funnelBySourceCampaign(
 			conversion: row.starts > 0 ? row.deals / row.starts : 0,
 		}))
 		.sort((a, b) => b.starts - a.starts);
+}
+
+/** То же самое, что funnelBySourceCampaign, но по каждому мессенджеру
+ * отдельно — для табов "Telegram"/"MAX" в таблице источников (без
+ * revenue-полей: их домешивает только серверный enrichment для общего среза). */
+export function funnelBySourceCampaignByMessenger(
+	events: BotFunnelEvent[],
+): Array<{ messenger: string; rows: BotFunnelSourceRow[] }> {
+	const byMessenger = new Map<string, BotFunnelEvent[]>();
+	for (const event of events) {
+		const bucket = byMessenger.get(event.messenger);
+		if (bucket) bucket.push(event);
+		else byMessenger.set(event.messenger, [event]);
+	}
+	return [...byMessenger.entries()]
+		.map(([messenger, group]) => ({
+			messenger,
+			rows: funnelBySourceCampaign(group),
+		}))
+		.sort((a, b) => a.messenger.localeCompare(b.messenger));
+}
+
+export interface BotFunnelTrendPoint {
+	day: string;
+	starts: number;
+	deals: number;
 }
 
 export interface BotFunnelDropReasonRow {

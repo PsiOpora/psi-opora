@@ -25,6 +25,7 @@ import {
 	getBotFunnelDropReasonsByDateRange as _getBotFunnelDropReasonsByDateRange,
 	getBotFunnelEventsByDateRange as _getBotFunnelEventsByDateRange,
 	getBotFunnelStepClients as _getBotFunnelStepClients,
+	getBotFunnelTrendByDay as _getBotFunnelTrendByDay,
 	getBotFunnelUniqueStepCountsByDateRange as _getBotFunnelUniqueStepCountsByDateRange,
 	upsertBotFunnelEvent as _upsertBotFunnelEvent,
 } from "./bot-funnel";
@@ -126,6 +127,7 @@ export type {
 	BotFunnelDropReasonCount,
 	BotFunnelEvent,
 	BotFunnelStepClient,
+	BotFunnelTrendDay,
 	BotFunnelUniqueStepCount,
 	NewBotFunnelEvent,
 } from "./bot-funnel";
@@ -351,6 +353,14 @@ export async function getBotFunnelStepClients(
 	params: Parameters<typeof _getBotFunnelStepClients>[1],
 ) {
 	return _getBotFunnelStepClients(db, params);
+}
+
+export async function getBotFunnelTrendByDay(
+	fromDate: string,
+	toDate: string,
+	includeTest = false,
+) {
+	return _getBotFunnelTrendByDay(db, fromDate, toDate, includeTest);
 }
 
 export async function upsertBotUser(entry: BotUserProfileEntry): Promise<void> {
