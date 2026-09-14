@@ -5,10 +5,7 @@ import {
 	recordBookPreorderDripAnyClick,
 	recordBookPreorderDripDeferred,
 } from "@psi-opora/db/queries";
-import {
-	appendDealComment,
-	moveBookPreorderDealStage,
-} from "../../utils/bitrix";
+import { appendDealComment } from "../../utils/bitrix";
 import { buildProdamusPaymentUrl } from "../../utils/prodamus";
 import type { ScenarioTexts } from "../texts";
 import { bpPaymentLinkMessage } from "./questions";
@@ -112,11 +109,6 @@ export async function handleBookPreorderDripCallback(
 				sum,
 			});
 			if (order.dealId) {
-				await moveBookPreorderDealStage(
-					messenger,
-					order.dealId,
-					"awaitingPayment",
-				);
 				await appendDealComment(
 					messenger,
 					order.dealId,
@@ -136,7 +128,6 @@ export async function handleBookPreorderDripCallback(
 			await recordBookPreorderDripAnyClick(order.id);
 			await markBookPreorderDeclined(order.id);
 			if (order.dealId) {
-				await moveBookPreorderDealStage(messenger, order.dealId, "declined");
 				await appendDealComment(
 					messenger,
 					order.dealId,
@@ -160,7 +151,6 @@ export async function handleBookPreorderDripCallback(
 		case "stop": {
 			await markBookPreorderDeclined(order.id);
 			if (order.dealId) {
-				await moveBookPreorderDealStage(messenger, order.dealId, "declined");
 				await appendDealComment(
 					messenger,
 					order.dealId,

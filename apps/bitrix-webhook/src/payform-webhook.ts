@@ -1,7 +1,6 @@
 import {
 	appendDealComment,
 	getScenarioTexts,
-	moveBookPreorderDealStage,
 	verifyProdamusSignature,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
@@ -137,7 +136,6 @@ export async function handlePayformWebhook(
 		(await claimBookPreorderDealPaidSync(order.id))
 	) {
 		try {
-			await moveBookPreorderDealStage(messenger, order.dealId, "paid");
 			await appendDealComment(
 				messenger,
 				order.dealId,
@@ -145,7 +143,7 @@ export async function handlePayformWebhook(
 			);
 		} catch (err) {
 			console.error(
-				`[payform-webhook] не удалось обновить сделку Bitrix order=${order.id}: ${(err as Error).message}`,
+				`[payform-webhook] не удалось прокомментировать сделку Bitrix order=${order.id}: ${(err as Error).message}`,
 			);
 			await releaseBookPreorderDealPaidSync(order.id);
 		}
