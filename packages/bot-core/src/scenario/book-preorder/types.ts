@@ -93,7 +93,8 @@ export interface BookPreorderOutput {
 	state: BookPreorderState;
 	messages: BookPreorderMessage[];
 	/** Заявка — создать сделку/строку заказа (см. dispatch.ts). Присутствует
-	 * только в момент первого перехода в "reserved" или "email_for_payment". */
+	 * при первом переходе в "reserved", подтверждении email для оплаты или
+	 * исчерпании попыток email, если сделка ещё не создана. */
 	lead?: BookPreorderLead;
 	/** Email подтверждён на шаге оплаты — построить ссылку Prodamus и
 	 * перевести сделку/заказ на стадию "Ждёт оплаты" (см. dispatch.ts). */
