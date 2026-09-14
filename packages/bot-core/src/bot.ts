@@ -334,6 +334,16 @@ export function createBot({
 		const chatId = ctx.chatId;
 		if (!chatId) return;
 		ctx.session.scenario = out.state;
+		// Основной сценарий явно (пере)запущен — снимаем зависший сценарий
+		// предзаказа книги, иначе он не отпустит чат: bot.on("message:text")
+		// отдаёт ему приоритет, пока его step не "done", а шаги "reserved" и
+		// "awaiting_payment" таковыми сами по себе никогда не становятся (см.
+		// applyBookPreorderText в scenario/book-preorder/engine.ts). Без сброса
+		// клиент, ранее заходивший в бронь книги по TELO-ссылке, не смог бы
+		// ответить текстом на шаге имени/телефона/email при записи на
+		// консультацию — каждое его сообщение продолжало бы уходить в движок
+		// книги вместо основного сценария.
+		ctx.session.bookPreorder = undefined;
 		await dispatchScenarioOutput(out, {
 			messenger: "telegram",
 			sessionKey: String(chatId),

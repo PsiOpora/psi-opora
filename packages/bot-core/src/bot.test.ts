@@ -34,6 +34,24 @@ mock.module("@psi-opora/db/queries", () => ({
 	getBookPreorderOrderByOrderNo: () => Promise.resolve(null),
 	recordBookPreorderDripAnyClick: () => Promise.resolve(),
 	recordBookPreorderDripDeferred: () => Promise.resolve(),
+	// Гайд-письма (utils/email.ts → @psi-opora/emails) читают настройки
+	// почтовых провайдеров при отправке — без этих экспортов статический
+	// импорт всей цепочки (bot.ts → dispatch.ts → utils/email.ts →
+	// @psi-opora/emails) падает на этапе линковки модуля, даже если тест
+	// до отправки письма не доходит.
+	getEmailProvider: () => Promise.resolve(null),
+	getUnisenderSettings: () => Promise.resolve(null),
+	getRusenderSettings: () => Promise.resolve(null),
+	getSmtpBzSettings: () => Promise.resolve(null),
+	getResendSettings: () => Promise.resolve(null),
+	// Кампании гайда по кодовому слову (scenario/guide-campaign.ts) и
+	// напоминания о диагностике — тоже часть статического графа импортов bot.ts.
+	getBotGuideCampaign: () => Promise.resolve(null),
+	getBotGuideCampaignByKeyword: () => Promise.resolve(null),
+	getPendingGuideDiagnosticDelivery: () => Promise.resolve(null),
+	markGuideDiagnosticRequested: () => Promise.resolve(),
+	upsertBotGuideDelivery: () => Promise.resolve(),
+	markBotMessageGuideEmailSent: () => Promise.resolve(),
 }));
 
 const { createBot } = await import("./bot");
@@ -183,6 +201,31 @@ describe("телеграм-бот: /start", () => {
 		expect(texts[4]).toContain("Анна");
 		expect(texts[5]).toBe(t.consult_email_question);
 		expect(texts[6]).toContain("Заявка принята");
+	});
+
+	test("бронь книги, оставленная в чате, не перехватывает текст в флоу консультации", async () => {
+		const { bot, sent } = makeBot();
+
+		// Клиент когда-то заходил по ссылке предзаказа книги и дошёл до брони
+		// (шаг "reserved") — это не "done", сценарий предзаказа в сессии чата
+		// остаётся висеть бессрочно (см. applyBookPreorderText в
+		// scenario/book-preorder/engine.ts: из "reserved" в "done" ведёт только
+		// явное "отмена" или кнопка «Задать вопрос»).
+		await bot.handleUpdate(commandUpdate("/start TELOBOOK"));
+		await bot.handleUpdate(callbackUpdate("bp_consent_agree", 2));
+		await bot.handleUpdate(textUpdate("Пётр", 3));
+		await bot.handleUpdate(textUpdate("+7 999 111-22-33", 4));
+
+		// Тем же чатом клиент позже решает записаться на консультацию.
+		await bot.handleUpdate(commandUpdate("/start", 5));
+		await bot.handleUpdate(callbackUpdate("sc_consult", 6));
+		await bot.handleUpdate(callbackUpdate("consent_agree", 7));
+		await bot.handleUpdate(textUpdate("Анна", 8));
+
+		// Имя должно уйти в основной сценарий (запрос телефона), а не потеряться
+		// в движке книги (переспрос брони/вопрос про книгу).
+		const lastText = sentMessages(sent).at(-1)?.payload.text;
+		expect(lastText).toBe(t.consult_phone_question);
 	});
 });
 
