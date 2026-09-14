@@ -7,16 +7,23 @@ import type {
 	WidgetRecipient,
 } from "@psi-opora/api";
 import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
-import { CheckIcon, Loader2Icon, SendIcon } from "lucide-react";
+import { Loader2Icon, SendIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useB24Frame } from "@/components/bitrix/frame-provider";
+import { ContactAvatar } from "@/components/messaging/contact-avatar";
 import {
 	type HistoryEntry,
 	HistoryList,
 	mergeHistory,
 } from "@/components/messaging/history-list";
 import { MessageComposer } from "@/components/messaging/message-composer";
+import { MessengerIcon } from "@/components/messaging/messenger-icon";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +31,11 @@ const POLL_INTERVAL_MS = 5000;
 /** Через сколько снимать надпись «отправляется…», даже если поллинг ещё не
  * подтвердил запись в БД (сама отправка клиенту при этом уже прошла успешно). */
 const PENDING_LABEL_TIMEOUT_MS = 8000;
+
+/** Целевая высота вкладки в портале — как у полноразмерного окна мессенджера
+ * (Wazzup и т.п.), а не узкой формы на пол-экрана. Ширину не трогаем, чтобы
+ * не спорить с шириной, которую уже выделил Битрикс под область вкладки. */
+const WIDGET_TARGET_HEIGHT_PX = 640;
 
 function draftStorageKey(entity: WidgetEntity, entityId: string): string {
 	return `psi-opora:widget-draft:${entity}:${entityId}`;
@@ -79,10 +91,13 @@ function pickDefaultChannel(
 }
 
 /**
- * Форма отправки сообщения клиенту из карточки CRM. Список каналов —
- * динамический (recipient.channels): боты — только если контакт уже писал
- * (поля контакта), личный(е) номер(а) Telegram — всегда, если у контакта
- * есть телефон (можно писать первым, см. packages/tg-userbot).
+ * Вкладка «Мессенджер» в карточке сделки/контакта: полноразмерная переписка
+ * с клиентом (как в едином инбоксе дашборда «Клиенты» или у Wazzup) — шапка
+ * с контактом и выбором канала, лента сообщений на всю высоту и поле ввода
+ * снизу. Список каналов — динамический (recipient.channels): боты — только
+ * если контакт уже писал (поля контакта), личный(е) номер(а) Telegram —
+ * всегда, если у контакта есть телефон (можно писать первым, см.
+ * packages/tg-userbot).
  */
 export function MessageWidget({
 	entity,
@@ -91,6 +106,7 @@ export function MessageWidget({
 	entity: WidgetEntity;
 	entityId: string;
 }) {
+	const { b24 } = useB24Frame();
 	const [recipient, setRecipient] = useState<WidgetRecipient | null>(null);
 	const [history, setHistory] = useState<HistoryEntry[]>([]);
 	const [loadError, setLoadError] = useState<string | null>(null);
@@ -99,11 +115,27 @@ export function MessageWidget({
 	const [channel, setChannel] = useState<WidgetChannel | null>(null);
 	const [text, setText] = useState("");
 	const [sendError, setSendError] = useState<string | null>(null);
-	const [sentAt, setSentAt] = useState<Date | null>(null);
 	const [sending, startSending] = useTransition();
 
 	// Момент последнего известного сообщения — поллинг запрашивает только то, что новее.
 	const sinceRef = useRef(new Date().toISOString());
+
+	// Просим Битрикс выделить вкладке высоту полноценного окна мессенджера —
+	// без этого CRM_DEAL_DETAIL_TAB даёт лишь узкую форму, куда переписка не
+	// помещается. Ширину не запрашиваем явно — берём текущую, чтобы не
+	// спорить с раскладкой самой карточки сделки.
+	useEffect(() => {
+		if (!b24) return;
+		b24.parent
+			.resizeWindow(
+				document.documentElement.clientWidth,
+				WIDGET_TARGET_HEIGHT_PX,
+			)
+			.catch(() => {
+				// Согласно b24jssdk может не сработать при первом открытии — тогда
+				// просто останется размер по умолчанию, без падения виджета.
+			});
+	}, [b24]);
 
 	const load = useCallback(() => {
 		if (!entityId) {
@@ -201,7 +233,6 @@ export function MessageWidget({
 				setSendError(result.error);
 				return;
 			}
-			setSentAt(new Date());
 			setText("");
 			// Показываем сообщение сразу же, не дожидаясь ближайшего поллинга —
 			// он позже заменит эту запись подтверждённой (см. mergeHistory).
@@ -233,106 +264,105 @@ export function MessageWidget({
 		});
 	};
 
-	if (loading) {
-		return (
-			<div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-				<Loader2Icon className="size-4 animate-spin" />
-				Загружаем данные контакта…
-			</div>
-		);
-	}
-
-	if (loadError) {
-		return (
-			<div className="flex flex-col items-start gap-3 py-4">
-				<p className="text-sm text-destructive">{loadError}</p>
-				<Button variant="outline" size="sm" onClick={load}>
-					Повторить
-				</Button>
-			</div>
-		);
-	}
-
-	if (!recipient) return null;
-
 	return (
-		<div className="flex max-w-xl flex-col gap-4">
-			<div>
-				<p className="text-sm font-medium">{recipient.contactName}</p>
-				<p className="text-xs text-muted-foreground">
-					Сообщение уйдёт от имени бота Психологического центра «Опора»
-				</p>
-			</div>
-
-			<HistoryList history={history} />
-
-			<div className="flex flex-col gap-2">
-				<p className="text-xs text-muted-foreground">Канал отправки</p>
-				{recipient.channels.length > 0 ? (
-					<div className="flex flex-wrap gap-2">
-						{recipient.channels.map((c) => {
-							const selected = channel && channelKey(channel) === channelKey(c);
-							return (
-								<button
-									key={channelKey(c)}
-									type="button"
-									onClick={() => setChannel(c)}
-									className={cn(
-										"inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors",
-										selected
-											? "border-primary bg-primary text-primary-foreground"
-											: "hover:bg-muted",
-									)}
-								>
-									<CheckIcon className="size-3.5 text-emerald-500" />
-									{c.label}
-								</button>
-							);
-						})}
-					</div>
-				) : (
-					<p className="text-xs text-muted-foreground">
-						{recipient.note ??
-							"У контакта не найден Telegram/MAX и нет телефона. Мессенджер появляется в полях контакта, когда клиент пишет нашему боту, либо станут доступны личные номера Telegram/WhatsApp, если указан телефон."}
-					</p>
-				)}
-			</div>
-
-			<div className="flex flex-col gap-1.5">
-				<Label
-					htmlFor="widget-message"
-					className="text-xs text-muted-foreground"
-				>
-					Текст сообщения (поддерживается Markdown)
-				</Label>
-				<MessageComposer
-					text={text}
-					onTextChange={setText}
-					onSend={send}
-					placeholder="Здравствуйте! Это Психологический центр «Опора»… (Enter — отправить, Shift+Enter — новая строка)"
-				/>
-			</div>
-
-			{sendError && <p className="text-sm text-destructive">{sendError}</p>}
-			{sentAt && !sendError && (
-				<p className="text-sm text-emerald-600">
-					✓ Отправлено в {sentAt.toLocaleTimeString("ru-RU")} — добавлено в
-					таймлайн контакта
-				</p>
-			)}
-
-			<Button
-				onClick={send}
-				disabled={sending || !trimmedText || !channel || overLimit}
-				className="self-start"
-			>
-				{sending ? (
+		<div className="flex h-full min-h-0 flex-1 flex-col">
+			{loading ? (
+				<div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
 					<Loader2Icon className="size-4 animate-spin" />
-				) : (
-					<SendIcon className="size-4" />
-				)}
-				Отправить
-			</Button>
+					Загружаем данные контакта…
+				</div>
+			) : loadError ? (
+				<div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
+					<p className="text-sm text-destructive">{loadError}</p>
+					<Button variant="outline" size="sm" onClick={load}>
+						Повторить
+					</Button>
+				</div>
+			) : recipient ? (
+				<>
+					<div className="flex items-center gap-3 border-b px-4 py-3">
+						<ContactAvatar name={recipient.contactName} />
+						<div className="min-w-0 flex-1">
+							<p className="truncate text-sm font-semibold">
+								{recipient.contactName}
+							</p>
+							<p className="truncate text-xs text-muted-foreground">
+								Сообщение уйдёт от имени бота Психологического центра «Опора»
+							</p>
+						</div>
+					</div>
+
+					{recipient.channels.length > 0 && (
+						<div className="flex flex-wrap items-center gap-1.5 border-b bg-muted/30 px-4 py-2">
+							<span className="text-xs text-muted-foreground">Канал:</span>
+							{recipient.channels.map((c) => {
+								const selected =
+									channel && channelKey(channel) === channelKey(c);
+								return (
+									<Tooltip key={channelKey(c)}>
+										<TooltipTrigger asChild>
+											<button
+												type="button"
+												onClick={() => setChannel(c)}
+												className={cn(
+													"inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+													selected
+														? "border-primary bg-primary text-primary-foreground"
+														: "bg-background hover:bg-muted",
+												)}
+											>
+												<MessengerIcon
+													messenger={c.messenger}
+													className="size-3.5"
+												/>
+												{c.label}
+											</button>
+										</TooltipTrigger>
+										<TooltipContent>Отправить через {c.label}</TooltipContent>
+									</Tooltip>
+								);
+							})}
+						</div>
+					)}
+
+					<div className="min-h-0 flex-1 bg-muted/10">
+						<HistoryList history={history} />
+					</div>
+
+					{recipient.channels.length === 0 && (
+						<div className="border-t bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
+							{recipient.note ??
+								"У контакта не найден Telegram/MAX и нет телефона. Мессенджер появляется в полях контакта, когда клиент пишет нашему боту, либо станут доступны личные номера Telegram/WhatsApp, если указан телефон."}
+						</div>
+					)}
+
+					<div className="border-t p-3">
+						<MessageComposer
+							text={text}
+							onTextChange={setText}
+							onSend={send}
+							placeholder="Здравствуйте! Это Психологический центр «Опора»… (Enter — отправить, Shift+Enter — новая строка)"
+						/>
+						<div className="mt-1.5 flex items-center justify-between gap-2">
+							{sendError && (
+								<p className="text-sm text-destructive">{sendError}</p>
+							)}
+							<Button
+								onClick={send}
+								disabled={sending || !trimmedText || !channel || overLimit}
+								className="ml-auto"
+							>
+								{sending ? (
+									<Loader2Icon className="size-4 animate-spin" />
+								) : (
+									<SendIcon className="size-4" />
+								)}
+								Отправить
+							</Button>
+						</div>
+					</div>
+				</>
+			) : null}
 		</div>
 	);
 }

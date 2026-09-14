@@ -38,6 +38,13 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+    --color-message-client: var(--message-client);
+    --color-message-client-foreground: var(--message-client-foreground);
+    --color-message-client-border: var(--message-client-border);
+    --color-message-operator: var(--message-operator);
+    --color-message-operator-foreground: var(--message-operator-foreground);
+    --color-message-bot: var(--message-bot);
+    --color-message-bot-foreground: var(--message-bot-foreground);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -80,6 +87,13 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    --message-client: oklch(0.975 0.004 260);
+    --message-client-foreground: oklch(0.205 0 0);
+    --message-client-border: oklch(0.906 0.006 260);
+    --message-operator: oklch(0.93 0.045 245);
+    --message-operator-foreground: oklch(0.28 0.09 245);
+    --message-bot: oklch(0.945 0.035 300);
+    --message-bot-foreground: oklch(0.32 0.09 300);
 }
 
 .dark {
@@ -114,6 +128,13 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --message-client: oklch(0.24 0.006 260);
+    --message-client-foreground: oklch(0.985 0 0);
+    --message-client-border: oklch(0.32 0.008 260);
+    --message-operator: oklch(0.3 0.06 245);
+    --message-operator-foreground: oklch(0.9 0.05 245);
+    --message-bot: oklch(0.3 0.055 300);
+    --message-bot-foreground: oklch(0.9 0.05 300);
 }
 
 @layer base {
