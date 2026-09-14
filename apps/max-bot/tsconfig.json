@@ -5,7 +5,7 @@
 		"outDir": "dist",
 		"lib": ["ES2022", "dom", "dom.iterable"],
 		"paths": { "@/*": ["./src/*"] },
-		"types": ["node"]
+		"types": ["node", "bun"]
 	},
 	"include": ["src", "api"],
 	"exclude": ["node_modules", "dist"]

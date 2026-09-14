@@ -39,6 +39,9 @@ export interface SubmitDealParams {
 	issue?: DealData["issue"];
 	/** Момент согласия на ПДн (ISO) — см. ContactData.consentAt. */
 	consentAt?: string;
+	/** Кастомная воронка/стадия Bitrix — см. DealData.categoryId/stageId. */
+	categoryId?: number;
+	stageId?: string;
 }
 
 export interface SubmitContactParams extends Omit<ContactData, "name"> {
@@ -90,6 +93,8 @@ export async function submitConsultationDeal(
 		audience,
 		issue,
 		consentAt,
+		categoryId,
+		stageId,
 	} = params;
 
 	const funnelCtx: FunnelEventContext = {
@@ -141,6 +146,8 @@ export async function submitConsultationDeal(
 			...(isPremium !== undefined ? { isPremium } : {}),
 			...(bio ? { bio } : {}),
 			...(ymClientId ? { ymClientId } : {}),
+			...(categoryId !== undefined ? { categoryId } : {}),
+			...(stageId ? { stageId } : {}),
 		};
 
 		const { dealId } = await createBitrixDeal(dealData);

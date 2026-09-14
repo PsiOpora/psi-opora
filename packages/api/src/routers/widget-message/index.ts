@@ -13,5 +13,6 @@ export type {
 	WidgetChannel,
 	WidgetEntity,
 	WidgetHistoryItem,
+	WidgetMessenger,
 	WidgetRecipient,
 } from "./types";

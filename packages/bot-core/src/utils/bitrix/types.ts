@@ -59,11 +59,19 @@ export interface DealData extends ContactData {
 	comment?: string;
 	/** Ветка сценария (см. scenario/engine.ts) — попадает в заголовок и «Продукт».
 	 * "book_preorder" — отдельный сценарий предзаказа книги (см.
-	 * scenario/book-preorder/) — сделка остаётся в обычной стадии, статус
-	 * заказа отслеживается в book_preorder_orders и комментариях сделки. */
+	 * scenario/book-preorder/) — уходит в свою воронку/стадии Bitrix, см.
+	 * utils/bitrix/book-preorder-pipeline.ts. */
 	flow?: "consult" | "guide" | "book_preorder";
 	/** Выбор в флоу гайда: кому нужна помощь. */
 	audience?: "child" | "self";
 	/** Выбор в флоу гайда: с чем связаны трудности. */
 	issue?: "eating" | "ocd" | "other";
+	/**
+	 * Кастомная воронка/стадия Bitrix для сделок вне дефолтного пайплайна
+	 * (напр. book_preorder — см. utils/bitrix/book-preorder-pipeline.ts).
+	 * buildDealFields не знает про конкретные значения flow — вызывающая
+	 * сторона сама решает, в какую воронку/стадию класть сделку.
+	 */
+	categoryId?: number;
+	stageId?: string;
 }

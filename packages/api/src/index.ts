@@ -84,6 +84,7 @@ export type {
 	WidgetChannel,
 	WidgetEntity,
 	WidgetHistoryItem,
+	WidgetMessenger,
 	WidgetRecipient,
 } from "./routers/widget-message";
 export { type AdCredentialsInput, adCredentialsSchema } from "./schemas/ads";

@@ -3,7 +3,12 @@ import {
 	markBookPreorderDeclined,
 	upsertBookPreorderOrder,
 } from "@psi-opora/db/queries";
-import { appendDealComment } from "../../utils/bitrix";
+import {
+	appendDealComment,
+	BOOK_PREORDER_CATEGORY_ID,
+	BOOK_PREORDER_STAGE_IDS,
+	moveBookPreorderDealStage,
+} from "../../utils/bitrix";
 import { submitConsultationDeal } from "../../utils/consultation-deal";
 import { logBotMessage } from "../../utils/message-log";
 import { buildProdamusPaymentUrl } from "../../utils/prodamus";
@@ -33,14 +38,14 @@ function orderKey(messenger: string, userId: number): string {
 
 /**
  * Исполняет результат шага сценария предзаказа книги: отправляет сообщения,
- * создаёт сделку/строку заказа, строит ссылку на оплату. По образцу
+ * создаёт сделку/строку заказа, строит ссылку на оплату и двигает сделку по
+ * стадиям воронки «Предзаказ книги «Тело берёт своё»» (Bitrix CATEGORY_ID=8,
+ * см. utils/bitrix/book-preorder-pipeline.ts — переиспользует существующую
+ * категорию, переименованную вручную через bitrix24-коннектор, т.к. завести
+ * новую запрещает тариф — crm.dealcategory.add заблокирован). По образцу
  * ../dispatch.ts (dispatchScenarioOutput), но без трекинга в общую воронку
- * дашборда — это отдельный, самостоятельный сценарий с собственной
- * отчётностью через book_preorder_orders. Сделка Bitrix остаётся в обычной
- * стадии — источник истины по статусу заказа это book_preorder_orders.status,
- * а менеджеру каждый переход виден комментарием в таймлайне сделки (создание
- * пайплайна под отдельную воронку упёрлось в ограничение тарифа, да и не
- * было строго необходимо).
+ * дашборда — источник истины по статусу заказа это book_preorder_orders.status,
+ * а каждый переход виден и стадией сделки, и комментарием в её таймлайне.
  */
 export async function dispatchBookPreorderOutput(
 	out: BookPreorderOutput,
@@ -94,6 +99,11 @@ export async function dispatchBookPreorderOutput(
 			comment,
 			flow: "book_preorder",
 			consentAt: out.lead.consentAt,
+			categoryId: BOOK_PREORDER_CATEGORY_ID,
+			stageId:
+				out.lead.paymentChoice === "immediate"
+					? BOOK_PREORDER_STAGE_IDS.awaitingPayment
+					: BOOK_PREORDER_STAGE_IDS.reserved,
 		});
 		if (dealId) out.state.dealId = dealId;
 
@@ -151,6 +161,16 @@ export async function dispatchBookPreorderOutput(
 			throw err;
 		}
 		if (out.state.dealId) {
+			// Сделка уже существовала до этого вызова (бронь → «Оплатить сейчас»)
+			// — переводим на стадию оплаты; если её только что завели в этом же
+			// вызове (сразу оплата), stageId уже выставлен при создании выше.
+			if (!out.lead) {
+				await moveBookPreorderDealStage(
+					deps.messenger,
+					out.state.dealId,
+					"awaitingPayment",
+				);
+			}
 			await appendDealComment(
 				deps.messenger,
 				out.state.dealId,
@@ -178,6 +198,11 @@ export async function dispatchBookPreorderOutput(
 	if (out.cancelReservation) {
 		await markBookPreorderDeclined(key);
 		if (out.state.dealId) {
+			await moveBookPreorderDealStage(
+				deps.messenger,
+				out.state.dealId,
+				"declined",
+			);
 			await appendDealComment(
 				deps.messenger,
 				out.state.dealId,

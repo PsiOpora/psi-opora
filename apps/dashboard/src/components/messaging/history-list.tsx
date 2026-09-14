@@ -1,45 +1,54 @@
 "use client";
 
 import type { WidgetHistoryItem } from "@psi-opora/api";
+import { CheckCheckIcon, CheckIcon, CircleAlertIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { MessengerIcon } from "@/components/messaging/messenger-icon";
+import { messengerLabel } from "@/components/messaging/messenger-meta";
 import { cn } from "@/lib/utils";
 
 /** Оптимистично добавленное сообщение до подтверждения записи в БД поллингом. */
 export type HistoryEntry = WidgetHistoryItem & { pending?: boolean };
 
-// Подпись канала в истории переписки — для ботов фиксированная, для
-// telegram-personal показываем то, что вернул сервер (с номером), где есть.
-export const MESSENGER_LABELS: Record<string, string> = {
-	telegram: "Telegram",
-	max: "MAX",
-	"telegram-personal": "Telegram (личный)",
-};
-
-export function historyLabel(messenger: string): string {
-	return MESSENGER_LABELS[messenger] ?? messenger;
-}
-
 export const SOURCE_LABELS: Record<string, string> = {
 	reminder: "напоминание",
-	widget: "из CRM",
+	widget: "оператор",
 	broadcast: "рассылка",
 	operator: "оператор",
 };
 
-/** Насколько близко к низу нужно быть, чтобы новое сообщение автоскроллило —
- * иначе менеджер, читающий историю выше, не будет «дёрнут» вниз поллингом. */
-const STICK_TO_BOTTOM_THRESHOLD_PX = 40;
+/** Кто фактически отправил исходящее сообщение — определяет цвет пузыря:
+ * бот/автоматика получает один стиль, живой оператор (ответ из этой вкладки
+ * или из линии Bitrix) — другой. */
+const BOT_SOURCES = new Set(["reminder", "broadcast", "scenario"]);
 
 /** Статус доставки исходящего сообщения. Выше "sent" его поднимает только
  * WhatsApp (ack WAHA) — у Telegram/MAX нет вебхуков доставки, это ограничение
- * их API. "failed" ставят пути отправки, когда мессенджер отклонил сообщение
- * (бот заблокирован, диалог удалён и т.п.). */
-export const STATUS_LABELS: Record<string, string> = {
-	sent: "отправлено",
-	delivered: "доставлено",
-	read: "прочитано",
-	failed: "не доставлено",
+ * их API. "failed" ставят пути отправки, когда мессенджер отклонил сообщение. */
+const STATUS_META: Record<
+	string,
+	{ icon: typeof CheckIcon; className?: string; label: string }
+> = {
+	sent: { icon: CheckIcon, label: "отправлено" },
+	delivered: { icon: CheckCheckIcon, label: "доставлено" },
+	read: { icon: CheckCheckIcon, className: "text-sky-500", label: "прочитано" },
+	failed: {
+		icon: CircleAlertIcon,
+		className: "text-destructive",
+		label: "не доставлено",
+	},
 };
+
+const BUBBLE_STYLES = {
+	in: "self-start rounded-bl-md border bg-message-client text-message-client-foreground border-message-client-border",
+	bot: "self-end rounded-br-md bg-message-bot text-message-bot-foreground",
+	operator:
+		"self-end rounded-br-md bg-message-operator text-message-operator-foreground",
+};
+
+/** Насколько близко к низу нужно быть, чтобы новое сообщение автоскроллило —
+ * иначе менеджер, читающий историю выше, не будет «дёрнут» вниз поллингом. */
+const STICK_TO_BOTTOM_THRESHOLD_PX = 60;
 
 /** Вливает новые сообщения с поллинга в локальную историю: уже известный id —
  * обновляет запись на месте (так долетают статусные апдейты sent → delivered
@@ -80,6 +89,27 @@ export function mergeHistory(
 	return next;
 }
 
+function dayKey(iso: string): string {
+	return new Date(iso).toDateString();
+}
+
+function formatDayLabel(iso: string): string {
+	const date = new Date(iso);
+	const today = new Date();
+	const yesterday = new Date();
+	yesterday.setDate(today.getDate() - 1);
+	if (dayKey(iso) === dayKey(today.toISOString())) return "Сегодня";
+	if (dayKey(iso) === dayKey(yesterday.toISOString())) return "Вчера";
+	return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "long" });
+}
+
+function formatTime(iso: string): string {
+	return new Date(iso).toLocaleTimeString("ru-RU", {
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+}
+
 export function HistoryList({ history }: { history: HistoryEntry[] }) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const stickToBottomRef = useRef(true);
@@ -99,60 +129,113 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 			STICK_TO_BOTTOM_THRESHOLD_PX;
 	};
 
-	if (history.length === 0) return null;
+	if (history.length === 0) {
+		return (
+			<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+				Сообщений пока нет — напишите первым
+			</div>
+		);
+	}
+
 	return (
 		<div
 			ref={containerRef}
 			onScroll={handleScroll}
-			className="flex max-h-64 flex-col gap-1.5 overflow-y-auto rounded-md border p-3"
+			className="flex h-full flex-col overflow-y-auto px-4 py-3"
 		>
-			{history.map((item) => (
-				<div
-					key={item.id}
-					className={cn(
-						"max-w-[85%] rounded-lg px-3 py-1.5 text-sm whitespace-pre-wrap",
-						item.direction === "out"
-							? "self-end bg-primary/10"
-							: "self-start bg-muted",
-						item.pending && "opacity-60",
-						item.direction === "out" &&
-							item.status === "failed" &&
-							"ring-1 ring-destructive/40",
-					)}
-				>
-					{item.text}
-					<div className="mt-0.5 text-[10px] text-muted-foreground">
-						{new Date(item.createdAt).toLocaleString("ru-RU", {
-							day: "2-digit",
-							month: "2-digit",
-							hour: "2-digit",
-							minute: "2-digit",
-						})}
-						{" · "}
-						{item.direction === "out" ? "бот" : "клиент"}
-						{SOURCE_LABELS[item.source]
-							? ` · ${SOURCE_LABELS[item.source]}`
-							: ""}
-						{" · "}
-						{historyLabel(item.messenger)}
-						{item.pending ? " · отправляется…" : ""}
-						{/* Статус показываем только у исходящих и только после
-                подтверждения записью в БД: у оптимистичной записи он всегда
-                "sent" и вводил бы в заблуждение. */}
-						{!item.pending &&
-						item.direction === "out" &&
-						STATUS_LABELS[item.status] ? (
-							<span
+			{history.map((item, index) => {
+				const prev = history[index - 1];
+				const showDay =
+					!prev || dayKey(prev.createdAt) !== dayKey(item.createdAt);
+				const bubbleKind =
+					item.direction === "in"
+						? "in"
+						: BOT_SOURCES.has(item.source)
+							? "bot"
+							: "operator";
+				const groupedWithPrev =
+					!showDay &&
+					!!prev &&
+					prev.direction === item.direction &&
+					prev.source === item.source &&
+					prev.messenger === item.messenger;
+				const statusMeta =
+					item.direction === "out" && !item.pending
+						? STATUS_META[item.status]
+						: undefined;
+				const StatusIcon = statusMeta?.icon;
+
+				return (
+					<div
+						key={item.id}
+						className={cn(
+							"flex flex-col",
+							showDay ? "mt-0" : groupedWithPrev ? "mt-1" : "mt-3",
+						)}
+					>
+						{showDay && (
+							<div className="my-3 flex items-center gap-3">
+								<div className="h-px flex-1 bg-border" />
+								<span className="text-xs text-muted-foreground">
+									{formatDayLabel(item.createdAt)}
+								</span>
+								<div className="h-px flex-1 bg-border" />
+							</div>
+						)}
+						<div
+							className={cn(
+								"flex",
+								item.direction === "out" ? "justify-end" : "justify-start",
+							)}
+						>
+							<div
 								className={cn(
-									item.status === "failed" && "font-medium text-destructive",
+									"max-w-[80%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap shadow-sm",
+									BUBBLE_STYLES[bubbleKind],
+									item.pending && "opacity-60",
+									item.direction === "out" &&
+										item.status === "failed" &&
+										"ring-1 ring-destructive/40",
 								)}
 							>
-								{` · ${STATUS_LABELS[item.status]}`}
-							</span>
-						) : null}
+								{item.text}
+								<div
+									className={cn(
+										"mt-1 flex items-center gap-1 text-[10px] opacity-70",
+										item.direction === "out" && "justify-end",
+									)}
+								>
+									<MessengerIcon
+										messenger={item.messenger}
+										className="size-3 shrink-0"
+									/>
+									<span>{messengerLabel(item.messenger)}</span>
+									{SOURCE_LABELS[item.source] && (
+										<>
+											<span>·</span>
+											<span>{SOURCE_LABELS[item.source]}</span>
+										</>
+									)}
+									<span>·</span>
+									<span>{formatTime(item.createdAt)}</span>
+									{item.pending && <span>· отправляется…</span>}
+									{StatusIcon && (
+										<span
+											className={cn(
+												"flex items-center gap-0.5",
+												statusMeta?.className,
+											)}
+										>
+											<StatusIcon className="size-3" />
+											{statusMeta?.label}
+										</span>
+									)}
+								</div>
+							</div>
+						</div>
 					</div>
-				</div>
-			))}
+				);
+			})}
 		</div>
 	);
 }
