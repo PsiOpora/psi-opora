@@ -3,6 +3,7 @@ import {
 	getBookReadyDate,
 	getScenarioTexts,
 	type ScenarioTexts,
+	withFields,
 } from "@psi-opora/bot-core";
 import {
 	type BookPreorderOrder,
@@ -79,14 +80,6 @@ function formatRuDate(date: Date): string {
 	}).format(date);
 }
 
-function render(template: string, vars: Record<string, string>): string {
-	let text = template;
-	for (const [key, value] of Object.entries(vars)) {
-		text = text.replaceAll(`{${key}}`, value);
-	}
-	return text;
-}
-
 function buildStepMessage(
 	step: number,
 	order: BookPreorderOrder,
@@ -103,7 +96,7 @@ function buildStepMessage(
 	switch (step) {
 		case 1:
 			return {
-				text: render(t.bp_drip_1_text, { name, дата }),
+				text: withFields(t.bp_drip_1_text, { name, дата }),
 				buttons: [
 					[payButton],
 					[
@@ -122,7 +115,7 @@ function buildStepMessage(
 			};
 		case 2:
 			return {
-				text: render(t.bp_drip_2_text, { name, дата }),
+				text: withFields(t.bp_drip_2_text, { name, дата }),
 				buttons: [
 					[payButton],
 					[
@@ -135,7 +128,7 @@ function buildStepMessage(
 			};
 		case 3:
 			return {
-				text: render(t.bp_drip_3_text, { name, дата }),
+				text: withFields(t.bp_drip_3_text, { name, дата }),
 				buttons: [
 					[payButton],
 					[
@@ -148,17 +141,17 @@ function buildStepMessage(
 			};
 		case 4:
 			return {
-				text: render(t.bp_drip_4_text, { name }),
+				text: withFields(t.bp_drip_4_text, { name }),
 				buttons: [[payButton]],
 			};
 		case 5:
 			return {
-				text: render(t.bp_drip_5_text, { name }),
+				text: withFields(t.bp_drip_5_text, { name }),
 				buttons: [[payButton]],
 			};
 		default: {
 			return {
-				text: render(t.bp_drip_6_text, { name }),
+				text: withFields(t.bp_drip_6_text, { name }),
 				buttons: [
 					[
 						{

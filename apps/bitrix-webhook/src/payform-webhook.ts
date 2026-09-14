@@ -67,16 +67,24 @@ export async function handlePayformWebhook(
 
 	const rawBody = await request.text();
 	const fields = parseFormFields(rawBody);
-	const {
-		sign,
-		signature: _signature,
-		...fieldsToVerify
-	} = fields as Record<string, unknown>;
+	// Prodamus, по разным интеграциям, кладёт подпись то в заголовок Sign, то
+	// в поле тела `sign`/`signature` — оба поля исключаем из подписываемых
+	// данных независимо от того, какое реально пришло.
+	const { sign, signature, ...fieldsToVerify } = fields as Record<
+		string,
+		unknown
+	>;
+	const bodySignature =
+		typeof sign === "string"
+			? sign
+			: typeof signature === "string"
+				? signature
+				: null;
 
 	if (
 		!verifyProdamusSignature(
 			fieldsToVerify,
-			request.headers.get("sign") ?? (typeof sign === "string" ? sign : null),
+			request.headers.get("sign") ?? bodySignature,
 			secret,
 		)
 	) {
@@ -104,7 +112,10 @@ export async function handlePayformWebhook(
 
 	const messenger = order.messenger as Messenger;
 
-	if (!order.paidNotifiedAt && (await claimBookPreorderPaidNotification(order.id))) {
+	if (
+		!order.paidNotifiedAt &&
+		(await claimBookPreorderPaidNotification(order.id))
+	) {
 		try {
 			const texts = await getScenarioTexts();
 			const text = texts.bp_paid_reply.replaceAll(

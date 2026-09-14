@@ -1,8 +1,4 @@
 import { getYandexMetrikaSettings } from "@psi-opora/db/queries";
-import {
-	BOOK_PREORDER_CATEGORY_ID,
-	BOOK_PREORDER_STAGE_IDS,
-} from "./book-preorder-pipeline";
 import { bitrixPost, getBotId, getSourceId } from "./client";
 import { DEFAULT_ASSIGNED_BY_ID } from "./contact";
 import type { DealData } from "./types";
@@ -105,15 +101,11 @@ export async function buildDealFields(data: DealData, contactId: number) {
 		TITLE: `Заявка (${[flowLabel, botId].filter(Boolean).join(", ")}): ${data.name}`,
 		CONTACT_IDS: [contactId],
 		ASSIGNED_BY_ID: DEFAULT_ASSIGNED_BY_ID,
-		// Воронка предзаказа книги отдельная от дефолтной — без явного
-		// CATEGORY_ID/STAGE_ID сделка попала бы в общую воронку на стадию
-		// "новая", минуя стадию "Бронь" (см. book-preorder-pipeline.ts).
-		...(data.flow === "book_preorder"
-			? {
-					CATEGORY_ID: BOOK_PREORDER_CATEGORY_ID,
-					STAGE_ID: BOOK_PREORDER_STAGE_IDS.reserved,
-				}
-			: {}),
+		// Кастомная воронка/стадия — решает вызывающая сторона (см.
+		// DealData.categoryId/stageId), buildDealFields не завязан на
+		// конкретные значения flow.
+		...(data.categoryId !== undefined ? { CATEGORY_ID: data.categoryId } : {}),
+		...(data.stageId ? { STAGE_ID: data.stageId } : {}),
 		SOURCE_ID: getSourceId(messenger),
 		SOURCE_DESCRIPTION: description || `${messenger} бот`,
 		UTM_SOURCE: data.source ?? messenger,

@@ -27,6 +27,12 @@ export function isBookPreorderAction(
  */
 export type BookPreorderIntent = "pay" | "reserve";
 
+/** Единый источник цен предзаказа — используется и при оплате сразу
+ * (dispatch.ts), и в кнопках цепочки напоминаний (drip-actions.ts), чтобы
+ * цена не могла разъехаться между двумя файлами. */
+export const BOOK_PREORDER_PRICE_RUB = 1980;
+export const BOOK_PREORDER_REGULAR_PRICE_RUB = 2480;
+
 export type BookPreorderStep =
 	| "consent"
 	| "name"
@@ -97,5 +103,9 @@ export interface BookPreorderOutput {
 	manualPaymentCheck?: boolean;
 	/** Клиент написал "отменить" на шаге брони — перевести заказ/сделку в отказ. */
 	cancelReservation?: boolean;
+	/** Email на шаге оплаты так и не удалось распознать за MAX_EMAIL_ATTEMPTS
+	 * попыток — сценарий завершается, менеджеру уходит комментарий, если
+	 * сделка уже существует (см. dispatch.ts). */
+	emailFailed?: boolean;
 	awaitingInput: boolean;
 }

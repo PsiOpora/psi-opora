@@ -52,7 +52,7 @@ import type {
  * ./questions; здесь только переходы между шагами.
  */
 
-export { stepQuestion } from "./questions";
+export { stepQuestion, withFields, withName } from "./questions";
 export {
 	isScenarioAction,
 	SCENARIO_ACTIONS,

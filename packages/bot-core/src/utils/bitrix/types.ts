@@ -65,4 +65,12 @@ export interface DealData extends ContactData {
 	audience?: "child" | "self";
 	/** Выбор в флоу гайда: с чем связаны трудности. */
 	issue?: "eating" | "ocd" | "other";
+	/**
+	 * Кастомная воронка/стадия Bitrix для сделок вне дефолтного пайплайна
+	 * (напр. book_preorder — см. utils/bitrix/book-preorder-pipeline.ts).
+	 * buildDealFields не знает про конкретные значения flow — вызывающая
+	 * сторона сама решает, в какую воронку/стадию класть сделку.
+	 */
+	categoryId?: number;
+	stageId?: string;
 }
