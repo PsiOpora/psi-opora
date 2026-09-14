@@ -287,7 +287,7 @@ export function MessageWidget({
 								{recipient.contactName}
 							</p>
 							<p className="truncate text-xs text-muted-foreground">
-								Сообщение уйдёт от имени бота Психологического центра «Опора»
+								Сообщение уйдёт через выбранный канал
 							</p>
 						</div>
 					</div>
@@ -303,6 +303,7 @@ export function MessageWidget({
 										<TooltipTrigger asChild>
 											<button
 												type="button"
+												aria-pressed={Boolean(selected)}
 												onClick={() => setChannel(c)}
 												className={cn(
 													"inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",

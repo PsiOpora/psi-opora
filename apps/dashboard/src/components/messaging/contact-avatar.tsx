@@ -1,15 +1,15 @@
 import { cn } from "@/lib/utils";
 
 const FALLBACK_COLORS = [
-	"bg-rose-500",
-	"bg-orange-500",
-	"bg-amber-500",
-	"bg-emerald-500",
-	"bg-teal-500",
-	"bg-sky-500",
-	"bg-indigo-500",
-	"bg-violet-500",
-	"bg-fuchsia-500",
+	"bg-rose-700",
+	"bg-orange-700",
+	"bg-amber-700",
+	"bg-emerald-700",
+	"bg-teal-700",
+	"bg-sky-700",
+	"bg-indigo-700",
+	"bg-violet-700",
+	"bg-fuchsia-700",
 ];
 
 function hashString(value: string): number {
@@ -37,7 +37,7 @@ export function ContactAvatar({
 	className?: string;
 }) {
 	const color =
-		FALLBACK_COLORS[hashString(name) % FALLBACK_COLORS.length] ?? "bg-sky-500";
+		FALLBACK_COLORS[hashString(name) % FALLBACK_COLORS.length] ?? "bg-sky-700";
 	return (
 		<div
 			className={cn(
