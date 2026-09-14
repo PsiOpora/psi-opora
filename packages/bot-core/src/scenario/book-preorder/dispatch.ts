@@ -3,12 +3,7 @@ import {
 	markBookPreorderDeclined,
 	upsertBookPreorderOrder,
 } from "@psi-opora/db/queries";
-import {
-	appendDealComment,
-	BOOK_PREORDER_CATEGORY_ID,
-	BOOK_PREORDER_STAGE_IDS,
-	moveBookPreorderDealStage,
-} from "../../utils/bitrix";
+import { appendDealComment } from "../../utils/bitrix";
 import { submitConsultationDeal } from "../../utils/consultation-deal";
 import { logBotMessage } from "../../utils/message-log";
 import { buildProdamusPaymentUrl } from "../../utils/prodamus";
@@ -38,10 +33,14 @@ function orderKey(messenger: string, userId: number): string {
 
 /**
  * Исполняет результат шага сценария предзаказа книги: отправляет сообщения,
- * создаёт сделку/строку заказа, строит ссылку на оплату, двигает стадию
- * сделки. По образцу ../dispatch.ts (dispatchScenarioOutput), но без
- * трекинга в общую воронку дашборда — это отдельный, самостоятельный
- * сценарий с собственной отчётностью через book_preorder_orders/Bitrix.
+ * создаёт сделку/строку заказа, строит ссылку на оплату. По образцу
+ * ../dispatch.ts (dispatchScenarioOutput), но без трекинга в общую воронку
+ * дашборда — это отдельный, самостоятельный сценарий с собственной
+ * отчётностью через book_preorder_orders. Сделка Bitrix остаётся в обычной
+ * стадии — источник истины по статусу заказа это book_preorder_orders.status,
+ * а менеджеру каждый переход виден комментарием в таймлайне сделки (создание
+ * пайплайна под отдельную воронку упёрлось в ограничение тарифа, да и не
+ * было строго необходимо).
  */
 export async function dispatchBookPreorderOutput(
 	out: BookPreorderOutput,
@@ -95,13 +94,6 @@ export async function dispatchBookPreorderOutput(
 			comment,
 			flow: "book_preorder",
 			consentAt: out.lead.consentAt,
-			// Воронка предзаказа книги отдельная от дефолтной — без явного
-			// CATEGORY_ID/STAGE_ID сделка попала бы в общую воронку на стадию
-			// "новая", минуя стадию "Бронь" (см. book-preorder-pipeline.ts).
-			// buildDealFields сам про book_preorder ничего не знает — эти два
-			// поля выбирает вызывающая сторона.
-			categoryId: BOOK_PREORDER_CATEGORY_ID,
-			stageId: BOOK_PREORDER_STAGE_IDS.reserved,
 		});
 		if (dealId) out.state.dealId = dealId;
 
@@ -127,13 +119,6 @@ export async function dispatchBookPreorderOutput(
 			email: out.state.email,
 			dealId: out.state.dealId,
 		});
-		if (out.state.dealId) {
-			await moveBookPreorderDealStage(
-				deps.messenger,
-				out.state.dealId,
-				"awaitingPayment",
-			);
-		}
 		const url = buildProdamusPaymentUrl({
 			orderId: out.state.orderNo,
 			phone: out.state.phone,
@@ -193,11 +178,6 @@ export async function dispatchBookPreorderOutput(
 	if (out.cancelReservation) {
 		await markBookPreorderDeclined(key);
 		if (out.state.dealId) {
-			await moveBookPreorderDealStage(
-				deps.messenger,
-				out.state.dealId,
-				"declined",
-			);
 			await appendDealComment(
 				deps.messenger,
 				out.state.dealId,
