@@ -76,9 +76,13 @@ async function callBitrix<T extends z.ZodType>(
 	});
 	const raw: unknown = await response.json();
 	const envelope = bitrixResponseSchema(resultSchema).parse(raw);
-	if (envelope.error) {
+	// Bitrix иногда шлёт error: "" с непустым error_description (напр. когда
+	// действие недоступно на тарифе) — `if (envelope.error)` не заметил бы
+	// это, т.к. пустая строка ложна, поэтому дополнительно проверяем HTTP-статус
+	// и error_description.
+	if (!response.ok || envelope.error || envelope.error_description) {
 		throw new Error(
-			`Bitrix24 [${method}]: ${envelope.error} — ${envelope.error_description ?? ""}`,
+			`Bitrix24 [${method}] (HTTP ${response.status}): ${envelope.error || "—"} — ${envelope.error_description ?? ""}`,
 		);
 	}
 	if (envelope.result === undefined) {

@@ -5,6 +5,8 @@ import {
 } from "@psi-opora/db/queries";
 import {
 	appendDealComment,
+	BOOK_PREORDER_CATEGORY_ID,
+	BOOK_PREORDER_STAGE_IDS,
 	moveBookPreorderDealStage,
 } from "../../utils/bitrix";
 import { submitConsultationDeal } from "../../utils/consultation-deal";
@@ -12,7 +14,11 @@ import { logBotMessage } from "../../utils/message-log";
 import { buildProdamusPaymentUrl } from "../../utils/prodamus";
 import type { ScenarioTexts } from "../texts";
 import { bpPaymentLinkMessage } from "./questions";
-import type { BookPreorderMessage, BookPreorderOutput } from "./types";
+import {
+	BOOK_PREORDER_PRICE_RUB,
+	type BookPreorderMessage,
+	type BookPreorderOutput,
+} from "./types";
 
 export interface BookPreorderDispatchDeps {
 	messenger: string;
@@ -25,10 +31,6 @@ export interface BookPreorderDispatchDeps {
 	campaign?: string;
 	ymClientId?: string;
 }
-
-/** Цена предзаказа при оплате сразу из диалога — дедлайн 1980→2480 действует
- * только в цепочке напоминаний Б1–Б6 (см. packages/jobs/src/book-preorder-drip.ts). */
-const PREORDER_PRICE_RUB = 1980;
 
 function orderKey(messenger: string, userId: number): string {
 	return `${messenger}:${userId}`;
@@ -93,6 +95,13 @@ export async function dispatchBookPreorderOutput(
 			comment,
 			flow: "book_preorder",
 			consentAt: out.lead.consentAt,
+			// Воронка предзаказа книги отдельная от дефолтной — без явного
+			// CATEGORY_ID/STAGE_ID сделка попала бы в общую воронку на стадию
+			// "новая", минуя стадию "Бронь" (см. book-preorder-pipeline.ts).
+			// buildDealFields сам про book_preorder ничего не знает — эти два
+			// поля выбирает вызывающая сторона.
+			categoryId: BOOK_PREORDER_CATEGORY_ID,
+			stageId: BOOK_PREORDER_STAGE_IDS.reserved,
 		});
 		if (dealId) out.state.dealId = dealId;
 
@@ -129,11 +138,11 @@ export async function dispatchBookPreorderOutput(
 			orderId: out.state.orderNo,
 			phone: out.state.phone,
 			email: out.state.email,
-			sum: PREORDER_PRICE_RUB,
+			sum: BOOK_PREORDER_PRICE_RUB,
 		});
 		const linkMessage = bpPaymentLinkMessage(
 			url,
-			PREORDER_PRICE_RUB,
+			BOOK_PREORDER_PRICE_RUB,
 			deps.texts,
 		);
 		try {
@@ -170,6 +179,14 @@ export async function dispatchBookPreorderOutput(
 			deps.messenger,
 			out.state.dealId,
 			"Клиент написал «оплатил» — автоматическое подтверждение ещё не пришло, нужно проверить вручную.",
+		);
+	}
+
+	if (out.emailFailed && out.state.dealId) {
+		await appendDealComment(
+			deps.messenger,
+			out.state.dealId,
+			"Клиент не смог указать email для оплаты за несколько попыток — сценарий завершён, нужно дожать вручную.",
 		);
 	}
 

@@ -60,6 +60,8 @@ export {
 	startGuideCampaign,
 	startScenario,
 	stepQuestion,
+	withFields,
+	withName,
 } from "./scenario/engine";
 export {
 	findGuideCampaignByText,

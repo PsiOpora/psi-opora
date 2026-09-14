@@ -14,6 +14,7 @@ import {
 	releaseBookPreorderPaidNotification,
 } from "@psi-opora/db/queries";
 import { type Messenger, sendMessengerMessage } from "@psi-opora/jobs";
+import { z } from "zod";
 
 /**
  * Вебхук об оплате предзаказа книги «Тело берёт своё» — payform.ru на белом
@@ -28,6 +29,15 @@ import { type Messenger, sendMessengerMessage } from "@psi-opora/jobs";
  * на объекте с обычным прототипом дотягивается до Object.prototype
  * (`__proto__`) или его конструктора ещё до проверки подписи вебхука. */
 const UNSAFE_PATH_SEGMENTS = new Set(["__proto__", "prototype", "constructor"]);
+
+const payformWebhookSchema = z
+	.object({
+		order_id: z.string(),
+		payment_status: z.string(),
+		sign: z.string().optional(),
+		signature: z.string().optional(),
+	})
+	.passthrough();
 
 /** Разбирает form-urlencoded тело с PHP-style вложенностью (`products[0][price]`)
  * в обычный объект — так же, как это видит Prodamus при формировании подписи.
@@ -66,17 +76,27 @@ export async function handlePayformWebhook(
 	}
 
 	const rawBody = await request.text();
-	const fields = parseFormFields(rawBody);
-	const {
-		sign,
-		signature: _signature,
-		...fieldsToVerify
-	} = fields as Record<string, unknown>;
+	const parsedFields = payformWebhookSchema.safeParse(parseFormFields(rawBody));
+	if (!parsedFields.success) {
+		console.warn("[payform-webhook] некорректное тело запроса");
+		return new Response("Bad Request", { status: 400 });
+	}
+	const fields = parsedFields.data;
+	// Prodamus, по разным интеграциям, кладёт подпись то в заголовок Sign, то
+	// в поле тела `sign`/`signature` — оба поля исключаем из подписываемых
+	// данных независимо от того, какое реально пришло.
+	const { sign, signature, ...fieldsToVerify } = fields;
+	const bodySignature =
+		typeof sign === "string"
+			? sign
+			: typeof signature === "string"
+				? signature
+				: null;
 
 	if (
 		!verifyProdamusSignature(
 			fieldsToVerify,
-			request.headers.get("sign") ?? (typeof sign === "string" ? sign : null),
+			request.headers.get("sign") ?? bodySignature,
 			secret,
 		)
 	) {
@@ -85,7 +105,7 @@ export async function handlePayformWebhook(
 	}
 
 	const orderNo = Number(fields.order_id);
-	const paymentStatus = String(fields.payment_status ?? "").toLowerCase();
+	const paymentStatus = fields.payment_status.toLowerCase();
 	if (!Number.isFinite(orderNo) || paymentStatus !== "success") {
 		// Не успешный платёж (отмена, ожидание) или чужое событие — подтверждаем
 		// приём без действий, повторно Prodamus не шлёт.
@@ -104,7 +124,10 @@ export async function handlePayformWebhook(
 
 	const messenger = order.messenger as Messenger;
 
-	if (!order.paidNotifiedAt && (await claimBookPreorderPaidNotification(order.id))) {
+	if (
+		!order.paidNotifiedAt &&
+		(await claimBookPreorderPaidNotification(order.id))
+	) {
 		try {
 			const texts = await getScenarioTexts();
 			const text = texts.bp_paid_reply.replaceAll(

@@ -12,7 +12,11 @@ import {
 import { buildProdamusPaymentUrl } from "../../utils/prodamus";
 import type { ScenarioTexts } from "../texts";
 import { bpPaymentLinkMessage } from "./questions";
-import type { BookPreorderMessage } from "./types";
+import {
+	BOOK_PREORDER_PRICE_RUB,
+	BOOK_PREORDER_REGULAR_PRICE_RUB,
+	type BookPreorderMessage,
+} from "./types";
 
 /**
  * Кнопки цепочки напоминаний Б1–Б6 (packages/jobs/src/book-preorder-drip.ts)
@@ -45,8 +49,16 @@ export function parseDripCallback(data: string): ParsedDripCallback | null {
 	return { action: match[1] as DripCallbackAction, orderNo: Number(match[2]) };
 }
 
-const REGULAR_PRICE_RUB = 2480;
-const PREORDER_PRICE_RUB = 1980;
+/** Действия, которые двигают статус заказа/сделки — на устаревшей кнопке
+ * (заказ уже оплачен или бронь уже отменена) их нельзя выполнять повторно,
+ * см. guard ниже. "notify_ebook" в список не входит — он ничего не меняет. */
+const MUTATING_ACTIONS = new Set<DripCallbackAction>([
+	"pay",
+	"buy2480",
+	"defer",
+	"cancel",
+	"stop",
+]);
 
 /**
  * Обрабатывает клик по кнопке напоминания — обновляет заказ/сделку в Bitrix
@@ -74,12 +86,21 @@ export async function handleBookPreorderDripCallback(
 		return null;
 	}
 
+	// Заказ уже оплачен/отменён (клиент нажал кнопку на старом сообщении из
+	// более ранней рассылки) — не даём "Оплатить"/"Отменить" отыграть назад
+	// уже завершённый заказ и стадию сделки в Bitrix.
+	if (order.status !== "reserved" && MUTATING_ACTIONS.has(parsed.action)) {
+		return { text: t.bp_drip_already_settled_reply };
+	}
+
 	switch (parsed.action) {
 		case "pay":
 		case "buy2480": {
 			await recordBookPreorderDripAnyClick(order.id);
 			const sum =
-				parsed.action === "buy2480" ? REGULAR_PRICE_RUB : PREORDER_PRICE_RUB;
+				parsed.action === "buy2480"
+					? BOOK_PREORDER_REGULAR_PRICE_RUB
+					: BOOK_PREORDER_PRICE_RUB;
 			// Переводим заказ в awaiting_payment до выдачи ссылки — иначе
 			// markBookPreorderPaid (вебхук Prodamus) не найдёт заказ в нужном
 			// статусе и подтверждение оплаты будет молча потеряно.

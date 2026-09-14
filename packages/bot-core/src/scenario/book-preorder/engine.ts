@@ -59,6 +59,7 @@ export {
 
 const MAX_NUDGE = 3;
 const MAX_PHONE_ATTEMPTS = 2;
+const MAX_EMAIL_ATTEMPTS = 3;
 const NAME_MAX_LENGTH = 40;
 const NAME_LINK_RE = /https?:\/\/|www\./i;
 const PAID_TEXT_RE = /оплат/i;
@@ -70,7 +71,11 @@ function output(
 	extra: Partial<
 		Pick<
 			BookPreorderOutput,
-			"lead" | "buildPaymentLink" | "manualPaymentCheck" | "cancelReservation"
+			| "lead"
+			| "buildPaymentLink"
+			| "manualPaymentCheck"
+			| "cancelReservation"
+			| "emailFailed"
 		>
 	> = {},
 ): BookPreorderOutput {
@@ -80,6 +85,31 @@ function output(
 		awaitingInput: state.step !== "done",
 		...extra,
 	};
+}
+
+/**
+ * Переход в "reserved": и по кнопке «Забронировать бесплатно» из рассказа о
+ * книге, и сразу после телефона для тех, кто пришёл по кнопке «Забронировать»
+ * с лендинга (см. afterPhoneOutput) — общая логика заявки на бесплатную
+ * бронь, чтобы условия/поля лида не расходились между двумя входами.
+ */
+function enterReserved(
+	state: BookPreorderState,
+	t: ScenarioTexts,
+	leadingMessages: BookPreorderMessage[] = [],
+): BookPreorderOutput {
+	return output(
+		{ ...state, step: "reserved", nudged: 0 },
+		[...leadingMessages, bpReservedQuestion(state.name, t)],
+		{
+			lead: {
+				name: state.name,
+				phone: state.phone,
+				consentAt: state.consentAt,
+				paymentChoice: "deferred",
+			},
+		},
+	);
 }
 
 /**
@@ -95,21 +125,7 @@ function afterPhoneOutput(
 	t: ScenarioTexts,
 ): BookPreorderOutput {
 	if (state.intent === "reserve") {
-		return output(
-			{ ...state, step: "reserved" },
-			[
-				bpAboutBookInfoMessage(state.name, t),
-				bpReservedQuestion(state.name, t),
-			],
-			{
-				lead: {
-					name: state.name,
-					phone: state.phone,
-					consentAt: state.consentAt,
-					paymentChoice: "deferred",
-				},
-			},
-		);
+		return enterReserved(state, t, [bpAboutBookInfoMessage(state.name, t)]);
 	}
 	if (state.intent === "pay") {
 		return output({ ...state, step: "email_for_payment" }, [
@@ -151,18 +167,7 @@ export function applyBookPreorderAction(
 
 		case "about_book": {
 			if (action === "bp_reserve_free") {
-				return output(
-					{ ...state, step: "reserved", nudged: 0 },
-					[bpReservedQuestion(state.name, t)],
-					{
-						lead: {
-							name: state.name,
-							phone: state.phone,
-							consentAt: state.consentAt,
-							paymentChoice: "deferred",
-						},
-					},
-				);
+				return enterReserved(state, t);
 			}
 			if (action === "bp_pay_now") {
 				return output({ ...state, step: "email_for_payment" }, [
@@ -298,6 +303,29 @@ export async function applyBookPreorderText(
 				});
 			}
 			const attempts = (state.emailAttempts ?? 0) + 1;
+			if (attempts >= MAX_EMAIL_ATTEMPTS) {
+				// Без email нечего слать в Prodamus — в отличие от телефона, здесь
+				// нет пути "продолжить без", поэтому завершаем сценарий, при
+				// необходимости создаём сделку и оставляем менеджеру комментарий
+				// на ручной дожим (см. dispatch.ts: lead и emailFailed).
+				return output(
+					{ ...state, step: "done", emailAttempts: attempts },
+					[{ text: t.bp_email_invalid_final }],
+					{
+						emailFailed: true,
+						...(state.dealId
+							? {}
+							: {
+									lead: {
+										name: state.name,
+										phone: state.phone,
+										consentAt: state.consentAt,
+										paymentChoice: "immediate",
+									},
+								}),
+					},
+				);
+			}
 			return output({ ...state, emailAttempts: attempts }, [
 				{ text: t.bp_email_invalid },
 			]);
