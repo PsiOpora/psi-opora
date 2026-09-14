@@ -24,7 +24,7 @@ function MessageWidgetPageContent() {
 	const id = searchParams.get("id") ?? "";
 
 	return (
-		<div className="p-4">
+		<div className="flex h-svh flex-col">
 			<MessageWidget entity={entity} entityId={id} />
 		</div>
 	);
