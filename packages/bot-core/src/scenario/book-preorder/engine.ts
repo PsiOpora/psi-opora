@@ -308,13 +308,25 @@ export async function applyBookPreorderText(
 			const attempts = (state.emailAttempts ?? 0) + 1;
 			if (attempts >= MAX_EMAIL_ATTEMPTS) {
 				// Без email нечего слать в Prodamus — в отличие от телефона, здесь
-				// нет пути "продолжить без", поэтому завершаем сценарий и, если
-				// сделка уже есть (пришёл через бронь), оставляем менеджеру
-				// комментарий на ручной дожим (см. dispatch.ts: emailFailed).
+				// нет пути "продолжить без", поэтому завершаем сценарий, при
+				// необходимости создаём сделку и оставляем менеджеру комментарий
+				// на ручной дожим (см. dispatch.ts: lead и emailFailed).
 				return output(
 					{ ...state, step: "done", emailAttempts: attempts },
 					[{ text: t.bp_email_invalid_final }],
-					{ emailFailed: true },
+					{
+						emailFailed: true,
+						...(state.dealId
+							? {}
+							: {
+									lead: {
+										name: state.name,
+										phone: state.phone,
+										consentAt: state.consentAt,
+										paymentChoice: "immediate",
+									},
+								}),
+					},
 				);
 			}
 			return output({ ...state, emailAttempts: attempts }, [
