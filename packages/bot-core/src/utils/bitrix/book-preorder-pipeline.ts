@@ -36,5 +36,6 @@ export async function moveBookPreorderDealStage(
 		console.error(
 			`[bitrix] не удалось перевести сделку предзаказа ${dealId} на стадию ${stage}: ${(err as Error).message}`,
 		);
+		throw err;
 	}
 }
