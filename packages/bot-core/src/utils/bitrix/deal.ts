@@ -101,6 +101,11 @@ export async function buildDealFields(data: DealData, contactId: number) {
 		TITLE: `Заявка (${[flowLabel, botId].filter(Boolean).join(", ")}): ${data.name}`,
 		CONTACT_IDS: [contactId],
 		ASSIGNED_BY_ID: DEFAULT_ASSIGNED_BY_ID,
+		// Кастомная воронка/стадия — решает вызывающая сторона (см.
+		// DealData.categoryId/stageId), buildDealFields не завязан на
+		// конкретные значения flow.
+		...(data.categoryId !== undefined ? { CATEGORY_ID: data.categoryId } : {}),
+		...(data.stageId ? { STAGE_ID: data.stageId } : {}),
 		SOURCE_ID: getSourceId(messenger),
 		SOURCE_DESCRIPTION: description || `${messenger} бот`,
 		UTM_SOURCE: data.source ?? messenger,
