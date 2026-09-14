@@ -394,6 +394,9 @@ export function createMaxBot({
 		guideCampaign?: GuideCampaignContext | null,
 	) => {
 		ctx.session.scenario = out.state;
+		// Сброс зависшего сценария предзаказа книги — см. тот же фикс и
+		// комментарий в packages/bot-core/src/bot.ts.
+		ctx.session.bookPreorder = undefined;
 		await dispatchScenarioOutput(out, {
 			messenger: "max",
 			sessionKey: sessionKeyOf(ctx),
