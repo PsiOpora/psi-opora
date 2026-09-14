@@ -15,6 +15,14 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 const PAYFORM_BASE_URL = "https://payform.ru/6ucwABm/";
 
+/** Название товара для переопределения цены (см. buildProdamusPaymentUrl) —
+ * без products[0][name] Prodamus не принимает products[0][price] как
+ * переопределение суммы и открывает страницу оплаты с ценой, зашитой в
+ * личном кабинете ссылки, игнорируя params.sum (см. пример из документации:
+ * https://help.prodamus.ru/payform/integracii/tekhnicheskaya-dokumentaciya-po-avtoplatezham/formirovanie-ssylki-na-oplatu —
+ * products[0][price]/[quantity]/[name] всегда идут вместе). */
+const PRODUCT_NAME = "Книга «Тело берёт своё» (предзаказ)";
+
 export interface ProdamusPaymentLinkParams {
 	orderId: number;
 	phone?: string;
@@ -33,7 +41,8 @@ export function buildProdamusPaymentUrl(
 	if (params.phone) url.searchParams.set("customer_phone", params.phone);
 	if (params.email) url.searchParams.set("customer_email", params.email);
 	if (params.sum !== undefined) {
-		url.searchParams.set("customer_extra", `sum=${params.sum}`);
+		url.searchParams.set("customer_extra", PRODUCT_NAME);
+		url.searchParams.set("products[0][name]", PRODUCT_NAME);
 		url.searchParams.set("products[0][price]", String(params.sum));
 		url.searchParams.set("products[0][quantity]", "1");
 	}
