@@ -21,7 +21,7 @@
     "@psi-opora/tg-userbot": "workspace:*",
     "@psi-opora/waha": "workspace:*",
     "hono": "4.13.7",
-    "zod": "4.6.1"
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
