@@ -91,6 +91,15 @@ function output(
 	};
 }
 
+function manualPaymentCheckOutput(
+	state: BookPreorderState,
+	t: ScenarioTexts,
+): BookPreorderOutput {
+	return output(state, [{ text: t.bp_manual_payment_check_reply }], {
+		manualPaymentCheck: true,
+	});
+}
+
 /**
  * Переход в "reserved": и по кнопке «Забронировать бесплатно» из рассказа о
  * книге, и сразу после телефона для тех, кто пришёл по кнопке «Забронировать»
@@ -199,18 +208,18 @@ export function applyBookPreorderAction(
 				]);
 			}
 			if (action === "bp_pay_later") {
-				return output({ ...state, step: "done" }, [
-					{ text: t.bp_pay_later_reply },
-				], { paymentDeferred: true });
+				return output(
+					{ ...state, step: "done" },
+					[{ text: t.bp_pay_later_reply }],
+					{ paymentDeferred: true },
+				);
 			}
 			return null;
 		}
 
 		case "awaiting_payment": {
 			if (action === "bp_confirm_payment") {
-				return output(state, [{ text: t.bp_manual_payment_check_reply }], {
-					manualPaymentCheck: true,
-				});
+				return manualPaymentCheckOutput(state, t);
 			}
 			return null;
 		}
@@ -353,9 +362,7 @@ export async function applyBookPreorderText(
 
 		case "awaiting_payment": {
 			if (PAID_TEXT_RE.test(trimmed)) {
-				return output(state, [{ text: t.bp_manual_payment_check_reply }], {
-					manualPaymentCheck: true,
-				});
+				return manualPaymentCheckOutput(state, t);
 			}
 			return null;
 		}

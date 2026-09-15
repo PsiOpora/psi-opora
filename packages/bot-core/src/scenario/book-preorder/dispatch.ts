@@ -7,6 +7,7 @@ import {
 	appendDealComment,
 	BOOK_PREORDER_CATEGORY_ID,
 	BOOK_PREORDER_STAGE_IDS,
+	createBitrixTask,
 	moveBookPreorderDealStage,
 } from "../../utils/bitrix";
 import { submitConsultationDeal } from "../../utils/consultation-deal";
@@ -180,11 +181,14 @@ export async function dispatchBookPreorderOutput(
 	}
 
 	if (out.manualPaymentCheck && out.state.dealId) {
-		await appendDealComment(
-			deps.messenger,
-			out.state.dealId,
-			"Клиент написал «оплатил» — автоматическое подтверждение ещё не пришло, нужно проверить вручную.",
-		);
+		const comment =
+			"Клиент написал «оплатил» — автоматическое подтверждение ещё не пришло, нужно проверить вручную.";
+		await appendDealComment(deps.messenger, out.state.dealId, comment);
+		await createBitrixTask(deps.messenger, {
+			title: "Проверить оплату предзаказа книги",
+			description: comment,
+			dealId: out.state.dealId,
+		});
 	}
 
 	if (out.emailFailed && out.state.dealId) {
