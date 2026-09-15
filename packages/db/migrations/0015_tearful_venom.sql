@@ -1,0 +1,1 @@
+ALTER TABLE "bot_users" ADD COLUMN "avatar_s3_key" text;

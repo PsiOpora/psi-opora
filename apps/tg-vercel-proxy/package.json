@@ -1,0 +1,15 @@
+{
+  "name": "@psi-opora/tg-vercel-proxy",
+  "version": "0.0.3",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "4.13.7"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

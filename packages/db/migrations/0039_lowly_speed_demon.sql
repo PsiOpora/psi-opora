@@ -1,0 +1,1 @@
+ALTER TABLE "bot_guide_deliveries" ADD COLUMN "email_sent_at" timestamp;

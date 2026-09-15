@@ -1,0 +1,369 @@
+"use client";
+
+import type {
+	WidgetChannel,
+	WidgetEntity,
+	WidgetHistoryItem,
+	WidgetRecipient,
+} from "@psi-opora/api";
+import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
+import { Loader2Icon, SendIcon } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useB24Frame } from "@/components/bitrix/frame-provider";
+import { ContactAvatar } from "@/components/messaging/contact-avatar";
+import {
+	type HistoryEntry,
+	HistoryList,
+	mergeHistory,
+} from "@/components/messaging/history-list";
+import { MessageComposer } from "@/components/messaging/message-composer";
+import { MessengerIcon } from "@/components/messaging/messenger-icon";
+import { Button } from "@/components/ui/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { orpcClient } from "@/lib/orpc/client";
+import { cn } from "@/lib/utils";
+
+const POLL_INTERVAL_MS = 5000;
+/** Через сколько снимать надпись «отправляется…», даже если поллинг ещё не
+ * подтвердил запись в БД (сама отправка клиенту при этом уже прошла успешно). */
+const PENDING_LABEL_TIMEOUT_MS = 8000;
+
+/** Целевая высота вкладки в портале — как у полноразмерного окна мессенджера
+ * (Wazzup и т.п.), а не узкой формы на пол-экрана. Ширину не трогаем, чтобы
+ * не спорить с шириной, которую уже выделил Битрикс под область вкладки. */
+const WIDGET_TARGET_HEIGHT_PX = 640;
+
+function draftStorageKey(entity: WidgetEntity, entityId: string): string {
+	return `psi-opora:widget-draft:${entity}:${entityId}`;
+}
+
+/** localStorage может быть недоступен в iframe виджета (Safari ITP и т.п.) —
+ * тогда черновик просто не сохраняется, без падения виджета. */
+function readDraft(key: string): string {
+	try {
+		return localStorage.getItem(key) ?? "";
+	} catch {
+		return "";
+	}
+}
+
+function writeDraft(key: string, value: string): void {
+	try {
+		if (value) localStorage.setItem(key, value);
+		else localStorage.removeItem(key);
+	} catch {
+		// недоступно — черновик не сохранится, отправка сообщений при этом не страдает
+	}
+}
+
+function channelKey(
+	channel: Pick<WidgetChannel, "messenger" | "lineId" | "connectorId">,
+): string {
+	return `${channel.messenger}:${channel.lineId ?? ""}:${channel.connectorId ?? ""}`;
+}
+
+/**
+ * Канал по умолчанию — тот, через который уже идёт переписка с клиентом:
+ * ищем канал последнего сообщения истории (свежие — в конце, см.
+ * WidgetRecipient.history), сначала точным совпадением messenger+connectorId
+ * (различает несколько личных номеров одного мессенджера), затем только по
+ * messenger. Если истории ещё нет (новый контакт) — первый доступный канал.
+ */
+function pickDefaultChannel(
+	channels: WidgetChannel[],
+	history: WidgetHistoryItem[],
+): WidgetChannel | null {
+	for (let i = history.length - 1; i >= 0; i--) {
+		const item = history[i];
+		if (!item) continue;
+		const match =
+			channels.find(
+				(c) =>
+					c.messenger === item.messenger && c.connectorId === item.connectorId,
+			) ?? channels.find((c) => c.messenger === item.messenger);
+		if (match) return match;
+	}
+	return channels[0] ?? null;
+}
+
+/**
+ * Вкладка «Мессенджер» в карточке сделки/контакта: полноразмерная переписка
+ * с клиентом (как в едином инбоксе дашборда «Клиенты» или у Wazzup) — шапка
+ * с контактом и выбором канала, лента сообщений на всю высоту и поле ввода
+ * снизу. Список каналов — динамический (recipient.channels): боты — только
+ * если контакт уже писал (поля контакта), личный(е) номер(а) Telegram —
+ * всегда, если у контакта есть телефон (можно писать первым, см.
+ * packages/tg-userbot).
+ */
+export function MessageWidget({
+	entity,
+	entityId,
+}: {
+	entity: WidgetEntity;
+	entityId: string;
+}) {
+	const { b24 } = useB24Frame();
+	const [recipient, setRecipient] = useState<WidgetRecipient | null>(null);
+	const [history, setHistory] = useState<HistoryEntry[]>([]);
+	const [loadError, setLoadError] = useState<string | null>(null);
+	const [loading, setLoading] = useState(true);
+
+	const [channel, setChannel] = useState<WidgetChannel | null>(null);
+	const [text, setText] = useState("");
+	const [sendError, setSendError] = useState<string | null>(null);
+	const [sending, startSending] = useTransition();
+
+	// Момент последнего известного сообщения — поллинг запрашивает только то, что новее.
+	const sinceRef = useRef(new Date().toISOString());
+
+	// Просим Битрикс выделить вкладке высоту полноценного окна мессенджера —
+	// без этого CRM_DEAL_DETAIL_TAB даёт лишь узкую форму, куда переписка не
+	// помещается. Ширину не запрашиваем явно — берём текущую, чтобы не
+	// спорить с раскладкой самой карточки сделки.
+	useEffect(() => {
+		if (!b24) return;
+		b24.parent
+			.resizeWindow(
+				document.documentElement.clientWidth,
+				WIDGET_TARGET_HEIGHT_PX,
+			)
+			.catch(() => {
+				// Согласно b24jssdk может не сработать при первом открытии — тогда
+				// просто останется размер по умолчанию, без падения виджета.
+			});
+	}, [b24]);
+
+	const load = useCallback(() => {
+		if (!entityId) {
+			setLoadError("Откройте вкладку из карточки сделки или контакта");
+			setLoading(false);
+			return;
+		}
+		setLoading(true);
+		setLoadError(null);
+		orpcClient.widgetMessage
+			.loadRecipient({ entity, id: entityId })
+			.then(({ recipient: loaded, error }) => {
+				if (error || !loaded) {
+					setLoadError(error ?? "Не удалось получить данные");
+					return;
+				}
+				setRecipient(loaded);
+				setHistory(loaded.history);
+				sinceRef.current =
+					loaded.history[loaded.history.length - 1]?.createdAt ??
+					new Date().toISOString();
+				setChannel(pickDefaultChannel(loaded.channels, loaded.history));
+			})
+			.catch((err) => setLoadError((err as Error).message))
+			.finally(() => setLoading(false));
+	}, [entity, entityId]);
+
+	// Токены портала сохраняются BitrixFrameProvider чуть позже первого рендера —
+	// при ошибке авторизации менеджер нажмёт «Повторить»
+	useEffect(load, [load]);
+
+	// Черновик переживает случайное закрытие/переключение вкладки CRM —
+	// восстанавливается один раз на элемент CRM, если поле ещё пустое.
+	useEffect(() => {
+		if (!entityId) return;
+		const saved = readDraft(draftStorageKey(entity, entityId));
+		if (saved) setText(saved);
+	}, [entity, entityId]);
+
+	useEffect(() => {
+		if (!entityId) return;
+		writeDraft(draftStorageKey(entity, entityId), text);
+	}, [entity, entityId, text]);
+
+	// Поллинг: новые сообщения клиента (и отправленные из других мест — сценарий,
+	// напоминание, рассылка) подтягиваются без перезагрузки вкладки. Пока вкладка
+	// CRM не в фокусе — не дёргаем Bitrix API, а сразу опрашиваем при возврате.
+	useEffect(() => {
+		if (!entityId || loading || loadError || !recipient) return;
+		if (recipient.channels.length === 0) return;
+
+		const poll = async () => {
+			if (document.hidden) return;
+			const result = await orpcClient.widgetMessage.poll({
+				entity,
+				id: entityId,
+				sinceIso: sinceRef.current,
+			});
+			if (!result.messages || result.messages.length === 0) return;
+			sinceRef.current =
+				result.messages[result.messages.length - 1]?.createdAt ??
+				sinceRef.current;
+			setHistory((prev) => mergeHistory(prev, result.messages ?? []));
+		};
+
+		const interval = setInterval(poll, POLL_INTERVAL_MS);
+		const onVisibilityChange = () => {
+			if (!document.hidden) poll();
+		};
+		document.addEventListener("visibilitychange", onVisibilityChange);
+
+		return () => {
+			clearInterval(interval);
+			document.removeEventListener("visibilitychange", onVisibilityChange);
+		};
+	}, [entity, entityId, loading, loadError, recipient]);
+
+	const trimmedText = text.trim();
+	const overLimit = trimmedText.length > MESSAGE_MAX_LENGTH;
+
+	const send = () => {
+		if (!recipient || !channel || !trimmedText || overLimit || sending) return;
+
+		setSendError(null);
+		startSending(async () => {
+			const result = await orpcClient.widgetMessage.send({
+				entity,
+				entityId,
+				messenger: channel.messenger,
+				lineId: channel.lineId,
+				connectorId: channel.connectorId,
+				text: trimmedText,
+			});
+			if (result.error) {
+				setSendError(result.error);
+				return;
+			}
+			setText("");
+			// Показываем сообщение сразу же, не дожидаясь ближайшего поллинга —
+			// он позже заменит эту запись подтверждённой (см. mergeHistory).
+			const pendingId = `pending-${crypto.randomUUID()}`;
+			setHistory((prev) => [
+				...prev,
+				{
+					id: pendingId,
+					messenger: channel.messenger,
+					direction: "out",
+					source: "widget",
+					text: trimmedText,
+					status: "sent",
+					createdAt: new Date().toISOString(),
+					pending: true,
+				},
+			]);
+			// Сама отправка клиенту уже прошла успешно — если запись в журнал БД
+			// почему-то подвиснет и поллинг её не подтвердит, не держим надпись
+			// «отправляется…» вечно (mergeHistory всё равно бесшовно заменит эту
+			// запись подтверждённой, когда/если она подтянется позже).
+			setTimeout(() => {
+				setHistory((prev) =>
+					prev.map((item) =>
+						item.id === pendingId ? { ...item, pending: false } : item,
+					),
+				);
+			}, PENDING_LABEL_TIMEOUT_MS);
+		});
+	};
+
+	return (
+		<div className="flex h-full min-h-0 flex-1 flex-col">
+			{loading ? (
+				<div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+					<Loader2Icon className="size-4 animate-spin" />
+					Загружаем данные контакта…
+				</div>
+			) : loadError ? (
+				<div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
+					<p className="text-sm text-destructive">{loadError}</p>
+					<Button variant="outline" size="sm" onClick={load}>
+						Повторить
+					</Button>
+				</div>
+			) : recipient ? (
+				<>
+					<div className="flex items-center gap-3 border-b px-4 py-3">
+						<ContactAvatar name={recipient.contactName} />
+						<div className="min-w-0 flex-1">
+							<p className="truncate text-sm font-semibold">
+								{recipient.contactName}
+							</p>
+							<p className="truncate text-xs text-muted-foreground">
+								Сообщение уйдёт через выбранный канал
+							</p>
+						</div>
+					</div>
+
+					{recipient.channels.length > 0 && (
+						<div className="flex flex-wrap items-center gap-1.5 border-b bg-muted/30 px-4 py-2">
+							<span className="text-xs text-muted-foreground">Канал:</span>
+							{recipient.channels.map((c) => {
+								const selected =
+									channel && channelKey(channel) === channelKey(c);
+								return (
+									<Tooltip key={channelKey(c)}>
+										<TooltipTrigger asChild>
+											<button
+												type="button"
+												aria-pressed={Boolean(selected)}
+												onClick={() => setChannel(c)}
+												className={cn(
+													"inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+													selected
+														? "border-primary bg-primary text-primary-foreground"
+														: "bg-background hover:bg-muted",
+												)}
+											>
+												<MessengerIcon
+													messenger={c.messenger}
+													className="size-3.5"
+												/>
+												{c.label}
+											</button>
+										</TooltipTrigger>
+										<TooltipContent>Отправить через {c.label}</TooltipContent>
+									</Tooltip>
+								);
+							})}
+						</div>
+					)}
+
+					<div className="min-h-0 flex-1 bg-muted/10">
+						<HistoryList history={history} />
+					</div>
+
+					{recipient.channels.length === 0 && (
+						<div className="border-t bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
+							{recipient.note ??
+								"У контакта не найден Telegram/MAX и нет телефона. Мессенджер появляется в полях контакта, когда клиент пишет нашему боту, либо станут доступны личные номера Telegram/WhatsApp, если указан телефон."}
+						</div>
+					)}
+
+					<div className="border-t p-3">
+						<MessageComposer
+							text={text}
+							onTextChange={setText}
+							onSend={send}
+							placeholder="Здравствуйте! Это Психологический центр «Опора»… (Enter — отправить, Shift+Enter — новая строка)"
+						/>
+						<div className="mt-1.5 flex items-center justify-between gap-2">
+							{sendError && (
+								<p className="text-sm text-destructive">{sendError}</p>
+							)}
+							<Button
+								onClick={send}
+								disabled={sending || !trimmedText || !channel || overLimit}
+								className="ml-auto"
+							>
+								{sending ? (
+									<Loader2Icon className="size-4 animate-spin" />
+								) : (
+									<SendIcon className="size-4" />
+								)}
+								Отправить
+							</Button>
+						</div>
+					</div>
+				</>
+			) : null}
+		</div>
+	);
+}

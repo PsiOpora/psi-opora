@@ -1,0 +1,1 @@
+ALTER TABLE "bot_connectors" ADD COLUMN "bot_token_encrypted" text;

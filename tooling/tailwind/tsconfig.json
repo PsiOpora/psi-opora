@@ -1,0 +1,5 @@
+{
+	"extends": "@psi-opora/tsconfig/base.json",
+	"include": ["."],
+	"exclude": ["node_modules"]
+}

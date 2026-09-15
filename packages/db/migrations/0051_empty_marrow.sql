@@ -1,0 +1,1 @@
+CREATE INDEX "book_preorder_orders_status_idx" ON "book_preorder_orders" USING btree ("status");

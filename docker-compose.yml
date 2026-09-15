@@ -1,0 +1,134 @@
+services:
+  # Официальный Telegram-бот (apps/tg-bot) — на своём сервере работает через
+  # long polling (webhookCallback из apps/tg-bot/api/webhook.ts используется
+  # только при деплое на Vercel, для polling публичный URL не нужен).
+  tg-bot:
+    build:
+      context: .
+      dockerfile: apps/tg-bot/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  # Официальный бот MAX (apps/max-bot) — аналогично tg-bot, long polling.
+  max-bot:
+    build:
+      context: .
+      dockerfile: apps/max-bot/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  # Bitrix24-интеграция: приём исходящих вебхуков CRM и вебхука WAHA (apps/bitrix-webhook).
+  bitrix-webhook:
+    build:
+      context: .
+      dockerfile: apps/bitrix-webhook/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${BITRIX_WEBHOOK_PORT:-3020}:3000"
+    env_file:
+      - .env
+    environment:
+      WAHA_URL: http://waha:3000
+
+  # Bitrix24 Local App — CRM/маркетинговая аналитика (apps/dashboard).
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-3010}:3000"
+    env_file:
+      - .env
+    environment:
+      WAHA_URL: http://waha:3000
+
+  # Инбокс для операторов Открытых линий (apps/clients).
+  clients:
+    build:
+      context: .
+      dockerfile: apps/clients/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${CLIENTS_PORT:-3005}:3000"
+    env_file:
+      - .env
+    environment:
+      WAHA_URL: http://waha:3000
+
+  # Always-on процесс для личных Telegram-номеров (packages/tg-userbot,
+  # apps/tg-userbot-worker) — держит постоянное MTProto-соединение,
+  # поэтому не деплоится как serverless-функция (в отличие от apps/tg-bot
+  # и apps/max-bot).
+  tg-userbot-worker:
+    build:
+      context: .
+      dockerfile: apps/tg-userbot-worker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  # Личные номера MAX — постоянное TLS-соединение reverse-engineered
+  # протокола на каждый подключённый аккаунт.
+  max-userbot-worker:
+    build:
+      context: .
+      dockerfile: apps/max-userbot-worker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  # Личные номера WhatsApp (packages/waha, роутеры whatsapp-personal) —
+  # WAHA держит постоянные соединения с WhatsApp (движок NOWEB/Baileys),
+  # наружу отдаёт REST API + вебхуки. Аналог tg-userbot-worker, только
+  # готовый контейнер вместо нашего кода. Версию пиним сознательно:
+  # протокол WhatsApp неофициальный, обновлять стоит вручную и осознанно.
+  waha:
+    image: devlikeapro/waha:dev
+    restart: unless-stopped
+    ports:
+      - "${WAHA_PORT:-3050}:3000"
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: NOWEB
+      WAHA_API_KEY: ${WAHA_API_KEY}
+      # После рестарта контейнера поднимать все ранее запущенные сессии.
+      WHATSAPP_RESTART_ALL_SESSIONS: "True"
+    volumes:
+      - waha-sessions:/app/.sessions
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin};
+      mc mb -p local/${MINIO_BACKUP_BUCKET:-crm-backups};
+      exit 0;
+      "
+
+volumes:
+  minio-data:
+  waha-sessions:

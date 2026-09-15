@@ -1,0 +1,1 @@
+ALTER TABLE "bot_guide_campaigns" ADD COLUMN "email_question" text DEFAULT 'На какой email отправить материал?' NOT NULL;

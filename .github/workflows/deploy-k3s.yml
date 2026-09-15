@@ -1,0 +1,239 @@
+name: Deploy to k3s
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "k3s/**"
+      - "bun.lock"
+      - ".github/workflows/deploy-k3s.yml"
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Какой сервис задеплоить (all — все сразу)"
+        type: choice
+        default: all
+        options:
+          - all
+          - clients
+          - dashboard
+          - tg-bot
+          - max-bot
+          - tg-userbot-worker
+          - max-userbot-worker
+          - hatchet-worker
+          - bitrix-webhook
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.detect.outputs.services }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        if: github.event_name == 'push'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install dependencies
+        if: github.event_name == 'push'
+        run: bun install
+
+      - name: Detect affected services
+        id: detect
+        run: |
+          ALL='["clients","dashboard","tg-bot","max-bot","tg-userbot-worker","max-userbot-worker","hatchet-worker","bitrix-webhook"]'
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SERVICE="${{ github.event.inputs.service }}"
+            if [ "$SERVICE" = "all" ]; then
+              SERVICES="$ALL"
+            else
+              SERVICES="[\"$SERVICE\"]"
+            fi
+            echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
+            echo "Запрошенный сервис: $SERVICES"
+            exit 0
+          fi
+
+          # Изменения в лок-файле/package.json/turbo.json затрагивают все
+          # сервисы разом — turbo не умеет вывести это из графа пакетов.
+          # Сам workflow образ приложения не меняет.
+          if git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -qE '^(bun\.lock|package\.json|turbo\.json)$'; then
+            SERVICES="$ALL"
+            echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
+            echo "Изменился общий файл — деплоим все сервисы: $SERVICES"
+            exit 0
+          fi
+
+          FROM="${{ github.event.before }}"
+          if [ -z "$FROM" ] || [ "$FROM" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$FROM" 2>/dev/null; then
+            FROM="HEAD~1"
+          fi
+
+          if ! git cat-file -e "$FROM" 2>/dev/null; then
+            SERVICES="$ALL"
+            echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
+            echo "Нет базы для сравнения — деплоим все сервисы: $SERVICES"
+            exit 0
+          fi
+
+          # turbo знает граф зависимостей воркспейсов, поэтому изменение
+          # пакета из packages/** корректно "поднимается" до app-пакетов,
+          # которые от него зависят (--filter="...[from]").
+          bunx turbo run typecheck --filter="...[$FROM]" --dry=json > turbo_out.json
+
+          SERVICES=$(node -e "
+            const apps = ['clients','dashboard','tg-bot','max-bot','tg-userbot-worker','max-userbot-worker','hatchet-worker','bitrix-webhook'];
+            const data = require('./turbo_out.json');
+            const changed = (data.packages || [])
+              .map(p => p.replace(/^@psi-opora\//, ''))
+              .filter(p => apps.includes(p))
+              .sort((a, b) => apps.indexOf(a) - apps.indexOf(b));
+            console.log(JSON.stringify(changed));
+          ")
+
+          echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
+          echo "Затронутые сервисы: $SERVICES"
+
+  migrate:
+    name: Apply database migrations
+    needs: detect
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build configuration package
+        run: bun run --filter @psi-opora/config build
+
+      - name: Run Drizzle migrations
+        # drizzle-kit migrate идемпотентен (применяет только те миграции,
+        # которых нет в её собственной таблице учёта в БД), поэтому гоняем
+        # его на каждом деплое, а не только когда в этом диффе поменялись
+        # файлы миграций — иначе миграция, слитая в main вместе с этим шагом
+        # выключенным (или руками через workflow_dispatch), тихо остаётся
+        # неприменённой и всплывает рантайм-ошибкой вида "column ... does
+        # not exist" при первом же обращении приложения к новой колонке.
+        working-directory: packages/db
+        env:
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+        run: bunx drizzle-kit migrate --config drizzle.config.ts
+
+  deploy:
+    name: Build & deploy ${{ matrix.service }}
+    needs:
+      - detect
+      - migrate
+    if: needs.detect.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.detect.outputs.services) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        # registry.orixon.ru стоит за внешним L4-балансировщиком с idle-timeout
+        # ~60s: если buildkit надолго "зависает" при заливке крупного слоя
+        # (типично для dashboard), балансировщик рвёт соединение и push падает
+        # с 499 Client Closed Request. Ретраим весь шаг — buildx кеширует уже
+        # собранные слои локально, повторная попытка почти сразу переходит к
+        # повторной заливке.
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: |
+            docker buildx build \
+              --push \
+              --file apps/${{ matrix.service }}/Dockerfile \
+              --build-arg POSTGRES_URL=${{ secrets.POSTGRES_URL }} \
+              --build-arg NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL=${{ vars.NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL }} \
+              --tag ${{ vars.REGISTRY }}/psi-opora-${{ matrix.service }}:${{ github.sha }} \
+              --tag ${{ vars.REGISTRY }}/psi-opora-${{ matrix.service }}:latest \
+              .
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Write kubeconfig
+        env:
+          KUBECONFIG_SECRET: ${{ secrets.KUBECONFIG }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$KUBECONFIG_SECRET" ]; then
+            echo "::error::GitHub Secret KUBECONFIG пуст или недоступен этому workflow"
+            exit 1
+          fi
+
+          CONFIG="$RUNNER_TEMP/kubeconfig"
+          DECODED="$RUNNER_TEMP/kubeconfig.decoded"
+
+          if printf '%s' "$KUBECONFIG_SECRET" | base64 -d > "$DECODED" 2>/dev/null \
+            && grep -q '^apiVersion:' "$DECODED"; then
+            mv "$DECODED" "$CONFIG"
+            echo "kubeconfig: декодирован из base64"
+          else
+            rm -f "$DECODED"
+            printf '%s\n' "$KUBECONFIG_SECRET" > "$CONFIG"
+            echo "kubeconfig: записан как YAML"
+          fi
+
+          chmod 600 "$CONFIG"
+          echo "KUBECONFIG=$CONFIG" >> "$GITHUB_ENV"
+
+          kubectl --kubeconfig="$CONFIG" config current-context
+          kubectl --kubeconfig="$CONFIG" config view --minify \
+            -o jsonpath='{.clusters[0].cluster.server}'
+          echo
+
+      - name: Roll out new image
+        run: |
+          kubectl set image "deployment/${{ matrix.service }}" \
+            "${{ matrix.service }}=ghcr.io/psiopora/psi-opora-${{ matrix.service }}:${{ github.sha }}" \
+            -n psi-opora
+          kubectl rollout status "deployment/${{ matrix.service }}" -n psi-opora --timeout=180s
