@@ -195,6 +195,14 @@ export async function dispatchBookPreorderOutput(
 		);
 	}
 
+	if (out.paymentDeferred && out.state.dealId) {
+		await appendDealComment(
+			deps.messenger,
+			out.state.dealId,
+			"Клиент выбрал «Оплата позже» — бронь остаётся в силе.",
+		);
+	}
+
 	if (out.cancelReservation) {
 		await markBookPreorderDeclined(key);
 		if (out.state.dealId) {

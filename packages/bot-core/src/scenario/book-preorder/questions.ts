@@ -42,6 +42,7 @@ export function bpReservedQuestion(
 		text: withName(t.bp_reserved_text, name),
 		buttons: [
 			[{ label: t.bp_btn_pay_now, action: "bp_pay_now" }],
+			[{ label: t.bp_btn_pay_later, action: "bp_pay_later" }],
 			[{ label: t.bp_btn_more_excerpt, action: "bp_more_excerpt" }],
 			[{ label: t.bp_btn_question, action: "bp_question" }],
 		],
@@ -74,7 +75,10 @@ export function bpPaymentLinkMessage(
 		text: withFields(t.bp_payment_link_text, {
 			ссылка: url,
 			сумма: `${sum} ₽`,
-			оферта: "https://psi-opora.ru/oferta-predzakaz-knigi/",
+			оферта: "https://psi-opora.ru/oferta-kurs-rod/",
 		}),
+		buttons: [
+			[{ label: t.bp_btn_confirm_payment, action: "bp_confirm_payment" }],
+		],
 	};
 }

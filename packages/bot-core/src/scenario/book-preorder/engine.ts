@@ -79,6 +79,7 @@ function output(
 			| "manualPaymentCheck"
 			| "cancelReservation"
 			| "emailFailed"
+			| "paymentDeferred"
 		>
 	> = {},
 ): BookPreorderOutput {
@@ -197,6 +198,20 @@ export function applyBookPreorderAction(
 					{ text: t.bp_question_prompt },
 				]);
 			}
+			if (action === "bp_pay_later") {
+				return output({ ...state, step: "done" }, [
+					{ text: t.bp_pay_later_reply },
+				], { paymentDeferred: true });
+			}
+			return null;
+		}
+
+		case "awaiting_payment": {
+			if (action === "bp_confirm_payment") {
+				return output(state, [{ text: t.bp_manual_payment_check_reply }], {
+					manualPaymentCheck: true,
+				});
+			}
 			return null;
 		}
 
@@ -216,6 +231,8 @@ export function bpActionLabel(
 		bp_pay_now: t.bp_btn_pay_now,
 		bp_more_excerpt: t.bp_btn_more_excerpt,
 		bp_question: t.bp_btn_question,
+		bp_pay_later: t.bp_btn_pay_later,
+		bp_confirm_payment: t.bp_btn_confirm_payment,
 	};
 	return labels[action];
 }

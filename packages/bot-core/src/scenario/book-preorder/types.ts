@@ -11,6 +11,8 @@ export const BOOK_PREORDER_ACTIONS = [
 	"bp_pay_now",
 	"bp_more_excerpt",
 	"bp_question",
+	"bp_pay_later",
+	"bp_confirm_payment",
 ] as const;
 export type BookPreorderAction = (typeof BOOK_PREORDER_ACTIONS)[number];
 
@@ -104,6 +106,10 @@ export interface BookPreorderOutput {
 	manualPaymentCheck?: boolean;
 	/** Клиент написал "отменить" на шаге брони — перевести заказ/сделку в отказ. */
 	cancelReservation?: boolean;
+	/** Клиент нажал «Оплата позже» на шаге брони — просто фиксируем выбор
+	 * комментарием в сделке, стадия остаётся «Бронь» (дальше — цепочка
+	 * напоминаний Б1–Б6, см. packages/jobs/src/book-preorder-drip.ts). */
+	paymentDeferred?: boolean;
 	/** Email на шаге оплаты так и не удалось распознать за MAX_EMAIL_ATTEMPTS
 	 * попыток — сценарий завершается, менеджеру уходит комментарий, если
 	 * сделка уже существует (см. dispatch.ts). */
