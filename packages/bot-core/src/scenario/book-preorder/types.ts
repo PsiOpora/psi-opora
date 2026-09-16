@@ -9,8 +9,6 @@ export const BOOK_PREORDER_ACTIONS = [
 	"bp_consent_agree",
 	"bp_reserve_free",
 	"bp_pay_now",
-	"bp_more_excerpt",
-	"bp_question",
 	"bp_pay_later",
 	"bp_confirm_payment",
 ] as const;

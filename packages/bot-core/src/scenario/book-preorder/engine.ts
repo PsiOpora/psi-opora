@@ -196,17 +196,6 @@ export function applyBookPreorderAction(
 					{ text: t.bp_payment_intro_text },
 				]);
 			}
-			if (action === "bp_more_excerpt") {
-				return output({ ...state, nudged: 0 }, [
-					{ text: t.bp_more_excerpt_text },
-					bpReservedQuestion(state.name, t),
-				]);
-			}
-			if (action === "bp_question") {
-				return output({ ...state, step: "done" }, [
-					{ text: t.bp_question_prompt },
-				]);
-			}
 			if (action === "bp_pay_later") {
 				return output(
 					{ ...state, step: "done" },
@@ -238,8 +227,6 @@ export function bpActionLabel(
 		bp_consent_agree: t.bp_btn_consent_agree,
 		bp_reserve_free: t.bp_btn_reserve_free,
 		bp_pay_now: t.bp_btn_pay_now,
-		bp_more_excerpt: t.bp_btn_more_excerpt,
-		bp_question: t.bp_btn_question,
 		bp_pay_later: t.bp_btn_pay_later,
 		bp_confirm_payment: t.bp_btn_confirm_payment,
 	};

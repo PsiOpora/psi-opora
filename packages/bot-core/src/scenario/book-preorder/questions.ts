@@ -43,8 +43,6 @@ export function bpReservedQuestion(
 		buttons: [
 			[{ label: t.bp_btn_pay_now, action: "bp_pay_now" }],
 			[{ label: t.bp_btn_pay_later, action: "bp_pay_later" }],
-			[{ label: t.bp_btn_more_excerpt, action: "bp_more_excerpt" }],
-			[{ label: t.bp_btn_question, action: "bp_question" }],
 		],
 	};
 }
