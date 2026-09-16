@@ -135,7 +135,7 @@ export async function createUserbotClient(
 	});
 	try {
 		await client.connect();
-		await sessionInit(client, session.deviceId);
+		await sessionInit(client, session.deviceId, session.instanceId);
 
 		// Поля синхронизации по нулям/-1 — так делают оба рабочих клиента
 		// (Grovvik/vkmax-nodejs, nsdkinx/vkmax) при входе по сохранённому токену;

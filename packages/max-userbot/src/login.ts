@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { env } from "@psi-opora/config";
 import { z } from "zod";
 import { MaxProtocolClient } from "./protocol/client";
@@ -62,6 +62,23 @@ export function normalizeMaxPhone(value: string): string {
 	);
 }
 
+/** Формат deviceId у Komet — 8 случайных байт в hex (16 символов), а не UUID
+ * (см. lib/core/storage/device_identity.dart::deviceId). Сервер, судя по
+ * всему, отличает такие deviceId от «чужеродных», поэтому воспроизводим
+ * тот же формат побайтово. */
+function generateDeviceId(): string {
+	return randomBytes(8).toString("hex");
+}
+
+/** `mt_instanceid` — обязательное поле SESSION_INIT (см. PronikFire/Max-API-Guide),
+ * отсутствующее в открытых разборах, по которым собирался opcodes.ts, но
+ * присутствующее в реальном хендшейке Komet (SharedPreferences-ключ
+ * `mt_instance_id`, lib/core/storage/device_identity.dart::instanceId).
+ * Формат — обычный UUIDv4, как у Komet (lib/core/utils/ids.dart::uuidV4). */
+function generateInstanceId(): string {
+	return randomUUID();
+}
+
 function readInteger(value: unknown): number | undefined {
 	if (typeof value === "number" && Number.isSafeInteger(value)) return value;
 	if (typeof value === "string" && /^\d+$/.test(value)) {
@@ -96,15 +113,18 @@ const callsSeedSchema = z
 		{ message: "callsSeed must be a signed int64" },
 	);
 
-/** Экспортируется для переиспользования в relay.ts (Фаза 2). */
+/** Экспортируется для переиспользования в relay.ts (Фаза 2). `instanceId` —
+ * `mt_instanceid` (см. generateInstanceId) — обязателен, как у Komet. */
 export async function sessionInit(
 	client: MaxProtocolClient,
 	deviceId: string,
+	instanceId: string,
 ): Promise<SessionInitResult> {
 	const response = await client.request(OPCODE.SESSION_INIT, {
 		userAgent: userAgentPayload(),
 		deviceId,
 		clientSessionId: Date.now(),
+		mt_instanceid: instanceId,
 	});
 	console.log(
 		`[max-personal-login] SESSION_INIT response: ${JSON.stringify(response)}`,
@@ -157,10 +177,11 @@ function chatCacheFingerprint(callsSeed: string, deviceId: string): Uint8Array {
 }
 async function connectAndInit(
 	deviceId: string,
+	instanceId: string,
 ): Promise<{ client: MaxProtocolClient; callsSeed: string | undefined }> {
 	const client = new MaxProtocolClient();
 	await client.connect();
-	const { callsSeed } = await sessionInit(client, deviceId);
+	const { callsSeed } = await sessionInit(client, deviceId, instanceId);
 	return { client, callsSeed };
 }
 
@@ -193,6 +214,11 @@ function readLoginToken(payload: Record<string, unknown>): string | undefined {
 export interface PendingMaxLogin {
 	phone: string;
 	deviceId: string;
+	/** `mt_instanceid` — см. generateInstanceId. Должен остаться тем же между
+	 * SESSION_INIT в sendLoginCode и SESSION_INIT в confirmLoginCode (два
+	 * разных TLS-соединения одного и того же логина), иначе сервер снова
+	 * увидит «новое» устройство. */
+	instanceId: string;
 	/** Токен верификации, полученный от AUTH_REQUEST — предъявляется вместе с
 	 * SMS-кодом на шаге AUTH. */
 	verifyToken: string;
@@ -212,8 +238,9 @@ export async function sendLoginCode(
 	phone: string,
 ): Promise<SendLoginCodeResult> {
 	const normalizedPhone = normalizeMaxPhone(phone);
-	const deviceId = crypto.randomUUID();
-	const { client, callsSeed } = await connectAndInit(deviceId);
+	const deviceId = generateDeviceId();
+	const instanceId = generateInstanceId();
+	const { client, callsSeed } = await connectAndInit(deviceId, instanceId);
 	try {
 		const authRequestPayload: Record<string, unknown> = {
 			phone: normalizedPhone,
@@ -251,6 +278,7 @@ export async function sendLoginCode(
 		const pending: PendingMaxLogin = {
 			phone: normalizedPhone,
 			deviceId,
+			instanceId,
 			verifyToken,
 		};
 		return {
@@ -272,6 +300,9 @@ export async function sendLoginCode(
 export interface MaxUserbotSession {
 	phone: string;
 	deviceId: string;
+	/** `mt_instanceid` — должен переживать реконнекты (relay.ts), как у
+	 * Komet, иначе сервер видит «новое» устройство при каждом входе. */
+	instanceId: string;
 	/** `tokenAttrs.LOGIN.token` из ответа AUTH — см. readLoginToken(). */
 	sessionToken: string;
 }
@@ -287,7 +318,7 @@ export async function confirmLoginCode(params: {
 	code: string;
 }): Promise<ConfirmLoginCodeResult> {
 	const pending: PendingMaxLogin = JSON.parse(params.pendingSession);
-	const { client } = await connectAndInit(pending.deviceId);
+	const { client } = await connectAndInit(pending.deviceId, pending.instanceId);
 	try {
 		const authResponse = await client.request(OPCODE.AUTH, {
 			token: pending.verifyToken,
@@ -308,6 +339,7 @@ export async function confirmLoginCode(params: {
 		const session: MaxUserbotSession = {
 			phone: pending.phone,
 			deviceId: pending.deviceId,
+			instanceId: pending.instanceId,
 			sessionToken,
 		};
 		return { status: "connected", session: JSON.stringify(session) };

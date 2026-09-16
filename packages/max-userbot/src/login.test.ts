@@ -43,6 +43,7 @@ describe("sessionInit", () => {
 			const result = await sessionInit(
 				sessionInitClient({ callsSeed }),
 				"device-id",
+				"instance-id",
 			);
 			expect(result.callsSeed).toBe(callsSeed);
 		}
@@ -59,6 +60,7 @@ describe("sessionInit", () => {
 			const result = await sessionInit(
 				sessionInitClient({ callsSeed }),
 				"device-id",
+				"instance-id",
 			);
 			expect(result.callsSeed).toBeUndefined();
 		}
