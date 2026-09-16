@@ -7,6 +7,8 @@ import {
 	yandexMetrikaSettingsSchema,
 } from "@psi-opora/api/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,7 @@ export function YandexMetrikaSettingsForm({
 	initialSettings: YandexMetrikaSettings;
 }) {
 	const queryClient = useQueryClient();
+	const [showToken, setShowToken] = useState(false);
 
 	const { data: settings } = useQuery(
 		orpc.yandexMetrika.getSettings.queryOptions({
@@ -128,12 +131,26 @@ export function YandexMetrikaSettingsForm({
 								OAuth-токен
 							</FormLabel>
 							<FormControl>
-								<Input
-									type="password"
-									placeholder="••••••••"
-									className="font-mono text-sm"
-									{...field}
-								/>
+								<div className="relative">
+									<Input
+										type={showToken ? "text" : "password"}
+										placeholder="••••••••"
+										className="font-mono text-sm pr-10"
+										{...field}
+									/>
+									<button
+										type="button"
+										onClick={() => setShowToken((prev) => !prev)}
+										className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+										tabIndex={-1}
+									>
+										{showToken ? (
+											<EyeOff className="size-4" />
+										) : (
+											<Eye className="size-4" />
+										)}
+									</button>
+								</div>
 							</FormControl>
 							<FormMessage />
 						</FormItem>
