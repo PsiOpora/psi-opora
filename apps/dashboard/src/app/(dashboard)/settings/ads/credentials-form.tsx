@@ -111,28 +111,33 @@ export function AdCredentialsForm({
 								<FormLabel className="text-xs text-muted-foreground">
 									Client Secret
 								</FormLabel>
-								<FormControl>
-									<div className="relative">
+								<div className="relative">
+									<FormControl>
 										<Input
 											type={showClientSecret ? "text" : "password"}
 											placeholder="••••••••"
 											className="font-mono text-sm pr-10"
 											{...field}
 										/>
-										<button
-											type="button"
-											onClick={() => setShowClientSecret((prev) => !prev)}
-											className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-											tabIndex={-1}
-										>
-											{showClientSecret ? (
-												<EyeOff className="size-4" />
-											) : (
-												<Eye className="size-4" />
-											)}
-										</button>
+									</FormControl>
+									<button
+										type="button"
+										onClick={() => setShowClientSecret((prev) => !prev)}
+										className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+										aria-label={
+											showClientSecret
+												? "Hide client secret"
+												: "Show client secret"
+										}
+										aria-pressed={showClientSecret}
+									>
+										{showClientSecret ? (
+											<EyeOff className="size-4" />
+										) : (
+											<Eye className="size-4" />
+										)}
+									</button>
 									</div>
-								</FormControl>
 								<FormMessage />
 							</FormItem>
 						)}
@@ -147,28 +152,33 @@ export function AdCredentialsForm({
 							<FormLabel className="text-xs text-muted-foreground">
 								Refresh Token
 							</FormLabel>
-							<FormControl>
-								<div className="relative">
+							<div className="relative">
+								<FormControl>
 									<Input
 										type={showRefreshToken ? "text" : "password"}
 										placeholder="••••••••"
 										className="font-mono text-sm pr-10"
 										{...field}
 									/>
-									<button
-										type="button"
-										onClick={() => setShowRefreshToken((prev) => !prev)}
-										className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-										tabIndex={-1}
-									>
-										{showRefreshToken ? (
-											<EyeOff className="size-4" />
-										) : (
-											<Eye className="size-4" />
-										)}
-									</button>
+								</FormControl>
+								<button
+									type="button"
+									onClick={() => setShowRefreshToken((prev) => !prev)}
+									className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+									aria-label={
+										showRefreshToken
+											? "Hide refresh token"
+											: "Show refresh token"
+									}
+									aria-pressed={showRefreshToken}
+								>
+									{showRefreshToken ? (
+										<EyeOff className="size-4" />
+									) : (
+										<Eye className="size-4" />
+									)}
+								</button>
 								</div>
-							</FormControl>
 							<FormMessage />
 						</FormItem>
 					)}
@@ -282,28 +292,33 @@ export function AdCredentialsForm({
 								<FormLabel className="text-xs text-muted-foreground">
 									Access Token
 								</FormLabel>
-								<FormControl>
-									<div className="relative">
+								<div className="relative">
+									<FormControl>
 										<Input
 											type={showVkToken ? "text" : "password"}
 											placeholder="••••••••"
 											className="font-mono text-sm pr-10"
 											{...field}
 										/>
-										<button
-											type="button"
-											onClick={() => setShowVkToken((prev) => !prev)}
-											className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-											tabIndex={-1}
-										>
-											{showVkToken ? (
-												<EyeOff className="size-4" />
-											) : (
-												<Eye className="size-4" />
-											)}
-										</button>
+									</FormControl>
+									<button
+										type="button"
+										onClick={() => setShowVkToken((prev) => !prev)}
+										className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+										aria-label={
+											showVkToken
+												? "Hide VK access token"
+												: "Show VK access token"
+										}
+										aria-pressed={showVkToken}
+									>
+										{showVkToken ? (
+											<EyeOff className="size-4" />
+										) : (
+											<Eye className="size-4" />
+										)}
+									</button>
 									</div>
-								</FormControl>
 								<FormMessage />
 							</FormItem>
 						)}

@@ -130,28 +130,31 @@ export function YandexMetrikaSettingsForm({
 							<FormLabel className="text-xs text-muted-foreground">
 								OAuth-токен
 							</FormLabel>
-							<FormControl>
-								<div className="relative">
+							<div className="relative">
+								<FormControl>
 									<Input
 										type={showToken ? "text" : "password"}
 										placeholder="••••••••"
 										className="font-mono text-sm pr-10"
 										{...field}
 									/>
-									<button
-										type="button"
-										onClick={() => setShowToken((prev) => !prev)}
-										className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-										tabIndex={-1}
-									>
-										{showToken ? (
-											<EyeOff className="size-4" />
-										) : (
-											<Eye className="size-4" />
-										)}
-									</button>
+								</FormControl>
+								<button
+									type="button"
+									onClick={() => setShowToken((prev) => !prev)}
+									className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+									aria-label={
+										showToken ? "Скрыть OAuth-токен" : "Показать OAuth-токен"
+									}
+									aria-pressed={showToken}
+								>
+									{showToken ? (
+										<EyeOff className="size-4" />
+									) : (
+										<Eye className="size-4" />
+									)}
+								</button>
 								</div>
-							</FormControl>
 							<FormMessage />
 						</FormItem>
 					)}
