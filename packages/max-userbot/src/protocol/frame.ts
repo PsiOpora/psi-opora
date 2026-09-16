@@ -66,7 +66,7 @@ export function encodeFrame(
 ): Buffer {
 	// Не включаем useBigInt64 для кодирования обычных JS number. У msgpack
 	// эта опция неожиданно переводит безопасные целые больше uint32 (например
-	// Date.now() в SESSION_INIT.clientSessionId) в float64. MAX валидирует это
+	// `cid: Date.now()` в MSG_SEND, см. relay.ts) в float64. MAX валидирует это
 	// поле как целое и отвечает proto.payload / "Expected number". Без опции
 	// библиотека кодирует такой timestamp корректным MessagePack uint64.
 	const body = Buffer.from(encode(payload));

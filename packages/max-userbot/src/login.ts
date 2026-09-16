@@ -70,6 +70,16 @@ function generateDeviceId(): string {
 	return randomBytes(8).toString("hex");
 }
 
+/** `clientSessionId` у Komet — случайное 31-битное целое на процесс
+ * (lib/core/storage/device_identity.dart::clientSessionId,
+ * `Random.nextInt(0x7FFFFFFF) + 1`), а не unix-время: `Date.now()` в
+ * SESSION_INIT (как было раньше в этом модуле) на три порядка больше
+ * реального диапазона int32 и выглядит как явный признак скрипта, а не
+ * настоящего Android-клиента. */
+function generateClientSessionId(): number {
+	return randomBytes(4).readUInt32BE(0) % 0x7fffffff + 1;
+}
+
 /** `mt_instanceid` — обязательное поле SESSION_INIT (см. PronikFire/Max-API-Guide),
  * отсутствующее в открытых разборах, по которым собирался opcodes.ts, но
  * присутствующее в реальном хендшейке Komet (SharedPreferences-ключ
@@ -123,12 +133,26 @@ export async function sessionInit(
 	const response = await client.request(OPCODE.SESSION_INIT, {
 		userAgent: userAgentPayload(),
 		deviceId,
-		clientSessionId: Date.now(),
+		clientSessionId: generateClientSessionId(),
 		mt_instanceid: instanceId,
 	});
 	console.log(
 		`[max-personal-login] SESSION_INIT response: ${JSON.stringify(response)}`,
 	);
+	// `isVpn` — сервер сам детектит VPN/датацентр-IP уже на SESSION_INIT (см.
+	// PronikFire/Max-API-Guide). Если true, сервер почти наверняка тихо
+	// глотает реальную отправку кода на AUTH_REQUEST дальше (возвращает
+	// валидный token, но SMS/push не уходит) — это внешний по отношению к
+	// протоколу антифрод-сигнал, byte-perfect payload его не обойдёт.
+	if (response.isVpn === true) {
+		console.warn(
+			"[max-personal-login] MAX пометил соединение как isVpn=true — сервер, " +
+				"скорее всего, не отправит реальный код на AUTH_REQUEST, даже если " +
+				"тот ответит без ошибки. Нужен исходящий IP не из диапазонов " +
+				"дата-центра/VPN (см. src/protocol/client.ts — сейчас соединение " +
+				"идёт напрямую с сервера, без прокси).",
+		);
+	}
 	const callsSeed = callsSeedSchema.safeParse(response.callsSeed).data;
 	return { callsSeed };
 }
