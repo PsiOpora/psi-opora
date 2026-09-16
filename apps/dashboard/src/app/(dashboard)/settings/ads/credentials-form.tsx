@@ -188,6 +188,19 @@ export function AdCredentialsForm({
 					<p className="font-medium text-foreground">
 						Как получить Refresh Token для Яндекс.Директа
 					</p>
+					<p className="mt-1">
+						Подробная инструкция «для чайника», с пояснением каждого шага и
+						отдельными командами для Windows и macOS/Linux —{" "}
+						<a
+							href="https://github.com/PsiOpora/psi-opora/blob/main/docs/yandex-direct-refresh-token.md"
+							target="_blank"
+							rel="noreferrer"
+							className="underline underline-offset-2"
+						>
+							docs/yandex-direct-refresh-token.md
+						</a>
+						. Коротко суть — ниже.
+					</p>
 					<ol className="mt-2 list-decimal space-y-1.5 pl-4">
 						<li>
 							Зайдите в{" "}
@@ -208,51 +221,74 @@ export function AdCredentialsForm({
 							>
 								списке приложений
 							</a>
-							).
+							) под учёткой Яндекса, у которой есть доступ к вашим рекламным
+							кабинетам Директа.
 						</li>
 						<li>
-							В разделе «Платформы» выберите «Веб-сервисы» и укажите Redirect
-							URI{" "}
-							<code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+							В разделе «Платформы» выберите «Веб-сервисы» и в поле Redirect
+							URI вставьте без изменений:
+							<br />
+							<code className="mt-1 block break-all rounded bg-muted px-1 py-0.5 font-mono text-xs">
 								https://oauth.yandex.ru/verification_code
-							</code>{" "}
-							(значение по умолчанию — подходит для ручного получения токена).
+							</code>
 						</li>
 						<li>
-							В разделе «Доступ к данным» добавьте права Яндекс.Директа:{" "}
+							В разделе «Доступ к данным» найдите в поиске «Директ» и отметьте
+							право{" "}
 							<code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
 								direct:api
 							</code>
 							.
 						</li>
 						<li>
-							Сохраните приложение и скопируйте его <b>ClientID</b> и{" "}
-							<b>Client Secret</b> — вставьте их в поля выше.
+							Сохраните приложение — откроются два значения, <b>ClientID</b> и{" "}
+							<b>Client Secret</b> (это уже секрет, никому не показывайте).
+							Скопируйте оба в поля выше.
 						</li>
 						<li>
-							Откройте в браузере (под учёткой, у которой есть доступ к
-							рекламным кабинетам Директа) ссылку вида:
+							Подставьте свой ClientID вместо{" "}
+							<code className="font-mono">ВАШ_CLIENT_ID</code> и откройте
+							ссылку в браузере (под той же учёткой Яндекса):
 							<br />
 							<code className="mt-1 block break-all rounded bg-muted px-1 py-0.5 font-mono text-xs">
 								https://oauth.yandex.ru/authorize?response_type=code&client_id=ВАШ_CLIENT_ID
 							</code>
 						</li>
 						<li>
-							Разрешите доступ — Яндекс покажет одноразовый код подтверждения.
+							Нажмите «Разрешить» — откроется страница с одноразовым кодом
+							подтверждения. Скопируйте его (код живёт всего пару минут; не
+							успели — откройте ссылку ещё раз).
 						</li>
 						<li>
-							Обменяйте код на токены запросом (например, curl или Postman):
+							Обменяйте код на токены — подставьте код, ClientID и Client
+							Secret в команду и выполните её в терминале.
+							<br />
+							На Windows: нажмите{" "}
+							<b>Win + R</b>, введите <code className="font-mono">powershell</code>{" "}
+							и нажмите Enter, затем вставьте:
+							<br />
+							<code className="mt-1 block break-all rounded bg-muted px-1 py-0.5 font-mono text-xs whitespace-pre-wrap">
+								{
+									'Invoke-RestMethod -Method Post -Uri "https://oauth.yandex.ru/token" -Body @{ grant_type="authorization_code"; code="КОД"; client_id="ВАШ_CLIENT_ID"; client_secret="ВАШ_CLIENT_SECRET" }'
+								}
+							</code>
+							На macOS/Linux — в «Терминале»:
 							<br />
 							<code className="mt-1 block break-all rounded bg-muted px-1 py-0.5 font-mono text-xs">
 								curl -X POST https://oauth.yandex.ru/token -d
 								"grant_type=authorization_code&code=КОД&client_id=ВАШ_CLIENT_ID&client_secret=ВАШ_CLIENT_SECRET"
 							</code>
+							(обычный <code className="font-mono">curl</code> в PowerShell —
+							это не то же самое, что curl в bash, поэтому команды разные —
+							подробности в файле-инструкции по ссылке выше).
 						</li>
 						<li>
-							В ответе будет поле <code className="font-mono">refresh_token</code>{" "}
-							— скопируйте его в поле выше и сохраните. Access-токен, который
-							сервис получает по нему, живёт недолго и автоматически
-							обновляется бэкендом при каждом запросе к Директу.
+							В ответе будет поле{" "}
+							<code className="font-mono">refresh_token</code> — скопируйте
+							его целиком в поле выше и сохраните. Значение{" "}
+							<code className="font-mono">access_token</code> из того же
+							ответа никуда сохранять не нужно — сервис сам получает свежий
+							access-токен по refresh-токену перед каждым запросом к Директу.
 						</li>
 					</ol>
 					<p className="mt-2">
