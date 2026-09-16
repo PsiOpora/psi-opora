@@ -2,9 +2,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
  * Оплата предзаказа книги «Тело берёт своё» — payform.ru на белом лейбле
- * Prodamus. Статичная ссылка на оплату задаётся в личном кабинете payform,
- * здесь мы только прикладываем к ней order_id/контакты клиента и проверяем
- * подпись входящего вебхука об оплате.
+ * Prodamus. Ссылка на оплату полностью готова и задаётся в личном кабинете
+ * payform — никаких параметров к ней не добавляем, отправляем как есть.
+ * Здесь только проверяется подпись входящего вебхука об оплате.
  *
  * ВАЖНО: алгоритм подписи реализован по документированной схеме Prodamus
  * (рекурсивная сортировка ключей + HMAC-SHA256 по PHP-style query-string).
@@ -15,38 +15,17 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 const PAYFORM_BASE_URL = "https://payform.ru/6ucwABm/";
 
-/** Название товара для переопределения цены (см. buildProdamusPaymentUrl) —
- * без products[0][name] Prodamus не принимает products[0][price] как
- * переопределение суммы и открывает страницу оплаты с ценой, зашитой в
- * личном кабинете ссылки, игнорируя params.sum (см. пример из документации:
- * https://help.prodamus.ru/payform/integracii/tekhnicheskaya-dokumentaciya-po-avtoplatezham/formirovanie-ssylki-na-oplatu —
- * products[0][price]/[quantity]/[name] всегда идут вместе). */
-const PRODUCT_NAME = "Книга «Тело берёт своё» (предзаказ)";
-
 export interface ProdamusPaymentLinkParams {
 	orderId: number;
 	phone?: string;
 	email?: string;
-	/** Сумма в рублях — переопределяет цену, зашитую в ссылке (если у ссылки
-	 * включена "свободная цена" в личном кабинете Prodamus). */
 	sum?: number;
 }
 
 export function buildProdamusPaymentUrl(
-	params: ProdamusPaymentLinkParams,
+	_params: ProdamusPaymentLinkParams,
 ): string {
-	const url = new URL(PAYFORM_BASE_URL);
-	url.searchParams.set("order_id", String(params.orderId));
-	url.searchParams.set("do", "pay");
-	if (params.phone) url.searchParams.set("customer_phone", params.phone);
-	if (params.email) url.searchParams.set("customer_email", params.email);
-	if (params.sum !== undefined) {
-		url.searchParams.set("customer_extra", PRODUCT_NAME);
-		url.searchParams.set("products[0][name]", PRODUCT_NAME);
-		url.searchParams.set("products[0][price]", String(params.sum));
-		url.searchParams.set("products[0][quantity]", "1");
-	}
-	return url.toString();
+	return PAYFORM_BASE_URL;
 }
 
 /**
