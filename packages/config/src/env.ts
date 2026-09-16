@@ -92,11 +92,6 @@ export const env = createEnv({
 		// нужен, чтобы резолвить OAuth-клиент (resolveBitrixApi) для дублирования
 		// переписки в Открытые линии. Не мультитенантно — один деплой, один портал.
 		BITRIX_MEMBER_ID: z.string().optional(),
-		// Секрет для проверки запросов от формы «Записаться на консультацию»
-		// на psi-opora.ru (см. apps/bitrix-webhook/src/site-lead-webhook.ts) —
-		// серверный WordPress relay передаёт его обработчику в заголовке
-		// `Authorization: Bearer <SITE_LEAD_WEBHOOK_SECRET>`.
-		SITE_LEAD_WEBHOOK_SECRET: z.string().optional(),
 		// Входящий вебхук с постоянными правами (создаётся под админом портала,
 		// Разработчикам → Другое → Исходящий вебхук, права: calendar) — для
 		// calendar.event.add/update в чужой календарь (см. consultation-reminders.ts,
@@ -233,7 +228,6 @@ export const env = createEnv({
 		CLIENTS_BITRIX_CLIENT_ID: process.env.CLIENTS_BITRIX_CLIENT_ID,
 		CLIENTS_BITRIX_CLIENT_SECRET: process.env.CLIENTS_BITRIX_CLIENT_SECRET,
 		BITRIX_MEMBER_ID: process.env.BITRIX_MEMBER_ID,
-		SITE_LEAD_WEBHOOK_SECRET: process.env.SITE_LEAD_WEBHOOK_SECRET,
 		BITRIX_CALENDAR_WEBHOOK_URL: process.env.BITRIX_CALENDAR_WEBHOOK_URL,
 		TG_USERBOT_ENCRYPTION_KEY: process.env.TG_USERBOT_ENCRYPTION_KEY,
 		TG_USERBOT_CONNECTOR_ID: process.env.TG_USERBOT_CONNECTOR_ID,
