@@ -241,12 +241,28 @@ export function AdCredentialsForm({
 							Разрешите доступ — Яндекс покажет одноразовый код подтверждения.
 						</li>
 						<li>
-							Обменяйте код на токены запросом (например, curl или Postman):
+							Обменяйте код на токены запросом. В bash/macOS/Linux и в
+							cmd.exe команда одинаковая:
 							<br />
 							<code className="mt-1 block break-all rounded bg-muted px-1 py-0.5 font-mono text-xs">
 								curl -X POST https://oauth.yandex.ru/token -d
 								"grant_type=authorization_code&code=КОД&client_id=ВАШ_CLIENT_ID&client_secret=ВАШ_CLIENT_SECRET"
 							</code>
+							В PowerShell{" "}
+							<code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+								curl
+							</code>{" "}
+							— это алиас <code className="font-mono">Invoke-WebRequest</code>{" "}
+							с другими параметрами, поэтому используйте:
+							<br />
+							<code className="mt-1 block break-all rounded bg-muted px-1 py-0.5 font-mono text-xs whitespace-pre-wrap">
+								{
+									'Invoke-RestMethod -Method Post -Uri "https://oauth.yandex.ru/token" -Body @{ grant_type="authorization_code"; code="КОД"; client_id="ВАШ_CLIENT_ID"; client_secret="ВАШ_CLIENT_SECRET" }'
+								}
+							</code>{" "}
+							(или явно вызовите <code className="font-mono">curl.exe</code> с
+							той же командой, что и выше). Подробнее — в файле
+							docs/yandex-direct-refresh-token.md в репозитории.
 						</li>
 						<li>
 							В ответе будет поле <code className="font-mono">refresh_token</code>{" "}
