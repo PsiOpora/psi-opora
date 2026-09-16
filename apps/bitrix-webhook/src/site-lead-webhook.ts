@@ -1,22 +1,38 @@
 import { timingSafeEqual } from "node:crypto";
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
+import { z } from "zod";
 
 /**
  * Приём заявок с формы «Записаться на консультацию» на психологический
  * центр «Опора» psi-opora.ru (WordPress + Elementor Pro, форма шлёт письмо
  * на почту через штатное действие Elementor — CRM отдельно не видит эти
  * заявки). Elementor Pro не имеет встроенной интеграции с Bitrix24: действие
- * "Webhook" в настройках формы указывает на этот эндпоинт, мы создаём лид
- * через уже установленное OAuth-приложение дашборда (BITRIX_MEMBER_ID).
+ * "Webhook" в настройках формы указывает на серверный WordPress relay, а этот
+ * обработчик создаёт лид через уже установленное OAuth-приложение дашборда
+ * (BITRIX_MEMBER_ID).
  *
  * Elementor Pro не позволяет добавить кастомные заголовки к вебхуку, поэтому
- * секрет передаётся как query-параметр URL (?token=...).
+ * серверный WordPress relay добавляет `Authorization: Bearer <секрет>` перед
+ * отправкой запроса на этот эндпоинт.
  */
 
 const NAME_ALIASES = ["name", "имя", "fullname", "full_name", "фио"];
-const PHONE_ALIASES = ["phone", "tel", "телефон", "phone_number"];
+const PHONE_ALIASES = ["phone", "tel", "телефон", "phonenumber"];
 const EMAIL_ALIASES = ["email", "e-mail", "почта", "mail"];
+
+const elementorFieldSchema = z.union([
+	z.string(),
+	z.number(),
+	z.object({ value: z.string() }),
+]);
+const elementorFieldsSchema = z.record(z.string(), elementorFieldSchema);
+const elementorWebhookSchema = z
+	.object({
+		fields: elementorFieldsSchema.optional(),
+		form_fields: elementorFieldsSchema.optional(),
+	})
+	.catchall(elementorFieldSchema);
 
 function normalizeKey(key: string): string {
 	return key.toLowerCase().replace(/[^a-zа-яё]/g, "");
@@ -78,21 +94,30 @@ function findByPattern(
 function isAuthorized(request: Request): boolean {
 	const secret = env.SITE_LEAD_WEBHOOK_SECRET;
 	if (!secret) return false;
-	const token = new URL(request.url).searchParams.get("token") ?? "";
+	const authorization = request.headers.get("authorization") ?? "";
+	const token = /^Bearer[ \t]+(.+)$/i.exec(authorization)?.[1] ?? "";
 	const expected = Buffer.from(secret, "utf8");
 	const actual = Buffer.from(token, "utf8");
-	return (
-		expected.length === actual.length && timingSafeEqual(expected, actual)
-	);
+	return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
-async function parseBody(request: Request): Promise<Record<string, unknown>> {
+async function parseBody(
+	request: Request,
+): Promise<Record<string, unknown> | null> {
 	const contentType = request.headers.get("content-type") ?? "";
+	let rawBody: unknown;
 	if (contentType.includes("application/json")) {
-		return (await request.json().catch(() => ({}))) as Record<string, unknown>;
+		try {
+			rawBody = await request.json();
+		} catch {
+			return null;
+		}
+	} else {
+		const raw = await request.text();
+		rawBody = Object.fromEntries(new URLSearchParams(raw));
 	}
-	const raw = await request.text();
-	return Object.fromEntries(new URLSearchParams(raw));
+	const parsed = elementorWebhookSchema.safeParse(rawBody);
+	return parsed.success ? parsed.data : null;
 }
 
 export async function handleSiteLeadWebhook(
@@ -110,6 +135,10 @@ export async function handleSiteLeadWebhook(
 	}
 
 	const body = await parseBody(request);
+	if (!body) {
+		console.warn("[site-lead-webhook] некорректное тело запроса");
+		return new Response("Bad Request", { status: 400 });
+	}
 	const flat = flattenFields(body);
 	const usedKeys = new Set<string>();
 	const nameMatch = findField(flat, NAME_ALIASES);
@@ -120,10 +149,12 @@ export async function handleSiteLeadWebhook(
 	// "email" — если по имени поля не нашли, ищем по виду значения среди
 	// оставшихся полей (см. findByPattern).
 	const phoneMatch =
-		findField(flat, PHONE_ALIASES) ?? findByPattern(flat, PHONE_PATTERN, usedKeys);
+		findField(flat, PHONE_ALIASES) ??
+		findByPattern(flat, PHONE_PATTERN, usedKeys);
 	if (phoneMatch) usedKeys.add(phoneMatch[0]);
 	const emailMatch =
-		findField(flat, EMAIL_ALIASES) ?? findByPattern(flat, EMAIL_PATTERN, usedKeys);
+		findField(flat, EMAIL_ALIASES) ??
+		findByPattern(flat, EMAIL_PATTERN, usedKeys);
 	if (emailMatch) usedKeys.add(emailMatch[0]);
 
 	const phone = phoneMatch?.[1] ?? "";
@@ -157,9 +188,7 @@ export async function handleSiteLeadWebhook(
 				COMMENTS: `Форма «Записаться на консультацию» на psi-opora.ru.\n\nДанные формы:\n${JSON.stringify(body, null, 2)}`,
 			},
 		});
-		console.log(
-			`[site-lead-webhook] лид создан id=${leadId} phone=${phone} email=${email}`,
-		);
+		console.log(`[site-lead-webhook] leadId=${leadId} status=created`);
 		return Response.json({ ok: true, leadId });
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);

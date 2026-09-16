@@ -94,8 +94,8 @@ export const env = createEnv({
 		BITRIX_MEMBER_ID: z.string().optional(),
 		// Секрет для проверки запросов от формы «Записаться на консультацию»
 		// на psi-opora.ru (см. apps/bitrix-webhook/src/site-lead-webhook.ts) —
-		// Elementor Pro не умеет добавлять кастомные заголовки в действие
-		// "Webhook", поэтому токен передаётся как query-параметр URL.
+		// серверный WordPress relay передаёт его обработчику в заголовке
+		// `Authorization: Bearer <SITE_LEAD_WEBHOOK_SECRET>`.
 		SITE_LEAD_WEBHOOK_SECRET: z.string().optional(),
 		// Входящий вебхук с постоянными правами (создаётся под админом портала,
 		// Разработчикам → Другое → Исходящий вебхук, права: calendar) — для
