@@ -234,9 +234,9 @@ describe("телеграм-бот: /start", () => {
 		expect(texts[1]).toBe(t.consent_text);
 		expect(texts[2]).toBe(t.consent_agreed);
 		expect(texts[3]).toBe(t.name_question);
-		expect(texts[4]).toContain("Анна");
+		expect(texts[4]).toBe(t.consult_phone_question);
 		expect(texts[5]).toBe(t.consult_email_question);
-		expect(texts[6]).toContain("Заявка принята");
+		expect(texts[6]).toContain("заявка принята");
 	});
 
 	test("бронь книги, оставленная в чате, не перехватывает текст в флоу консультации", async () => {
@@ -334,11 +334,11 @@ describe("телеграм-бот: журнал сообщений (bot_messages
 		expect(texts[5]).toBe(t.consent_agreed);
 		expect(texts[6]).toBe(t.name_question);
 		expect(texts[7]).toBe("Анна");
-		expect(texts[8]).toContain("Анна");
+		expect(texts[8]).toBe(t.consult_phone_question);
 		expect(texts[9]).toBe("+7 999 123-45-67");
 		expect(texts[10]).toBe(t.consult_email_question);
 		expect(texts[11]).toBe("anna@example.com");
-		expect(texts[12]).toContain("Заявка принята");
+		expect(texts[12]).toContain("заявка принята");
 	});
 
 	test("кнопка запускает журнал с человекочитаемой подписью, а не с кодом action", async () => {

@@ -228,7 +228,7 @@ describe("enrichCrmFromClientMessage", () => {
 
 		expect(generateObject).toHaveBeenCalledTimes(2);
 		expect(generateObject.mock.calls[1]?.[0].model).toEqual({
-			modelId: "inclusionai/ling-3.0-flash:free",
+			modelId: "meta-llama/llama-3.3-70b-instruct:free",
 		});
 		expect(bitrixPost).toHaveBeenCalledWith(
 			"crm.contact.update",

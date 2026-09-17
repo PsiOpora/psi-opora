@@ -31,6 +31,9 @@ export interface SubmitDealParams {
 	 * создания сделки используется для отправки офлайн-конверсии «Запись на
 	 * консультацию» в Метрику (см. utils/yandex-metrika.ts). */
 	ymClientId?: string;
+	/** Запасной идентификатор для той же конверсии, если ClientID не
+	 * захватился — см. utils/utm.ts extractYmClientId. */
+	yclid?: string;
 	/** Комментарий к сделке (например, выбранные в сценарии категория и тема). */
 	comment?: string;
 	/** Ветка сценария — попадает в заголовок сделки и «Продукт» в Bitrix. */
@@ -88,6 +91,7 @@ export async function submitConsultationDeal(
 		source,
 		campaign,
 		ymClientId,
+		yclid,
 		comment,
 		flow,
 		audience,
@@ -156,9 +160,12 @@ export async function submitConsultationDeal(
 		// Целевое действие «Запись на консультацию» фиксируем именно на flow
 		// "consult" — flow "guide" тоже создаёт сделку, но это выдача
 		// лид-магнита, а не запись, и не должна засчитываться как эта цель.
-		if (dealId && flow === "consult" && ymClientId) {
+		// yclid — запасной идентификатор, если ClientID не захватился (см.
+		// utils/yandex-metrika.ts).
+		if (dealId && flow === "consult" && (ymClientId || yclid)) {
 			await sendConsultationGoalToYandexMetrika({
 				clientId: ymClientId,
+				yclid,
 				dealId,
 			});
 		}

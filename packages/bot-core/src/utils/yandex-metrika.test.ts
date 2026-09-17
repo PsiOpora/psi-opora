@@ -84,7 +84,7 @@ describe("sendConsultationGoalToYandexMetrika", () => {
 		expect(warn).toHaveBeenCalledTimes(1);
 	});
 
-	test("без ClientID — не отправляет запрос", async () => {
+	test("без ClientID и без yclid — не отправляет запрос", async () => {
 		const fetchMock = mock(async () => new Response("{}", { status: 200 }));
 		globalThis.fetch = fetchMock as unknown as typeof fetch;
 
@@ -92,6 +92,33 @@ describe("sendConsultationGoalToYandexMetrika", () => {
 
 		expect(ok).toBe(false);
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	test("без ClientID, но с yclid — отправляет CSV Yclid/Target/DateTime без client_id_type", async () => {
+		let capturedUrl: string | undefined;
+		let capturedInit: RequestInit | undefined;
+		const fetchMock = mock(async (url: string, init: RequestInit) => {
+			capturedUrl = url;
+			capturedInit = init;
+			return new Response("{}", { status: 200 });
+		});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const ok = await sendConsultationGoalToYandexMetrika({
+			yclid: "1234567890123456",
+			dealId: 42,
+			occurredAt: new Date("2026-01-01T00:00:00Z"),
+		});
+
+		expect(ok).toBe(true);
+		expect(capturedUrl).toBe(
+			"https://api-metrika.yandex.net/management/v1/counter/12345/offline_conversions/upload",
+		);
+		const form = capturedInit?.body as FormData;
+		const file = form.get("file") as File;
+		expect(await file.text()).toBe(
+			"Yclid,Target,DateTime\n1234567890123456,consultation_booked,1767225600\n",
+		);
 	});
 
 	test("HTTP-ошибка Метрики — возвращает false и логирует error", async () => {

@@ -21,6 +21,9 @@ export interface ConsultationSession {
 	 * нужен, чтобы при создании сделки отправить в Метрику офлайн-конверсию
 	 * «Запись на консультацию», привязанную к исходному рекламному визиту. */
 	ymClientId?: string;
+	/** Запасной идентификатор — id клика по объявлению Директа (см.
+	 * extractYmClientId), на случай если ClientID не захватился. */
+	yclid?: string;
 }
 
 export type AppContext = Context & SessionFlavor<ConsultationSession>;

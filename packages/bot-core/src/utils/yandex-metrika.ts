@@ -6,19 +6,33 @@ const DEFAULT_GOAL_ID = "consultation_booked";
 
 export interface ConsultationGoalParams {
 	/** ClientID Яндекс.Метрики визита (см. utils/utm.ts extractYmClientId). */
-	clientId: string;
+	clientId?: string;
+	/**
+	 * Запасной идентификатор — id клика по объявлению Директа (см.
+	 * utils/utm.ts extractYmClientId). Используется, только если ClientID не
+	 * захватился: сайт мог не успеть его получить (блокировщик, отказ от
+	 * cookie), а yclid при этом прямо подтверждает переход по рекламе.
+	 */
+	yclid?: string;
 	/** ID сделки в Bitrix — только для логов, в саму конверсию не уходит. */
 	dealId?: number;
 	/** Момент создания сделки — по умолчанию текущее время. */
 	occurredAt?: Date;
 }
 
+/**
+ * ClientId и Yclid — взаимоисключающие колонки CSV: обе ссылаются на один и
+ * тот же визит, но `client_id_type=CLIENT_ID` в URL относится только к
+ * ClientId, а для Yclid этот параметр не указывается (см. проверку через
+ * реальный вызов API — обе колонки принимаются методом upload).
+ */
 function buildConversionsCsv(
-	clientId: string,
+	idColumn: "ClientId" | "Yclid",
+	idValue: string,
 	target: string,
 	unixTimestamp: number,
 ): string {
-	return `ClientId,Target,DateTime\n${clientId},${target},${unixTimestamp}\n`;
+	return `${idColumn},Target,DateTime\n${idValue},${target},${unixTimestamp}\n`;
 }
 
 /**
@@ -47,7 +61,7 @@ export async function sendConsultationGoalToYandexMetrika(
 		logger.warn("yandex_metrika.not_configured", { dealId: params.dealId });
 		return false;
 	}
-	if (!params.clientId) {
+	if (!params.clientId && !params.yclid) {
 		logger.warn("yandex_metrika.no_client_id", { dealId: params.dealId });
 		return false;
 	}
@@ -55,14 +69,19 @@ export async function sendConsultationGoalToYandexMetrika(
 	const unixTimestamp = Math.floor(
 		(params.occurredAt ?? new Date()).getTime() / 1000,
 	);
-	const csv = buildConversionsCsv(params.clientId, target, unixTimestamp);
+	// ClientID приоритетнее: он у Метрики точнее привязывается к визиту, чем
+	// yclid (клик мог случиться в другой сессии/устройстве до захода на сайт).
+	const csv = params.clientId
+		? buildConversionsCsv("ClientId", params.clientId, target, unixTimestamp)
+		: buildConversionsCsv("Yclid", params.yclid as string, target, unixTimestamp);
+	const clientIdTypeQuery = params.clientId ? "?client_id_type=CLIENT_ID" : "";
 
 	const form = new FormData();
 	form.append("file", new Blob([csv], { type: "text/csv" }), "conversions.csv");
 
 	try {
 		const res = await fetch(
-			`${UPLOAD_URL_BASE}/${counterId}/offline_conversions/upload?client_id_type=CLIENT_ID`,
+			`${UPLOAD_URL_BASE}/${counterId}/offline_conversions/upload${clientIdTypeQuery}`,
 			{
 				method: "POST",
 				headers: { Authorization: `OAuth ${token}` },
@@ -84,6 +103,7 @@ export async function sendConsultationGoalToYandexMetrika(
 			dealId: params.dealId,
 			target,
 			clientId: params.clientId,
+			yclid: params.clientId ? undefined : params.yclid,
 		});
 		return true;
 	} catch (err) {
