@@ -27,6 +27,38 @@ const bot = createMaxBot({
 });
 
 const app = new Hono();
+// Заглушка для webapp-кнопки бота в MAX — сама кнопка настроена вне этого
+// репозитория (в самом MAX), а её URL мог указывать сюда без реального
+// контента за ним. Отдаём простую страницу вместо 404.
+app.get("/", (c) =>
+	c.html(`<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Опора</title>
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #fafafa;
+    color: #333;
+    text-align: center;
+    padding: 24px;
+    box-sizing: border-box;
+  }
+  p { max-width: 320px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<p>Раздел пока недоступен.<br/>Загляните позже.</p>
+</body>
+</html>`),
+);
 app.get("/api/webhook", (c) => c.text("ok"));
 app.post("/api/webhook", async (c) => {
 	const body = await c.req.json();
