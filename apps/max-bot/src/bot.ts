@@ -481,24 +481,10 @@ export function createMaxBot({
 			return;
 		}
 
-		// Голый /start (без ключевого слова) во время незавершённого сценария
-		// книги — см. такую же ветку в packages/bot-core/src/bot.ts.
-		const activeBookPreorder = ctx.session.bookPreorder;
-		if (activeBookPreorder && activeBookPreorder.step !== "done") {
-			log(
-				`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} book_preorder_restart${activeBookPreorder.intent ? ` intent=${activeBookPreorder.intent}` : ""} messenger=max`,
-			);
-			const texts = await getScenarioTexts();
-			await dispatchBookPreorder(
-				ctx,
-				startBookPreorder(
-					texts,
-					activeBookPreorder.source ?? ctx.session.source,
-					activeBookPreorder.intent,
-				),
-				texts,
-			);
-			return;
+		// Голый /start (без ключевого слова книги) — см. такую же ветку в
+		// packages/bot-core/src/bot.ts.
+		if (ctx.session.bookPreorder) {
+			ctx.session.bookPreorder = undefined;
 		}
 
 		const resolved = startParam

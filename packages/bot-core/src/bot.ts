@@ -441,27 +441,13 @@ export function createBot({
 			return;
 		}
 
-		// Голый /start (без ключевого слова) во время незавершённого сценария
-		// книги — не бросаем его в общее меню поверх ещё активной сессии книги
-		// (иначе следующий текст пользователя молча уйдёт в book-preorder,
-		// хотя на экране уже общее меню), а начинаем книжный сценарий заново
-		// с тем же intent/source.
-		const activeBookPreorder = ctx.session.bookPreorder;
-		if (activeBookPreorder && activeBookPreorder.step !== "done") {
-			log(
-				`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} book_preorder_restart${activeBookPreorder.intent ? ` intent=${activeBookPreorder.intent}` : ""} messenger=telegram`,
-			);
-			const texts = await getScenarioTexts();
-			await dispatchBookPreorder(
-				ctx,
-				startBookPreorder(
-					texts,
-					activeBookPreorder.source ?? ctx.session.source,
-					activeBookPreorder.intent,
-				),
-				texts,
-			);
-			return;
+		// Голый /start (без ключевого слова книги) — если оставалась
+		// незавершённая сессия книги, она устарела: показываем обычное меню и
+		// стираем её, иначе следующий текст пользователя молча уйдёт в
+		// обработчик книги поверх уже показанного общего меню (см.
+		// apps/max-bot/src/bot.test.ts: "MAX-бот: сброс предзаказа книги").
+		if (ctx.session.bookPreorder) {
+			ctx.session.bookPreorder = undefined;
 		}
 
 		const resolved = startParam
