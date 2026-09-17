@@ -1,30 +1,30 @@
 {
-	"name": "@psi-opora/rusender-client",
-	"version": "0.0.1",
-	"type": "module",
-	"private": true,
-	"main": "./dist/index.mjs",
-	"types": "./dist/index.d.mts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.mts",
-			"default": "./dist/index.mjs"
-		}
-	},
-	"files": [
-		"dist"
-	],
-	"scripts": {
-		"build": "tsdown",
-		"clean": "git clean -xdf .cache .turbo dist node_modules",
-		"dev": "tsdown --watch",
-		"typecheck": "tsc --noEmit"
-	},
-	"dependencies": {},
-	"devDependencies": {
-		"@psi-opora/tsconfig": "workspace:*",
-		"@types/node": "26.5.1",
-		"tsdown": "^0.23.0",
-		"typescript": "7.0.2"
-	}
+  "name": "@psi-opora/rusender-client",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@psi-opora/tsconfig": "workspace:*",
+    "@types/node": "26.6.1",
+    "tsdown": "^0.23.0",
+    "typescript": "7.0.2"
+  }
 }
