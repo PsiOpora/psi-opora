@@ -17,7 +17,7 @@
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
-    "hono": "4.13.7"
+    "hono": "4.13.8"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",
