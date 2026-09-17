@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import type { StorageAdapter } from "grammy";
+import type { ConsultationSession } from "./types/context";
 
 // Мокаем слой БД до импорта бота: иначе logBotMessage/getScenarioTexts
 // пытались бы открыть настоящее сетевое соединение на каждый шаг сценария —
@@ -68,9 +70,10 @@ interface SentCall {
 }
 
 /** Бот с замоканным Bot API: вызовы копятся в sent, сеть не трогается. */
-function makeBot() {
+function makeBot(storage?: StorageAdapter<ConsultationSession>) {
 	const bot = createBot({
 		token: "1:TEST_TOKEN",
+		storage,
 		// Эти тесты проверяют сценарий и журнал, а не реальный Bitrix.
 		enrichCrm: () => Promise.resolve(),
 	});
@@ -144,6 +147,30 @@ function sentMessages(sent: SentCall[]): SentCall[] {
 	return sent.filter((call) => call.method === "sendMessage");
 }
 
+function staleBookPreorderStorage() {
+	const sessions = new Map<string, ConsultationSession>([
+		[
+			"100",
+			{
+				step: "name",
+				bookPreorder: {
+					step: "reserved",
+					name: "Пётр",
+					phone: "+7 999 111-22-33",
+					consentAt: "2026-01-01T00:00:00.000Z",
+					nudged: 0,
+				},
+			},
+		],
+	]);
+	const storage: StorageAdapter<ConsultationSession> = {
+		read: (key) => sessions.get(key),
+		write: (key, value) => void sessions.set(key, value),
+		delete: (key) => void sessions.delete(key),
+	};
+	return { sessions, storage };
+}
+
 describe("телеграм-бот: /start", () => {
 	test("отправляет приветствие с кнопками «Записаться» и «Получить гайд»", async () => {
 		const { bot, sent } = makeBot();
@@ -163,6 +190,15 @@ describe("телеграм-бот: /start", () => {
 			commandUpdate("/start utm_source=google&utm_campaign=test"),
 		);
 		expect(sentMessages(sent).length).toBe(1);
+	});
+
+	test("голый /start сразу очищает зависшую бронь книги", async () => {
+		const { sessions, storage } = staleBookPreorderStorage();
+		const { bot } = makeBot(storage);
+
+		await bot.handleUpdate(commandUpdate("/start"));
+
+		expect(sessions.get("100")?.bookPreorder).toBeUndefined();
 	});
 
 	test("флоу гайда кнопками: гайд → согласие → категория → тема → email", async () => {
