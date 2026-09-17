@@ -27,9 +27,8 @@ const bot = createMaxBot({
 });
 
 const app = new Hono();
-// Заглушка для webapp-кнопки бота в MAX — сама кнопка настроена вне этого
-// репозитория (в самом MAX), а её URL мог указывать сюда без реального
-// контента за ним. Отдаём простую страницу вместо 404.
+// Лендинг для webapp-кнопки бота в MAX (кнопка «Открыть» настроена вне
+// этого репозитория, в самом MAX, и указывает на этот адрес).
 app.get("/", (c) =>
 	c.html(`<!doctype html>
 <html lang="ru">
@@ -41,21 +40,38 @@ app.get("/", (c) =>
   html, body {
     height: 100%;
     margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #fafafa;
+    color: #222;
+  }
+  body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #fafafa;
-    color: #333;
-    text-align: center;
     padding: 24px;
     box-sizing: border-box;
   }
-  p { max-width: 320px; line-height: 1.5; }
+  .card {
+    max-width: 360px;
+    text-align: center;
+  }
+  h1 {
+    margin: 0 0 12px;
+    font-size: 28px;
+    letter-spacing: 0.02em;
+  }
+  p {
+    margin: 0;
+    line-height: 1.5;
+    color: #555;
+  }
 </style>
 </head>
 <body>
-<p>Раздел пока недоступен.<br/>Загляните позже.</p>
+<div class="card">
+  <h1>Опора</h1>
+  <p>Спасибо, что заглянули. Все вопросы и запись — прямо в чате с ботом.</p>
+</div>
 </body>
 </html>`),
 );
