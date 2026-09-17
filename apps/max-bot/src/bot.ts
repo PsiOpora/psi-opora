@@ -51,7 +51,7 @@ import {
 } from "@psi-opora/bot-core";
 import { logger } from "@psi-opora/config";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries";
-import { uploadMaxAvatar, uploadMaxMedia } from "./avatar-storage.js";
+import { uploadMaxAvatar, uploadMaxMedia } from "./avatar-storage";
 
 // MAX-бот работает в Node.js-поде k3s и подключается к обычному PostgreSQL.
 setFunnelUpsert(upsertBotFunnelEvent);

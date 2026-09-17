@@ -8,7 +8,7 @@ import {
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { Hono } from "hono";
-import { createMaxBot, processUpdate } from "./bot.js";
+import { createMaxBot, processUpdate } from "./bot";
 
 const redis = createRedisClient();
 const storage = createRedisStorage<ConsultationSession>(redis);

@@ -49,12 +49,12 @@ import {
 	wahaSessionHealth,
 } from "@psi-opora/waha";
 import { Hono } from "hono";
-import { uploadWahaMedia } from "./media-storage.js";
+import { uploadWahaMedia } from "./media-storage";
 import {
 	claimOperatorReply,
 	isMirroredOperatorReply,
-} from "./operator-reply-guard.js";
-import { handlePayformWebhook } from "./payform-webhook.js";
+} from "./operator-reply-guard";
+import { handlePayformWebhook } from "./payform-webhook";
 
 const operatorReplyRedis: RedisClient | null = isRedisConfigured()
 	? createRedisClient()

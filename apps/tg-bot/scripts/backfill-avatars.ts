@@ -4,7 +4,7 @@ import {
 	upsertBotUser,
 } from "@psi-opora/db/queries";
 import { Api } from "grammy";
-import { uploadTelegramAvatar } from "../src/avatar-storage.js";
+import { uploadTelegramAvatar } from "../src/avatar-storage";
 
 /**
  * Разовая перезаливка аватаров для клиентов, обратившихся до того, как бот

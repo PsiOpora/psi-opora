@@ -10,7 +10,7 @@ import {
 import { env } from "@psi-opora/config";
 import { webhookCallback } from "grammy";
 import { Hono } from "hono";
-import { uploadTelegramAvatar, uploadTelegramMedia } from "./avatar-storage.js";
+import { uploadTelegramAvatar, uploadTelegramMedia } from "./avatar-storage";
 
 const redis = createRedisClient();
 const storage = createRedisStorage<ConsultationSession>(redis);
