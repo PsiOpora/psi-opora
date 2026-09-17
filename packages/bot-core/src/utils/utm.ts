@@ -43,7 +43,8 @@ export function decodeStartParam(raw: string | undefined): string | undefined {
  * приклеить одновременно, в любом порядке — отрезаем по одному разу каждый.
  */
 const YM_CLIENT_ID_SUFFIX_RE = /_ym(\d{10,25})$/;
-const YCLID_SUFFIX_RE = /_yc(\d{10,25})$/;
+const YCLID_SUFFIX_RE = /_yc(.+)$/;
+const yclidSchema = z.string().regex(/^\d{10,25}$/);
 
 export interface StartParamWithClientId {
 	/** Остаток параметра для SITE_CODES/splitStartParam — без суффиксов ClientID/yclid. */
@@ -72,9 +73,12 @@ export function extractYmClientId(
 		}
 		const ycMatch = yclid ? null : code.match(YCLID_SUFFIX_RE);
 		if (ycMatch) {
-			code = code.slice(0, -ycMatch[0].length);
-			yclid = ycMatch[1];
-			continue;
+			const parsedYclid = yclidSchema.safeParse(ycMatch[1]);
+			if (parsedYclid.success) {
+				code = code.slice(0, -ycMatch[0].length);
+				yclid = parsedYclid.data;
+				continue;
+			}
 		}
 		break;
 	}

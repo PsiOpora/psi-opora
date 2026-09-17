@@ -95,14 +95,16 @@ describe("sendConsultationGoalToYandexMetrika", () => {
 	});
 
 	test("без ClientID, но с yclid — отправляет CSV Yclid/Target/DateTime без client_id_type", async () => {
-		let capturedUrl: string | undefined;
+		let capturedUrl: RequestInfo | URL | undefined;
 		let capturedInit: RequestInit | undefined;
-		const fetchMock = mock(async (url: string, init: RequestInit) => {
-			capturedUrl = url;
-			capturedInit = init;
-			return new Response("{}", { status: 200 });
-		});
-		globalThis.fetch = fetchMock as unknown as typeof fetch;
+		const fetchMock = mock(
+			async (url: RequestInfo | URL, init?: RequestInit) => {
+				capturedUrl = url;
+				capturedInit = init;
+				return new Response("{}", { status: 200 });
+			},
+		);
+		globalThis.fetch = fetchMock;
 
 		const ok = await sendConsultationGoalToYandexMetrika({
 			yclid: "1234567890123456",

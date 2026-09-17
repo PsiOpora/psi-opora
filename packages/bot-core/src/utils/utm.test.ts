@@ -98,6 +98,12 @@ describe("extractYmClientId", () => {
 		});
 	});
 
+	test("не возвращает невалидный yclid", () => {
+		expect(extractYmClientId("SCHOOL_ycnot-a-number")).toEqual({
+			code: "SCHOOL_ycnot-a-number",
+		});
+	});
+
 	test("оба суффикса сразу — ClientID и yclid, порядок ym→yc", () => {
 		expect(
 			extractYmClientId("SCHOOL_ym1234567890_yc9876543210987654"),
