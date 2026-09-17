@@ -412,6 +412,7 @@ export function createMaxBot({
 			source: ctx.session.source,
 			campaign: ctx.session.campaign,
 			ymClientId: ctx.session.ymClientId,
+			yclid: ctx.session.yclid,
 			guideCampaign,
 		});
 	};
@@ -458,10 +459,11 @@ export function createMaxBot({
 		// ClientID Яндекс.Метрики сайт приклеивает суффиксом `_ymNNN` (см.
 		// extractYmClientId) — отрезаем его до разбора кампании/UTM, чтобы
 		// SITE_CODES и splitStartParam видели параметр как раньше.
-		const { code: startParam, ymClientId } = extractYmClientId(
+		const { code: startParam, ymClientId, yclid } = extractYmClientId(
 			decodeStartParam(startPayload),
 		);
 		if (ymClientId) ctx.session.ymClientId = ymClientId;
+		if (yclid) ctx.session.yclid = yclid;
 
 		// Диплинк с лендинга предзаказа книги (см. такую же ветку в
 		// packages/bot-core/src/bot.ts, matchesBookPreorderStartParam).

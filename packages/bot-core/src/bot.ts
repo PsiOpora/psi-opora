@@ -359,6 +359,7 @@ export function createBot({
 			source: ctx.session.source,
 			campaign: ctx.session.campaign,
 			ymClientId: ctx.session.ymClientId,
+			yclid: ctx.session.yclid,
 			guideCampaign,
 		});
 	};
@@ -409,10 +410,11 @@ export function createBot({
 		// ClientID Яндекс.Метрики сайт приклеивает суффиксом `_ymNNN` к обычной
 		// ссылке (см. extractYmClientId) — отрезаем его до разбора кампании/UTM,
 		// чтобы SITE_CODES и splitStartParam видели параметр как раньше.
-		const { code: startParam, ymClientId } = extractYmClientId(
+		const { code: startParam, ymClientId, yclid } = extractYmClientId(
 			decodeStartParam(rawParam),
 		);
 		if (ymClientId) ctx.session.ymClientId = ymClientId;
+		if (yclid) ctx.session.yclid = yclid;
 
 		// Диплинк с лендинга предзаказа книги (t.me/bot?start=TELOPAY|TELOBOOK,
 		// опционально с источником через `_`, см.

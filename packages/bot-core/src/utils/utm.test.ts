@@ -88,6 +88,41 @@ describe("extractYmClientId", () => {
 	test("undefined остаётся undefined", () => {
 		expect(extractYmClientId(undefined)).toEqual({ code: undefined });
 	});
+
+	test("отрезает суффикс _ycNNN (yclid) и возвращает остаток отдельно", () => {
+		expect(
+			extractYmClientId("search_anorexia_708811857_yc9876543210987654"),
+		).toEqual({
+			code: "search_anorexia_708811857",
+			yclid: "9876543210987654",
+		});
+	});
+
+	test("не возвращает невалидный yclid", () => {
+		expect(extractYmClientId("SCHOOL_ycnot-a-number")).toEqual({
+			code: "SCHOOL_ycnot-a-number",
+		});
+	});
+
+	test("оба суффикса сразу — ClientID и yclid, порядок ym→yc", () => {
+		expect(
+			extractYmClientId("SCHOOL_ym1234567890_yc9876543210987654"),
+		).toEqual({
+			code: "SCHOOL",
+			ymClientId: "1234567890",
+			yclid: "9876543210987654",
+		});
+	});
+
+	test("оба суффикса сразу — порядок yc→ym", () => {
+		expect(
+			extractYmClientId("SCHOOL_yc9876543210987654_ym1234567890"),
+		).toEqual({
+			code: "SCHOOL",
+			ymClientId: "1234567890",
+			yclid: "9876543210987654",
+		});
+	});
 });
 
 describe("isValidCampaignKeyword", () => {

@@ -34,24 +34,59 @@ export function decodeStartParam(raw: string | undefined): string | undefined {
  * ни SITE_CODES, ни keyword_source (splitStartParam/resolveGuideCampaignStart):
  * они видят ту же строку, что и раньше, без ClientID. ClientID у Метрики —
  * число из 18-20 цифр, диапазон 10-25 сделан с запасом на будущее.
+ *
+ * Аналогично, суффиксом `_ycNNN...` сайт может приклеивать yclid — id клика
+ * по объявлению Яндекс.Директа из параметра `?yclid=` в URL страницы. Это
+ * запасной идентификатор для офлайн-конверсии (см. yandex-metrika.ts): он
+ * работает, даже если ClientID не захватился (блокировщик, cookie-баннер),
+ * пока клиент пришёл именно по рекламе Директа. Оба суффикса можно
+ * приклеить одновременно, в любом порядке — отрезаем по одному разу каждый.
  */
 const YM_CLIENT_ID_SUFFIX_RE = /_ym(\d{10,25})$/;
+const YCLID_SUFFIX_RE = /_yc(.+)$/;
+const yclidSchema = z.string().regex(/^\d{10,25}$/);
 
 export interface StartParamWithClientId {
-	/** Остаток параметра для SITE_CODES/splitStartParam — без суффикса ClientID. */
+	/** Остаток параметра для SITE_CODES/splitStartParam — без суффиксов ClientID/yclid. */
 	code: string | undefined;
 	ymClientId?: string;
+	yclid?: string;
 }
 
 export function extractYmClientId(
 	startParam: string | undefined,
 ): StartParamWithClientId {
 	if (!startParam) return { code: startParam };
-	const match = startParam.match(YM_CLIENT_ID_SUFFIX_RE);
-	if (!match) return { code: startParam };
+
+	let code = startParam;
+	let ymClientId: string | undefined;
+	let yclid: string | undefined;
+
+	// До двух проходов: за один проход снимаем максимум один суффикс каждого
+	// вида, порядок в ссылке (ym до yc или наоборот) не имеет значения.
+	for (let pass = 0; pass < 2; pass++) {
+		const ymMatch = ymClientId ? null : code.match(YM_CLIENT_ID_SUFFIX_RE);
+		if (ymMatch) {
+			code = code.slice(0, -ymMatch[0].length);
+			ymClientId = ymMatch[1];
+			continue;
+		}
+		const ycMatch = yclid ? null : code.match(YCLID_SUFFIX_RE);
+		if (ycMatch) {
+			const parsedYclid = yclidSchema.safeParse(ycMatch[1]);
+			if (parsedYclid.success) {
+				code = code.slice(0, -ycMatch[0].length);
+				yclid = parsedYclid.data;
+				continue;
+			}
+		}
+		break;
+	}
+
 	return {
-		code: startParam.slice(0, -match[0].length),
-		ymClientId: match[1],
+		code,
+		...(ymClientId ? { ymClientId } : {}),
+		...(yclid ? { yclid } : {}),
 	};
 }
 

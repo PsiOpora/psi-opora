@@ -41,6 +41,9 @@ export interface ScenarioDispatchDeps {
 	 * extractYmClientId) — нужен, чтобы при записи на консультацию отправить
 	 * в Метрику офлайн-конверсию, привязанную к исходному визиту. */
 	ymClientId?: string;
+	/** Запасной идентификатор для той же конверсии, если ClientID не
+	 * захватился (см. extractYmClientId и utils/yandex-metrika.ts). */
+	yclid?: string;
 	/** Данные кампании гайда при out.state.campaignId — переопределяет тему/текст письма и фиксирует выдачу. */
 	guideCampaign?: GuideCampaignContext | null;
 }
@@ -256,6 +259,7 @@ export async function dispatchScenarioOutput(
 			source: deps.source,
 			campaign: deps.campaign,
 			ymClientId: deps.ymClientId,
+			yclid: deps.yclid,
 			comment: describeLead(out.lead, deps.texts, deps.guideCampaign?.title),
 			flow: out.lead.flow,
 			audience: out.lead.audience,
