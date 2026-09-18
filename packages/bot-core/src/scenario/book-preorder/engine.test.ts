@@ -83,6 +83,7 @@ describe("book preorder manual payment confirmation", () => {
 		});
 	});
 
+	/** Проверяет отсрочку оплаты на шаге с платёжной ссылкой. */
 	test("defers payment when the client changes their mind on the payment link", () => {
 		const result = applyBookPreorderAction(
 			state,
@@ -99,6 +100,7 @@ describe("book preorder manual payment confirmation", () => {
 });
 
 describe("resumeBookPreorder", () => {
+	/** Проверяет повтор текущего вопроса с сохранением собранных данных. */
 	test("re-asks the current question instead of restarting collected steps", () => {
 		const state: BookPreorderState = {
 			step: "phone",
@@ -113,6 +115,7 @@ describe("resumeBookPreorder", () => {
 		});
 	});
 
+	/** Проверяет повторную выдачу ссылки на шаге ожидания оплаты. */
 	test("resends the payment link on awaiting_payment", () => {
 		const state: BookPreorderState = {
 			step: "awaiting_payment",
@@ -130,6 +133,7 @@ describe("resumeBookPreorder", () => {
 		});
 	});
 
+	/** Проверяет возврат к выбору оплаты после ранее отложенного платежа. */
 	test("offers to pay again after a deferred payment", () => {
 		const state: BookPreorderState = {
 			step: "done",
@@ -150,6 +154,7 @@ describe("resumeBookPreorder", () => {
 		});
 	});
 
+	/** Проверяет отказ от резюме после отмены или исчерпания попыток email. */
 	test("has nothing to resume after cancellation or a failed email", () => {
 		const cancelled: BookPreorderState = { step: "done" };
 		const emailFailed: BookPreorderState = { step: "done", dealId: 42 };

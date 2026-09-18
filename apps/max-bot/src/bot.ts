@@ -332,6 +332,7 @@ async function sendMaxGuideFile(
 
 export type MaxBot = Bot<AppContext>;
 
+/** Создаёт MAX-бота и подключает обработчики сценариев и сообщений. */
 export function createMaxBot({
 	storage,
 	redis,
@@ -441,6 +442,7 @@ export function createMaxBot({
 		});
 	};
 
+	/** Обрабатывает /start, включая возобновление активного предзаказа книги. */
 	async function handleStart(
 		ctx: AppContext,
 		startPayload: string | undefined,

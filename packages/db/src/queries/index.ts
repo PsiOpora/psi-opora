@@ -673,6 +673,7 @@ export async function markBookPreorderDeclined(id: string) {
 	return _markBookPreorderDeclined(db, id);
 }
 
+/** Возвращает заказ предзаказа в статус брони. */
 export async function markBookPreorderReserved(id: string) {
 	return _markBookPreorderReserved(db, id);
 }

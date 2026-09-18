@@ -77,6 +77,7 @@ describe("book preorder dispatch", () => {
 		});
 	});
 
+	/** Проверяет возврат сделки и заказа в бронь после отсрочки оплаты. */
 	test("moving payment deferred from awaiting_payment returns the deal and order to reserved", async () => {
 		const reply = DEFAULT_SCENARIO_TEXTS.bp_pay_later_reply;
 		const sendMessage = mock(() => Promise.resolve());

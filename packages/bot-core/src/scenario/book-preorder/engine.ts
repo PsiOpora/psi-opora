@@ -68,6 +68,7 @@ const NAME_LINK_RE = /https?:\/\/|www\./i;
 const PAID_TEXT_RE = /оплат/i;
 const CANCEL_TEXT_RE = /^отмен/i;
 
+/** Собирает результат шага предзаказа и признак ожидания ввода. */
 export function output(
 	state: BookPreorderState,
 	messages: BookPreorderMessage[],
@@ -159,6 +160,7 @@ export function startBookPreorder(
 	return output({ step: "consent", source, intent }, [bpConsentQuestion(t)]);
 }
 
+/** Применяет действие кнопки к текущему состоянию предзаказа книги. */
 export function applyBookPreorderAction(
 	state: BookPreorderState,
 	action: BookPreorderAction,

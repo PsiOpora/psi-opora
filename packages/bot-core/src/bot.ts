@@ -289,6 +289,7 @@ async function resolveTelegramFileUrl(
 	}
 }
 
+/** Создаёт Telegram-бота и подключает обработчики сценариев и сообщений. */
 export function createBot({
 	storage,
 	redis,
@@ -389,6 +390,7 @@ export function createBot({
 		});
 	};
 
+	/** Обрабатывает /start, включая возобновление активного предзаказа книги. */
 	bot.command("start", async (ctx) => {
 		const rawParam = typeof ctx.match === "string" ? ctx.match : undefined;
 
