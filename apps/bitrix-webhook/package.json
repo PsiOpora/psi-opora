@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@psi-opora/storage": "workspace:*",
-    "@hono/node-server": "^2.1.1",
+    "@hono/node-server": "2.1.1",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bitrix-webhook-api": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",

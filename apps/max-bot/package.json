@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@psi-opora/storage": "workspace:*",
-    "@hono/node-server": "^2.1.1",
+    "@hono/node-server": "2.1.1",
     "@maxhub/max-bot-api": "0.3.1",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
