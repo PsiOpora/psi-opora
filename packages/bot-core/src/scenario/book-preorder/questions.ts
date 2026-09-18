@@ -64,6 +64,7 @@ export function bpStepQuestion(
 	}
 }
 
+/** Формирует сообщение со ссылкой на оплату и доступными действиями. */
 export function bpPaymentLinkMessage(
 	url: string,
 	sum: number,
@@ -77,6 +78,7 @@ export function bpPaymentLinkMessage(
 		}),
 		buttons: [
 			[{ label: t.bp_btn_confirm_payment, action: "bp_confirm_payment" }],
+			[{ label: t.bp_btn_pay_later, action: "bp_pay_later" }],
 		],
 	};
 }

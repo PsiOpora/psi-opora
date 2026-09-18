@@ -14,6 +14,7 @@ import {
 	isBookPreorderAction,
 	startBookPreorder,
 } from "./scenario/book-preorder/engine";
+import { resumeBookPreorder } from "./scenario/book-preorder/resume";
 import { dispatchScenarioOutput } from "./scenario/dispatch";
 import {
 	actionLabel,
@@ -288,6 +289,7 @@ async function resolveTelegramFileUrl(
 	}
 }
 
+/** Создаёт Telegram-бота и подключает обработчики сценариев и сообщений. */
 export function createBot({
 	storage,
 	redis,
@@ -388,6 +390,7 @@ export function createBot({
 		});
 	};
 
+	/** Обрабатывает /start, включая возобновление активного предзаказа книги. */
 	bot.command("start", async (ctx) => {
 		const rawParam = typeof ctx.match === "string" ? ctx.match : undefined;
 
@@ -410,9 +413,11 @@ export function createBot({
 		// ClientID Яндекс.Метрики сайт приклеивает суффиксом `_ymNNN` к обычной
 		// ссылке (см. extractYmClientId) — отрезаем его до разбора кампании/UTM,
 		// чтобы SITE_CODES и splitStartParam видели параметр как раньше.
-		const { code: startParam, ymClientId, yclid } = extractYmClientId(
-			decodeStartParam(rawParam),
-		);
+		const {
+			code: startParam,
+			ymClientId,
+			yclid,
+		} = extractYmClientId(decodeStartParam(rawParam));
 		if (ymClientId) ctx.session.ymClientId = ymClientId;
 		if (yclid) ctx.session.yclid = yclid;
 
@@ -435,9 +440,18 @@ export function createBot({
 				uploadAvatar,
 			);
 			const texts = await getScenarioTexts();
+			// Повторный переход по этой же диплинк-кнопке (клиент передумал/
+			// вернулся) — при уже начатой сессии не начинаем сценарий с нуля
+			// (это заново спросило бы имя/телефон), а резюмируем текущий шаг
+			// (см. resumeBookPreorder в scenario/book-preorder/engine.ts).
+			const existingBookPreorder = ctx.session.bookPreorder;
+			const resumed = existingBookPreorder
+				? resumeBookPreorder(existingBookPreorder, texts)
+				: null;
 			await dispatchBookPreorder(
 				ctx,
-				startBookPreorder(texts, bookPreorder.source, bookPreorder.intent),
+				resumed ??
+					startBookPreorder(texts, bookPreorder.source, bookPreorder.intent),
 				texts,
 			);
 			return;

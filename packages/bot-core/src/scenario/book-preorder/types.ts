@@ -67,6 +67,10 @@ export interface BookPreorderState {
 	/** undefined — вход по голому /start TELO, обычный выбор внутри диалога
 	 * (см. bpAboutBookQuestion в engine.ts). */
 	intent?: BookPreorderIntent;
+	/** Шаг "done" достигнут через «Оплата позже» — отличает этот случай от
+	 * "done" через «отменить»/emailFailed при резюме сессии (см.
+	 * resumeBookPreorder в engine.ts). */
+	paymentDeferred?: boolean;
 }
 
 export interface BookPreorderButton {

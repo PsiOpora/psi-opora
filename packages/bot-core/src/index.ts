@@ -32,6 +32,7 @@ export {
 	isBookPreorderAction,
 	startBookPreorder,
 } from "./scenario/book-preorder/engine";
+export { resumeBookPreorder } from "./scenario/book-preorder/resume";
 export {
 	dispatchScenarioOutput,
 	type ScenarioDispatchDeps,

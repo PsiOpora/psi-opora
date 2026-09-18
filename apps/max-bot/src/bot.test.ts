@@ -21,6 +21,7 @@ mock.module("@psi-opora/db/queries", () => ({
 	upsertBookPreorderOrder: () => Promise.resolve(null),
 	markBookPreorderAwaitingPayment: () => Promise.resolve(),
 	markBookPreorderDeclined: () => Promise.resolve(),
+	markBookPreorderReserved: () => Promise.resolve(),
 	getBookPreorderOrderByOrderNo: () => Promise.resolve(null),
 	recordBookPreorderDripAnyClick: () => Promise.resolve(),
 	recordBookPreorderDripDeferred: () => Promise.resolve(),

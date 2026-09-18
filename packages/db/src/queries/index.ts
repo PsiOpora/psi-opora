@@ -16,6 +16,7 @@ import {
 	markBookPreorderAwaitingPayment as _markBookPreorderAwaitingPayment,
 	markBookPreorderDeclined as _markBookPreorderDeclined,
 	markBookPreorderPaid as _markBookPreorderPaid,
+	markBookPreorderReserved as _markBookPreorderReserved,
 	recordBookPreorderDripAnyClick as _recordBookPreorderDripAnyClick,
 	recordBookPreorderDripDeferred as _recordBookPreorderDripDeferred,
 	releaseBookPreorderDealPaidSync as _releaseBookPreorderDealPaidSync,
@@ -670,6 +671,11 @@ export async function releaseBookPreorderDealPaidSync(id: string) {
 
 export async function markBookPreorderDeclined(id: string) {
 	return _markBookPreorderDeclined(db, id);
+}
+
+/** Возвращает заказ предзаказа в статус брони. */
+export async function markBookPreorderReserved(id: string) {
+	return _markBookPreorderReserved(db, id);
 }
 
 export async function setBookPreorderShipping(
