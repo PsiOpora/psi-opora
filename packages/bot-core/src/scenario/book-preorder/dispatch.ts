@@ -1,6 +1,7 @@
 import {
 	markBookPreorderAwaitingPayment,
 	markBookPreorderDeclined,
+	markBookPreorderReserved,
 	upsertBookPreorderOrder,
 } from "@psi-opora/db/queries";
 import {
@@ -200,6 +201,17 @@ export async function dispatchBookPreorderOutput(
 	}
 
 	if (out.paymentDeferred && out.state.dealId) {
+		// Идемпотентно и для исходного пути "reserved" → done: там сделка и
+		// заказ и так уже на стадии/статусе "Бронь". Важно для нового пути
+		// "awaiting_payment" → done ("передумала на этапе оплаты") — без
+		// возврата в reserved заказ выпал бы из выборки часового крона Б1–Б6
+		// (см. listReservedBookPreorderOrders).
+		await moveBookPreorderDealStage(
+			deps.messenger,
+			out.state.dealId,
+			"reserved",
+		);
+		await markBookPreorderReserved(key);
 		await appendDealComment(
 			deps.messenger,
 			out.state.dealId,

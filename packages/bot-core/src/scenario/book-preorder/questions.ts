@@ -77,6 +77,7 @@ export function bpPaymentLinkMessage(
 		}),
 		buttons: [
 			[{ label: t.bp_btn_confirm_payment, action: "bp_confirm_payment" }],
+			[{ label: t.bp_btn_pay_later, action: "bp_pay_later" }],
 		],
 	};
 }

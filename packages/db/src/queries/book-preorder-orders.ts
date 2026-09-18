@@ -201,6 +201,20 @@ export async function markBookPreorderDeclined(
 		.where(eq(bookPreorderOrders.id, id));
 }
 
+/** Клиент выбрал «Оплата позже» на шаге оплаты — возвращает заказ из
+ * "awaiting_payment" в "reserved", чтобы он снова попал в выборку часового
+ * крона Б1–Б6 (см. listReservedBookPreorderOrders). */
+export async function markBookPreorderReserved(
+	db: Database,
+	id: string,
+): Promise<void> {
+	if (!db) return;
+	await db
+		.update(bookPreorderOrders)
+		.set({ status: "reserved", updatedAt: sql`now()` })
+		.where(eq(bookPreorderOrders.id, id));
+}
+
 export async function setBookPreorderShipping(
 	db: Database,
 	id: string,
@@ -267,10 +281,7 @@ export async function finalizeBookPreorderDripStep(
 		.update(bookPreorderOrders)
 		.set({ dripLastSentAt: sql`now()`, updatedAt: sql`now()` })
 		.where(
-			and(
-				eq(bookPreorderOrders.id, id),
-				eq(bookPreorderOrders.dripStep, step),
-			),
+			and(eq(bookPreorderOrders.id, id), eq(bookPreorderOrders.dripStep, step)),
 		);
 }
 

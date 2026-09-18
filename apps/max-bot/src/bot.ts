@@ -31,6 +31,7 @@ import {
 	parseUtmParams,
 	resolveGuideCampaignStart,
 	resolveGuideFile,
+	resumeBookPreorder,
 	SCENARIO_ACTIONS,
 	type ScenarioMessage,
 	type ScenarioOutput,
@@ -459,9 +460,11 @@ export function createMaxBot({
 		// ClientID Яндекс.Метрики сайт приклеивает суффиксом `_ymNNN` (см.
 		// extractYmClientId) — отрезаем его до разбора кампании/UTM, чтобы
 		// SITE_CODES и splitStartParam видели параметр как раньше.
-		const { code: startParam, ymClientId, yclid } = extractYmClientId(
-			decodeStartParam(startPayload),
-		);
+		const {
+			code: startParam,
+			ymClientId,
+			yclid,
+		} = extractYmClientId(decodeStartParam(startPayload));
 		if (ymClientId) ctx.session.ymClientId = ymClientId;
 		if (yclid) ctx.session.yclid = yclid;
 
@@ -475,9 +478,16 @@ export function createMaxBot({
 			);
 			await collectMaxProfile(ctx, ctx.session.source, ctx.session.campaign);
 			const texts = await getScenarioTexts();
+			// Резюме уже начатой сессии вместо сброса — см. такую же ветку в
+			// packages/bot-core/src/bot.ts.
+			const existingBookPreorder = ctx.session.bookPreorder;
+			const resumed = existingBookPreorder
+				? resumeBookPreorder(existingBookPreorder, texts)
+				: null;
 			await dispatchBookPreorder(
 				ctx,
-				startBookPreorder(texts, bookPreorder.source, bookPreorder.intent),
+				resumed ??
+					startBookPreorder(texts, bookPreorder.source, bookPreorder.intent),
 				texts,
 			);
 			return;

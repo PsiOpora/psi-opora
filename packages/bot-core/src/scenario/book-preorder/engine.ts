@@ -68,7 +68,7 @@ const NAME_LINK_RE = /https?:\/\/|www\./i;
 const PAID_TEXT_RE = /оплат/i;
 const CANCEL_TEXT_RE = /^отмен/i;
 
-function output(
+export function output(
 	state: BookPreorderState,
 	messages: BookPreorderMessage[],
 	extra: Partial<
@@ -198,7 +198,7 @@ export function applyBookPreorderAction(
 			}
 			if (action === "bp_pay_later") {
 				return output(
-					{ ...state, step: "done" },
+					{ ...state, step: "done", paymentDeferred: true },
 					[{ text: t.bp_pay_later_reply }],
 					{ paymentDeferred: true },
 				);
@@ -209,6 +209,13 @@ export function applyBookPreorderAction(
 		case "awaiting_payment": {
 			if (action === "bp_confirm_payment") {
 				return manualPaymentCheckOutput(state, t);
+			}
+			if (action === "bp_pay_later") {
+				return output(
+					{ ...state, step: "done", paymentDeferred: true },
+					[{ text: t.bp_pay_later_reply }],
+					{ paymentDeferred: true },
+				);
 			}
 			return null;
 		}
