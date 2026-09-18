@@ -610,14 +610,6 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 		return Response.json({ ok: true });
 	}
 
-	const api = resolveBitrixApi(account.memberId);
-	if (!api) {
-		console.error(
-			`[waha-webhook] нет OAuth-клиента Bitrix для портала ${account.memberId}`,
-		);
-		return Response.json({ ok: true });
-	}
-
 	// Телефон из jid передаём отдельно от user.id — по нему CRM-трекер Bitrix
 	// привязывает существующий контакт/лид вместо создания «неопознанного»
 	// (см. relayInboundMessage в apps/tg-userbot-worker — та же логика).
@@ -664,9 +656,10 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 		}
 	}
 
-	// Журналируем в bot_messages/bot_users — без этого единый инбокс дашборда
-	// (apps/clients) видел бы только реплики, отправленные из него самого, без
-	// единого сообщения от клиента. Не блокирует пересылку в Открытую линию.
+	// Журналируем в bot_messages/bot_users до обращения к Bitrix — если у
+	// портала недоступен OAuth-токен, единый инбокс дашборда (apps/clients)
+	// всё равно должен увидеть сообщение от клиента, а не потерять его вместе
+	// с пересылкой в Открытую линию.
 	try {
 		await upsertBotUser({
 			messenger: "whatsapp-personal",
@@ -693,6 +686,14 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 		console.error(
 			`[waha-webhook] не удалось записать входящее сообщение в журнал: ${(err as Error).message}`,
 		);
+	}
+
+	const api = resolveBitrixApi(account.memberId);
+	if (!api) {
+		console.error(
+			`[waha-webhook] нет OAuth-клиента Bitrix для портала ${account.memberId}`,
+		);
+		return Response.json({ ok: true });
 	}
 
 	try {
