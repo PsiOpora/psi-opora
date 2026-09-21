@@ -1,6 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { ExportCsvButton } from "@/components/dashboard/export-csv-button";
+import {
+	GroupDealsDialog,
+	type GroupDealsSelection,
+} from "@/components/dashboard/group-deals-dialog";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { Badge } from "@/components/ui/badge";
@@ -43,8 +48,11 @@ function RomiBadge({ romi }: { romi: number | null | undefined }) {
 
 function AttributionPageContent() {
 	const range = useDashboardRange();
-	const { data: bitrixData, isLoading: bitrixLoading } = useBitrixData([]);
+	const { data: bitrixData, isLoading: bitrixLoading } = useBitrixData([
+		"dealDomain",
+	]);
 	const { data, isLoading, isError } = useAttributionReport(range);
+	const [selection, setSelection] = useState<GroupDealsSelection | null>(null);
 
 	if (bitrixLoading) {
 		return <p className="text-sm text-muted-foreground">Загрузка…</p>;
@@ -168,7 +176,22 @@ function AttributionPageContent() {
 											{row.spend !== undefined ? formatMoney(row.spend) : "—"}
 										</TableCell>
 										<TableCell className="text-right tabular-nums">
-											{formatNumber(row.deals)}
+											<button
+												type="button"
+												className="hover:underline focus:underline focus:outline-none"
+												onClick={() =>
+													setSelection({
+														dimension: "utmCampaign",
+														key: row.key,
+														label: `${row.source} / ${row.campaign}`,
+														deals: row.deals,
+														won: row.won,
+														wonSum: row.wonSum,
+													})
+												}
+											>
+												{formatNumber(row.deals)}
+											</button>
 										</TableCell>
 										<TableCell className="text-right tabular-nums">
 											{row.cpl !== undefined ? formatMoney(row.cpl) : "—"}
@@ -192,6 +215,13 @@ function AttributionPageContent() {
 					)}
 				</CardContent>
 			</Card>
+
+			<GroupDealsDialog
+				selection={selection}
+				range={range}
+				onOpenChange={(open) => !open && setSelection(null)}
+				dealDomain={bitrixData?.dealDomain}
+			/>
 		</div>
 	);
 }
