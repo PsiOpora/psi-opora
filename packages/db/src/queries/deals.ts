@@ -26,19 +26,28 @@ export const FAIL_REASON_NOT_SPECIFIED = "__NOT_SPECIFIED__";
 
 // ── Sync (бэкафилл, периодическая сверка, вебхуки) ──────────────────────────
 
-/** Батч-апсерт по id — используется бэкафиллом и периодической сверкой. */
+/**
+ * Батч-апсерт по id — используется бэкафиллом и периодической сверкой.
+ * pageUrl/contactId могут отсутствовать в конкретном raw-payload (see
+ * normalizeSyncDeal) — тогда конфликтующую строку в БД не трогаем вместо
+ * того, чтобы затереть её значение NULL из-за отсутствия поля в ответе
+ * Bitrix, отсюда 4 батча на все комбинации "поле есть/нет".
+ */
 export async function upsertDeals(rows: NewDeal[]): Promise<void> {
 	if (!db || rows.length === 0) return;
 	const batches = [
-		{
-			rows: rows.filter((row) => row.pageUrl !== undefined),
-			updatePageUrl: true,
-		},
-		{
-			rows: rows.filter((row) => row.pageUrl === undefined),
-			updatePageUrl: false,
-		},
-	];
+		{ updatePageUrl: true, updateContactId: true },
+		{ updatePageUrl: true, updateContactId: false },
+		{ updatePageUrl: false, updateContactId: true },
+		{ updatePageUrl: false, updateContactId: false },
+	].map((flags) => ({
+		...flags,
+		rows: rows.filter(
+			(row) =>
+				(row.pageUrl !== undefined) === flags.updatePageUrl &&
+				(row.contactId !== undefined) === flags.updateContactId,
+		),
+	}));
 
 	for (const batch of batches) {
 		if (batch.rows.length === 0) continue;
@@ -56,6 +65,9 @@ export async function upsertDeals(rows: NewDeal[]): Promise<void> {
 					opportunity: sql`excluded.opportunity`,
 					currency: sql`excluded.currency`,
 					sourceId: sql`excluded.source_id`,
+					...(batch.updateContactId
+						? { contactId: sql`excluded.contact_id` }
+						: {}),
 					failReasonId: sql`excluded.fail_reason_id`,
 					...(batch.updatePageUrl ? { pageUrl: sql`excluded.page_url` } : {}),
 					utmSource: sql`excluded.utm_source`,
@@ -75,6 +87,33 @@ export async function upsertDeals(rows: NewDeal[]): Promise<void> {
 /** Апсерт одной сделки — вебхук-обработчик (OnCrmDealAdd/Update). */
 export async function upsertDeal(row: NewDeal): Promise<void> {
 	await upsertDeals([row]);
+}
+
+const CONTACT_ID_UPDATE_BATCH_SIZE = 500;
+
+/**
+ * Точечное обновление contact_id на уже засинканных сделках —
+ * scripts/backfill-deal-contacts.ts (разово после добавления колонки, чтобы
+ * не ждать, пока каждая сделка сама изменится и пересинкуется). В отличие от
+ * upsertDeals не требует остальных NOT NULL полей сделки — эти строки уже
+ * существуют.
+ */
+export async function updateDealContactIds(
+	pairs: Array<{ id: string; contactId: string | null }>,
+): Promise<void> {
+	if (!db || pairs.length === 0) return;
+	for (let i = 0; i < pairs.length; i += CONTACT_ID_UPDATE_BATCH_SIZE) {
+		const batch = pairs.slice(i, i + CONTACT_ID_UPDATE_BATCH_SIZE);
+		const values = sql.join(
+			batch.map((p) => sql`(${p.id}::text, ${p.contactId}::text)`),
+			sql`, `,
+		);
+		await db.execute(sql`
+			update deals set contact_id = v.contact_id
+			from (values ${values}) as v(id, contact_id)
+			where deals.id = v.id
+		`);
+	}
 }
 
 /** Удаление одной сделки — вебхук-обработчик (OnCrmDealDelete). */
@@ -489,6 +528,129 @@ export async function listDealsInGroup(
 	const keyWhere = sql`${dimensionKeyExpr(dimension)} = ${key}`;
 	const where = rangeWhere ? and(rangeWhere, keyWhere) : keyWhere;
 	return selectDeals(where, options);
+}
+
+// ── Чтение: новые/повторные клиенты по кампании ─────────────────────────────
+
+export interface ClientAcquisitionRow {
+	/** Тот же составной ключ utm_source+utm_campaign, что и dimension="utmCampaign" в groupDealsBy. */
+	key: string;
+	newClients: number;
+	/** Сумма только первых сделок новых клиентов (не LTV) — считается только для выигранных. */
+	newClientsRevenue: number;
+	repeatClients: number;
+	repeatRevenue: number;
+}
+
+/**
+ * "Новый" клиент — тот, для чьего contact_id выбранная сделка является
+ * самой ранней за всю историю (не только в пределах периода from/to);
+ * "повторный" — у него уже была более ранняя сделка, независимо от её
+ * статуса. Сделки без contact_id (ещё не досинканы или связка появилась
+ * только с этой функциональностью) не участвуют ни в одной из групп.
+ *
+ * "первая сделка" считается по ВСЕЙ таблице deals (contactFirstDeal ниже не
+ * фильтруется по датам) — иначе клиент, чья первая сделка была до начала
+ * периода, ошибочно попал бы в "новые".
+ */
+export async function getClientAcquisitionByCampaign(range: {
+	from: Date;
+	to: Date;
+}): Promise<ClientAcquisitionRow[]> {
+	if (!db) return [];
+
+	const contactFirstDeal = db.$with("contact_first_deal").as(
+		db
+			.select({
+				id: deals.id,
+				contactId: deals.contactId,
+				utmSource: deals.utmSource,
+				utmCampaign: deals.utmCampaign,
+				dateCreate: deals.dateCreate,
+				status: deals.status,
+				opportunity: deals.opportunity,
+				rn: sql<number>`row_number() over (
+					partition by ${deals.contactId}
+					order by ${deals.dateCreate} asc, ${deals.id} asc
+				)`.as("rn"),
+			})
+			.from(deals)
+			.where(sql`${deals.contactId} is not null`),
+	);
+
+	const newDeals = db.$with("new_deals").as(
+		db
+			.select({
+				// Отдельное имя колонки (не "key") от repeatDeals ниже — иначе при
+				// full join оба "key" неразличимы для Postgres ("column reference
+				// is ambiguous"), даже если ссылаться на них через объект CTE.
+				newKey:
+					sql<string>`coalesce(${contactFirstDeal.utmSource}, '') || chr(31) || coalesce(${contactFirstDeal.utmCampaign}, '')`.as(
+						"new_key",
+					),
+				newClients: sql<number>`count(*)::int`.as("new_clients"),
+				newClientsRevenue:
+					sql<number>`coalesce(sum(${contactFirstDeal.opportunity}) filter (where ${contactFirstDeal.status} = 'won'), 0)::int`.as(
+						"new_clients_revenue",
+					),
+			})
+			.from(contactFirstDeal)
+			.where(
+				and(
+					eq(contactFirstDeal.rn, 1),
+					gte(contactFirstDeal.dateCreate, range.from),
+					lte(contactFirstDeal.dateCreate, range.to),
+				),
+			)
+			.groupBy(sql`new_key`),
+	);
+
+	const repeatDeals = db.$with("repeat_deals").as(
+		db
+			.select({
+				repeatKey:
+					sql<string>`coalesce(${deals.utmSource}, '') || chr(31) || coalesce(${deals.utmCampaign}, '')`.as(
+						"repeat_key",
+					),
+				repeatClients: sql<number>`count(distinct ${deals.contactId})::int`.as(
+					"repeat_clients",
+				),
+				repeatRevenue:
+					sql<number>`coalesce(sum(${deals.opportunity}) filter (where ${deals.status} = 'won'), 0)::int`.as(
+						"repeat_revenue",
+					),
+			})
+			.from(deals)
+			.innerJoin(
+				contactFirstDeal,
+				and(
+					eq(contactFirstDeal.contactId, deals.contactId),
+					eq(contactFirstDeal.rn, 1),
+				),
+			)
+			.where(
+				and(
+					sql`${deals.id} != ${contactFirstDeal.id}`,
+					gte(deals.dateCreate, range.from),
+					lte(deals.dateCreate, range.to),
+				),
+			)
+			.groupBy(sql`repeat_key`),
+	);
+
+	return db
+		.with(contactFirstDeal, newDeals, repeatDeals)
+		.select({
+			key: sql<string>`coalesce(${newDeals.newKey}, ${repeatDeals.repeatKey})`.as(
+				"key",
+			),
+			newClients: sql<number>`coalesce(${newDeals.newClients}, 0)`,
+			newClientsRevenue: sql<number>`coalesce(${newDeals.newClientsRevenue}, 0)`,
+			repeatClients: sql<number>`coalesce(${repeatDeals.repeatClients}, 0)`,
+			repeatRevenue: sql<number>`coalesce(${repeatDeals.repeatRevenue}, 0)`,
+		})
+		.from(newDeals)
+		.fullJoin(repeatDeals, eq(newDeals.newKey, repeatDeals.repeatKey));
 }
 
 // ── Чтение: сводка и тренд (замена summarize/trendByDay) ────────────────────

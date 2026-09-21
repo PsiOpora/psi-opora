@@ -1,6 +1,8 @@
 import {
+	type ClientAcquisitionRow,
 	type DealGroupStats,
 	getAdStatsByDateRange,
+	getClientAcquisitionByCampaign,
 	getDealsSummary,
 } from "@psi-opora/db/queries";
 import { UTM_CAMPAIGN_KEY_SEPARATOR } from "@/lib/constants/separators";
@@ -25,6 +27,12 @@ export interface AttributionRow {
 	cpl?: number;
 	cac?: number;
 	romi?: number;
+	/** Сколько клиентов этой группы обратились впервые за всю историю (не только за период) — сумма revenue считает только их первую сделку и только выигранную. */
+	newClients: number;
+	newClientsRevenue: number;
+	/** Клиенты с более ранней сделкой (любой, не обязательно выигранной) — revenue считает их сделки за период, тоже только выигранные. */
+	repeatClients: number;
+	repeatRevenue: number;
 }
 
 export interface AttributionSummary {
@@ -36,14 +44,28 @@ export interface AttributionSummary {
 	totalSpend: number;
 	/** null — расход ни по одной кампании не найден (не с чем считать ROMI). */
 	romi: number | null;
+	totalNewClients: number;
+	totalNewClientsRevenue: number;
+	totalRepeatClients: number;
+	totalRepeatRevenue: number;
 }
+
+const EMPTY_CLIENT_ACQUISITION: Omit<ClientAcquisitionRow, "key"> = {
+	newClients: 0,
+	newClientsRevenue: 0,
+	repeatClients: 0,
+	repeatRevenue: 0,
+};
 
 function toRow(
 	group: DealGroupStats,
 	spendByCampaignId: Map<string, number>,
+	clientAcquisitionByKey: Map<string, ClientAcquisitionRow>,
 ): AttributionRow {
 	const [source, campaign] = group.key.split(UTM_CAMPAIGN_KEY_SEPARATOR);
 	const spend = matchAdSpend(campaign ?? "", spendByCampaignId);
+	const acquisition =
+		clientAcquisitionByKey.get(group.key) ?? EMPTY_CLIENT_ACQUISITION;
 	return {
 		key: group.key,
 		source: source || NOT_SPECIFIED,
@@ -61,6 +83,10 @@ function toRow(
 			spend !== undefined && spend > 0
 				? (group.wonSum - spend) / spend
 				: undefined,
+		newClients: acquisition.newClients,
+		newClientsRevenue: acquisition.newClientsRevenue,
+		repeatClients: acquisition.repeatClients,
+		repeatRevenue: acquisition.repeatRevenue,
 	};
 }
 
@@ -74,18 +100,23 @@ function toRow(
 export async function fetchAttributionReport(
 	range: DateRange,
 ): Promise<{ rows: AttributionRow[]; summary: AttributionSummary }> {
-	const [dealGroups, adStats, dealsSummary] = await Promise.all([
-		fetchAllDealGroups(range),
-		getAdStatsByDateRange(
-			formatDateParam(range.from),
-			formatDateParam(range.to),
-		),
-		getDealsSummary({ from: range.from, to: range.to }),
-	]);
+	const [dealGroups, adStats, dealsSummary, clientAcquisitionRows] =
+		await Promise.all([
+			fetchAllDealGroups(range),
+			getAdStatsByDateRange(
+				formatDateParam(range.from),
+				formatDateParam(range.to),
+			),
+			getDealsSummary({ from: range.from, to: range.to }),
+			getClientAcquisitionByCampaign(range),
+		]);
 
 	const spendByCampaignId = aggregateAdSpendByCampaignId(adStats);
+	const clientAcquisitionByKey = new Map(
+		clientAcquisitionRows.map((row) => [row.key, row]),
+	);
 	const rows = dealGroups
-		.map((group) => toRow(group, spendByCampaignId))
+		.map((group) => toRow(group, spendByCampaignId, clientAcquisitionByKey))
 		.sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0) || b.wonSum - a.wonSum);
 
 	const totalSpend = rows.reduce((sum, row) => sum + (row.spend ?? 0), 0);
@@ -98,6 +129,13 @@ export async function fetchAttributionReport(
 		totalSpend,
 		romi:
 			totalSpend > 0 ? (dealsSummary.wonSum - totalSpend) / totalSpend : null,
+		totalNewClients: rows.reduce((sum, row) => sum + row.newClients, 0),
+		totalNewClientsRevenue: rows.reduce(
+			(sum, row) => sum + row.newClientsRevenue,
+			0,
+		),
+		totalRepeatClients: rows.reduce((sum, row) => sum + row.repeatClients, 0),
+		totalRepeatRevenue: rows.reduce((sum, row) => sum + row.repeatRevenue, 0),
 	};
 
 	return { rows, summary };

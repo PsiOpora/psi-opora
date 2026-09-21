@@ -17,6 +17,10 @@ export const deals = pgTable(
 		opportunity: integer("opportunity").notNull().default(0),
 		currency: text("currency"),
 		sourceId: text("source_id"),
+		// Основной контакт сделки (Bitrix CONTACT_ID) — связывает сделки одного
+		// человека между собой, чтобы отличать новых клиентов от повторных
+		// (см. packages/db/src/queries/deals.ts::getClientAcquisitionByCampaign).
+		contactId: text("contact_id"),
 		// Значение поля "Причина провала" (UF_CRM_1779838990) — заполняется на
 		// стадии "Анализ причины провала" воронки. ID пункта списка Bitrix, имя —
 		// в deal_dictionaries (type=failReason).
@@ -44,5 +48,11 @@ export const deals = pgTable(
 		index("deals_fail_reason_idx").on(table.failReasonId),
 		index("deals_utm_source_idx").on(table.utmSource),
 		index("deals_date_modify_idx").on(table.dateModify),
+		// Под оконную функцию (partition by contact_id order by date_create) в
+		// getClientAcquisitionByCampaign — вычисление "первой сделки" клиента.
+		index("deals_contact_id_date_create_idx").on(
+			table.contactId,
+			table.dateCreate,
+		),
 	],
 );
