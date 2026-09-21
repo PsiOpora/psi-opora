@@ -1,4 +1,4 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createOpenAI } from "@ai-sdk/openai";
 import { env, logger } from "@psi-opora/config";
 import {
 	addClientNote,
@@ -7,6 +7,7 @@ import {
 } from "@psi-opora/db/queries";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { getModelNames } from "./llm-models";
 
 const TriageSchema = z.object({
 	needsAttention: z.boolean(),
@@ -19,11 +20,11 @@ const TRIAGE_TIMEOUT_MS = 8_000;
 const MIN_LENGTH = 20;
 const ATTENTION_TAG = "⚠️ Требует внимания";
 
-type OpenRouterClient = ReturnType<typeof createOpenRouter>;
-type OpenRouterModel = ReturnType<OpenRouterClient["chat"]>;
+type OpenAiClient = ReturnType<typeof createOpenAI>;
+type OpenAiModel = ReturnType<OpenAiClient["chat"]>;
 
-let cachedClient: OpenRouterClient | null = null;
-let cachedModel: OpenRouterModel | null = null;
+let cachedClient: OpenAiClient | null = null;
+let cachedModel: OpenAiModel | null = null;
 
 /**
  * В отличие от llm-extract.ts (там через резервные бесплатные модели
@@ -34,13 +35,18 @@ let cachedModel: OpenRouterModel | null = null;
  * достаётся такое содержимое; при отказе основной модели просто не
  * триажим это сообщение (как и при отсутствии ключа).
  */
-function getModel(): OpenRouterModel | null {
-	if (!env.OPENROUTER_API_KEY) return null;
+function getModel(): OpenAiModel | null {
+	if (!env.OPENAI_API_KEY) return null;
+	const [primaryModel] = getModelNames();
+	if (!primaryModel) return null;
 	if (!cachedClient) {
-		cachedClient = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY });
+		cachedClient = createOpenAI({
+			apiKey: env.OPENAI_API_KEY,
+			baseURL: env.OPENAI_BASE_URL,
+		});
 	}
 	if (!cachedModel) {
-		cachedModel = cachedClient.chat(env.OPENROUTER_MODEL);
+		cachedModel = cachedClient.chat(primaryModel);
 	}
 	return cachedModel;
 }

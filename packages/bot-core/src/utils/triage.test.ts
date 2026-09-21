@@ -6,12 +6,16 @@ const generateObject = mock(() => Promise.resolve({ object: nextResult }));
 mock.module("ai", () => ({ generateObject }));
 
 mock.module("@psi-opora/config", () => ({
-	env: { OPENROUTER_API_KEY: "test-key", OPENROUTER_MODEL: "test-model" },
+	env: {
+		OPENAI_API_KEY: "test-key",
+		OPENAI_BASE_URL: "https://router.cheap/v1",
+		OPENAI_MODELS: "test-model",
+	},
 	logger: { error: mock(() => {}), info: mock(() => {}) },
 }));
 
-mock.module("@openrouter/ai-sdk-provider", () => ({
-	createOpenRouter: () => ({
+mock.module("@ai-sdk/openai", () => ({
+	createOpenAI: () => ({
 		chat: (name: string) => ({ modelId: name }),
 	}),
 }));
