@@ -619,6 +619,7 @@ export function actionLabel(action: ScenarioAction, t: ScenarioTexts): string {
 	const labels: Record<ScenarioAction, string> = {
 		sc_consult: t.btn_consult,
 		sc_guide: t.btn_guide,
+		sc_book: t.btn_book,
 		consent_agree: t.btn_consent_agree,
 		consent_decline: t.btn_consent_decline,
 		sc_child: t.btn_child,

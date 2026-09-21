@@ -34,6 +34,7 @@ describe("startScenario", () => {
 		expect(out.messages[0]?.buttons?.flat().map((b) => b.action)).toEqual([
 			"sc_consult",
 			"sc_guide",
+			"sc_book",
 		]);
 		expect(out.track).toEqual(["start"]);
 		expect(out.awaitingInput).toBe(true);
@@ -486,6 +487,7 @@ describe("напоминания", () => {
 		expect(reminder?.buttons?.flat().map((b) => b.action)).toEqual([
 			"sc_consult",
 			"sc_guide",
+			"sc_book",
 		]);
 	});
 

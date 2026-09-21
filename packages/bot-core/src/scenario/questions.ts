@@ -24,6 +24,7 @@ export function entryQuestion(t: ScenarioTexts): ScenarioMessage {
 		buttons: [
 			[{ label: t.btn_consult, action: "sc_consult" }],
 			[{ label: t.btn_guide, action: "sc_guide" }],
+			[{ label: t.btn_book, action: "sc_book" }],
 		],
 	};
 }

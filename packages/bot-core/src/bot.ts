@@ -667,6 +667,30 @@ export function createBot({
 			return;
 		}
 
+		if (action === "sc_book") {
+			// Кнопка «Заказать книгу» в общем меню (entryQuestion) — тот же вход
+			// в сценарий предзаказа, что и по диплинку с лендинга (см. book_preorder
+			// в bot.command("start") выше), но без source/intent — сюда приходят не
+			// с конкретной страницы книги.
+			await ctx
+				.editMessageReplyMarkup({ reply_markup: undefined })
+				.catch(() => {});
+			log(`[BOOK_PREORDER] user=${ctx.from?.id} action=sc_book messenger=telegram`);
+			await logBotMessage({
+				messenger: "telegram",
+				userId: ctx.from?.id,
+				direction: "in",
+				source: "scenario",
+				text: texts.btn_book,
+			});
+			const existingBookPreorder = ctx.session.bookPreorder;
+			const resumed = existingBookPreorder
+				? resumeBookPreorder(existingBookPreorder, texts)
+				: null;
+			await dispatchBookPreorder(ctx, resumed ?? startBookPreorder(texts), texts);
+			return;
+		}
+
 		if (action === "start_consultation") {
 			// Кнопка «Записаться» из сообщений старого бота — сразу в флоу записи
 			out = startConsultation(texts);
