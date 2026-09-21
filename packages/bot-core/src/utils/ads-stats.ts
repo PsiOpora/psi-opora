@@ -118,9 +118,12 @@ interface YandexTokenResponse {
 }
 
 interface YandexApiResponse {
-	data?: unknown;
-	error_code?: number;
-	error_detail?: string;
+	result?: unknown;
+	error?: {
+		error_code: number;
+		error_string?: string;
+		error_detail?: string;
+	};
 }
 
 let cachedToken: string | null = null;
@@ -167,9 +170,11 @@ async function yandexRequest<T>(
 	if (!res.ok) throw new Error(`Yandex API error: ${res.status}`);
 
 	const json = (await res.json()) as YandexApiResponse;
-	if (json.error_code)
-		throw new Error(`Yandex error ${json.error_code}: ${json.error_detail}`);
-	return json.data as T;
+	if (json.error)
+		throw new Error(
+			`Yandex error ${json.error.error_code}: ${json.error.error_detail ?? json.error.error_string}`,
+		);
+	return json.result as T;
 }
 
 export interface YandexCampaign {
@@ -192,7 +197,7 @@ async function getYandexCampaigns(token: string): Promise<YandexCampaign[]> {
 	const data = await yandexRequest<{ Campaigns: YandexCampaign[] }>(
 		"campaigns",
 		{
-			method: "GetCampaigns",
+			method: "get",
 			params: {
 				SelectionCriteria: {},
 				FieldNames: ["Id", "Name", "Status", "Type"],
@@ -203,35 +208,142 @@ async function getYandexCampaigns(token: string): Promise<YandexCampaign[]> {
 	return data.Campaigns ?? [];
 }
 
+const REPORT_FIELDS = [
+	"CampaignId",
+	"CampaignName",
+	"Impressions",
+	"Clicks",
+	"Cost",
+	"Date",
+] as const;
+
+/**
+ * В отличие от остальных методов v5 (JSON {result: ...}/{error: ...}),
+ * отчёты — отдельный формат: тело ответа при готовности — сырой TSV, не
+ * JSON, а обёртки {data:{Rows:[...]}} (как раньше в этом файле) в реальном
+ * API не существует — вызов всегда падал с "undefined is not an object".
+ * При processingMode=auto Яндекс может не успеть посчитать отчёт сразу и
+ * вернуть 201/202 с заголовком retryIn (секунды) — тогда нужно повторить
+ * тот же запрос (тот же ReportName) позже; это штатное поведение API, не ошибка.
+ */
+async function requestYandexReportOnce(
+	token: string,
+	campaignIds: number[],
+	dateFrom: string,
+	dateTo: string,
+	reportName: string,
+): Promise<{ status: number; retryInSeconds: number | null; body: string }> {
+	const res = await fetch(`${YANDEX_API_URL}/reports`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			"Content-Type": "application/json; charset=utf-8",
+			processingMode: "auto",
+			skipReportHeader: "true",
+			skipReportSummary: "true",
+		},
+		body: JSON.stringify({
+			params: {
+				SelectionCriteria: {
+					DateFrom: dateFrom,
+					DateTo: dateTo,
+					Filter: [
+						{
+							Field: "CampaignId",
+							Operator: "IN",
+							Values: campaignIds.map(String),
+						},
+					],
+				},
+				FieldNames: REPORT_FIELDS,
+				ReportName: reportName,
+				ReportType: "CAMPAIGN_PERFORMANCE_REPORT",
+				DateRangeType: "CUSTOM_DATE",
+				Format: "TSV",
+				IncludeVAT: "NO",
+				IncludeDiscount: "NO",
+			},
+		}),
+	});
+	const body = await res.text();
+	const retryInHeader = res.headers.get("retryIn");
+	return {
+		status: res.status,
+		retryInSeconds: retryInHeader ? Number(retryInHeader) : null,
+		body,
+	};
+}
+
+function parseYandexReportTsv(text: string): YandexReportRow[] {
+	const lines = text.trim().split("\n").filter(Boolean);
+	if (lines.length === 0) return [];
+	const header = lines[0]?.split("\t") ?? [];
+	const columnIndex = (name: string) => header.indexOf(name);
+	const idx = {
+		campaignId: columnIndex("CampaignId"),
+		campaignName: columnIndex("CampaignName"),
+		impressions: columnIndex("Impressions"),
+		clicks: columnIndex("Clicks"),
+		cost: columnIndex("Cost"),
+		date: columnIndex("Date"),
+	};
+	return lines.slice(1).map((line) => {
+		const cols = line.split("\t");
+		return {
+			CampaignId: Number(cols[idx.campaignId]),
+			CampaignName: cols[idx.campaignName] ?? "",
+			Impressions: Number(cols[idx.impressions] ?? 0),
+			Clicks: Number(cols[idx.clicks] ?? 0),
+			// Cost в отчёте — в микроединицах валюты (см. документацию Reports API),
+			// переводим в обычные рубли здесь же, чтобы дальше по коду Cost везде
+			// значил "рубли", как и предполагалось изначально.
+			Cost: Number(cols[idx.cost] ?? 0) / 1_000_000,
+			Date: cols[idx.date] ?? "",
+		};
+	});
+}
+
+const REPORT_MAX_ATTEMPTS = 6;
+const REPORT_MAX_WAIT_SECONDS = 30;
+
 async function getYandexReport(
 	token: string,
 	campaignIds: number[],
 	dateFrom: string,
 	dateTo: string,
 ): Promise<YandexReportRow[]> {
-	const data = await yandexRequest<{ Rows: YandexReportRow[] }>(
-		"reports",
-		{
-			reportType: "CAMPAIGN_PERFORMANCE_REPORT",
-			dateRangeType: "CUSTOM_DATE",
-			params: {
-				SelectionCriteria: {
-					CampaignIds: campaignIds,
-					DateFrom: dateFrom,
-					DateTo: dateTo,
-				},
-				Columns: [
-					"CampaignId",
-					"CampaignName",
-					"Impressions",
-					"Clicks",
-					"Cost",
-				],
-			},
-		},
-		token,
+	const reportName = `psi-opora_${Date.now()}`;
+	for (let attempt = 0; attempt < REPORT_MAX_ATTEMPTS; attempt++) {
+		const { status, retryInSeconds, body } = await requestYandexReportOnce(
+			token,
+			campaignIds,
+			dateFrom,
+			dateTo,
+			reportName,
+		);
+		if (status === 200) return parseYandexReportTsv(body);
+		if (status === 201 || status === 202) {
+			const waitSeconds = Math.min(
+				Math.max(retryInSeconds ?? 2, 1),
+				REPORT_MAX_WAIT_SECONDS,
+			);
+			await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
+			continue;
+		}
+		let message = body;
+		try {
+			const json = JSON.parse(body) as YandexApiResponse;
+			if (json.error) {
+				message = `${json.error.error_code}: ${json.error.error_detail ?? json.error.error_string}`;
+			}
+		} catch {
+			// тело не JSON — оставляем как есть для лога
+		}
+		throw new Error(`Yandex reports API error (${status}): ${message}`);
+	}
+	throw new Error(
+		"Yandex reports API: отчёт не готов после нескольких попыток",
 	);
-	return data.Rows ?? [];
 }
 
 export interface AdCampaign {
