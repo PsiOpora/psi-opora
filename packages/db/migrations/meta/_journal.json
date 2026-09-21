@@ -371,6 +371,13 @@
       "when": 1790000153295,
       "tag": "0052_drop_vk_ad_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1790008615956,
+      "tag": "0053_premium_slipstream",
+      "breakpoints": true
     }
   ]
 }

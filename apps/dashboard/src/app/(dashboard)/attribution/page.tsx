@@ -84,6 +84,11 @@ function AttributionPageContent() {
 		{ label: "Сделок", value: formatNumber(summary.totalDeals) },
 		{ label: "Выиграно", value: formatNumber(summary.totalWon) },
 		{ label: "Конверсия", value: formatPercent(summary.conversionRate) },
+		{ label: "Новых клиентов", value: formatNumber(summary.totalNewClients) },
+		{
+			label: "Выручка с новых",
+			value: formatMoney(summary.totalNewClientsRevenue),
+		},
 	];
 
 	return (
@@ -98,7 +103,7 @@ function AttributionPageContent() {
 				</p>
 			</div>
 
-			<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+			<div className="grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-8">
 				{summaryCards.map((card) => (
 					<Card key={card.label}>
 						<CardHeader>
@@ -117,7 +122,9 @@ function AttributionPageContent() {
 					<CardDescription>
 						Расход сопоставляется с кампанией по числовому ID рекламного
 						кабинета в её названии — если сматчить не удалось, показываем «—», а
-						не 0.
+						не 0. «Новые» — клиенты, для которых сделка в этой группе первая за
+						всю историю (выручка — только по ней); «Повторные» — у кого уже была
+						более ранняя сделка.
 					</CardDescription>
 					<div className="flex justify-end">
 						<ExportCsvButton
@@ -132,6 +139,10 @@ function AttributionPageContent() {
 								"Выручка",
 								"CAC",
 								"ROMI, %",
+								"Новых клиентов",
+								"Выручка с новых",
+								"Повторных клиентов",
+								"Выручка с повторных",
 							]}
 							rows={rows.map((row) => [
 								row.source,
@@ -143,6 +154,10 @@ function AttributionPageContent() {
 								Math.round(row.wonSum),
 								row.cac !== undefined ? Math.round(row.cac) : "",
 								row.romi !== undefined ? (row.romi * 100).toFixed(1) : "",
+								row.newClients,
+								row.newClientsRevenue,
+								row.repeatClients,
+								row.repeatRevenue,
 							])}
 						/>
 					</div>
@@ -165,6 +180,8 @@ function AttributionPageContent() {
 									<TableHead className="text-right">Выручка</TableHead>
 									<TableHead className="text-right">CAC</TableHead>
 									<TableHead className="text-right">ROMI</TableHead>
+									<TableHead className="text-right">Новые клиенты</TableHead>
+									<TableHead className="text-right">Повторные</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -207,6 +224,22 @@ function AttributionPageContent() {
 										</TableCell>
 										<TableCell className="text-right">
 											<RomiBadge romi={row.romi} />
+										</TableCell>
+										<TableCell className="text-right tabular-nums">
+											<div className="font-medium">
+												{formatNumber(row.newClients)}
+											</div>
+											<div className="text-xs text-muted-foreground">
+												{formatMoney(row.newClientsRevenue)}
+											</div>
+										</TableCell>
+										<TableCell className="text-right tabular-nums">
+											<div className="font-medium">
+												{formatNumber(row.repeatClients)}
+											</div>
+											<div className="text-xs text-muted-foreground">
+												{formatMoney(row.repeatRevenue)}
+											</div>
 										</TableCell>
 									</TableRow>
 								))}
