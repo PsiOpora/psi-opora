@@ -687,6 +687,11 @@ export function createBot({
 			const resumed = existingBookPreorder
 				? resumeBookPreorder(existingBookPreorder, texts)
 				: null;
+			// Снимаем зависший общий сценарий (консультация/гайд) — иначе после
+			// завершения предзаказа (dispatchBookPreorder трогает только
+			// bookPreorder) следующий текст снова попадёт в старый шаг
+			// консультации/гайда, см. dispatch() выше про обратный случай.
+			ctx.session.scenario = undefined;
 			await dispatchBookPreorder(ctx, resumed ?? startBookPreorder(texts), texts);
 			return;
 		}

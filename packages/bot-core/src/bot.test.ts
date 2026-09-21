@@ -266,6 +266,46 @@ describe("телеграм-бот: /start", () => {
 	});
 });
 
+describe("телеграм-бот: кнопка «Заказать книгу»", () => {
+	test("из общего меню запускает предзаказ книги с нуля", async () => {
+		const { bot, sent } = makeBot();
+		await bot.handleUpdate(commandUpdate("/start"));
+		await bot.handleUpdate(callbackUpdate("sc_book", 2));
+
+		const texts = sentMessages(sent).map((m) => m.payload.text);
+		expect(texts.at(-1)).toBe(t.bp_consent_text);
+	});
+
+	test("резюмирует уже начатую бронь вместо повторного согласия", async () => {
+		const { sessions, storage } = staleBookPreorderStorage();
+		const { bot, sent } = makeBot(storage);
+
+		await bot.handleUpdate(callbackUpdate("sc_book"));
+
+		expect(sentMessages(sent).map((m) => m.payload.text)).toEqual([
+			t.bp_reserved_text.replace("{name}", "Пётр"),
+		]);
+		expect(sessions.get("100")?.bookPreorder?.step).toBe("reserved");
+	});
+
+	test("сбрасывает зависший сценарий консультации/гайда", async () => {
+		const sessions = new Map<string, ConsultationSession>([
+			["100", { step: "name", scenario: { step: "name", flow: "consult" } }],
+		]);
+		const storage: StorageAdapter<ConsultationSession> = {
+			read: (key) => sessions.get(key),
+			write: (key, value) => void sessions.set(key, value),
+			delete: (key) => void sessions.delete(key),
+		};
+		const { bot } = makeBot(storage);
+
+		await bot.handleUpdate(callbackUpdate("sc_book"));
+
+		expect(sessions.get("100")?.scenario).toBeUndefined();
+		expect(sessions.get("100")?.bookPreorder?.step).toBe("consent");
+	});
+});
+
 describe("телеграм-бот: кнопки старого сценария", () => {
 	test("«Записаться на консультацию» открывает согласие на ПДн", async () => {
 		const { bot, sent } = makeBot();

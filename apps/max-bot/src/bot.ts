@@ -742,6 +742,11 @@ export function createMaxBot({
 		const resumed = existingBookPreorder
 			? resumeBookPreorder(existingBookPreorder, texts)
 			: null;
+		// Снимаем зависший общий сценарий (консультация/гайд) — иначе после
+		// завершения предзаказа (dispatchBookPreorder трогает только
+		// bookPreorder) следующий текст снова попадёт в старый шаг
+		// консультации/гайда, см. dispatch() выше про обратный случай.
+		appCtx.session.scenario = undefined;
 		await dispatchBookPreorder(appCtx, resumed ?? startBookPreorder(texts), texts);
 	});
 
