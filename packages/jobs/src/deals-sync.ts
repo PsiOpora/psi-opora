@@ -55,7 +55,7 @@ interface RawSyncDeal {
 	CLOSEDATE?: string;
 	DATE_MODIFY: string;
 	SOURCE_ID?: string;
-	CONTACT_ID?: string;
+	CONTACT_ID?: string | null;
 	UF_CRM_1779838990?: string | number | null;
 	UF_CRM_PAGE_URL?: string | null;
 	UTM_SOURCE?: string;
@@ -108,6 +108,14 @@ function normalizeSyncDeal(raw: RawSyncDeal): NewDeal {
 		Object.hasOwn(raw, "UF_CRM_PAGE_URL") && raw.UF_CRM_PAGE_URL !== undefined
 			? { pageUrl: normalizePageUrl(raw.UF_CRM_PAGE_URL) }
 			: {};
+	// Как и pageUrl выше: если раз CONTACT_ID отсутствует в конкретном
+	// raw-payload, не трогаем его в БД при апсерте (см. upsertDeals) — иначе
+	// рискуем затереть уже известный contact_id на NULL только из-за того,
+	// что в этом ответе Bitrix поля не было.
+	const contactId =
+		Object.hasOwn(raw, "CONTACT_ID") && raw.CONTACT_ID !== undefined
+			? { contactId: raw.CONTACT_ID || null }
+			: {};
 	return {
 		id: raw.ID,
 		title: raw.TITLE,
@@ -117,9 +125,9 @@ function normalizeSyncDeal(raw: RawSyncDeal): NewDeal {
 		opportunity: Math.round(Number(raw.OPPORTUNITY) || 0),
 		currency: raw.CURRENCY_ID || null,
 		sourceId: raw.SOURCE_ID || null,
-		contactId: raw.CONTACT_ID || null,
 		failReasonId: raw.UF_CRM_1779838990 ? String(raw.UF_CRM_1779838990) : null,
 		...pageUrl,
+		...contactId,
 		utmSource: decodeUtm(raw.UTM_SOURCE),
 		utmMedium: decodeUtm(raw.UTM_MEDIUM),
 		utmCampaign: decodeUtm(raw.UTM_CAMPAIGN),

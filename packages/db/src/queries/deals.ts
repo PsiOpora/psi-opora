@@ -26,19 +26,28 @@ export const FAIL_REASON_NOT_SPECIFIED = "__NOT_SPECIFIED__";
 
 // ── Sync (бэкафилл, периодическая сверка, вебхуки) ──────────────────────────
 
-/** Батч-апсерт по id — используется бэкафиллом и периодической сверкой. */
+/**
+ * Батч-апсерт по id — используется бэкафиллом и периодической сверкой.
+ * pageUrl/contactId могут отсутствовать в конкретном raw-payload (see
+ * normalizeSyncDeal) — тогда конфликтующую строку в БД не трогаем вместо
+ * того, чтобы затереть её значение NULL из-за отсутствия поля в ответе
+ * Bitrix, отсюда 4 батча на все комбинации "поле есть/нет".
+ */
 export async function upsertDeals(rows: NewDeal[]): Promise<void> {
 	if (!db || rows.length === 0) return;
 	const batches = [
-		{
-			rows: rows.filter((row) => row.pageUrl !== undefined),
-			updatePageUrl: true,
-		},
-		{
-			rows: rows.filter((row) => row.pageUrl === undefined),
-			updatePageUrl: false,
-		},
-	];
+		{ updatePageUrl: true, updateContactId: true },
+		{ updatePageUrl: true, updateContactId: false },
+		{ updatePageUrl: false, updateContactId: true },
+		{ updatePageUrl: false, updateContactId: false },
+	].map((flags) => ({
+		...flags,
+		rows: rows.filter(
+			(row) =>
+				(row.pageUrl !== undefined) === flags.updatePageUrl &&
+				(row.contactId !== undefined) === flags.updateContactId,
+		),
+	}));
 
 	for (const batch of batches) {
 		if (batch.rows.length === 0) continue;
@@ -56,7 +65,9 @@ export async function upsertDeals(rows: NewDeal[]): Promise<void> {
 					opportunity: sql`excluded.opportunity`,
 					currency: sql`excluded.currency`,
 					sourceId: sql`excluded.source_id`,
-					contactId: sql`excluded.contact_id`,
+					...(batch.updateContactId
+						? { contactId: sql`excluded.contact_id` }
+						: {}),
 					failReasonId: sql`excluded.fail_reason_id`,
 					...(batch.updatePageUrl ? { pageUrl: sql`excluded.page_url` } : {}),
 					utmSource: sql`excluded.utm_source`,
