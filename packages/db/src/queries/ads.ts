@@ -20,8 +20,6 @@ export async function upsertAdCredentials(data: {
 	yandexClientId?: string | null;
 	yandexClientSecret?: string | null;
 	yandexRefreshToken?: string | null;
-	vkAccessToken?: string | null;
-	vkAdsAccountId?: string | null;
 }): Promise<void> {
 	if (!db) return;
 	await db
