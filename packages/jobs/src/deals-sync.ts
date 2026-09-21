@@ -61,6 +61,8 @@ interface RawSyncDeal {
 	UTM_TERM?: string;
 }
 
+const remoteDealRowsSchema = z.array(z.object({ ID: z.string() }));
+
 /** Рекламные площадки иногда передают UTM percent-encoded — декодируем для читаемости. */
 function decodeUtm(value?: string): string | null {
 	if (!value) return null;
@@ -154,8 +156,8 @@ export async function syncChangedDeals(
  * апсертят — если OnCrmDealDelete не долетел (сбой доставки, даунтайм
  * apps/bitrix-webhook, слетевшая подписка event.bind), сделка навсегда
  * остаётся в зеркале. Здесь сверяем id целиком: тянем из Bitrix только поле
- * ID (лёгкий запрос, без лимита на объём — see MAX_LIST_PAGES в
- * bitrix-client) и удаляем из зеркала то, чего там больше нет.
+ * ID (лёгкий запрос; bitrix-client прерывает синхронизацию, если не успел
+ * пройти всю пагинацию) и удаляем из зеркала то, чего там больше нет.
  */
 export async function syncDeletedDeals(
 	api: BitrixApi,
@@ -163,9 +165,9 @@ export async function syncDeletedDeals(
 	const localIds = await getAllDealIds();
 	if (localIds.length === 0) return { deleted: 0 };
 
-	const remote = await api.list<{ ID: string }>("crm.deal.list", {
-		select: ["ID"],
-	});
+	const remote = remoteDealRowsSchema.parse(
+		await api.list<unknown>("crm.deal.list", { select: ["ID"] }),
+	);
 	const remoteIds = new Set(remote.map((row) => row.ID));
 	const staleIds = localIds.filter((id) => !remoteIds.has(id));
 	if (staleIds.length === 0) return { deleted: 0 };

@@ -14,15 +14,19 @@ mock.module("@psi-opora/db/queries", () => ({
 
 const { syncDeletedDeals } = await import("./deals-sync");
 
-function apiListingIds(ids: string[]): BitrixApi {
+function apiListing(records: unknown[]): BitrixApi {
 	return {
 		async call() {
 			throw new Error("Unexpected call");
 		},
 		async list<T>() {
-			return ids.map((id) => ({ ID: id })) as T[];
+			return records as T[];
 		},
 	};
+}
+
+function apiListingIds(ids: string[]): BitrixApi {
+	return apiListing(ids.map((id) => ({ ID: id })));
 }
 
 describe("syncDeletedDeals", () => {
@@ -60,6 +64,31 @@ describe("syncDeletedDeals", () => {
 		const result = await syncDeletedDeals(api);
 
 		expect(result).toEqual({ deleted: 0 });
+		expect(deleteDeals).not.toHaveBeenCalled();
+	});
+
+	it("прерывает синхронизацию при невалидном ID из Bitrix", async () => {
+		getAllDealIds.mockImplementationOnce(() => Promise.resolve(["1", "2"]));
+		const api = apiListing([{ ID: "1" }, { ID: 2 }]);
+
+		await expect(syncDeletedDeals(api)).rejects.toThrow();
+		expect(deleteDeals).not.toHaveBeenCalled();
+	});
+
+	it("не удаляет сделки, если полный список Bitrix не получен", async () => {
+		getAllDealIds.mockImplementationOnce(() => Promise.resolve(["1", "2"]));
+		const api: BitrixApi = {
+			async call() {
+				throw new Error("Unexpected call");
+			},
+			async list() {
+				throw new Error("Bitrix24 pagination incomplete");
+			},
+		};
+
+		await expect(syncDeletedDeals(api)).rejects.toThrow(
+			"pagination incomplete",
+		);
 		expect(deleteDeals).not.toHaveBeenCalled();
 	});
 });

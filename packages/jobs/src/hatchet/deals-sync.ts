@@ -36,11 +36,14 @@ export const dealsSync = CreateTaskWorkflow({
 	fn: async () => {
 		const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
 		if (!api) throw new Error("Bitrix24 не подключён");
-		const [deals, , deleted] = await Promise.all([
-			syncChangedDeals(api),
+		const [result] = await Promise.all([
+			(async () => {
+				const deals = await syncChangedDeals(api);
+				const deleted = await syncDeletedDeals(api);
+				return { ...deals, ...deleted };
+			})(),
 			syncDealDictionaries(api),
-			syncDeletedDeals(api),
 		]);
-		return { ...deals, ...deleted };
+		return result;
 	},
 });

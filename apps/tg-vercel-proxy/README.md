@@ -42,7 +42,7 @@ k3s напрямую, на время переезда с РФ-хостинга.
 
 ### Исходящие запросы к Bot API
 
-В `.env` (или secret `psi-opora-env` в k3s — см. [k3s/README.md](../../k3s/README.md)):
+В корневом `.env` (перечень переменных см. в [`.env.example`](../../.env.example)):
 
 ```bash
 TG_API_PROXY_ENABLED=true
