@@ -57,7 +57,7 @@ export function AdRefreshButton() {
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent>
-				<p>Обновить данные из Яндекс.Директ и VK Ads</p>
+				<p>Обновить данные из Яндекс.Директ</p>
 			</TooltipContent>
 		</Tooltip>
 	);

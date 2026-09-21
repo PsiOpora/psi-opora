@@ -6,7 +6,7 @@ import { fetchAdStats, getRedisOrNull } from "@psi-opora/bot-core";
 import { getAdCredentials } from "@psi-opora/db/queries";
 
 /**
- * Автоматическая синхронизация расхода из VK Ads / Яндекс.Директ в
+ * Автоматическая синхронизация расхода из Яндекс.Директ в
  * ad_daily_stats (см. packages/db/src/schema/ads) — раньше требовала
  * ручного клика «Обновить» на /ads (adsRouter.refreshStats). Без крона
  * отчёт /attribution не набирал бы свежий расход сам по себе.

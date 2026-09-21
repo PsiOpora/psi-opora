@@ -1,5 +1,5 @@
 /**
- * Разовый бэкафилл расхода из VK Ads / Яндекс.Директ в ad_daily_stats
+ * Разовый бэкафилл расхода из Яндекс.Директ в ad_daily_stats
  * (packages/db/src/schema/ads) за широкое историческое окно. Обычный крон
  * (packages/jobs/src/hatchet/ads-stats-sync.ts) держит свежими только
  * последние 7 дней — без бэкафилла отчёт «Атрибуция» (/attribution) покажет

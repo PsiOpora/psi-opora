@@ -278,7 +278,7 @@ function CostsPageContent() {
 				<CardHeader>
 					<CardTitle>Добавить расход</CardTitle>
 					<CardDescription>
-						Суммы из рекламных кабинетов (Яндекс.Директ, VK Ads, Telegram Ads)
+						Суммы из рекламных кабинетов (Яндекс.Директ, Telegram Ads)
 						вносятся вручную помесячно
 					</CardDescription>
 				</CardHeader>

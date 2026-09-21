@@ -116,9 +116,6 @@ export {
 	fetchAdStats,
 	getCachedAdStats,
 	getRedisOrNull,
-	type VkCampaign,
-	type VkCampaignStats,
-	type VkDailyStats,
 	type YandexCampaign,
 	type YandexReportRow,
 } from "./utils/ads-stats";

@@ -21,7 +21,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { blankToUndefined } from "@/lib/blank-to-undefined";
 import { orpc } from "@/lib/orpc/client";
 
@@ -32,8 +31,6 @@ function toFormValues(creds: AdCredentials): AdCredentialsInput {
     yandexClientId: creds?.yandexClientId ?? "",
     yandexClientSecret: creds?.yandexClientSecret ?? "",
     yandexRefreshToken: creds?.yandexRefreshToken ?? "",
-    vkAccessToken: creds?.vkAccessToken ?? "",
-    vkAdsAccountId: creds?.vkAdsAccountId ?? "",
   };
 }
 
@@ -45,7 +42,6 @@ export function AdCredentialsForm({
   const queryClient = useQueryClient();
   const [showClientSecret, setShowClientSecret] = useState(false);
   const [showRefreshToken, setShowRefreshToken] = useState(false);
-  const [showVkToken, setShowVkToken] = useState(false);
 
   const { data: creds } = useQuery(
     orpc.ads.getCredentials.queryOptions({
@@ -296,85 +292,6 @@ export function AdCredentialsForm({
             </li>
           </ol>
           <p className="mt-2">, повторите шаги 5–8.</p>
-        </div>
-
-        <Separator />
-
-        <div className="flex flex-col gap-1">
-          <h3 className="text-lg font-medium">VK Реклама</h3>
-          <p className="text-sm text-muted-foreground">
-            Получите токен в{" "}
-            <a
-              href="https://ads.vk.com/hq/settings"
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2"
-            >
-              кабинете VK Реклама
-            </a>{" "}
-            (раздел Настройки → Доступ к API).
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="vkAccessToken"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs text-muted-foreground">
-                  Access Token
-                </FormLabel>
-                <div className="relative">
-                  <FormControl>
-                    <Input
-                      type={showVkToken ? "text" : "password"}
-                      placeholder="••••••••"
-                      className="font-mono text-sm pr-10"
-                      {...field}
-                    />
-                  </FormControl>
-                  <button
-                    type="button"
-                    onClick={() => setShowVkToken((prev) => !prev)}
-                    className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-                    aria-label={
-                      showVkToken
-                        ? "Hide VK access token"
-                        : "Show VK access token"
-                    }
-                    aria-pressed={showVkToken}
-                  >
-                    {showVkToken ? (
-                      <EyeOff className="size-4" />
-                    ) : (
-                      <Eye className="size-4" />
-                    )}
-                  </button>
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="vkAdsAccountId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs text-muted-foreground">
-                  Ads Account ID
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="123456789"
-                    className="font-mono text-sm"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
         </div>
 
         {creds?.updatedAt && (

@@ -29,24 +29,14 @@ function formatCtr(clicks: number, impressions: number): string {
 	return `${((clicks / impressions) * 100).toFixed(2)}%`;
 }
 
-function StatusBadge({
-	status,
-	platform,
-}: {
-	status: string;
-	platform: string;
-}) {
+function StatusBadge({ status }: { status: string }) {
 	const isActive = status === "RUNNING" || status === "1";
 	const label = isActive
 		? "Активна"
 		: status === "SUSPENDED" || status === "0"
 			? "Приостановлена"
 			: status;
-	return (
-		<Badge variant={isActive ? "default" : "secondary"}>
-			{platform === "vk" ? "🔵" : "🔴"} {label}
-		</Badge>
-	);
+	return <Badge variant={isActive ? "default" : "secondary"}>{label}</Badge>;
 }
 
 export default function AdsPage() {
@@ -97,7 +87,7 @@ export default function AdsPage() {
 				<div>
 					<h1 className="text-2xl font-semibold">Рекламные кампании</h1>
 					<p className="text-sm text-muted-foreground">
-						Данные из Яндекс.Директ и VK Ads
+						Данные из Яндекс.Директ
 						{liveData.lastUpdated &&
 							` · обновлено ${new Date(liveData.lastUpdated).toLocaleString("ru-RU")}`}
 					</p>
@@ -194,11 +184,9 @@ export default function AdsPage() {
 								{liveData.campaigns.map((c) => (
 									<TableRow key={c.id}>
 										<TableCell className="font-medium">{c.name}</TableCell>
+										<TableCell>Яндекс.Директ</TableCell>
 										<TableCell>
-											{c.platform === "vk" ? "VK Ads" : "Яндекс.Директ"}
-										</TableCell>
-										<TableCell>
-											<StatusBadge status={c.status} platform={c.platform} />
+											<StatusBadge status={c.status} />
 										</TableCell>
 										<TableCell className="text-right tabular-nums">
 											{formatNumber(c.impressions)}
