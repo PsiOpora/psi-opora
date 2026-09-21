@@ -1,4 +1,4 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createOpenAI } from "@ai-sdk/openai";
 import { env, logger } from "@psi-opora/config";
 import { getBitrixCrmLink } from "@psi-opora/db/queries";
 import { generateObject } from "ai";
@@ -6,7 +6,7 @@ import { z } from "zod";
 import { bitrixPost } from "./bitrix/client";
 import { createBitrixContact } from "./bitrix/create-deal";
 import { appendDealComment } from "./bitrix/sources";
-import { OPENROUTER_FALLBACK_MODELS } from "./openrouter";
+import { getModelNames } from "./llm-models";
 import { hasPhoneNumber, isValidEmail } from "./validation";
 
 const CrmEnrichmentSchema = z.object({
@@ -45,20 +45,23 @@ export interface CrmEnrichmentMessage {
 const EXTRACTION_TIMEOUT_MS = 8_000;
 const EMAIL_IN_TEXT = /[^\s<>()@,;:]+@[^\s<>()@,;:]+\.[^\s<>()@,;:]+/;
 
-type OpenRouterClient = ReturnType<typeof createOpenRouter>;
-type OpenRouterModel = ReturnType<OpenRouterClient["chat"]>;
+type OpenAiClient = ReturnType<typeof createOpenAI>;
+type OpenAiModel = ReturnType<OpenAiClient["chat"]>;
 
-let cachedClient: OpenRouterClient | null = null;
-const cachedModels = new Map<string, OpenRouterModel>();
+let cachedClient: OpenAiClient | null = null;
+const cachedModels = new Map<string, OpenAiModel>();
 
-function getModels(): OpenRouterModel[] {
-	if (!env.OPENROUTER_API_KEY) return [];
+function getModels(): OpenAiModel[] {
+	if (!env.OPENAI_API_KEY) return [];
 	if (!cachedClient) {
-		cachedClient = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY });
+		cachedClient = createOpenAI({
+			apiKey: env.OPENAI_API_KEY,
+			baseURL: env.OPENAI_BASE_URL,
+		});
 	}
 	const client = cachedClient;
 
-	return [env.OPENROUTER_MODEL, ...OPENROUTER_FALLBACK_MODELS].map((name) => {
+	return getModelNames().map((name) => {
 		let model = cachedModels.get(name);
 		if (!model) {
 			model = client.chat(name);
@@ -152,7 +155,7 @@ async function extractWithLlm(
 			};
 		} catch (err) {
 			const meta = {
-				provider: "openrouter",
+				provider: "openai",
 				model: model.modelId,
 				textLength: text.length,
 				timeoutMs: EXTRACTION_TIMEOUT_MS,

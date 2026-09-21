@@ -26,7 +26,7 @@
     "backfill:crm-links": "bun run --env-file=../../.env scripts/backfill-crm-links.ts"
   },
   "dependencies": {
-    "@openrouter/ai-sdk-provider": "^3.0.0",
+    "@ai-sdk/openai": "^4.0.71",
     "@psi-opora/config": "workspace:*",
     "@psi-opora/db": "workspace:*",
     "@psi-opora/emails": "workspace:*",

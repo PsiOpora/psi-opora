@@ -1,8 +1,8 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createOpenAI } from "@ai-sdk/openai";
 import { env, logger } from "@psi-opora/config";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { OPENROUTER_FALLBACK_MODELS } from "./openrouter";
+import { getModelNames } from "./llm-models";
 import { hasPhoneNumber } from "./validation";
 
 const ExtractedContactSchema = z.object({
@@ -36,30 +36,32 @@ function looksLikePlainName(text: string): boolean {
 	);
 }
 
-// Резервные модели на случай, если основная (env.OPENROUTER_MODEL) вернёт
-// ошибку — например, превышен лимит бесплатного воркера у провайдера
+// Резервные модели на случай, если основная (первая в env.OPENAI_MODELS)
+// вернёт ошибку — например, превышен лимит воркера у провайдера
 // ("ResourceExhausted: Worker local total request limit reached"). Пробуем
 // по очереди, пока одна из них не отработает.
-type OpenRouterClient = ReturnType<typeof createOpenRouter>;
-type OpenRouterModel = ReturnType<OpenRouterClient["chat"]>;
+type OpenAiClient = ReturnType<typeof createOpenAI>;
+type OpenAiModel = ReturnType<OpenAiClient["chat"]>;
 
-let cachedClient: OpenRouterClient | null = null;
-const cachedModels = new Map<string, OpenRouterModel>();
+let cachedClient: OpenAiClient | null = null;
+const cachedModels = new Map<string, OpenAiModel>();
 
 function getClient() {
-	if (!env.OPENROUTER_API_KEY) return null;
+	if (!env.OPENAI_API_KEY) return null;
 	if (!cachedClient) {
-		cachedClient = createOpenRouter({ apiKey: env.OPENROUTER_API_KEY });
+		cachedClient = createOpenAI({
+			apiKey: env.OPENAI_API_KEY,
+			baseURL: env.OPENAI_BASE_URL,
+		});
 	}
 	return cachedClient;
 }
 
-function getModels(): OpenRouterModel[] {
+function getModels(): OpenAiModel[] {
 	const client = getClient();
 	if (!client) return [];
 
-	const modelNames = [env.OPENROUTER_MODEL, ...OPENROUTER_FALLBACK_MODELS];
-	return modelNames.map((name) => {
+	return getModelNames().map((name) => {
 		let model = cachedModels.get(name);
 		if (!model) {
 			model = client.chat(name);

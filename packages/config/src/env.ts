@@ -162,13 +162,13 @@ export const env = createEnv({
 		HATCHET_CLIENT_API_URL: z.string().optional(),
 		HATCHET_CLIENT_TLS_STRATEGY: z.enum(["tls", "mtls", "none"]).optional(),
 
-		// OpenRouter (LLM-подстраховка на шаге «имя» в сценарии бота — см.
-		// packages/bot-core/src/utils/llm-extract.ts). Без ключа шаг работает
-		// как раньше, без LLM.
-		OPENROUTER_API_KEY: z.string().optional(),
-		OPENROUTER_MODEL: z
-			.string()
-			.default("nvidia/nemotron-3-ultra-550b-a55b:free"),
+		// OpenAI-совместимый LLM-провайдер (подстраховка на шаге «имя» в сценарии
+		// бота — см. packages/bot-core/src/utils/llm-extract.ts). Без ключа шаг
+		// работает как раньше, без LLM.
+		OPENAI_API_KEY: z.string().optional(),
+		OPENAI_BASE_URL: z.string().default("https://router.cheap/v1"),
+		// Список моделей через запятую: первая - основная, остальные - резервные.
+		OPENAI_MODELS: z.string().default("gpt-5.6-sol"),
 
 		// Яндекс.Метрика (счётчик, OAuth-токен, цель, поле ClientID в Bitrix)
 		// настраивается администратором в дашборде (/settings/metrika, таблица
@@ -249,8 +249,9 @@ export const env = createEnv({
 		HATCHET_CLIENT_HOST_PORT: process.env.HATCHET_CLIENT_HOST_PORT,
 		HATCHET_CLIENT_API_URL: process.env.HATCHET_CLIENT_API_URL,
 		HATCHET_CLIENT_TLS_STRATEGY: process.env.HATCHET_CLIENT_TLS_STRATEGY,
-		OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
-		OPENROUTER_MODEL: process.env.OPENROUTER_MODEL,
+		OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+		OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+		OPENAI_MODELS: process.env.OPENAI_MODELS,
 		NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
 		NEXT_PUBLIC_APP_SHORT_NAME: process.env.NEXT_PUBLIC_APP_SHORT_NAME,
 		NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
