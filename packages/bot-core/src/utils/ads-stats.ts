@@ -1,17 +1,12 @@
 import {
-	createRedisClient,
-	isRedisConfigured as hasRedisConfiguration,
-} from "@psi-opora/bot-core";
-import {
 	type NewAdDailyStats,
 	upsertAdDailyStats,
 } from "@psi-opora/db/queries";
-
-export type RedisClient = ReturnType<typeof createRedisClient>;
-
-export function isRedisConfigured(): boolean {
-	return hasRedisConfiguration();
-}
+import {
+	createRedisClient,
+	isRedisConfigured,
+	type RedisClient,
+} from "../storage/redis";
 
 /** null, если Redis не задан (локальная разработка без Redis). */
 export function getRedisOrNull(): RedisClient | null {
@@ -261,6 +256,12 @@ export interface AdStatsResult {
 const CACHE_KEY = "ad_stats:live";
 const CACHE_TTL = 3600;
 
+/**
+ * dateFrom/dateTo — YYYY-MM-DD, по умолчанию последние 7 дней (как раньше).
+ * Более широкое окно нужно только разовому бэкафиллу истории
+ * (scripts/backfill-ads-stats.ts) — обычный крон/кнопка «Обновить» берут
+ * дефолт, чтобы не упираться в лимиты API рекламных кабинетов.
+ */
 export async function fetchAdStats(
 	redis: RedisClient | null,
 	creds: {
@@ -270,13 +271,18 @@ export async function fetchAdStats(
 		vkAccessToken?: string | null;
 		vkAdsAccountId?: string | null;
 	} | null,
+	dateFrom?: string,
+	dateTo?: string,
 ): Promise<AdStatsResult> {
 	const today = new Date();
-	const dateTo: string = today.toISOString().split("T")[0] ?? "";
-	const dateFrom: string =
+	const resolvedDateTo: string =
+		dateTo ?? today.toISOString().split("T")[0] ?? "";
+	const resolvedDateFrom: string =
+		dateFrom ??
 		new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
 			.toISOString()
-			.split("T")[0] ?? "";
+			.split("T")[0] ??
+		"";
 
 	const campaigns: AdCampaign[] = [];
 	let totalSpend = 0;
@@ -300,8 +306,8 @@ export async function fetchAdStats(
 				const report = await getYandexReport(
 					token,
 					yandexCampaigns.map((c) => c.Id),
-					dateFrom,
-					dateTo,
+					resolvedDateFrom,
+					resolvedDateTo,
 				);
 				for (const row of report) {
 					totalSpend += row.Cost;
@@ -347,15 +353,14 @@ export async function fetchAdStats(
 					creds.vkAdsAccountId,
 					creds.vkAccessToken,
 					vkCampaigns.map((c) => c.id),
-					dateFrom,
-					dateTo,
+					resolvedDateFrom,
+					resolvedDateTo,
 				);
 				for (const campaign of vkCampaigns) {
-					const s = stats.get(campaign.id);
-					const impressions =
-						s?.stats.reduce((sum, d) => sum + d.impressions, 0) ?? 0;
-					const clicks = s?.stats.reduce((sum, d) => sum + d.clicks, 0) ?? 0;
-					const spend = s?.stats.reduce((sum, d) => sum + d.spend, 0) ?? 0;
+					const days = stats.get(campaign.id)?.stats ?? [];
+					const impressions = days.reduce((sum, d) => sum + d.impressions, 0);
+					const clicks = days.reduce((sum, d) => sum + d.clicks, 0);
+					const spend = days.reduce((sum, d) => sum + d.spend, 0);
 					totalSpend += spend;
 					totalImpressions += impressions;
 					totalClicks += clicks;
@@ -367,18 +372,25 @@ export async function fetchAdStats(
 						impressions,
 						clicks,
 						spend,
-						date: dateTo,
+						date: resolvedDateTo,
 					});
-					dbRows.push({
-						id: `vk_${campaign.id}_${dateTo}`,
-						platform: "vk",
-						campaignId: String(campaign.id),
-						campaignName: campaign.name,
-						date: dateTo,
-						impressions,
-						clicks,
-						spend: Math.round(spend * 100),
-					});
+					// По дням, а не одной суммой за весь период (как у Yandex-отчёта
+					// выше) — иначе при широком окне (бэкафилл, см.
+					// scripts/backfill-ads-stats.ts) весь расход осядет в одной строке
+					// ad_daily_stats с датой resolvedDateTo, и /attribution не сможет
+					// разложить его по дням/сузить период отчёта.
+					for (const day of days) {
+						dbRows.push({
+							id: `vk_${campaign.id}_${day.day}`,
+							platform: "vk",
+							campaignId: String(campaign.id),
+							campaignName: campaign.name,
+							date: day.day,
+							impressions: day.impressions,
+							clicks: day.clicks,
+							spend: Math.round(day.spend * 100),
+						});
+					}
 				}
 			}
 		} catch (err) {

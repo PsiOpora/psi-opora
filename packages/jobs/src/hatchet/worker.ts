@@ -1,3 +1,4 @@
+import { adsStatsSync } from "./ads-stats-sync";
 import { bookPreorderDrip } from "./book-preorder-drip";
 import { deliverBroadcast } from "./broadcast";
 import { getHatchetClient } from "./client";
@@ -19,6 +20,7 @@ export const hatchetTasks = [
 	crmBackupSchedule,
 	dealsSync,
 	dealStageHistorySync,
+	adsStatsSync,
 	pollEmailCampaigns,
 	consultationReminders,
 	diagnosticReminders,

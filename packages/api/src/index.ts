@@ -25,13 +25,13 @@ export {
 	type AdStatsResult,
 	fetchAdStats,
 	getCachedAdStats,
-} from "./ads-stats";
+} from "@psi-opora/bot-core";
+export { getAvatarStream } from "./avatar-storage";
 export type {
 	BroadcastChannel,
 	BroadcastRecipient,
 	BroadcastReport,
 } from "./broadcast-send";
-export { getAvatarStream } from "./avatar-storage";
 export type { CostEntry } from "./costs-store";
 export type {
 	EmailRecipient,
@@ -63,6 +63,7 @@ export type {
 	CampaignTemplateFieldDef,
 	CampaignTemplateSummary,
 } from "./routers/email-templates";
+export type { MaxPersonalAccountView } from "./routers/max-personal";
 export type {
 	ClientGuideItem,
 	ClientListItem,
@@ -78,7 +79,6 @@ export type {
 	QuickReplyItem,
 } from "./routers/messages";
 export type { TelegramPersonalAccountView } from "./routers/telegram-personal";
-export type { MaxPersonalAccountView } from "./routers/max-personal";
 export type { WhatsappPersonalAccountView } from "./routers/whatsapp-personal";
 export type {
 	WidgetChannel,

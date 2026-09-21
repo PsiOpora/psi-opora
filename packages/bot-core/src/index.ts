@@ -111,6 +111,18 @@ export {
 } from "./storage/redis";
 export type { AppContext, ConsultationSession } from "./types/context";
 export {
+	type AdCampaign,
+	type AdStatsResult,
+	fetchAdStats,
+	getCachedAdStats,
+	getRedisOrNull,
+	type VkCampaign,
+	type VkCampaignStats,
+	type VkDailyStats,
+	type YandexCampaign,
+	type YandexReportRow,
+} from "./utils/ads-stats";
+export {
 	appendDealComment,
 	type BitrixApiLike,
 	type BitrixSource,

@@ -1,11 +1,16 @@
-import { FUNNEL_STEPS, type FunnelStep } from "@psi-opora/bot-core/funnel-steps";
+import {
+	FUNNEL_STEPS,
+	type FunnelStep,
+} from "@psi-opora/bot-core/funnel-steps";
 import {
 	getAdStatsByDateRange,
 	getBotFunnelDropReasonsByDateRange,
 	getBotFunnelTrendByDay,
 	getBotFunnelUniqueStepCountsByDateRange,
-	groupDealsBy,
 } from "@psi-opora/db/queries";
+import { UTM_CAMPAIGN_KEY_SEPARATOR } from "@/lib/constants/separators";
+import { aggregateAdSpendByCampaignId, matchAdSpend } from "./ad-spend-match";
+import { fetchAllDealGroups } from "./all-deal-groups";
 import {
 	type BotFunnelDropReasonRow,
 	type BotFunnelEvent,
@@ -22,32 +27,6 @@ export * from "./bot-funnel-shared";
 
 /** Суффикс тестовой кампании: `vk_ads1_test`, `some_source_test` и т.п. — не учитывается в отчёте. */
 const TEST_CAMPAIGN_SUFFIX = "_test";
-
-/** Разделитель ключа группы в groupDealsBy("utmCampaign", ...) — chr(31), см. dimensionKeyExpr в packages/db/src/queries/deals.ts. */
-const UTM_GROUP_KEY_SEPARATOR = String.fromCharCode(31);
-
-/** Хвостовые цифры в имени кампании — это, как правило, числовой ID кампании
- * рекламного кабинета (см. packages/bot-core/src/utils/site-codes.ts, где
- * `search_anorexia_708811857` содержит Yandex CampaignId). Используем это,
- * чтобы сматчить расход из ad_daily_stats без отдельной таблицы соответствий. */
-const CAMPAIGN_ID_SUFFIX_RE = /(\d{6,})$/;
-
-const DEAL_GROUP_PAGE_SIZE = 1000;
-
-async function fetchAllDealGroups(range: DateRange) {
-	const options = { from: range.from, to: range.to };
-	const firstPage = await groupDealsBy("utmCampaign", {
-		...options,
-		limit: DEAL_GROUP_PAGE_SIZE,
-	});
-	if (firstPage.rows.length >= firstPage.total) return firstPage.rows;
-
-	const allGroups = await groupDealsBy("utmCampaign", {
-		...options,
-		limit: firstPage.total,
-	});
-	return allGroups.rows;
-}
 
 export async function fetchBotFunnelEvents(
 	range: DateRange,
@@ -96,23 +75,15 @@ export async function fetchBotFunnelSourceEnriched(
 
 	const dealsByKey = new Map<string, (typeof dealGroups)[number]>();
 	for (const group of dealGroups) {
-		const [source, campaign] = group.key.split(UTM_GROUP_KEY_SEPARATOR);
+		const [source, campaign] = group.key.split(UTM_CAMPAIGN_KEY_SEPARATOR);
 		dealsByKey.set(`${source ?? ""}|${campaign ?? ""}`, group);
 	}
 
-	const spendByCampaignId = new Map<string, number>();
-	for (const stat of adStats) {
-		const spend = (stat.spend ?? 0) / 100;
-		spendByCampaignId.set(
-			stat.campaignId,
-			(spendByCampaignId.get(stat.campaignId) ?? 0) + spend,
-		);
-	}
+	const spendByCampaignId = aggregateAdSpendByCampaignId(adStats);
 
 	return rows.map((row) => {
 		const deal = dealsByKey.get(row.key);
-		const campaignId = row.campaign.match(CAMPAIGN_ID_SUFFIX_RE)?.[1];
-		const spend = campaignId ? spendByCampaignId.get(campaignId) : undefined;
+		const spend = matchAdSpend(row.campaign, spendByCampaignId);
 
 		return {
 			...row,
@@ -120,7 +91,8 @@ export async function fetchBotFunnelSourceEnriched(
 			opportunitySum: deal?.opportunitySum,
 			wonSum: deal?.wonSum,
 			spend,
-			cpl: spend !== undefined && row.starts > 0 ? spend / row.starts : undefined,
+			cpl:
+				spend !== undefined && row.starts > 0 ? spend / row.starts : undefined,
 			cac: spend !== undefined && row.deals > 0 ? spend / row.deals : undefined,
 			roas:
 				spend !== undefined && spend > 0 && deal?.wonSum !== undefined
