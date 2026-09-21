@@ -29,7 +29,6 @@ export function AdTrendChart({ rows }: Props) {
 		{
 			date: string;
 			yandexSpend: number;
-			vkSpend: number;
 			impressions: number;
 			clicks: number;
 		}
@@ -39,13 +38,11 @@ export function AdTrendChart({ rows }: Props) {
 		const existing = byDate.get(row.date) ?? {
 			date: row.date,
 			yandexSpend: 0,
-			vkSpend: 0,
 			impressions: 0,
 			clicks: 0,
 		};
 		if (row.platform === "yandex")
 			existing.yandexSpend += Number(row.spend) / 100;
-		else existing.vkSpend += Number(row.spend) / 100;
 		existing.impressions += row.impressions ?? 0;
 		existing.clicks += row.clicks ?? 0;
 		byDate.set(row.date, existing);
@@ -115,14 +112,6 @@ export function AdTrendChart({ rows }: Props) {
 					name="Яндекс.Директ"
 					stroke="#E73C37"
 					fill="#E73C37"
-					fillOpacity={0.15}
-				/>
-				<Area
-					type="monotone"
-					dataKey="vkSpend"
-					name="VK Ads"
-					stroke="#5181B8"
-					fill="#5181B8"
 					fillOpacity={0.15}
 				/>
 			</AreaChart>

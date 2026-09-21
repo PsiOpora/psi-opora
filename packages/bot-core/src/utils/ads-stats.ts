@@ -13,102 +13,6 @@ export function getRedisOrNull(): RedisClient | null {
 	return isRedisConfigured() ? createRedisClient() : null;
 }
 
-const API_URL = "https://api.vk.com/method";
-
-export interface VkCampaign {
-	id: number;
-	name: string;
-	status: number;
-	all_impressions: string;
-	all_clicks: string;
-	day_budget: string;
-	start_time: string;
-}
-
-export interface VkDailyStats {
-	day: string;
-	impressions: number;
-	clicks: number;
-	spend: number;
-}
-
-export interface VkCampaignStats {
-	stats: VkDailyStats[];
-}
-
-interface VkApiResponse {
-	response?: unknown;
-	error?: {
-		error_code: number;
-		error_msg: string;
-	};
-}
-
-async function vkRequest<T>(
-	method: string,
-	params: Record<string, string | number>,
-	accessToken: string,
-): Promise<T> {
-	const url = new URL(`${API_URL}/${method}`);
-	url.searchParams.set("access_token", accessToken);
-	url.searchParams.set("v", "5.131");
-	for (const [k, v] of Object.entries(params)) {
-		url.searchParams.set(k, String(v));
-	}
-
-	const res = await fetch(url.toString());
-	if (!res.ok) throw new Error(`VK API error: ${res.status}`);
-
-	const json = (await res.json()) as VkApiResponse;
-	if (json.error)
-		throw new Error(
-			`VK error ${json.error.error_code}: ${json.error.error_msg}`,
-		);
-	return json.response as T;
-}
-
-async function getVkCampaigns(
-	accountId: string,
-	accessToken: string,
-): Promise<VkCampaign[]> {
-	const data = await vkRequest<{ items: VkCampaign[] }>(
-		"ads.getCampaigns",
-		{ account_id: Number(accountId) },
-		accessToken,
-	);
-	return data.items ?? [];
-}
-
-async function getVkStats(
-	accountId: string,
-	accessToken: string,
-	campaignIds: number[],
-	dateFrom: string,
-	dateTo: string,
-): Promise<Map<number, VkCampaignStats>> {
-	const results = new Map<number, VkCampaignStats>();
-	for (const id of campaignIds) {
-		try {
-			const data = await vkRequest<{ items: VkCampaignStats[] }>(
-				"ads.getStatistics",
-				{
-					account_id: Number(accountId),
-					ids_type: "campaign",
-					ids: String(id),
-					period: 1,
-					date_from: dateFrom,
-					date_to: dateTo,
-				},
-				accessToken,
-			);
-			if (data.items?.[0]) results.set(id, data.items[0]);
-		} catch {
-			// skip failed campaigns
-		}
-	}
-	return results;
-}
-
 const YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token";
 const YANDEX_API_URL = "https://api.direct.yandex.com/json/v5";
 
@@ -349,7 +253,7 @@ async function getYandexReport(
 export interface AdCampaign {
 	id: string;
 	name: string;
-	platform: "yandex" | "vk";
+	platform: "yandex";
 	status: string;
 	impressions: number;
 	clicks: number;
@@ -380,8 +284,6 @@ export async function fetchAdStats(
 		yandexClientId?: string | null;
 		yandexClientSecret?: string | null;
 		yandexRefreshToken?: string | null;
-		vkAccessToken?: string | null;
-		vkAdsAccountId?: string | null;
 	} | null,
 	dateFrom?: string,
 	dateTo?: string,
@@ -451,62 +353,6 @@ export async function fetchAdStats(
 			}
 		} catch (err) {
 			console.warn("[ads] Yandex error:", (err as Error).message);
-		}
-	}
-
-	if (creds?.vkAccessToken && creds?.vkAdsAccountId) {
-		try {
-			const vkCampaigns = await getVkCampaigns(
-				creds.vkAdsAccountId,
-				creds.vkAccessToken,
-			);
-			if (vkCampaigns.length > 0) {
-				const stats = await getVkStats(
-					creds.vkAdsAccountId,
-					creds.vkAccessToken,
-					vkCampaigns.map((c) => c.id),
-					resolvedDateFrom,
-					resolvedDateTo,
-				);
-				for (const campaign of vkCampaigns) {
-					const days = stats.get(campaign.id)?.stats ?? [];
-					const impressions = days.reduce((sum, d) => sum + d.impressions, 0);
-					const clicks = days.reduce((sum, d) => sum + d.clicks, 0);
-					const spend = days.reduce((sum, d) => sum + d.spend, 0);
-					totalSpend += spend;
-					totalImpressions += impressions;
-					totalClicks += clicks;
-					campaigns.push({
-						id: `vk_${campaign.id}`,
-						name: campaign.name,
-						platform: "vk",
-						status: String(campaign.status),
-						impressions,
-						clicks,
-						spend,
-						date: resolvedDateTo,
-					});
-					// По дням, а не одной суммой за весь период (как у Yandex-отчёта
-					// выше) — иначе при широком окне (бэкафилл, см.
-					// scripts/backfill-ads-stats.ts) весь расход осядет в одной строке
-					// ad_daily_stats с датой resolvedDateTo, и /attribution не сможет
-					// разложить его по дням/сузить период отчёта.
-					for (const day of days) {
-						dbRows.push({
-							id: `vk_${campaign.id}_${day.day}`,
-							platform: "vk",
-							campaignId: String(campaign.id),
-							campaignName: campaign.name,
-							date: day.day,
-							impressions: day.impressions,
-							clicks: day.clicks,
-							spend: Math.round(day.spend * 100),
-						});
-					}
-				}
-			}
-		} catch (err) {
-			console.warn("[ads] VK error:", (err as Error).message);
 		}
 	}
 

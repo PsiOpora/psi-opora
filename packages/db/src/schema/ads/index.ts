@@ -5,8 +5,6 @@ export const adCredentials = pgTable("ad_credentials", {
 	yandexClientId: text("yandex_client_id"),
 	yandexClientSecret: text("yandex_client_secret"),
 	yandexRefreshToken: text("yandex_refresh_token"),
-	vkAccessToken: text("vk_access_token"),
-	vkAdsAccountId: text("vk_ads_account_id"),
 	updatedAt: timestamp("updated_at").defaultNow(),
 });
 
