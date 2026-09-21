@@ -30,6 +30,7 @@ mock.module("@psi-opora/db/queries", () => ({
 	getRusenderSettings: () => Promise.resolve(null),
 	getSmtpBzSettings: () => Promise.resolve(null),
 	getResendSettings: () => Promise.resolve(null),
+	upsertAdDailyStats: () => Promise.resolve(null),
 	getBotGuideCampaign: () => Promise.resolve(null),
 	getBotGuideCampaignByKeyword: () => Promise.resolve(null),
 	getPendingGuideDiagnosticDelivery: () => Promise.resolve(null),
@@ -150,5 +151,71 @@ describe("MAX-бот: сброс предзаказа книги", () => {
 
 		expect(sent.at(-1)).toBe(t.consult_phone_question);
 		expect(sessions.get("100")?.bookPreorder).toBeUndefined();
+	});
+});
+
+describe("MAX-бот: кнопка «Заказать книгу»", () => {
+	function makeBotWithSessions(sessions: Map<string, ConsultationSession>) {
+		const storage: StorageAdapter<ConsultationSession> = {
+			read: (key) => sessions.get(key),
+			write: (key, value) => void sessions.set(key, value),
+			delete: (key) => void sessions.delete(key),
+		};
+		const bot = createMaxBot({ storage, token: "test-token" });
+		const sent: string[] = [];
+		bot.api.getChat = mock(() => Promise.resolve({ icon: null })) as never;
+		bot.api.sendMessageToChat = mock((_chatId: number, text: string) => {
+			sent.push(text);
+			return Promise.resolve({});
+		}) as never;
+		bot.api.answerOnCallback = mock(() => Promise.resolve({})) as never;
+		return { bot, sent };
+	}
+
+	test("из общего меню запускает предзаказ книги с нуля", async () => {
+		const sessions = new Map<string, ConsultationSession>();
+		const { bot, sent } = makeBotWithSessions(sessions);
+
+		await dispatch(bot, botStartedUpdate());
+		await dispatch(bot, callbackUpdate("sc_book", 2));
+
+		expect(sent.at(-1)).toBe(t.bp_consent_text);
+		expect(sessions.get("100")?.bookPreorder?.step).toBe("consent");
+	});
+
+	test("резюмирует уже начатую бронь вместо повторного согласия", async () => {
+		const sessions = new Map<string, ConsultationSession>([
+			[
+				"100",
+				{
+					step: "name",
+					bookPreorder: {
+						step: "reserved",
+						name: "Пётр",
+						phone: "+7 999 111-22-33",
+						consentAt: "2026-01-01T00:00:00.000Z",
+						nudged: 0,
+					},
+				},
+			],
+		]);
+		const { bot, sent } = makeBotWithSessions(sessions);
+
+		await dispatch(bot, callbackUpdate("sc_book", 2));
+
+		expect(sent.at(-1)).toBe(t.bp_reserved_text.replace("{name}", "Пётр"));
+		expect(sessions.get("100")?.bookPreorder?.step).toBe("reserved");
+	});
+
+	test("сбрасывает зависший сценарий консультации/гайда", async () => {
+		const sessions = new Map<string, ConsultationSession>([
+			["100", { step: "name", scenario: { step: "name", flow: "consult" } }],
+		]);
+		const { bot } = makeBotWithSessions(sessions);
+
+		await dispatch(bot, callbackUpdate("sc_book", 2));
+
+		expect(sessions.get("100")?.scenario).toBeUndefined();
+		expect(sessions.get("100")?.bookPreorder?.step).toBe("consent");
 	});
 });

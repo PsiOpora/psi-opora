@@ -182,7 +182,7 @@ describe("телеграм-бот: /start", () => {
 		const keyboard = messages[0]?.payload.reply_markup?.inline_keyboard;
 		expect(
 			keyboard?.flat().map((b: { callback_data: string }) => b.callback_data),
-		).toEqual(["sc_consult", "sc_guide"]);
+		).toEqual(["sc_consult", "sc_guide", "sc_book"]);
 	});
 
 	test("/start с utm-меткой тоже запускает сценарий", async () => {
@@ -263,6 +263,46 @@ describe("телеграм-бот: /start", () => {
 		// в движке книги (переспрос брони/вопрос про книгу).
 		const lastText = sentMessages(sent).at(-1)?.payload.text;
 		expect(lastText).toBe(t.consult_phone_question);
+	});
+});
+
+describe("телеграм-бот: кнопка «Заказать книгу»", () => {
+	test("из общего меню запускает предзаказ книги с нуля", async () => {
+		const { bot, sent } = makeBot();
+		await bot.handleUpdate(commandUpdate("/start"));
+		await bot.handleUpdate(callbackUpdate("sc_book", 2));
+
+		const texts = sentMessages(sent).map((m) => m.payload.text);
+		expect(texts.at(-1)).toBe(t.bp_consent_text);
+	});
+
+	test("резюмирует уже начатую бронь вместо повторного согласия", async () => {
+		const { sessions, storage } = staleBookPreorderStorage();
+		const { bot, sent } = makeBot(storage);
+
+		await bot.handleUpdate(callbackUpdate("sc_book"));
+
+		expect(sentMessages(sent).map((m) => m.payload.text)).toEqual([
+			t.bp_reserved_text.replace("{name}", "Пётр"),
+		]);
+		expect(sessions.get("100")?.bookPreorder?.step).toBe("reserved");
+	});
+
+	test("сбрасывает зависший сценарий консультации/гайда", async () => {
+		const sessions = new Map<string, ConsultationSession>([
+			["100", { step: "name", scenario: { step: "name", flow: "consult" } }],
+		]);
+		const storage: StorageAdapter<ConsultationSession> = {
+			read: (key) => sessions.get(key),
+			write: (key, value) => void sessions.set(key, value),
+			delete: (key) => void sessions.delete(key),
+		};
+		const { bot } = makeBot(storage);
+
+		await bot.handleUpdate(callbackUpdate("sc_book"));
+
+		expect(sessions.get("100")?.scenario).toBeUndefined();
+		expect(sessions.get("100")?.bookPreorder?.step).toBe("consent");
 	});
 });
 

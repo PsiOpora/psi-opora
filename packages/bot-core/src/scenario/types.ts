@@ -3,6 +3,10 @@ import type { FunnelStep } from "../utils/funnel";
 export const SCENARIO_ACTIONS = [
 	"sc_consult",
 	"sc_guide",
+	// Кнопка «Заказать книгу» в общем меню — не часть машины состояний
+	// сценария (см. isBookPreorderAction в scenario/book-preorder/types.ts),
+	// обрабатывается отдельно в bot.ts, как start_consultation.
+	"sc_book",
 	// consent_* совпадают с callback data старого бота — кнопки в старых
 	// сообщениях продолжают работать
 	"consent_agree",

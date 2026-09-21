@@ -718,7 +718,40 @@ export function createMaxBot({
 		});
 	}
 
+	// Кнопка «Заказать книгу» в общем меню (entryQuestion) — тот же вход в
+	// сценарий предзаказа, что и по диплинку с лендинга (см. handleStart
+	// выше), но без source/intent — сюда приходят не с конкретной страницы
+	// книги. Не часть SCENARIO_ACTIONS-цикла ниже — отдельная машина состояний
+	// (см. такую же ветку в packages/bot-core/src/bot.ts).
+	bot.action("sc_book", async (ctx) => {
+		const appCtx = ctx as AppContext;
+		await appCtx.answerOnCallback({}).catch(() => {});
+
+		const texts = await getScenarioTexts();
+		log(
+			`[BOOK_PREORDER] user=${appCtx.user?.user_id} action=sc_book messenger=max`,
+		);
+		await logBotMessage({
+			messenger: "max",
+			userId: appCtx.user?.user_id,
+			direction: "in",
+			source: "scenario",
+			text: texts.btn_book,
+		});
+		const existingBookPreorder = appCtx.session.bookPreorder;
+		const resumed = existingBookPreorder
+			? resumeBookPreorder(existingBookPreorder, texts)
+			: null;
+		// Снимаем зависший общий сценарий (консультация/гайд) — иначе после
+		// завершения предзаказа (dispatchBookPreorder трогает только
+		// bookPreorder) следующий текст снова попадёт в старый шаг
+		// консультации/гайда, см. dispatch() выше про обратный случай.
+		appCtx.session.scenario = undefined;
+		await dispatchBookPreorder(appCtx, resumed ?? startBookPreorder(texts), texts);
+	});
+
 	for (const action of SCENARIO_ACTIONS) {
+		if (action === "sc_book") continue;
 		bot.action(action, async (ctx) => {
 			const appCtx = ctx as AppContext;
 			await appCtx.answerOnCallback({}).catch(() => {});
