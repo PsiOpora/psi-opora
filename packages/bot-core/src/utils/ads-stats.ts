@@ -132,7 +132,6 @@ const REPORT_FIELDS = [
  */
 async function requestYandexReportOnce(
 	token: string,
-	campaignIds: number[],
 	dateFrom: string,
 	dateTo: string,
 	reportName: string,
@@ -148,16 +147,15 @@ async function requestYandexReportOnce(
 		},
 		body: JSON.stringify({
 			params: {
+				// Без фильтра по CampaignId: campaigns.get отдаёт только текущие
+				// (неудалённые) кампании, а отчёт должен видеть и удалённые/архивные
+				// — иначе расход кампании, которую уже снесли в кабинете, молча
+				// пропадает из ad_daily_stats задним числом (см. историю бага —
+				// кампания 713815639 с реальным расходом исчезла из campaigns.get,
+				// но осталась в отчёте по конкретному ID).
 				SelectionCriteria: {
 					DateFrom: dateFrom,
 					DateTo: dateTo,
-					Filter: [
-						{
-							Field: "CampaignId",
-							Operator: "IN",
-							Values: campaignIds.map(String),
-						},
-					],
 				},
 				FieldNames: REPORT_FIELDS,
 				ReportName: reportName,
@@ -212,7 +210,6 @@ const REPORT_MAX_WAIT_SECONDS = 30;
 
 async function getYandexReport(
 	token: string,
-	campaignIds: number[],
 	dateFrom: string,
 	dateTo: string,
 ): Promise<YandexReportRow[]> {
@@ -220,7 +217,6 @@ async function getYandexReport(
 	for (let attempt = 0; attempt < REPORT_MAX_ATTEMPTS; attempt++) {
 		const { status, retryInSeconds, body } = await requestYandexReportOnce(
 			token,
-			campaignIds,
 			dateFrom,
 			dateTo,
 			reportName,
@@ -315,41 +311,43 @@ export async function fetchAdStats(
 				creds.yandexClientSecret,
 				creds.yandexRefreshToken,
 			);
+			// getYandexCampaigns — только для статуса/подписи текущих кампаний в
+			// сводке ниже; список кампаний для отчёта report сам не ограничивает
+			// (см. комментарий в requestYandexReportOnce) — иначе гейт
+			// "yandexCampaigns.length > 0" тоже пропустил бы отчёт целиком, если
+			// в кабинете сейчас нет ни одной активной кампании.
 			const yandexCampaigns = await getYandexCampaigns(token);
-			if (yandexCampaigns.length > 0) {
-				const report = await getYandexReport(
-					token,
-					yandexCampaigns.map((c) => c.Id),
-					resolvedDateFrom,
-					resolvedDateTo,
-				);
-				for (const row of report) {
-					totalSpend += row.Cost;
-					totalImpressions += row.Impressions;
-					totalClicks += row.Clicks;
-					campaigns.push({
-						id: `yandex_${row.CampaignId}`,
-						name: row.CampaignName,
-						platform: "yandex",
-						status:
-							yandexCampaigns.find((c) => c.Id === row.CampaignId)?.Status ??
-							"UNKNOWN",
-						impressions: row.Impressions,
-						clicks: row.Clicks,
-						spend: row.Cost,
-						date: row.Date,
-					});
-					dbRows.push({
-						id: `yandex_${row.CampaignId}_${row.Date}`,
-						platform: "yandex",
-						campaignId: String(row.CampaignId),
-						campaignName: row.CampaignName,
-						date: row.Date,
-						impressions: row.Impressions,
-						clicks: row.Clicks,
-						spend: Math.round(row.Cost * 100),
-					});
-				}
+			const report = await getYandexReport(
+				token,
+				resolvedDateFrom,
+				resolvedDateTo,
+			);
+			for (const row of report) {
+				totalSpend += row.Cost;
+				totalImpressions += row.Impressions;
+				totalClicks += row.Clicks;
+				campaigns.push({
+					id: `yandex_${row.CampaignId}`,
+					name: row.CampaignName,
+					platform: "yandex",
+					status:
+						yandexCampaigns.find((c) => c.Id === row.CampaignId)?.Status ??
+						"UNKNOWN",
+					impressions: row.Impressions,
+					clicks: row.Clicks,
+					spend: row.Cost,
+					date: row.Date,
+				});
+				dbRows.push({
+					id: `yandex_${row.CampaignId}_${row.Date}`,
+					platform: "yandex",
+					campaignId: String(row.CampaignId),
+					campaignName: row.CampaignName,
+					date: row.Date,
+					impressions: row.Impressions,
+					clicks: row.Clicks,
+					spend: Math.round(row.Cost * 100),
+				});
 			}
 		} catch (err) {
 			console.warn("[ads] Yandex error:", (err as Error).message);
