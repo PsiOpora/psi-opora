@@ -4,15 +4,21 @@ import {
 } from "@hatchet-dev/typescript-sdk/v1";
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
-import { syncChangedDeals, syncDealDictionaries } from "../deals-sync";
+import {
+	syncChangedDeals,
+	syncDealDictionaries,
+	syncDeletedDeals,
+} from "../deals-sync";
 
 /**
  * Периодическая сверка локального зеркала сделок (packages/db, таблица
  * deals) с Bitrix24 — подстраховка на случай недоставленного вебхука
  * (OnCrmDealAdd/Update/Delete, apps/bitrix-webhook). Основная синхронизация —
- * вебхуки, эта джоба только досинхронизирует пропущенное по DATE_MODIFY.
- * Перед первым включением нужен разовый бэкафилл (scripts/backfill-deals.ts) —
- * без него джоба ничего не делает (см. syncChangedDeals).
+ * вебхуки: syncChangedDeals досинхронизирует пропущенные добавления/
+ * обновления по DATE_MODIFY, syncDeletedDeals — пропущенные удаления (по
+ * DATE_MODIFY их не найти, поэтому сверяет id целиком). Перед первым
+ * включением нужен разовый бэкафилл (scripts/backfill-deals.ts) — без него
+ * джоба ничего не делает (см. syncChangedDeals).
  */
 export const dealsSync = CreateTaskWorkflow({
 	name: "deals-sync",
@@ -30,10 +36,14 @@ export const dealsSync = CreateTaskWorkflow({
 	fn: async () => {
 		const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
 		if (!api) throw new Error("Bitrix24 не подключён");
-		const [deals] = await Promise.all([
-			syncChangedDeals(api),
+		const [result] = await Promise.all([
+			(async () => {
+				const deals = await syncChangedDeals(api);
+				const deleted = await syncDeletedDeals(api);
+				return { ...deals, ...deleted };
+			})(),
 			syncDealDictionaries(api),
 		]);
-		return deals;
+		return result;
 	},
 });

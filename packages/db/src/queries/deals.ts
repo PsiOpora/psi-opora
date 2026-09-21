@@ -83,6 +83,19 @@ export async function deleteDeal(id: string): Promise<void> {
 	await db.delete(deals).where(eq(deals.id, id));
 }
 
+/** Батч-удаление по id — периодическая сверка удалений (syncDeletedDeals). */
+export async function deleteDeals(ids: string[]): Promise<void> {
+	if (!db || ids.length === 0) return;
+	await db.delete(deals).where(inArray(deals.id, ids));
+}
+
+/** Все id сделок зеркала — сверяются с полным списком id из Bitrix (syncDeletedDeals). */
+export async function getAllDealIds(): Promise<string[]> {
+	if (!db) return [];
+	const rows = await db.select({ id: deals.id }).from(deals);
+	return rows.map((row) => row.id);
+}
+
 /**
  * Курсор для инкрементальной сверки (deals-sync): последний известный
  * DATE_MODIFY среди уже синхронизированных сделок. null — таблица пуста,

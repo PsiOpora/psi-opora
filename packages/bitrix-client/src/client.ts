@@ -90,10 +90,12 @@ async function paginate<T>(
 		const result = unwrap(json, method);
 		const chunk = extractor ? extractor(result) : (result as T[]);
 		items.push(...chunk);
-		if (typeof json.next !== "number") break;
+		if (typeof json.next !== "number") return items;
 		start = json.next;
 	}
-	return items;
+	throw new Error(
+		`Bitrix24 [${method}]: пагинация не завершена после ${MAX_LIST_PAGES} страниц (next=${start})`,
+	);
 }
 
 /** REST-клиент по OAuth-токенам локального приложения (из Redis, с автопродлением). */

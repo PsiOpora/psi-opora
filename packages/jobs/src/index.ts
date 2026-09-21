@@ -21,6 +21,7 @@ export {
 	removeSyncedDeal,
 	syncAllDeals,
 	syncChangedDeals,
+	syncDeletedDeals,
 	syncOneDeal,
 } from "./deals-sync";
 export {
