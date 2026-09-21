@@ -44,7 +44,11 @@ const NAV_GROUPS = [
 		label: "Аналитика",
 		items: [
 			{ href: "/funnel", label: "Воронка", icon: FilterIcon },
-			{ href: "/attribution", label: "Атрибуция", icon: PieChartIcon },
+			{
+				href: "/attribution",
+				label: "Окупаемость рекламы",
+				icon: PieChartIcon,
+			},
 			{ href: "/utm", label: "UTM-отчёт", icon: TagsIcon },
 			{ href: "/sources", label: "Источники", icon: BarChart3Icon },
 			{ href: "/bot-funnel", label: "Бот-воронка", icon: BotIcon },

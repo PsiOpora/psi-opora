@@ -81,7 +81,9 @@ function AttributionPageContent() {
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex flex-col gap-1">
-				<h1 className="font-heading text-xl font-semibold">Атрибуция</h1>
+				<h1 className="font-heading text-xl font-semibold">
+					Окупаемость рекламы
+				</h1>
 				<p className="text-sm text-muted-foreground">
 					Источник и кампания → сколько сделок и денег принесли, расход на
 					рекламу подтягивается автоматически из VK Ads / Яндекс.Директ
