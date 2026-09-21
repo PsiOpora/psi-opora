@@ -1,10 +1,5 @@
 # CLAUDE.md
 
-<<<<<<< HEAD
-The k3s cluster (`prochub.mott.ai`) has no external access to services like Postgres — it was closed on 2026-07-30 (removed the `postgres-external` NodePort and the `0.0.0.0/0` NetworkPolicy rule, formerly in `k3s/postgres.yaml`).
-
-The entire `k3s/` directory (including the committed kubeconfig) was removed from the repo on 2026-09-10. There is currently no kubeconfig checked in — cluster access needs to be re-established another way before `kubectl` commands will work.
-=======
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this is
@@ -31,7 +26,6 @@ bun run format:fix
 
 bun run migrate          # drizzle migrate, delegates to packages/db
 ```
->>>>>>> main
 
 Per-package, not exposed at the root:
 
