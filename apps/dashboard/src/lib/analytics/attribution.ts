@@ -6,7 +6,11 @@ import {
 	getDealsSummary,
 } from "@psi-opora/db/queries";
 import { UTM_CAMPAIGN_KEY_SEPARATOR } from "@/lib/constants/separators";
-import { aggregateAdSpendByCampaignId, matchAdSpend } from "./ad-spend-match";
+import {
+	aggregateAdSpendByCampaignId,
+	getAdCampaignId,
+	matchAdSpend,
+} from "./ad-spend-match";
 import { fetchAllDealGroups } from "./all-deal-groups";
 import { formatDateParam } from "./date-range";
 import type { DateRange } from "./types";
@@ -158,12 +162,32 @@ export async function fetchAttributionReport(
 		(sum, spend) => sum + spend,
 		0,
 	);
-	const matchedSpend = rows.reduce((sum, row) => sum + (row.spend ?? 0), 0);
+	const matchedCampaignIds = new Set(
+		dealGroups.flatMap((group) => {
+			const [, campaign] = group.key.split(UTM_CAMPAIGN_KEY_SEPARATOR);
+			const campaignId = getAdCampaignId(campaign ?? "");
+			return campaignId && spendByCampaignId.has(campaignId)
+				? [campaignId]
+				: [];
+		}),
+	);
+	const matchedSpend = [...matchedCampaignIds].reduce(
+		(sum, campaignId) => sum + (spendByCampaignId.get(campaignId) ?? 0),
+		0,
+	);
 	const unattributedSpend = totalAdSpend - matchedSpend;
 	if (unattributedSpend > 0.5) {
 		rows.push(buildUnattributedRow(unattributedSpend));
 	}
-	rows.sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0) || b.wonSum - a.wonSum);
+	rows.sort((a, b) => {
+		if (a.key === UNATTRIBUTED_KEY) {
+			return b.key === UNATTRIBUTED_KEY ? 0 : 1;
+		}
+		if (b.key === UNATTRIBUTED_KEY) {
+			return -1;
+		}
+		return (b.spend ?? 0) - (a.spend ?? 0) || b.wonSum - a.wonSum;
+	});
 
 	const summary: AttributionSummary = {
 		totalDeals: dealsSummary.totalDeals,

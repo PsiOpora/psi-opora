@@ -9,6 +9,10 @@ import type { AdDailyStats } from "@psi-opora/db/queries";
  */
 const CAMPAIGN_ID_SUFFIX_RE = /(\d{6,})$/;
 
+export function getAdCampaignId(campaignName: string): string | undefined {
+	return campaignName.match(CAMPAIGN_ID_SUFFIX_RE)?.[1];
+}
+
 /** Расход в ad_daily_stats хранится в копейках (int) — переводим в рубли один раз здесь. */
 export function aggregateAdSpendByCampaignId(
 	adStats: AdDailyStats[],
@@ -29,6 +33,6 @@ export function matchAdSpend(
 	campaignName: string,
 	spendByCampaignId: Map<string, number>,
 ): number | undefined {
-	const campaignId = campaignName.match(CAMPAIGN_ID_SUFFIX_RE)?.[1];
+	const campaignId = getAdCampaignId(campaignName);
 	return campaignId ? spendByCampaignId.get(campaignId) : undefined;
 }
