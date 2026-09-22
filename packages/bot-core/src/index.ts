@@ -45,6 +45,7 @@ export {
 	describeLead,
 	type GuideCampaignContext,
 	isScenarioAction,
+	type KnownContact,
 	SCENARIO_ACTIONS,
 	type ScenarioAction,
 	type ScenarioAudience,
@@ -133,6 +134,7 @@ export {
 	type DealConsentOutboxEntry,
 	type DealData,
 	enqueueOperatorMirrorEcho,
+	type KnownBitrixContact,
 	listBitrixSources,
 	mirrorOperatorMessageToOpenLine,
 	moveBookPreorderDealStage,
@@ -144,6 +146,7 @@ export {
 	type ProcessDealConsentOutboxResult,
 	processDealConsentOutbox,
 	registerBitrixSource,
+	resolveKnownContact,
 	sendMessageToOpenLine,
 	updateMessageInOpenLine,
 } from "./utils/bitrix";

@@ -31,6 +31,7 @@ import {
 	parseUtmParams,
 	resolveGuideCampaignStart,
 	resolveGuideFile,
+	resolveKnownContact,
 	resumeBookPreorder,
 	SCENARIO_ACTIONS,
 	type ScenarioMessage,
@@ -747,7 +748,11 @@ export function createMaxBot({
 		// bookPreorder) следующий текст снова попадёт в старый шаг
 		// консультации/гайда, см. dispatch() выше про обратный случай.
 		appCtx.session.scenario = undefined;
-		await dispatchBookPreorder(appCtx, resumed ?? startBookPreorder(texts), texts);
+		await dispatchBookPreorder(
+			appCtx,
+			resumed ?? startBookPreorder(texts),
+			texts,
+		);
 	});
 
 	for (const action of SCENARIO_ACTIONS) {
@@ -761,8 +766,20 @@ export function createMaxBot({
 			const guideCampaign = state?.campaignId
 				? await loadGuideCampaignContext(state.campaignId)
 				: null;
+			// Ищем клиента в CRM только на шаге согласия флоу консультации —
+			// там его данные (если найдутся) подставятся вместо повторных
+			// вопросов об имени/телефоне/email (см. scenario/engine.ts).
+			const userId = appCtx.user?.user_id;
+			const knownContact =
+				action === "consent_agree" && state?.flow !== "guide" && userId
+					? await resolveKnownContact({
+							messenger: "max",
+							userId,
+							chatId: userId,
+						})
+					: null;
 			let out = state
-				? applyScenarioAction(state, action, texts, guideCampaign)
+				? applyScenarioAction(state, action, texts, guideCampaign, knownContact)
 				: null;
 			// Согласие из старого сообщения без активного сценария —
 			// начинаем запись заново (показываем актуальное согласие)

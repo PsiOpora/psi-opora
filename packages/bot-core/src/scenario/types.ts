@@ -86,6 +86,18 @@ export interface ScenarioState {
 	campaignId?: string;
 }
 
+/**
+ * Данные клиента, уже найденные в CRM (Bitrix24) по мессенджеру до начала
+ * сценария — см. ветку consent_agree в engine.ts и resolveKnownContact в
+ * utils/bitrix/known-contact.ts. Что уже известно, сценарий повторно не
+ * спрашивает.
+ */
+export interface KnownContact {
+	name?: string;
+	phone?: string;
+	email?: string;
+}
+
 export interface ScenarioButton {
 	label: string;
 	action: ScenarioAction;
