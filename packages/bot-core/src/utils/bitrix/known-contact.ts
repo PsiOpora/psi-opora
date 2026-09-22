@@ -1,4 +1,6 @@
 import { getBitrixCrmLink } from "@psi-opora/db/queries";
+import { z } from "zod";
+import { isValidEmail, parsePhoneNumber } from "../validation";
 import { bitrixPost } from "./client";
 import { resolveOpenLineDialog } from "./openline";
 
@@ -9,11 +11,24 @@ export interface KnownBitrixContact {
 	email?: string;
 }
 
-function firstCommValue(value: unknown): string | undefined {
-	if (!Array.isArray(value)) return undefined;
-	const entry = value[0] as { VALUE?: unknown } | undefined;
-	return typeof entry?.VALUE === "string" ? entry.VALUE : undefined;
-}
+const firstCommValueSchema = z
+	.array(z.object({ VALUE: z.string() }).passthrough())
+	.transform((values) => values[0]?.VALUE)
+	.pipe(z.string());
+
+const phoneSchema = firstCommValueSchema
+	.transform((value) => parsePhoneNumber(value))
+	.pipe(z.string());
+
+const emailSchema = firstCommValueSchema
+	.transform((value) => value.trim())
+	.refine(isValidEmail);
+
+const BitrixContactSchema = z.object({
+	NAME: z.string().trim().min(1).optional().catch(undefined),
+	PHONE: phoneSchema.optional().catch(undefined),
+	EMAIL: emailSchema.optional().catch(undefined),
+});
 
 function logLookupError(err: unknown): void {
 	const message = err instanceof Error ? err.message : String(err);
@@ -30,11 +45,11 @@ async function fetchKnownContact(
 		messenger,
 	);
 	if (!contact) return null;
-	const name = typeof contact.NAME === "string" ? contact.NAME.trim() : "";
-	const phone = firstCommValue(contact.PHONE);
-	const email = firstCommValue(contact.EMAIL);
+	const parsed = BitrixContactSchema.safeParse(contact);
+	if (!parsed.success) return null;
+	const { NAME: name, PHONE: phone, EMAIL: email } = parsed.data;
 	if (!name && !phone && !email) return null;
-	return { name: name || undefined, phone, email };
+	return { name, phone, email };
 }
 
 /**
@@ -78,7 +93,12 @@ export async function resolveKnownContact(params: {
 	}
 
 	if (chatId) {
-		const dialog = await resolveOpenLineDialog(messenger, userId, chatId);
+		const dialog = await resolveOpenLineDialog(messenger, userId, chatId).catch(
+			(err: unknown) => {
+				logLookupError(err);
+				return null;
+			},
+		);
 		if (dialog?.contactId) {
 			const known = await fetchKnownContact(messenger, dialog.contactId).catch(
 				(err: unknown) => {

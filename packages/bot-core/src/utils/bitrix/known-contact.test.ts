@@ -24,7 +24,10 @@ interface Dialog {
 	leadId: number | null;
 }
 let dialog: Dialog | null = null;
-const resolveOpenLineDialog = mock(() => Promise.resolve(dialog));
+let dialogError: Error | null = null;
+const resolveOpenLineDialog = mock(() =>
+	dialogError ? Promise.reject(dialogError) : Promise.resolve(dialog),
+);
 mock.module("./openline", () => ({ resolveOpenLineDialog }));
 
 const { resolveKnownContact } = await import("./known-contact");
@@ -37,6 +40,7 @@ describe("resolveKnownContact", () => {
 		crmLink = null;
 		contact = null;
 		dialog = null;
+		dialogError = null;
 	});
 
 	test("клиент уже писал раньше (bitrix_crm_links) — подставляет имя/телефон/email, в Открытую линию не ходит", async () => {
@@ -44,7 +48,7 @@ describe("resolveKnownContact", () => {
 		contact = {
 			NAME: "Иван Петров",
 			PHONE: [{ VALUE: "+79991234567", VALUE_TYPE: "WORK" }],
-			EMAIL: [{ VALUE: "ivan@example.com", VALUE_TYPE: "WORK" }],
+			EMAIL: [{ VALUE: "  ivan@example.com  ", VALUE_TYPE: "WORK" }],
 		};
 
 		const known = await resolveKnownContact({
@@ -133,6 +137,42 @@ describe("resolveKnownContact", () => {
 		expect(known).toBeNull();
 	});
 
+	test("нормализует валидные поля и отбрасывает некорректные телефон и email", async () => {
+		crmLink = { contactId: "1", dealId: null };
+		contact = {
+			NAME: "  Анна  ",
+			PHONE: [{ VALUE: "+7 (999) 123-45-67" }],
+			EMAIL: [{ VALUE: "не email" }],
+		};
+
+		const known = await resolveKnownContact({
+			messenger: "telegram",
+			userId: 100,
+		});
+
+		expect(known).toEqual({
+			name: "Анна",
+			phone: "+79991234567",
+			email: undefined,
+		});
+	});
+
+	test("не подставляет контакт, если после валидации не осталось данных", async () => {
+		crmLink = { contactId: "1", dealId: null };
+		contact = {
+			NAME: "   ",
+			PHONE: [{ VALUE: "не телефон" }],
+			EMAIL: [{ VALUE: "не email" }],
+		};
+
+		const known = await resolveKnownContact({
+			messenger: "telegram",
+			userId: 100,
+		});
+
+		expect(known).toBeNull();
+	});
+
 	test("ошибка Bitrix не ломает сценарий — просто нет данных для подстановки", async () => {
 		crmLink = { contactId: "1", dealId: null };
 		bitrixPost.mockImplementationOnce(() =>
@@ -154,5 +194,18 @@ describe("resolveKnownContact", () => {
 		await resolveKnownContact({ messenger: "telegram", userId: 100 });
 
 		expect(resolveOpenLineDialog).not.toHaveBeenCalled();
+	});
+
+	test("ошибка поиска диалога Открытой линии не ломает сценарий", async () => {
+		dialogError = new Error("TEMPORARY_OPENLINE_ERROR");
+
+		const known = await resolveKnownContact({
+			messenger: "telegram",
+			userId: 100,
+			chatId: 100,
+		});
+
+		expect(known).toBeNull();
+		expect(resolveOpenLineDialog).toHaveBeenCalledWith("telegram", 100, 100);
 	});
 });
