@@ -3,13 +3,20 @@ import {
 	type FunnelStep,
 } from "@psi-opora/bot-core/funnel-steps";
 import {
+	getAdCampaignIdOverrides,
 	getAdStatsByDateRange,
 	getBotFunnelDropReasonsByDateRange,
 	getBotFunnelTrendByDay,
 	getBotFunnelUniqueStepCountsByDateRange,
 } from "@psi-opora/db/queries";
 import { UTM_CAMPAIGN_KEY_SEPARATOR } from "@/lib/constants/separators";
-import { aggregateAdSpendByCampaignId, matchAdSpend } from "./ad-spend-match";
+import {
+	aggregateAdSpendByCampaignId,
+	buildAdCampaignIdOverridesMap,
+	buildAdCampaignNameById,
+	matchAdSpend,
+	resolveAdCampaignId,
+} from "./ad-spend-match";
 import { fetchAllDealGroups } from "./all-deal-groups";
 import {
 	type BotFunnelDropReasonRow,
@@ -65,12 +72,13 @@ export async function fetchBotFunnelSourceEnriched(
 	const rows = funnelBySourceCampaign(events);
 	if (rows.length === 0) return rows;
 
-	const [dealGroups, adStats] = await Promise.all([
+	const [dealGroups, adStats, overrideRows] = await Promise.all([
 		fetchAllDealGroups(range),
 		getAdStatsByDateRange(
 			formatDateParam(range.from),
 			formatDateParam(range.to),
 		),
+		getAdCampaignIdOverrides(),
 	]);
 
 	const dealsByKey = new Map<string, (typeof dealGroups)[number]>();
@@ -80,10 +88,13 @@ export async function fetchBotFunnelSourceEnriched(
 	}
 
 	const spendByCampaignId = aggregateAdSpendByCampaignId(adStats);
+	const campaignNameById = buildAdCampaignNameById(adStats);
+	const overrides = buildAdCampaignIdOverridesMap(overrideRows);
 
 	return rows.map((row) => {
 		const deal = dealsByKey.get(row.key);
-		const spend = matchAdSpend(row.campaign, spendByCampaignId);
+		const spend = matchAdSpend(row.campaign, spendByCampaignId, overrides);
+		const campaignId = resolveAdCampaignId(row.campaign, overrides);
 
 		return {
 			...row,
@@ -91,6 +102,7 @@ export async function fetchBotFunnelSourceEnriched(
 			opportunitySum: deal?.opportunitySum,
 			wonSum: deal?.wonSum,
 			spend,
+			adCampaignName: campaignId ? campaignNameById.get(campaignId) : undefined,
 			cpl:
 				spend !== undefined && row.starts > 0 ? spend / row.starts : undefined,
 			cac: spend !== undefined && row.deals > 0 ? spend / row.deals : undefined,

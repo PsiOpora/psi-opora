@@ -13,3 +13,16 @@ export const adCredentialsSchema = z.object({
 });
 
 export type AdCredentialsInput = z.infer<typeof adCredentialsSchema>;
+
+/**
+ * Ручная привязка UTM-кампании к актуальному ID кампании в рекламном
+ * кабинете — см. packages/db/src/schema/ads/index.ts (ad_campaign_id_overrides).
+ */
+export const adCampaignIdOverrideSchema = z.object({
+	utmCampaign: z.string().trim().min(1),
+	adCampaignId: z.string().trim().min(1),
+});
+
+export type AdCampaignIdOverrideInput = z.infer<
+	typeof adCampaignIdOverrideSchema
+>;

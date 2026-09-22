@@ -20,7 +20,7 @@ function escapeCell(value: string | number): string {
 	const needsPrefix =
 		typeof value === "string" && /^[=+\-@]/.test(text.slice(formulaStart));
 	const prefixed = needsPrefix ? `'${text}` : text;
-	return /[";\n]/.test(prefixed)
+	return /[";\r\n]/.test(prefixed)
 		? `"${prefixed.replace(/"/g, '""')}"`
 		: prefixed;
 }

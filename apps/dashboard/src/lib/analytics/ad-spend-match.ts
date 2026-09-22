@@ -1,4 +1,4 @@
-import type { AdDailyStats } from "@psi-opora/db/queries";
+import type { AdCampaignIdOverride, AdDailyStats } from "@psi-opora/db/queries";
 
 /**
  * Хвостовые цифры в имени UTM-кампании — это, как правило, числовой ID
@@ -11,6 +11,26 @@ const CAMPAIGN_ID_SUFFIX_RE = /(\d{6,})$/;
 
 export function getAdCampaignId(campaignName: string): string | undefined {
 	return campaignName.match(CAMPAIGN_ID_SUFFIX_RE)?.[1];
+}
+
+/**
+ * Ручные привязки (ad_campaign_id_overrides, настраиваются в
+ * /settings/ads) перекрывают автовывод по цифрам в имени — нужны, когда
+ * кампанию пересоздали в рекламном кабинете (новый ID), а трекинговую
+ * ссылку со старым ID никто не поменял. Без привязки такая кампания
+ * навсегда осталась бы без сматченного расхода.
+ */
+export function resolveAdCampaignId(
+	campaignName: string,
+	overrides: Map<string, string>,
+): string | undefined {
+	return overrides.get(campaignName) ?? getAdCampaignId(campaignName);
+}
+
+export function buildAdCampaignIdOverridesMap(
+	rows: AdCampaignIdOverride[],
+): Map<string, string> {
+	return new Map(rows.map((row) => [row.utmCampaign, row.adCampaignId]));
 }
 
 /** Расход в ad_daily_stats хранится в копейках (int) — переводим в рубли один раз здесь. */
@@ -28,11 +48,36 @@ export function aggregateAdSpendByCampaignId(
 	return spendByCampaignId;
 }
 
-/** undefined — если в имени кампании нет числового ID или расход по нему не найден ("нет данных", не 0). */
+/**
+ * Название кампании из рекламного кабинета (CampaignName, тянется вместе с
+ * расходом при синке ad_daily_stats) по её ID — для подписи в отчётах рядом с
+ * UTM-меткой, которая сама по себе часто нечитаема (см. ad_daily_stats.campaignName
+ * в packages/bot-core/src/utils/ads-stats.ts). Берём самую свежую запись по
+ * дате на случай, если кампанию в кабинете переименовали.
+ */
+export function buildAdCampaignNameById(
+	adStats: AdDailyStats[],
+): Map<string, string> {
+	const nameById = new Map<string, { name: string; date: string }>();
+	for (const stat of adStats) {
+		if (!stat.campaignName) continue;
+		const current = nameById.get(stat.campaignId);
+		if (!current || stat.date >= current.date) {
+			nameById.set(stat.campaignId, {
+				name: stat.campaignName,
+				date: stat.date,
+			});
+		}
+	}
+	return new Map([...nameById].map(([id, v]) => [id, v.name]));
+}
+
+/** undefined — если в имени кампании нет числового ID (и нет ручной привязки) или расход по нему не найден ("нет данных", не 0). */
 export function matchAdSpend(
 	campaignName: string,
 	spendByCampaignId: Map<string, number>,
+	overrides: Map<string, string> = new Map(),
 ): number | undefined {
-	const campaignId = getAdCampaignId(campaignName);
+	const campaignId = resolveAdCampaignId(campaignName, overrides);
 	return campaignId ? spendByCampaignId.get(campaignId) : undefined;
 }

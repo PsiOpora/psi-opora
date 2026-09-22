@@ -19,3 +19,17 @@ export const adDailyStats = pgTable("ad_daily_stats", {
 	spend: integer("spend").default(0),
 	fetchedAt: timestamp("fetched_at").defaultNow(),
 });
+
+/**
+ * Ручная привязка UTM-кампании (utm_campaign как она приходит в сделках) к
+ * актуальному ID кампании в рекламном кабинете — перекрывает автоматический
+ * матчинг по числовому ID в имени (см. apps/dashboard/src/lib/analytics/ad-spend-match.ts).
+ * Нужна, когда кампанию пересоздали в кабинете (новый ID), а трекинговую
+ * ссылку с старым ID менять не стали — без этой привязки расход по такой
+ * кампании навсегда остаётся "не привязано к UTM-кампании".
+ */
+export const adCampaignIdOverrides = pgTable("ad_campaign_id_overrides", {
+	utmCampaign: text("utm_campaign").primaryKey(),
+	adCampaignId: text("ad_campaign_id").notNull(),
+	updatedAt: timestamp("updated_at").defaultNow(),
+});

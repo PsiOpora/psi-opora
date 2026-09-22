@@ -9,6 +9,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { orpc } from "@/lib/orpc/client";
+import { AdCampaignIdOverridesCard } from "./campaign-id-overrides";
 import { AdCredentialsForm } from "./credentials-form";
 
 export default function AdSettingsPage() {
@@ -17,7 +18,7 @@ export default function AdSettingsPage() {
 	);
 
 	return (
-		<div className="flex flex-col gap-6 max-w-2xl">
+		<div className="flex flex-col gap-6 max-w-3xl">
 			<div>
 				<h1 className="text-2xl font-semibold">Настройки рекламы</h1>
 				<p className="text-sm text-muted-foreground mt-1">
@@ -49,6 +50,8 @@ export default function AdSettingsPage() {
 					)}
 				</CardContent>
 			</Card>
+
+			<AdCampaignIdOverridesCard />
 		</div>
 	);
 }
