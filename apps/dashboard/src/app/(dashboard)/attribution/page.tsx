@@ -108,6 +108,16 @@ function AttributionPageContent() {
 			value: formatNumber(summary.totalLost),
 		},
 		{
+			label: "В работе",
+			hint: "Количество сделок, которые ещё не закрыты (не выиграны и не проиграны), за выбранный период.",
+			value: formatNumber(summary.totalInProgress),
+		},
+		{
+			label: "Сумма в работе",
+			hint: "Сумма по сделкам, которые ещё не закрыты, за выбранный период.",
+			value: formatMoney(summary.totalInProgressSum),
+		},
+		{
 			label: "Конверсия",
 			hint: "Доля выигранных сделок от общего числа сделок за период: Выиграно / Сделок.",
 			value: formatPercent(summary.conversionRate),
@@ -178,6 +188,8 @@ function AttributionPageContent() {
 								"CPL",
 								"Выиграно",
 								"Проиграно",
+								"В работе",
+								"Сумма в работе",
 								"Выручка",
 								"CAC",
 								"ROMI, %",
@@ -195,6 +207,8 @@ function AttributionPageContent() {
 								row.cpl !== undefined ? Math.round(row.cpl) : "",
 								row.won,
 								row.lost,
+								row.inProgress,
+								Math.round(row.inProgressSum),
 								Math.round(row.wonSum),
 								row.cac !== undefined ? Math.round(row.cac) : "",
 								row.romi !== undefined ? (row.romi * 100).toFixed(1) : "",
@@ -255,6 +269,12 @@ function AttributionPageContent() {
 										<div className="flex items-center justify-end gap-1">
 											Проиграно
 											<InfoHint text="Количество сделок со статусом «Провалена» из этой группы." />
+										</div>
+									</TableHead>
+									<TableHead className="text-right">
+										<div className="flex items-center justify-end gap-1">
+											В работе
+											<InfoHint text="Количество и сумма сделок из этой группы, которые ещё не закрыты (не выиграны и не проиграны)." />
 										</div>
 									</TableHead>
 									<TableHead className="text-right">
@@ -353,6 +373,14 @@ function AttributionPageContent() {
 											</TableCell>
 											<TableCell className="text-right tabular-nums">
 												{formatNumber(row.lost)}
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												<div className="font-medium">
+													{formatNumber(row.inProgress)}
+												</div>
+												<div className="text-xs text-muted-foreground">
+													{formatMoney(row.inProgressSum)}
+												</div>
 											</TableCell>
 											<TableCell className="text-right tabular-nums">
 												{formatMoney(row.wonSum)}
