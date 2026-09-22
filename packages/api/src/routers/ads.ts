@@ -11,7 +11,7 @@ import {
 	upsertAdDailyStats,
 } from "@psi-opora/db/queries";
 import { z } from "zod";
-import { publicProcedure, router } from "../orpc";
+import { adminProcedure, publicProcedure, router } from "../orpc";
 import {
 	adCampaignIdOverrideSchema,
 	adCredentialsSchema,
@@ -93,14 +93,14 @@ export const adsRouter = router({
 		return getAdCampaignIdOverrides();
 	}),
 
-	upsertCampaignIdOverride: publicProcedure
+	upsertCampaignIdOverride: adminProcedure
 		.input(adCampaignIdOverrideSchema)
 		.handler(async ({ input }) => {
 			await upsertAdCampaignIdOverride(input.utmCampaign, input.adCampaignId);
 			return { ok: true };
 		}),
 
-	deleteCampaignIdOverride: publicProcedure
+	deleteCampaignIdOverride: adminProcedure
 		.input(z.object({ utmCampaign: z.string().trim().min(1) }))
 		.handler(async ({ input }) => {
 			await deleteAdCampaignIdOverride(input.utmCampaign);
