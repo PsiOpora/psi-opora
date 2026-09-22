@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { useAttributionReport } from "@/hooks/use-attribution-report";
 import { useBitrixData, useDashboardRange } from "@/hooks/use-bitrix-data";
+import { UNATTRIBUTED_KEY } from "@/lib/analytics/attribution";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 
 export default function AttributionPage() {
@@ -121,10 +122,14 @@ function AttributionPageContent() {
 					<CardTitle>По источникам и кампаниям</CardTitle>
 					<CardDescription>
 						Расход сопоставляется с кампанией по числовому ID рекламного
-						кабинета в её названии — если сматчить не удалось, показываем «—», а
-						не 0. «Новые» — клиенты, для которых сделка в этой группе первая за
-						всю историю (выручка — только по ней); «Повторные» — у кого уже была
-						более ранняя сделка.
+						кабинета в её названии — если сматчить не удалось для конкретной
+						группы, показываем «—», а не 0; расход, который вообще не удалось
+						привязать ни к одной кампании (например, ссылку на сайте не обновили
+						после пересоздания кампании в кабинете), — отдельной строкой «не
+						привязано к UTM-кампании» внизу списка, но он уже учтён в сумме
+						сверху. «Новые» — клиенты, для которых сделка в этой группе первая
+						за всю историю (выручка — только по ней); «Повторные» — у кого уже
+						была более ранняя сделка.
 					</CardDescription>
 					<div className="flex justify-end">
 						<ExportCsvButton
@@ -185,64 +190,88 @@ function AttributionPageContent() {
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{rows.map((row) => (
-									<TableRow key={row.key}>
-										<TableCell className="font-medium">{row.source}</TableCell>
-										<TableCell>{row.campaign}</TableCell>
-										<TableCell className="text-right tabular-nums">
-											{row.spend !== undefined ? formatMoney(row.spend) : "—"}
-										</TableCell>
-										<TableCell className="text-right tabular-nums">
-											<button
-												type="button"
-												className="hover:underline focus:underline focus:outline-none"
-												onClick={() =>
-													setSelection({
-														dimension: "utmCampaign",
-														key: row.key,
-														label: `${row.source} / ${row.campaign}`,
-														deals: row.deals,
-														won: row.won,
-														wonSum: row.wonSum,
-													})
-												}
-											>
-												{formatNumber(row.deals)}
-											</button>
-										</TableCell>
-										<TableCell className="text-right tabular-nums">
-											{row.cpl !== undefined ? formatMoney(row.cpl) : "—"}
-										</TableCell>
-										<TableCell className="text-right tabular-nums">
-											{formatNumber(row.won)}
-										</TableCell>
-										<TableCell className="text-right tabular-nums">
-											{formatMoney(row.wonSum)}
-										</TableCell>
-										<TableCell className="text-right tabular-nums">
-											{row.cac !== undefined ? formatMoney(row.cac) : "—"}
-										</TableCell>
-										<TableCell className="text-right">
-											<RomiBadge romi={row.romi} />
-										</TableCell>
-										<TableCell className="text-right tabular-nums">
-											<div className="font-medium">
-												{formatNumber(row.newClients)}
-											</div>
-											<div className="text-xs text-muted-foreground">
-												{formatMoney(row.newClientsRevenue)}
-											</div>
-										</TableCell>
-										<TableCell className="text-right tabular-nums">
-											<div className="font-medium">
-												{formatNumber(row.repeatClients)}
-											</div>
-											<div className="text-xs text-muted-foreground">
-												{formatMoney(row.repeatRevenue)}
-											</div>
-										</TableCell>
-									</TableRow>
-								))}
+								{rows.map((row) => {
+									const isUnattributed = row.key === UNATTRIBUTED_KEY;
+									return (
+										<TableRow
+											key={row.key}
+											className={
+												isUnattributed ? "text-muted-foreground" : undefined
+											}
+										>
+											<TableCell className="font-medium">
+												{isUnattributed ? (
+													<span className="italic">{row.source}</span>
+												) : (
+													row.source
+												)}
+											</TableCell>
+											<TableCell>
+												{isUnattributed ? (
+													<span className="italic">{row.campaign}</span>
+												) : (
+													row.campaign
+												)}
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												{row.spend !== undefined ? formatMoney(row.spend) : "—"}
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												{isUnattributed ? (
+													formatNumber(row.deals)
+												) : (
+													<button
+														type="button"
+														className="hover:underline focus:underline focus:outline-none"
+														onClick={() =>
+															setSelection({
+																dimension: "utmCampaign",
+																key: row.key,
+																label: `${row.source} / ${row.campaign}`,
+																deals: row.deals,
+																won: row.won,
+																wonSum: row.wonSum,
+															})
+														}
+													>
+														{formatNumber(row.deals)}
+													</button>
+												)}
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												{row.cpl !== undefined ? formatMoney(row.cpl) : "—"}
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												{formatNumber(row.won)}
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												{formatMoney(row.wonSum)}
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												{row.cac !== undefined ? formatMoney(row.cac) : "—"}
+											</TableCell>
+											<TableCell className="text-right">
+												<RomiBadge romi={row.romi} />
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												<div className="font-medium">
+													{formatNumber(row.newClients)}
+												</div>
+												<div className="text-xs text-muted-foreground">
+													{formatMoney(row.newClientsRevenue)}
+												</div>
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												<div className="font-medium">
+													{formatNumber(row.repeatClients)}
+												</div>
+												<div className="text-xs text-muted-foreground">
+													{formatMoney(row.repeatRevenue)}
+												</div>
+											</TableCell>
+										</TableRow>
+									);
+								})}
 							</TableBody>
 						</Table>
 					)}
