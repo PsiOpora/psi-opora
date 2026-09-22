@@ -143,7 +143,8 @@ function BotFunnelPageContent() {
 
 	// "start" общий для обеих веток (см. flowCascade в bot-funnel-shared.ts),
 	// поэтому берём его из любой ветки — дублирования между flows нет.
-	const reachedBot = flows[0]?.steps.find((s) => s.step === "start")?.count ?? 0;
+	const reachedBot =
+		flows[0]?.steps.find((s) => s.step === "start")?.count ?? 0;
 	const previousReachedBot =
 		previousFlows[0]?.steps.find((s) => s.step === "start")?.count ?? 0;
 	const declinedConsent = dropReasons
@@ -219,8 +220,8 @@ function BotFunnelPageContent() {
 		<div className="flex flex-col gap-4">
 			<div>
 				<p className="text-sm text-muted-foreground">
-					Статистика по выдаче материалов по кодовому слову (например, SCHOOL)
-					— в{" "}
+					Статистика по выдаче материалов по кодовому слову (например, SCHOOL) —
+					в{" "}
 					<Link
 						href="/settings/bot"
 						className="underline underline-offset-2 hover:no-underline"
@@ -490,8 +491,9 @@ function SourceCard({
 							Параметры из deep-link бота
 							(?start=utm_source=…&amp;utm_campaign=…) — где теряются лиды до
 							попадания в CRM. Расход/CPL/CAC/ROAS проставлены там, где номер
-							кампании в её имени совпал с ID кампании в Яндекс.Директ
-							— для остального трафика показан прочерк.
+							кампании в её имени совпал с ID кампании в Яндекс.Директ или
+							UTM-кампания вручную привязана в настройках рекламы — для
+							остального трафика показан прочерк.
 						</CardDescription>
 					</div>
 					{showExport && (
@@ -501,6 +503,7 @@ function SourceCard({
 								headers={[
 									"Источник",
 									"Кампания",
+									"Кампания в кабинете",
 									"Стартов",
 									"Нажали кнопку",
 									"Телефонов",
@@ -516,6 +519,7 @@ function SourceCard({
 								rows={sorted.map((row) => [
 									row.source,
 									row.campaign,
+									row.adCampaignName ?? "",
 									row.starts,
 									row.clicks,
 									row.phones,
@@ -540,7 +544,12 @@ function SourceCard({
 					onChange={(e) => setSearch(e.target.value)}
 					className="max-w-xs"
 				/>
-				<SourceTable rows={sorted} range={range} sort={sort} onSort={toggleSort} />
+				<SourceTable
+					rows={sorted}
+					range={range}
+					sort={sort}
+					onSort={toggleSort}
+				/>
 			</CardContent>
 		</Card>
 	);
@@ -655,8 +664,18 @@ function SourceTable({
 							sort={sort}
 							onSort={onSort}
 						/>
-						<SortableHead label="CPL" sortKey="cpl" sort={sort} onSort={onSort} />
-						<SortableHead label="CAC" sortKey="cac" sort={sort} onSort={onSort} />
+						<SortableHead
+							label="CPL"
+							sortKey="cpl"
+							sort={sort}
+							onSort={onSort}
+						/>
+						<SortableHead
+							label="CAC"
+							sortKey="cac"
+							sort={sort}
+							onSort={onSort}
+						/>
 						<SortableHead
 							label="ROAS"
 							sortKey="roas"
@@ -671,6 +690,9 @@ function SourceTable({
 							<TableCell className="font-medium">{row.source}</TableCell>
 							<TableCell className="text-muted-foreground">
 								{row.campaign}
+								{row.adCampaignName && (
+									<div className="text-xs">{row.adCampaignName}</div>
+								)}
 							</TableCell>
 							<TableCell className="text-right tabular-nums">
 								<Link

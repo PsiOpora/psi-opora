@@ -2,6 +2,7 @@ import "server-only";
 import {
 	type ClientAcquisitionRow,
 	type DealGroupStats,
+	getAdCampaignIdOverrides,
 	getAdStatsByDateRange,
 	getClientAcquisitionByCampaign,
 	getDealsSummary,
@@ -9,8 +10,10 @@ import {
 import { UTM_CAMPAIGN_KEY_SEPARATOR } from "@/lib/constants/separators";
 import {
 	aggregateAdSpendByCampaignId,
-	getAdCampaignId,
+	buildAdCampaignIdOverridesMap,
+	buildAdCampaignNameById,
 	matchAdSpend,
+	resolveAdCampaignId,
 } from "./ad-spend-match";
 import { fetchAllDealGroups } from "./all-deal-groups";
 import { UNATTRIBUTED_KEY } from "./attribution-constants";
@@ -30,6 +33,10 @@ export interface AttributionRow {
 	conversionRate: number;
 	/** undefined — расход не удалось сматчить с кампанией (см. ad-spend-match.ts), не 0. */
 	spend?: number;
+	/** Название кампании в рекламном кабинете (CampaignName из Яндекс.Директа) —
+	 * подпись рядом с UTM-меткой, которая сама по себе часто нечитаема. undefined —
+	 * ID кампании не определился или для него нет данных в ad_daily_stats. */
+	adCampaignName?: string;
 	cpl?: number;
 	cac?: number;
 	romi?: number;
@@ -67,9 +74,12 @@ function toRow(
 	group: DealGroupStats,
 	spendByCampaignId: Map<string, number>,
 	clientAcquisitionByKey: Map<string, ClientAcquisitionRow>,
+	overrides: Map<string, string>,
+	campaignNameById: Map<string, string>,
 ): AttributionRow {
 	const [source, campaign] = group.key.split(UTM_CAMPAIGN_KEY_SEPARATOR);
-	const spend = matchAdSpend(campaign ?? "", spendByCampaignId);
+	const spend = matchAdSpend(campaign ?? "", spendByCampaignId, overrides);
+	const campaignId = resolveAdCampaignId(campaign ?? "", overrides);
 	const acquisition =
 		clientAcquisitionByKey.get(group.key) ?? EMPTY_CLIENT_ACQUISITION;
 	return {
@@ -82,6 +92,7 @@ function toRow(
 		wonSum: group.wonSum,
 		conversionRate: group.conversionRate,
 		spend,
+		adCampaignName: campaignId ? campaignNameById.get(campaignId) : undefined,
 		cpl:
 			spend !== undefined && group.deals > 0 ? spend / group.deals : undefined,
 		cac: spend !== undefined && group.won > 0 ? spend / group.won : undefined,
@@ -135,23 +146,37 @@ function buildUnattributedRow(spend: number): AttributionRow {
 export async function fetchAttributionReport(
 	range: DateRange,
 ): Promise<{ rows: AttributionRow[]; summary: AttributionSummary }> {
-	const [dealGroups, adStats, dealsSummary, clientAcquisitionRows] =
-		await Promise.all([
-			fetchAllDealGroups(range),
-			getAdStatsByDateRange(
-				formatDateParam(range.from),
-				formatDateParam(range.to),
-			),
-			getDealsSummary({ from: range.from, to: range.to }),
-			getClientAcquisitionByCampaign(range),
-		]);
+	const [
+		dealGroups,
+		adStats,
+		dealsSummary,
+		clientAcquisitionRows,
+		overrideRows,
+	] = await Promise.all([
+		fetchAllDealGroups(range),
+		getAdStatsByDateRange(
+			formatDateParam(range.from),
+			formatDateParam(range.to),
+		),
+		getDealsSummary({ from: range.from, to: range.to }),
+		getClientAcquisitionByCampaign(range),
+		getAdCampaignIdOverrides(),
+	]);
 
 	const spendByCampaignId = aggregateAdSpendByCampaignId(adStats);
+	const campaignNameById = buildAdCampaignNameById(adStats);
+	const overrides = buildAdCampaignIdOverridesMap(overrideRows);
 	const clientAcquisitionByKey = new Map(
 		clientAcquisitionRows.map((row) => [row.key, row]),
 	);
 	const rows = dealGroups.map((group) =>
-		toRow(group, spendByCampaignId, clientAcquisitionByKey),
+		toRow(
+			group,
+			spendByCampaignId,
+			clientAcquisitionByKey,
+			overrides,
+			campaignNameById,
+		),
 	);
 
 	// Реальный итог по расходу — сумма всего ad_daily_stats за период, а не
@@ -164,7 +189,7 @@ export async function fetchAttributionReport(
 	const matchedCampaignIds = new Set(
 		dealGroups.flatMap((group) => {
 			const [, campaign] = group.key.split(UTM_CAMPAIGN_KEY_SEPARATOR);
-			const campaignId = getAdCampaignId(campaign ?? "");
+			const campaignId = resolveAdCampaignId(campaign ?? "", overrides);
 			return campaignId && spendByCampaignId.has(campaignId)
 				? [campaignId]
 				: [];

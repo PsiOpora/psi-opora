@@ -121,15 +121,15 @@ function AttributionPageContent() {
 				<CardHeader>
 					<CardTitle>По источникам и кампаниям</CardTitle>
 					<CardDescription>
-						Расход сопоставляется с кампанией по числовому ID рекламного
-						кабинета в её названии — если сматчить не удалось для конкретной
-						группы, показываем «—», а не 0; расход, который вообще не удалось
-						привязать ни к одной кампании (например, ссылку на сайте не обновили
-						после пересоздания кампании в кабинете), — отдельной строкой «не
-						привязано к UTM-кампании» внизу списка, но он уже учтён в сумме
-						сверху. «Новые» — клиенты, для которых сделка в этой группе первая
-						за всю историю (выручка — только по ней); «Повторные» — у кого уже
-						была более ранняя сделка.
+						Расход/CPL/CAC/ROAS сопоставляются с кампанией по её числовому ID в
+						названии или по ручной привязке UTM-кампании в настройках рекламы —
+						если сматчить не удалось для конкретной группы, показываем «—», а не
+						0; расход, который вообще не удалось привязать ни к одной кампании
+						(например, ссылку на сайте не обновили после пересоздания кампании в
+						кабинете), — отдельной строкой «не привязано к UTM-кампании» внизу
+						списка, но он уже учтён в сумме сверху. «Новые» — клиенты, для
+						которых сделка в этой группе первая за всю историю (выручка — только
+						по ней); «Повторные» — у кого уже была более ранняя сделка.
 					</CardDescription>
 					<div className="flex justify-end">
 						<ExportCsvButton
@@ -137,6 +137,7 @@ function AttributionPageContent() {
 							headers={[
 								"Источник",
 								"Кампания",
+								"Кампания в кабинете",
 								"Расход",
 								"Сделок",
 								"CPL",
@@ -152,6 +153,7 @@ function AttributionPageContent() {
 							rows={rows.map((row) => [
 								row.source,
 								row.campaign,
+								row.adCampaignName ?? "",
 								row.spend !== undefined ? Math.round(row.spend) : "",
 								row.deals,
 								row.cpl !== undefined ? Math.round(row.cpl) : "",
@@ -210,7 +212,14 @@ function AttributionPageContent() {
 												{isUnattributed ? (
 													<span className="italic">{row.campaign}</span>
 												) : (
-													row.campaign
+													<>
+														{row.campaign}
+														{row.adCampaignName && (
+															<div className="text-xs text-muted-foreground">
+																{row.adCampaignName}
+															</div>
+														)}
+													</>
 												)}
 											</TableCell>
 											<TableCell className="text-right tabular-nums">

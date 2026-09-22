@@ -1,12 +1,17 @@
-import { and, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "../client";
 
-import { adCredentials, adDailyStats } from "../schema/ads";
+import {
+	adCampaignIdOverrides,
+	adCredentials,
+	adDailyStats,
+} from "../schema/ads";
 
 export type AdCredentials = typeof adCredentials.$inferSelect;
 export type NewAdCredentials = typeof adCredentials.$inferInsert;
 export type AdDailyStats = typeof adDailyStats.$inferSelect;
 export type NewAdDailyStats = typeof adDailyStats.$inferInsert;
+export type AdCampaignIdOverride = typeof adCampaignIdOverrides.$inferSelect;
 
 // ── Credentials ────────────────────────────────────────────────────────────────
 
@@ -88,4 +93,39 @@ export async function getAdStatsSummary(
 			),
 		);
 	return result[0] ?? { totalSpend: 0, totalImpressions: 0, totalClicks: 0 };
+}
+
+// ── Ручные привязки UTM-кампания → ID кампании в кабинете ──────────────────────
+
+export async function getAdCampaignIdOverrides(): Promise<
+	AdCampaignIdOverride[]
+> {
+	if (!db) return [];
+	return db
+		.select()
+		.from(adCampaignIdOverrides)
+		.orderBy(adCampaignIdOverrides.utmCampaign);
+}
+
+export async function upsertAdCampaignIdOverride(
+	utmCampaign: string,
+	adCampaignId: string,
+): Promise<void> {
+	if (!db) return;
+	await db
+		.insert(adCampaignIdOverrides)
+		.values({ utmCampaign, adCampaignId })
+		.onConflictDoUpdate({
+			target: adCampaignIdOverrides.utmCampaign,
+			set: { adCampaignId, updatedAt: sql`now()` },
+		});
+}
+
+export async function deleteAdCampaignIdOverride(
+	utmCampaign: string,
+): Promise<void> {
+	if (!db) return;
+	await db
+		.delete(adCampaignIdOverrides)
+		.where(eq(adCampaignIdOverrides.utmCampaign, utmCampaign));
 }
