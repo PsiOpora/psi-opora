@@ -1,3 +1,4 @@
+import "server-only";
 import {
 	type ClientAcquisitionRow,
 	type DealGroupStats,
@@ -12,13 +13,11 @@ import {
 	matchAdSpend,
 } from "./ad-spend-match";
 import { fetchAllDealGroups } from "./all-deal-groups";
+import { UNATTRIBUTED_KEY } from "./attribution-constants";
 import { formatDateParam } from "./date-range";
 import type { DateRange } from "./types";
 
 const NOT_SPECIFIED = "(не указано)";
-/** Синтетическая строка ниже — расход, который есть в ad_daily_stats, но не
- * сматчился ни с одной UTM-кампанией (см. buildUnattributedRow). */
-export const UNATTRIBUTED_KEY = "__unattributed_spend__";
 
 export interface AttributionRow {
 	key: string;

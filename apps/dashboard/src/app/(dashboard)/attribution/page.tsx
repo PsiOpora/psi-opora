@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/table";
 import { useAttributionReport } from "@/hooks/use-attribution-report";
 import { useBitrixData, useDashboardRange } from "@/hooks/use-bitrix-data";
-import { UNATTRIBUTED_KEY } from "@/lib/analytics/attribution";
+import { UNATTRIBUTED_KEY } from "@/lib/analytics/attribution-constants";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 
 export default function AttributionPage() {
