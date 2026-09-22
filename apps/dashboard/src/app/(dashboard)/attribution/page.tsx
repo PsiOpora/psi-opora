@@ -103,6 +103,11 @@ function AttributionPageContent() {
 			value: formatNumber(summary.totalWon),
 		},
 		{
+			label: "Проиграно",
+			hint: "Количество сделок со статусом «Провалена» за выбранный период.",
+			value: formatNumber(summary.totalLost),
+		},
+		{
 			label: "Конверсия",
 			hint: "Доля выигранных сделок от общего числа сделок за период: Выиграно / Сделок.",
 			value: formatPercent(summary.conversionRate),
@@ -172,6 +177,7 @@ function AttributionPageContent() {
 								"Сделок",
 								"CPL",
 								"Выиграно",
+								"Проиграно",
 								"Выручка",
 								"CAC",
 								"ROMI, %",
@@ -188,6 +194,7 @@ function AttributionPageContent() {
 								row.deals,
 								row.cpl !== undefined ? Math.round(row.cpl) : "",
 								row.won,
+								row.lost,
 								Math.round(row.wonSum),
 								row.cac !== undefined ? Math.round(row.cac) : "",
 								row.romi !== undefined ? (row.romi * 100).toFixed(1) : "",
@@ -242,6 +249,12 @@ function AttributionPageContent() {
 										<div className="flex items-center justify-end gap-1">
 											Выиграно
 											<InfoHint text="Количество сделок со статусом «Выиграна» из этой группы." />
+										</div>
+									</TableHead>
+									<TableHead className="text-right">
+										<div className="flex items-center justify-end gap-1">
+											Проиграно
+											<InfoHint text="Количество сделок со статусом «Провалена» из этой группы." />
 										</div>
 									</TableHead>
 									<TableHead className="text-right">
@@ -337,6 +350,9 @@ function AttributionPageContent() {
 											</TableCell>
 											<TableCell className="text-right tabular-nums">
 												{formatNumber(row.won)}
+											</TableCell>
+											<TableCell className="text-right tabular-nums">
+												{formatNumber(row.lost)}
 											</TableCell>
 											<TableCell className="text-right tabular-nums">
 												{formatMoney(row.wonSum)}

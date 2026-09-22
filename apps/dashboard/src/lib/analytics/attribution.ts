@@ -28,6 +28,7 @@ export interface AttributionRow {
 	campaign: string;
 	deals: number;
 	won: number;
+	lost: number;
 	opportunitySum: number;
 	wonSum: number;
 	conversionRate: number;
@@ -51,6 +52,7 @@ export interface AttributionRow {
 export interface AttributionSummary {
 	totalDeals: number;
 	totalWon: number;
+	totalLost: number;
 	totalOpportunitySum: number;
 	totalWonSum: number;
 	conversionRate: number;
@@ -88,6 +90,7 @@ function toRow(
 		campaign: campaign || NOT_SPECIFIED,
 		deals: group.deals,
 		won: group.won,
+		lost: group.lost,
 		opportunitySum: group.opportunitySum,
 		wonSum: group.wonSum,
 		conversionRate: group.conversionRate,
@@ -122,6 +125,7 @@ function buildUnattributedRow(spend: number): AttributionRow {
 		campaign: "не привязано к UTM-кампании",
 		deals: 0,
 		won: 0,
+		lost: 0,
 		opportunitySum: 0,
 		wonSum: 0,
 		conversionRate: 0,
@@ -216,6 +220,7 @@ export async function fetchAttributionReport(
 	const summary: AttributionSummary = {
 		totalDeals: dealsSummary.totalDeals,
 		totalWon: dealsSummary.wonDeals,
+		totalLost: dealsSummary.lostDeals,
 		totalOpportunitySum: dealsSummary.opportunitySum,
 		totalWonSum: dealsSummary.wonSum,
 		conversionRate: dealsSummary.conversionRate,
