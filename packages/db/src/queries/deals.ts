@@ -358,6 +358,7 @@ export interface DealGroupStats {
 	/** Сколько сделок группы имеют заполненное поле "Сумма" (opportunity > 0). */
 	dealsWithAmount: number;
 	won: number;
+	lost: number;
 	opportunitySum: number;
 	wonSum: number;
 	conversionRate: number;
@@ -476,6 +477,7 @@ export async function groupDealsBy(
 				deals: grouped.deals,
 				dealsWithAmount: grouped.dealsWithAmount,
 				won: grouped.won,
+				lost: grouped.lost,
 				opportunitySum: grouped.opportunitySum,
 				wonSum: grouped.wonSum,
 				conversionRate:
