@@ -77,7 +77,7 @@ function generateDeviceId(): string {
  * реального диапазона int32 и выглядит как явный признак скрипта, а не
  * настоящего Android-клиента. */
 function generateClientSessionId(): number {
-	return randomBytes(4).readUInt32BE(0) % 0x7fffffff + 1;
+	return (randomBytes(4).readUInt32BE(0) % 0x7fffffff) + 1;
 }
 
 /** `mt_instanceid` — обязательное поле SESSION_INIT (см. PronikFire/Max-API-Guide),

@@ -105,23 +105,23 @@ describe("extractYmClientId", () => {
 	});
 
 	test("оба суффикса сразу — ClientID и yclid, порядок ym→yc", () => {
-		expect(
-			extractYmClientId("SCHOOL_ym1234567890_yc9876543210987654"),
-		).toEqual({
-			code: "SCHOOL",
-			ymClientId: "1234567890",
-			yclid: "9876543210987654",
-		});
+		expect(extractYmClientId("SCHOOL_ym1234567890_yc9876543210987654")).toEqual(
+			{
+				code: "SCHOOL",
+				ymClientId: "1234567890",
+				yclid: "9876543210987654",
+			},
+		);
 	});
 
 	test("оба суффикса сразу — порядок yc→ym", () => {
-		expect(
-			extractYmClientId("SCHOOL_yc9876543210987654_ym1234567890"),
-		).toEqual({
-			code: "SCHOOL",
-			ymClientId: "1234567890",
-			yclid: "9876543210987654",
-		});
+		expect(extractYmClientId("SCHOOL_yc9876543210987654_ym1234567890")).toEqual(
+			{
+				code: "SCHOOL",
+				ymClientId: "1234567890",
+				yclid: "9876543210987654",
+			},
+		);
 	});
 });
 

@@ -157,16 +157,14 @@ export function GroupDealsDialog({
 
 	const sort = sorting[0];
 	const sortField =
-		sort?.id === "title" || sort?.id === "status" || sort?.id === "opportunity" || sort?.id === "dateCreate"
+		sort?.id === "title" ||
+		sort?.id === "status" ||
+		sort?.id === "opportunity" ||
+		sort?.id === "dateCreate"
 			? sort.id
 			: undefined;
 
-	const {
-		data,
-		isLoading,
-		isError,
-		refetch,
-	} = useQuery({
+	const { data, isLoading, isError, refetch } = useQuery({
 		queryKey: [
 			"dashboard-group-deals",
 			selection?.dimension,
@@ -283,7 +281,10 @@ export function GroupDealsDialog({
 								</TableRow>
 							) : isError ? (
 								<TableRow>
-									<TableCell colSpan={columns.length} className="h-24 text-center">
+									<TableCell
+										colSpan={columns.length}
+										className="h-24 text-center"
+									>
 										<div className="flex flex-col items-center gap-2">
 											<p className="text-sm text-destructive">
 												Не удалось загрузить сделки группы.

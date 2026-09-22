@@ -59,24 +59,22 @@ export function parsePagination(
  * Требует точный формат YYYY-MM-DD и валидирует, что компоненты календаря
  * совпадают с входом (отклоняет несуществующие даты вроде 31 февраля).
  */
-const isoDateString = z
-	.string()
-	.refine(
-		(v) => {
-			const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
-			if (!match) return false;
-			const [, year, month, day] = match;
-			const parsed = new Date(v);
-			if (Number.isNaN(parsed.getTime())) return false;
-			// Verify calendar components match input (rejects nonexistent dates)
-			return (
-				parsed.getFullYear() === Number(year) &&
-				parsed.getMonth() + 1 === Number(month) &&
-				parsed.getDate() === Number(day)
-			);
-		},
-		{ message: "Must be a valid date in YYYY-MM-DD format" },
-	);
+const isoDateString = z.string().refine(
+	(v) => {
+		const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+		if (!match) return false;
+		const [, year, month, day] = match;
+		const parsed = new Date(v);
+		if (Number.isNaN(parsed.getTime())) return false;
+		// Verify calendar components match input (rejects nonexistent dates)
+		return (
+			parsed.getFullYear() === Number(year) &&
+			parsed.getMonth() + 1 === Number(month) &&
+			parsed.getDate() === Number(day)
+		);
+	},
+	{ message: "Must be a valid date in YYYY-MM-DD format" },
+);
 
 const dateRangeShape = {
 	from: isoDateString.optional(),
@@ -89,9 +87,11 @@ const dateRangeRefinement = (data: { from?: string; to?: string }) => {
 };
 
 /** Схема range-параметров (from, to) — обе опциональны, with cross-field validation. */
-export const dateRangeSchema = z.object(dateRangeShape).refine(dateRangeRefinement, {
-	message: "'from' must not be later than 'to'",
-});
+export const dateRangeSchema = z
+	.object(dateRangeShape)
+	.refine(dateRangeRefinement, {
+		message: "'from' must not be later than 'to'",
+	});
 
 /**
  * Валидация параметра previous (должен быть "1" или отсутствовать).

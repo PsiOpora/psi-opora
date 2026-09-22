@@ -1,28 +1,28 @@
 {
-  "name": "@psi-opora/max-bot",
-  "version": "0.0.2",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "dev": "bun run --watch --env-file=../../.env src/server.ts",
-    "set-webhook": "bun run --env-file=../../.env scripts/set-webhook.ts",
-    "delete-webhook": "bun run --env-file=../../.env scripts/delete-webhook.ts",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@psi-opora/storage": "workspace:*",
-    "@hono/node-server": "2.1.1",
-    "@maxhub/max-bot-api": "0.3.1",
-    "@psi-opora/bitrix-client": "workspace:*",
-    "@psi-opora/bot-core": "workspace:*",
-    "@psi-opora/config": "workspace:*",
-    "@psi-opora/db": "workspace:*",
-    "hono": "4.13.8"
-  },
-  "devDependencies": {
-    "@psi-opora/tsconfig": "workspace:*",
-    "@types/bun": "1.4.2",
-    "@types/node": "26.6.2",
-    "typescript": "7.0.2"
-  }
+	"name": "@psi-opora/max-bot",
+	"version": "0.0.2",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"dev": "bun run --watch --env-file=../../.env src/server.ts",
+		"set-webhook": "bun run --env-file=../../.env scripts/set-webhook.ts",
+		"delete-webhook": "bun run --env-file=../../.env scripts/delete-webhook.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@psi-opora/storage": "workspace:*",
+		"@hono/node-server": "2.1.1",
+		"@maxhub/max-bot-api": "0.3.1",
+		"@psi-opora/bitrix-client": "workspace:*",
+		"@psi-opora/bot-core": "workspace:*",
+		"@psi-opora/config": "workspace:*",
+		"@psi-opora/db": "workspace:*",
+		"hono": "4.13.8"
+	},
+	"devDependencies": {
+		"@psi-opora/tsconfig": "workspace:*",
+		"@types/bun": "1.4.2",
+		"@types/node": "26.6.2",
+		"typescript": "7.0.2"
+	}
 }

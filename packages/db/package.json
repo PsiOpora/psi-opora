@@ -1,66 +1,66 @@
 {
-  "name": "@psi-opora/db",
-  "private": true,
-  "type": "module",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.mts",
-      "default": "./dist/index.mjs"
-    },
-    "./client": {
-      "types": "./dist/client.d.mts",
-      "default": "./dist/client.mjs"
-    },
-    "./client.ws": {
-      "types": "./dist/client.ws.d.mts",
-      "default": "./dist/client.ws.mjs"
-    },
-    "./schema": {
-      "types": "./dist/schema/index.d.mts",
-      "default": "./dist/schema/index.mjs"
-    },
-    "./queries": {
-      "types": "./dist/queries/index.d.mts",
-      "default": "./dist/queries/index.mjs"
-    },
-    "./queries.edge": {
-      "types": "./dist/queries/index.edge.d.mts",
-      "default": "./dist/queries/index.edge.mjs"
-    }
-  },
-  "license": "MIT",
-  "scripts": {
-    "build": "tsdown",
-    "clean": "git clean -xdf .cache .turbo dist node_modules",
-    "dev": "tsdown",
-    "format": "biome format .",
-    "lint": "biome lint .",
-    "check": "biome check .",
-    "push": "bun --env-file=../../.env run drizzle-kit push",
-    "studio": "bun --env-file=../../.env run drizzle-kit studio",
-    "drop": "bun --env-file=../../.env run src/scripts/drop-schema.ts",
-    "generate": "bun --env-file=../../.env run drizzle-kit generate",
-    "migrate": "bun --env-file=../../.env run drizzle-kit migrate",
-    "test": "bun test",
-    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
-  },
-  "dependencies": {
-    "@neondatabase/serverless": "^1.1.0",
-    "@psi-opora/config": "workspace:*",
-    "@vercel/postgres": "0.10.0",
-    "drizzle-orm": "0.45.2",
-    "drizzle-zod": "0.8.3",
-    "postgres": "^3.4.9",
-    "ws": "^8.21.3",
-    "zod": "4.6.5"
-  },
-  "devDependencies": {
-    "@psi-opora/tsconfig": "workspace:*",
-    "@types/bun": "1.4.2",
-    "@types/node": "26.6.2",
-    "@types/ws": "^8.18.1",
-    "drizzle-kit": "^0.31.10",
-    "tsdown": "^0.23.0",
-    "typescript": "7.0.2"
-  }
+	"name": "@psi-opora/db",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.mts",
+			"default": "./dist/index.mjs"
+		},
+		"./client": {
+			"types": "./dist/client.d.mts",
+			"default": "./dist/client.mjs"
+		},
+		"./client.ws": {
+			"types": "./dist/client.ws.d.mts",
+			"default": "./dist/client.ws.mjs"
+		},
+		"./schema": {
+			"types": "./dist/schema/index.d.mts",
+			"default": "./dist/schema/index.mjs"
+		},
+		"./queries": {
+			"types": "./dist/queries/index.d.mts",
+			"default": "./dist/queries/index.mjs"
+		},
+		"./queries.edge": {
+			"types": "./dist/queries/index.edge.d.mts",
+			"default": "./dist/queries/index.edge.mjs"
+		}
+	},
+	"license": "MIT",
+	"scripts": {
+		"build": "tsdown",
+		"clean": "git clean -xdf .cache .turbo dist node_modules",
+		"dev": "tsdown",
+		"format": "biome format .",
+		"lint": "biome lint .",
+		"check": "biome check .",
+		"push": "bun --env-file=../../.env run drizzle-kit push",
+		"studio": "bun --env-file=../../.env run drizzle-kit studio",
+		"drop": "bun --env-file=../../.env run src/scripts/drop-schema.ts",
+		"generate": "bun --env-file=../../.env run drizzle-kit generate",
+		"migrate": "bun --env-file=../../.env run drizzle-kit migrate",
+		"test": "bun test",
+		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
+	},
+	"dependencies": {
+		"@neondatabase/serverless": "^1.1.0",
+		"@psi-opora/config": "workspace:*",
+		"@vercel/postgres": "0.10.0",
+		"drizzle-orm": "0.45.2",
+		"drizzle-zod": "0.8.3",
+		"postgres": "^3.4.9",
+		"ws": "^8.21.3",
+		"zod": "4.6.5"
+	},
+	"devDependencies": {
+		"@psi-opora/tsconfig": "workspace:*",
+		"@types/bun": "1.4.2",
+		"@types/node": "26.6.2",
+		"@types/ws": "^8.18.1",
+		"drizzle-kit": "^0.31.10",
+		"tsdown": "^0.23.0",
+		"typescript": "7.0.2"
+	}
 }

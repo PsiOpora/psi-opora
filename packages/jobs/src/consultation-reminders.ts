@@ -387,7 +387,9 @@ export async function handleConsultationDealUpdate(
 	const token = crypto.randomUUID();
 	const acquired = await redis.set(key, token, { px: LOCK_TTL_MS, nx: true });
 	if (!acquired) {
-		console.log(`[consultation-reminder] deal-update dealId=${dealId} action=skip reason=locked`);
+		console.log(
+			`[consultation-reminder] deal-update dealId=${dealId} action=skip reason=locked`,
+		);
 		return { action: "skip", reason: "locked" };
 	}
 	try {

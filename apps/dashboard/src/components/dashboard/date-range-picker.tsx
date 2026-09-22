@@ -4,12 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { DateRange as DayPickerRange } from "react-day-picker";
 import { ru } from "date-fns/locale";
-import {
-	startOfWeek,
-	startOfMonth,
-	startOfQuarter,
-	endOfDay,
-} from "date-fns";
+import { startOfWeek, startOfMonth, startOfQuarter, endOfDay } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";

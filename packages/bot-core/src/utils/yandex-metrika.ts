@@ -73,7 +73,12 @@ export async function sendConsultationGoalToYandexMetrika(
 	// yclid (клик мог случиться в другой сессии/устройстве до захода на сайт).
 	const csv = params.clientId
 		? buildConversionsCsv("ClientId", params.clientId, target, unixTimestamp)
-		: buildConversionsCsv("Yclid", params.yclid as string, target, unixTimestamp);
+		: buildConversionsCsv(
+				"Yclid",
+				params.yclid as string,
+				target,
+				unixTimestamp,
+			);
 	const clientIdTypeQuery = params.clientId ? "?client_id_type=CLIENT_ID" : "";
 
 	const form = new FormData();

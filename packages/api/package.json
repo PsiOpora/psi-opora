@@ -1,50 +1,50 @@
 {
-  "name": "@psi-opora/api",
-  "private": true,
-  "type": "module",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./src/index.ts"
-    },
-    "./schemas": {
-      "types": "./dist/schemas/index.d.ts",
-      "default": "./src/schemas/index.ts"
-    }
-  },
-  "license": "MIT",
-  "scripts": {
-    "build": "rm -rf .cache dist && tsc",
-    "clean": "git clean -xdf .cache .turbo dist node_modules",
-    "dev": "tsc",
-    "format": "biome format .",
-    "lint": "biome lint .",
-    "check": "biome check .",
-    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
-  },
-  "dependencies": {
-    "@psi-opora/storage": "workspace:*",
-    "@psi-opora/bitrix-client": "workspace:*",
-    "@psi-opora/bot-core": "workspace:*",
-    "@psi-opora/config": "workspace:*",
-    "@psi-opora/db": "workspace:*",
-    "@psi-opora/emails": "workspace:*",
-    "@psi-opora/jobs": "workspace:*",
-    "@psi-opora/max-userbot": "workspace:*",
-    "@psi-opora/rusender-client": "workspace:*",
-    "@psi-opora/tg-userbot": "workspace:*",
-    "@psi-opora/unisender-client": "workspace:*",
-    "@psi-opora/waha": "workspace:*",
-    "@psi-opora/validators": "workspace:*",
-    "@orpc/contract": "1.15.1",
-    "@orpc/server": "1.15.1",
-    "better-auth": "1.7.2",
-    "superjson": "2.2.6",
-    "zod": "4.6.5"
-  },
-  "devDependencies": {
-    "@psi-opora/tsconfig": "workspace:*",
-    "@types/node": "26.6.2",
-    "typescript": "7.0.2"
-  }
+	"name": "@psi-opora/api",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./src/index.ts"
+		},
+		"./schemas": {
+			"types": "./dist/schemas/index.d.ts",
+			"default": "./src/schemas/index.ts"
+		}
+	},
+	"license": "MIT",
+	"scripts": {
+		"build": "rm -rf .cache dist && tsc",
+		"clean": "git clean -xdf .cache .turbo dist node_modules",
+		"dev": "tsc",
+		"format": "biome format .",
+		"lint": "biome lint .",
+		"check": "biome check .",
+		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
+	},
+	"dependencies": {
+		"@psi-opora/storage": "workspace:*",
+		"@psi-opora/bitrix-client": "workspace:*",
+		"@psi-opora/bot-core": "workspace:*",
+		"@psi-opora/config": "workspace:*",
+		"@psi-opora/db": "workspace:*",
+		"@psi-opora/emails": "workspace:*",
+		"@psi-opora/jobs": "workspace:*",
+		"@psi-opora/max-userbot": "workspace:*",
+		"@psi-opora/rusender-client": "workspace:*",
+		"@psi-opora/tg-userbot": "workspace:*",
+		"@psi-opora/unisender-client": "workspace:*",
+		"@psi-opora/waha": "workspace:*",
+		"@psi-opora/validators": "workspace:*",
+		"@orpc/contract": "1.15.1",
+		"@orpc/server": "1.15.1",
+		"better-auth": "1.7.2",
+		"superjson": "2.2.6",
+		"zod": "4.6.5"
+	},
+	"devDependencies": {
+		"@psi-opora/tsconfig": "workspace:*",
+		"@types/node": "26.6.2",
+		"typescript": "7.0.2"
+	}
 }

@@ -154,7 +154,7 @@ export function YandexMetrikaSettingsForm({
 										<Eye className="size-4" />
 									)}
 								</button>
-								</div>
+							</div>
 							<FormMessage />
 						</FormItem>
 					)}

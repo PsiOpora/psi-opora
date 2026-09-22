@@ -31,7 +31,8 @@ const APPLY = process.argv.includes("--apply");
 const DISORDER_FIELD = "UF_CRM_1779041362411";
 
 function webhookBase(): string {
-	const value = process.env.TG_BITRIX_WEBHOOK_URL ?? process.env.BITRIX_WEBHOOK_URL;
+	const value =
+		process.env.TG_BITRIX_WEBHOOK_URL ?? process.env.BITRIX_WEBHOOK_URL;
 	if (!value) throw new Error("BITRIX_WEBHOOK_URL не задан");
 	return value.replace(/\/+$/, "");
 }
