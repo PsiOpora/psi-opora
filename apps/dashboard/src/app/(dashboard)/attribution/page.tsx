@@ -137,6 +137,7 @@ function AttributionPageContent() {
 							headers={[
 								"Источник",
 								"Кампания",
+								"Кампания в кабинете",
 								"Расход",
 								"Сделок",
 								"CPL",
@@ -152,6 +153,7 @@ function AttributionPageContent() {
 							rows={rows.map((row) => [
 								row.source,
 								row.campaign,
+								row.adCampaignName ?? "",
 								row.spend !== undefined ? Math.round(row.spend) : "",
 								row.deals,
 								row.cpl !== undefined ? Math.round(row.cpl) : "",
@@ -210,7 +212,14 @@ function AttributionPageContent() {
 												{isUnattributed ? (
 													<span className="italic">{row.campaign}</span>
 												) : (
-													row.campaign
+													<>
+														{row.campaign}
+														{row.adCampaignName && (
+															<div className="text-xs text-muted-foreground">
+																{row.adCampaignName}
+															</div>
+														)}
+													</>
 												)}
 											</TableCell>
 											<TableCell className="text-right tabular-nums">

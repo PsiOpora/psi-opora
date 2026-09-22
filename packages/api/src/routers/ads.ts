@@ -1,15 +1,21 @@
 import { fetchAdStats, getRedisOrNull } from "@psi-opora/bot-core";
 import {
+	deleteAdCampaignIdOverride,
+	getAdCampaignIdOverrides,
 	getAdCredentials,
 	getAdStatsByDateRange,
 	getAdStatsSummary,
 	type NewAdDailyStats,
+	upsertAdCampaignIdOverride,
 	upsertAdCredentials,
 	upsertAdDailyStats,
 } from "@psi-opora/db/queries";
 import { z } from "zod";
 import { publicProcedure, router } from "../orpc";
-import { adCredentialsSchema } from "../schemas/ads";
+import {
+	adCampaignIdOverrideSchema,
+	adCredentialsSchema,
+} from "../schemas/ads";
 
 export const adsRouter = router({
 	getCredentials: publicProcedure.handler(async () => {
@@ -80,6 +86,24 @@ export const adsRouter = router({
 		)
 		.handler(async ({ input }) => {
 			await upsertAdDailyStats(input.rows as NewAdDailyStats[]);
+			return { ok: true };
+		}),
+
+	campaignIdOverrides: publicProcedure.handler(async () => {
+		return getAdCampaignIdOverrides();
+	}),
+
+	upsertCampaignIdOverride: publicProcedure
+		.input(adCampaignIdOverrideSchema)
+		.handler(async ({ input }) => {
+			await upsertAdCampaignIdOverride(input.utmCampaign, input.adCampaignId);
+			return { ok: true };
+		}),
+
+	deleteCampaignIdOverride: publicProcedure
+		.input(z.object({ utmCampaign: z.string().trim().min(1) }))
+		.handler(async ({ input }) => {
+			await deleteAdCampaignIdOverride(input.utmCampaign);
 			return { ok: true };
 		}),
 });

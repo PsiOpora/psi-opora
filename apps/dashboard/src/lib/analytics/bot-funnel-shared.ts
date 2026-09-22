@@ -66,14 +66,7 @@ export const FLOW_LABELS: Record<BotFunnelFlow, string> = {
  * шагом из другой. "start" — общий для обеих веток (выбор ветки ещё не сделан).
  */
 export const FLOW_STEPS: Record<BotFunnelFlow, readonly FunnelStep[]> = {
-	consult: [
-		"start",
-		"consult_click",
-		"consent",
-		"name",
-		"phone",
-		"deal",
-	],
+	consult: ["start", "consult_click", "consent", "name", "phone", "deal"],
 	guide: [
 		"start",
 		"guide_click",
@@ -185,6 +178,8 @@ export interface BotFunnelSourceRow {
 	wonSum?: number;
 	/** Расход из ad_daily_stats, найденный по числовому ID кампании в её имени. */
 	spend?: number;
+	/** Название кампании в рекламном кабинете (CampaignName из Яндекс.Директа) — подпись рядом с UTM-меткой. */
+	adCampaignName?: string;
 	/** Расход / стартов. */
 	cpl?: number;
 	/** Расход / заявок. */
