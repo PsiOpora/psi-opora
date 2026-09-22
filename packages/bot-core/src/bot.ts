@@ -716,7 +716,8 @@ export function createBot({
 			// вопросов об имени/телефоне/email (см. scenario/engine.ts).
 			const knownContact =
 				action === "consent_agree" &&
-				state?.flow !== "guide" &&
+				state?.flow === "consult" &&
+				state.step === "consent" &&
 				ctx.from &&
 				ctx.chatId
 					? await resolveKnownContact({

@@ -771,7 +771,10 @@ export function createMaxBot({
 			// вопросов об имени/телефоне/email (см. scenario/engine.ts).
 			const userId = appCtx.user?.user_id;
 			const knownContact =
-				action === "consent_agree" && state?.flow !== "guide" && userId
+				action === "consent_agree" &&
+				state?.flow === "consult" &&
+				state.step === "consent" &&
+				userId
 					? await resolveKnownContact({
 							messenger: "max",
 							userId,
