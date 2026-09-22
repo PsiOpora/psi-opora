@@ -29,8 +29,10 @@ export interface AttributionRow {
 	deals: number;
 	won: number;
 	lost: number;
+	inProgress: number;
 	opportunitySum: number;
 	wonSum: number;
+	inProgressSum: number;
 	conversionRate: number;
 	/** undefined — расход не удалось сматчить с кампанией (см. ad-spend-match.ts), не 0. */
 	spend?: number;
@@ -53,8 +55,10 @@ export interface AttributionSummary {
 	totalDeals: number;
 	totalWon: number;
 	totalLost: number;
+	totalInProgress: number;
 	totalOpportunitySum: number;
 	totalWonSum: number;
+	totalInProgressSum: number;
 	conversionRate: number;
 	totalSpend: number;
 	/** null — расход ни по одной кампании не найден (не с чем считать ROMI). */
@@ -91,8 +95,10 @@ function toRow(
 		deals: group.deals,
 		won: group.won,
 		lost: group.lost,
+		inProgress: group.inProgress,
 		opportunitySum: group.opportunitySum,
 		wonSum: group.wonSum,
+		inProgressSum: group.inProgressSum,
 		conversionRate: group.conversionRate,
 		spend,
 		adCampaignName: campaignId ? campaignNameById.get(campaignId) : undefined,
@@ -126,8 +132,10 @@ function buildUnattributedRow(spend: number): AttributionRow {
 		deals: 0,
 		won: 0,
 		lost: 0,
+		inProgress: 0,
 		opportunitySum: 0,
 		wonSum: 0,
+		inProgressSum: 0,
 		conversionRate: 0,
 		spend,
 		cpl: undefined,
@@ -221,8 +229,10 @@ export async function fetchAttributionReport(
 		totalDeals: dealsSummary.totalDeals,
 		totalWon: dealsSummary.wonDeals,
 		totalLost: dealsSummary.lostDeals,
+		totalInProgress: dealsSummary.inProgressDeals,
 		totalOpportunitySum: dealsSummary.opportunitySum,
 		totalWonSum: dealsSummary.wonSum,
+		totalInProgressSum: dealsSummary.inProgressSum,
 		conversionRate: dealsSummary.conversionRate,
 		totalSpend: totalAdSpend,
 		romi:

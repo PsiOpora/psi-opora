@@ -4,7 +4,14 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { DateRange as DayPickerRange } from "react-day-picker";
 import { ru } from "date-fns/locale";
-import { startOfWeek, startOfMonth, startOfQuarter, endOfDay } from "date-fns";
+import {
+	startOfWeek,
+	startOfMonth,
+	endOfMonth,
+	subMonths,
+	startOfQuarter,
+	endOfDay,
+} from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -26,6 +33,13 @@ const PRESETS: { label: string; range: () => { from: Date; to: Date } }[] = [
 	{
 		label: "Текущий месяц",
 		range: () => ({ from: startOfMonth(new Date()), to: endOfDay(new Date()) }),
+	},
+	{
+		label: "Прошлый месяц",
+		range: () => {
+			const prev = subMonths(new Date(), 1);
+			return { from: startOfMonth(prev), to: endOfMonth(prev) };
+		},
 	},
 	{
 		label: "Текущий квартал",

@@ -359,8 +359,10 @@ export interface DealGroupStats {
 	dealsWithAmount: number;
 	won: number;
 	lost: number;
+	inProgress: number;
 	opportunitySum: number;
 	wonSum: number;
+	inProgressSum: number;
 	conversionRate: number;
 }
 
@@ -452,6 +454,10 @@ export async function groupDealsBy(
 				lost: sql<number>`count(*) filter (where ${deals.status} = 'lost')::int`.as(
 					"lost",
 				),
+				inProgress:
+					sql<number>`count(*) filter (where ${deals.status} = 'in_progress')::int`.as(
+						"in_progress",
+					),
 				opportunitySum:
 					sql<number>`coalesce(sum(${deals.opportunity}), 0)::int`.as(
 						"opportunity_sum",
@@ -459,6 +465,10 @@ export async function groupDealsBy(
 				wonSum:
 					sql<number>`coalesce(sum(${deals.opportunity}) filter (where ${deals.status} = 'won'), 0)::int`.as(
 						"won_sum",
+					),
+				inProgressSum:
+					sql<number>`coalesce(sum(${deals.opportunity}) filter (where ${deals.status} = 'in_progress'), 0)::int`.as(
+						"in_progress_sum",
 					),
 			})
 			.from(deals)
@@ -478,8 +488,10 @@ export async function groupDealsBy(
 				dealsWithAmount: grouped.dealsWithAmount,
 				won: grouped.won,
 				lost: grouped.lost,
+				inProgress: grouped.inProgress,
 				opportunitySum: grouped.opportunitySum,
 				wonSum: grouped.wonSum,
+				inProgressSum: grouped.inProgressSum,
 				conversionRate:
 					sql<number>`case when ${grouped.won} + ${grouped.lost} > 0
           then ${grouped.won}::float / (${grouped.won} + ${grouped.lost}) else 0 end`.as(
@@ -664,6 +676,7 @@ export interface DealsSummary {
 	inProgressDeals: number;
 	opportunitySum: number;
 	wonSum: number;
+	inProgressSum: number;
 	conversionRate: number;
 	avgDealSize: number;
 	avgCycleDays: number;
@@ -690,6 +703,7 @@ export async function getDealsSummary(
 		inProgressDeals: 0,
 		opportunitySum: 0,
 		wonSum: 0,
+		inProgressSum: 0,
 		conversionRate: 0,
 		avgDealSize: 0,
 		avgCycleDays: 0,
@@ -704,6 +718,7 @@ export async function getDealsSummary(
 			inProgressDeals: sql<number>`count(*) filter (where ${deals.status} = 'in_progress')::int`,
 			opportunitySum: sql<number>`coalesce(sum(${deals.opportunity}), 0)::int`,
 			wonSum: sql<number>`coalesce(sum(${deals.opportunity}) filter (where ${deals.status} = 'won'), 0)::int`,
+			inProgressSum: sql<number>`coalesce(sum(${deals.opportunity}) filter (where ${deals.status} = 'in_progress'), 0)::int`,
 			avgCycleDays: sql<number>`coalesce(avg(
         extract(epoch from (${deals.closeDate} - ${deals.dateCreate})) / 86400.0
       ) filter (where ${deals.status} = 'won' and ${deals.closeDate} is not null), 0)`,
@@ -721,6 +736,7 @@ export async function getDealsSummary(
 		inProgressDeals: r.inProgressDeals,
 		opportunitySum: r.opportunitySum,
 		wonSum: r.wonSum,
+		inProgressSum: r.inProgressSum,
 		conversionRate: closed > 0 ? r.wonDeals / closed : 0,
 		avgDealSize: r.wonDeals > 0 ? r.wonSum / r.wonDeals : 0,
 		avgCycleDays: r.avgCycleDays,
