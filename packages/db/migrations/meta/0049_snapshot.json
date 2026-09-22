@@ -3514,7 +3514,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "default": "'consultation_booked'"
+          "default": "'free_consultation_booked'"
         },
         "bitrix_client_id_field": {
           "name": "bitrix_client_id_field",

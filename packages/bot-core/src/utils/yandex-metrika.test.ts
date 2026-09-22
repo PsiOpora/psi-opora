@@ -10,7 +10,7 @@ interface SettingsRow {
 let settings: SettingsRow | null = {
 	counterId: "12345",
 	oauthToken: "test-token",
-	goalId: "consultation_booked",
+	goalId: "free_consultation_booked",
 	bitrixClientIdField: null,
 };
 const getYandexMetrikaSettings = mock(async () => settings);
@@ -32,7 +32,7 @@ describe("sendConsultationGoalToYandexMetrika", () => {
 		settings = {
 			counterId: "12345",
 			oauthToken: "test-token",
-			goalId: "consultation_booked",
+			goalId: "free_consultation_booked",
 			bitrixClientIdField: null,
 		};
 		getYandexMetrikaSettings.mockClear();
@@ -68,7 +68,7 @@ describe("sendConsultationGoalToYandexMetrika", () => {
 		const form = capturedInit?.body as FormData;
 		const file = form.get("file") as File;
 		expect(await file.text()).toBe(
-			"ClientId,Target,DateTime\n163972457524306386,consultation_booked,1767225600\n",
+			"ClientId,Target,DateTime\n163972457524306386,free_consultation_booked,1767225600\n",
 		);
 	});
 
@@ -119,7 +119,7 @@ describe("sendConsultationGoalToYandexMetrika", () => {
 		const form = capturedInit?.body as FormData;
 		const file = form.get("file") as File;
 		expect(await file.text()).toBe(
-			"Yclid,Target,DateTime\n1234567890123456,consultation_booked,1767225600\n",
+			"Yclid,Target,DateTime\n1234567890123456,free_consultation_booked,1767225600\n",
 		);
 	});
 

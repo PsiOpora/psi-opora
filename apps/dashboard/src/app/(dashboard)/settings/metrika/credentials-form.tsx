@@ -32,7 +32,7 @@ function toFormValues(
 	return {
 		counterId: settings?.counterId ?? "",
 		oauthToken: settings?.oauthToken ?? "",
-		goalId: settings?.goalId ?? "consultation_booked",
+		goalId: settings?.goalId ?? "free_consultation_booked",
 		bitrixClientIdField: settings?.bitrixClientIdField ?? "",
 	};
 }
@@ -111,7 +111,7 @@ export function YandexMetrikaSettingsForm({
 								</FormLabel>
 								<FormControl>
 									<Input
-										placeholder="consultation_booked"
+										placeholder="free_consultation_booked"
 										className="font-mono text-sm"
 										{...field}
 									/>

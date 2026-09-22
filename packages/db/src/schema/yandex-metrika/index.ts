@@ -12,7 +12,7 @@ export const yandexMetrikaSettings = pgTable("yandex_metrika_settings", {
 	oauthToken: text("oauth_token"),
 	// Идентификатор цели (Target в CSV офлайн-конверсий) — цель типа
 	// «JavaScript-событие» с условием «содержит», создаётся в Метрике заранее.
-	goalId: text("goal_id").default("consultation_booked"),
+	goalId: text("goal_id").default("free_consultation_booked"),
 	// Код пользовательского поля сделки в Bitrix (CRM → Настройки →
 	// Пользовательские поля → Сделка) для ClientID — необязательно.
 	bitrixClientIdField: text("bitrix_client_id_field"),

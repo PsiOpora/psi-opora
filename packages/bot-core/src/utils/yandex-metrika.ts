@@ -2,7 +2,7 @@ import { logger } from "@psi-opora/config";
 import { getYandexMetrikaSettings } from "@psi-opora/db/queries";
 
 const UPLOAD_URL_BASE = "https://api-metrika.yandex.net/management/v1/counter";
-const DEFAULT_GOAL_ID = "consultation_booked";
+const DEFAULT_GOAL_ID = "free_consultation_booked";
 
 export interface ConsultationGoalParams {
 	/** ClientID Яндекс.Метрики визита (см. utils/utm.ts extractYmClientId). */

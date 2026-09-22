@@ -744,10 +744,10 @@ async function sendConsultationBookedNotification(
 	}
 
 	const texts = await getScenarioTexts();
-	const template = texts.consultation_booked_template?.trim();
+	const template = texts.free_consultation_booked_template?.trim();
 	if (!template) {
 		console.error(
-			`[consultation-reminder] не удалось отправить уведомление о записи для сделки ${dealId}: пустой шаблон consultation_booked_template`,
+			`[consultation-reminder] не удалось отправить уведомление о записи для сделки ${dealId}: пустой шаблон free_consultation_booked_template`,
 		);
 		return;
 	}
