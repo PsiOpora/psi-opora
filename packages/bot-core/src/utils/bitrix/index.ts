@@ -6,6 +6,10 @@ export {
 } from "./book-preorder-pipeline";
 export { createBitrixContact, createBitrixDeal } from "./create-deal";
 export {
+	type KnownBitrixContact,
+	resolveKnownContact,
+} from "./known-contact";
+export {
 	mirrorOperatorMessageToOpenLine,
 	type OpenLineConnector,
 	type OpenLineMessageData,

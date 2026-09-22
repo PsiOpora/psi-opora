@@ -39,6 +39,7 @@ import type { RedisClient } from "./storage/redis";
 import type { AppContext, ConsultationSession } from "./types/context";
 import {
 	type BitrixApiLike,
+	resolveKnownContact,
 	sendMessageToOpenLine,
 	updateMessageInOpenLine,
 } from "./utils/bitrix";
@@ -675,7 +676,9 @@ export function createBot({
 			await ctx
 				.editMessageReplyMarkup({ reply_markup: undefined })
 				.catch(() => {});
-			log(`[BOOK_PREORDER] user=${ctx.from?.id} action=sc_book messenger=telegram`);
+			log(
+				`[BOOK_PREORDER] user=${ctx.from?.id} action=sc_book messenger=telegram`,
+			);
 			await logBotMessage({
 				messenger: "telegram",
 				userId: ctx.from?.id,
@@ -692,7 +695,11 @@ export function createBot({
 			// bookPreorder) следующий текст снова попадёт в старый шаг
 			// консультации/гайда, см. dispatch() выше про обратный случай.
 			ctx.session.scenario = undefined;
-			await dispatchBookPreorder(ctx, resumed ?? startBookPreorder(texts), texts);
+			await dispatchBookPreorder(
+				ctx,
+				resumed ?? startBookPreorder(texts),
+				texts,
+			);
 			return;
 		}
 
@@ -704,8 +711,23 @@ export function createBot({
 			guideCampaign = state?.campaignId
 				? await loadGuideCampaignContext(state.campaignId)
 				: null;
+			// Ищем клиента в CRM только на шаге согласия флоу консультации —
+			// там его данные (если найдутся) подставятся вместо повторных
+			// вопросов об имени/телефоне/email (см. scenario/engine.ts).
+			const knownContact =
+				action === "consent_agree" &&
+				state?.flow === "consult" &&
+				state.step === "consent" &&
+				ctx.from &&
+				ctx.chatId
+					? await resolveKnownContact({
+							messenger: "telegram",
+							userId: ctx.from.id,
+							chatId: ctx.chatId,
+						})
+					: null;
 			out = state
-				? applyScenarioAction(state, action, texts, guideCampaign)
+				? applyScenarioAction(state, action, texts, guideCampaign, knownContact)
 				: null;
 			// Согласие из старого сообщения без активного сценария —
 			// начинаем запись заново (показываем актуальное согласие)

@@ -16,6 +16,7 @@ import {
 } from "./questions";
 import type { ScenarioTexts } from "./texts";
 import type {
+	KnownContact,
 	ScenarioAction,
 	ScenarioAudience,
 	ScenarioContact,
@@ -55,6 +56,7 @@ import type {
 export { stepQuestion, withFields, withName } from "./questions";
 export {
 	isScenarioAction,
+	type KnownContact,
 	SCENARIO_ACTIONS,
 	type ScenarioAction,
 	type ScenarioAudience,
@@ -285,6 +287,11 @@ export function applyScenarioAction(
 	action: ScenarioAction,
 	t: ScenarioTexts,
 	campaign?: GuideCampaignContext | null,
+	/** Клиент, уже найденный в CRM по мессенджеру (см.
+	 * utils/bitrix/known-contact.ts) — используется только на шаге "consent"
+	 * флоу консультации, чтобы не переспрашивать уже известные имя/телефон/
+	 * email. */
+	knownContact?: KnownContact | null,
 ): ScenarioOutput | null {
 	switch (state.step) {
 		case "entry": {
@@ -322,16 +329,46 @@ export function applyScenarioAction(
 					);
 				}
 				const isGuide = state.flow === "guide";
-				return output(
-					{
-						...fresh(state),
-						step: isGuide ? "category" : "name",
-						consentAt,
-					},
-					[
+				if (isGuide) {
+					return output(
+						{ ...fresh(state), step: "category", consentAt },
+						[consentReply, categoryQuestion(t)],
+						{ track: ["consent"] },
+					);
+				}
+
+				// Клиент уже есть в CRM (найден по мессенджеру, см.
+				// resolveKnownContact) — не переспрашиваем то, что там уже
+				// заполнено; чего не хватает, спрашиваем как обычно дальше по
+				// цепочке (см. правки для этого же случая в шагах "name"/"phone"
+				// ниже — телефон/email могут стать известны только на consent,
+				// но понадобиться на следующих шагах).
+				const prefilled: ScenarioState = {
+					...fresh(state),
+					consentAt,
+					...(knownContact?.name ? { name: knownContact.name } : {}),
+					...(knownContact?.phone ? { phone: knownContact.phone } : {}),
+					...(knownContact?.email ? { email: knownContact.email } : {}),
+				};
+
+				if (prefilled.name && prefilled.phone) {
+					return submitConsultLead(prefilled, prefilled.email, t, [
 						consentReply,
-						isGuide ? categoryQuestion(t) : { text: t.name_question },
-					],
+					]);
+				}
+				if (prefilled.name) {
+					return output(
+						{ ...prefilled, step: "phone" },
+						[
+							consentReply,
+							{ text: withName(t.consult_phone_question, prefilled.name) },
+						],
+						{ track: ["consent"] },
+					);
+				}
+				return output(
+					{ ...prefilled, step: "name" },
+					[consentReply, { text: t.name_question }],
 					{ track: ["consent"] },
 				);
 			}
@@ -443,8 +480,25 @@ export async function applyScenarioText(
 			// (имя, телефон, email) одним сообщением — LLM пытается разложить
 			// его на поля; если это не удалось (нет ключа, ошибка, распознать
 			// не получилось), ведём себя как раньше — весь текст = имя.
+			// state.phone/state.email здесь могут быть уже известны из CRM
+			// (подставлены на consent_agree, см. resolveKnownContact) — тогда
+			// повторно их не спрашиваем.
 			const extracted = await extractContactInfo(text);
 			if (!extracted) {
+				if (state.phone && state.email) {
+					return submitConsultLead(
+						{ ...fresh(state), name: text },
+						state.email,
+						t,
+					);
+				}
+				if (state.phone) {
+					return output(
+						{ ...fresh(state), step: "email", name: text },
+						[consultEmailQuestion(t)],
+						{ track: ["name"] },
+					);
+				}
 				return output(
 					{ ...fresh(state), step: "phone", name: text },
 					[{ text: withName(t.consult_phone_question, text) }],
@@ -454,13 +508,13 @@ export async function applyScenarioText(
 
 			const { name } = extracted;
 			const phone =
-				extracted.phone && hasPhoneNumber(extracted.phone)
+				(extracted.phone && hasPhoneNumber(extracted.phone)
 					? extracted.phone.trim()
-					: undefined;
+					: undefined) ?? state.phone;
 			const email =
-				extracted.email && isValidEmail(extracted.email)
+				(extracted.email && isValidEmail(extracted.email)
 					? extracted.email
-					: undefined;
+					: undefined) ?? state.email;
 
 			if (phone && email) {
 				return submitConsultLead({ ...fresh(state), name, phone }, email, t, [
@@ -558,6 +612,15 @@ export async function applyScenarioText(
 			if (hasPhoneNumber(text)) {
 				const phone = text.trim();
 				if (state.flow === "consult") {
+					// Email уже известен из CRM (см. consent_agree/prefilled выше) —
+					// сразу отправляем заявку, а не спрашиваем его ещё раз.
+					if (state.email) {
+						return submitConsultLead(
+							{ ...fresh(state), phone },
+							state.email,
+							t,
+						);
+					}
 					return output(
 						{ ...fresh(state), step: "email", phone },
 						[consultEmailQuestion(t)],

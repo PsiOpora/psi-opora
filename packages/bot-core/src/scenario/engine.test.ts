@@ -7,6 +7,7 @@ import {
 	type ScenarioOutput,
 	startConsultation,
 	startScenario,
+	withName,
 } from "./engine";
 import { DEFAULT_SCENARIO_TEXTS as t } from "./texts";
 
@@ -177,6 +178,104 @@ describe("флоу «запись на консультацию»", () => {
 		expect(out.state.step).toBe("consent");
 		expect(out.state.flow).toBe("consult");
 		expect(out.track).toEqual(["consult_click"]);
+	});
+});
+
+describe("флоу «запись на консультацию»: клиент уже известен в CRM", () => {
+	test("известны имя и телефон — заявка уходит сразу, без вопросов", async () => {
+		const start = startConsultation(t);
+		const out = applyScenarioAction(start.state, "consent_agree", t, null, {
+			name: "Иван",
+			phone: "+79991234567",
+			email: "ivan@example.com",
+		});
+		expect(out?.state.step).toBe("done");
+		expect(out?.lead).toEqual({
+			flow: "consult",
+			phone: "+79991234567",
+			email: "ivan@example.com",
+			name: "Иван",
+			consentAt: out?.lead?.consentAt,
+		});
+		expect(out?.messages[0]?.text).toBe(t.consent_agreed);
+		expect(out?.messages[1]?.text).toContain("Иван");
+	});
+
+	test("известно только имя — сразу спрашиваем телефон, минуя вопрос об имени", async () => {
+		const start = startConsultation(t);
+		const out = applyScenarioAction(start.state, "consent_agree", t, null, {
+			name: "Мария",
+		});
+		expect(out?.state.step).toBe("phone");
+		expect(out?.state.name).toBe("Мария");
+		expect(out?.messages.map((m) => m.text)).toEqual([
+			t.consent_agreed,
+			withName(t.consult_phone_question, "Мария"),
+		]);
+	});
+
+	test("известны имя и email — после ввода телефона заявка уходит сразу, без вопроса про email", async () => {
+		const start = startConsultation(t);
+		const consent = applyScenarioAction(start.state, "consent_agree", t, null, {
+			name: "Мария",
+			email: "maria@example.com",
+		});
+		expect(consent?.state.step).toBe("phone");
+
+		const out = await applyScenarioText(
+			consent?.state as ScenarioOutput["state"],
+			"+79997654321",
+			t,
+		);
+		expect(out?.state.step).toBe("done");
+		expect(out?.lead).toEqual({
+			flow: "consult",
+			phone: "+79997654321",
+			email: "maria@example.com",
+			name: "Мария",
+			consentAt: out?.lead?.consentAt,
+		});
+	});
+
+	test("известен только телефон — имя всё равно спрашиваем, а телефон больше не переспрашиваем", async () => {
+		const start = startConsultation(t);
+		const consent = applyScenarioAction(start.state, "consent_agree", t, null, {
+			phone: "+79995554433",
+		});
+		expect(consent?.state.step).toBe("name");
+
+		const afterName = await applyScenarioText(
+			consent?.state as ScenarioOutput["state"],
+			"Пётр",
+			t,
+		);
+		// Телефон уже известен — со следующего шага сразу email, а не "phone".
+		expect(afterName?.state.step).toBe("email");
+		expect(afterName?.state.phone).toBe("+79995554433");
+
+		const out = await applyScenarioText(
+			afterName?.state as ScenarioOutput["state"],
+			"petr@example.com",
+			t,
+		);
+		expect(out?.state.step).toBe("done");
+		expect(out?.lead).toEqual({
+			flow: "consult",
+			phone: "+79995554433",
+			email: "petr@example.com",
+			name: "Пётр",
+			consentAt: out?.lead?.consentAt,
+		});
+	});
+
+	test("флоу гайда не трогает знание из CRM — согласие ведёт к категории как обычно", async () => {
+		const out = await run([{ action: "sc_guide" }]);
+		const consent = applyScenarioAction(out.state, "consent_agree", t, null, {
+			name: "Игнорируется",
+			phone: "+70000000000",
+		});
+		expect(consent?.state.step).toBe("category");
+		expect(consent?.state.name).toBeUndefined();
 	});
 });
 
