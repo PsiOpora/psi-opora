@@ -6,6 +6,7 @@ import {
 	GroupDealsDialog,
 	type GroupDealsSelection,
 } from "@/components/dashboard/group-deals-dialog";
+import { InfoHint } from "@/components/dashboard/info-hint";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { Badge } from "@/components/ui/badge";
@@ -73,21 +74,47 @@ function AttributionPageContent() {
 
 	const { rows, summary } = data;
 	const summaryCards = [
-		{ label: "Расход на рекламу", value: formatMoney(summary.totalSpend) },
-		{ label: "Выручка (выиграно)", value: formatMoney(summary.totalWonSum) },
+		{
+			label: "Расход на рекламу",
+			hint: "Сумма расходов на рекламу за выбранный период по всем источникам — подтягивается автоматически из Яндекс.Директ.",
+			value: formatMoney(summary.totalSpend),
+		},
+		{
+			label: "Выручка (выиграно)",
+			hint: "Сумма по сделкам со статусом «Выиграна» за выбранный период.",
+			value: formatMoney(summary.totalWonSum),
+		},
 		{
 			label: "ROMI",
+			hint: "Return on Marketing Investment — окупаемость вложений в рекламу: (Выручка − Расход) / Расход × 100%. Показывает, сколько прибыли принёс каждый вложенный в рекламу рубль.",
 			value:
 				summary.romi === null
 					? "—"
 					: `${summary.romi >= 0 ? "+" : ""}${formatPercent(summary.romi)}`,
 		},
-		{ label: "Сделок", value: formatNumber(summary.totalDeals) },
-		{ label: "Выиграно", value: formatNumber(summary.totalWon) },
-		{ label: "Конверсия", value: formatPercent(summary.conversionRate) },
-		{ label: "Новых клиентов", value: formatNumber(summary.totalNewClients) },
+		{
+			label: "Сделок",
+			hint: "Общее количество сделок, созданных за выбранный период.",
+			value: formatNumber(summary.totalDeals),
+		},
+		{
+			label: "Выиграно",
+			hint: "Количество сделок со статусом «Выиграна» за выбранный период.",
+			value: formatNumber(summary.totalWon),
+		},
+		{
+			label: "Конверсия",
+			hint: "Доля выигранных сделок от общего числа сделок за период: Выиграно / Сделок.",
+			value: formatPercent(summary.conversionRate),
+		},
+		{
+			label: "Новых клиентов",
+			hint: "Количество клиентов, для которых сделка за этот период — первая за всю историю.",
+			value: formatNumber(summary.totalNewClients),
+		},
 		{
 			label: "Выручка с новых",
+			hint: "Сумма выигранных сделок только по новым клиентам (для которых это первая сделка).",
 			value: formatMoney(summary.totalNewClientsRevenue),
 		},
 	];
@@ -108,7 +135,10 @@ function AttributionPageContent() {
 				{summaryCards.map((card) => (
 					<Card key={card.label}>
 						<CardHeader>
-							<CardDescription>{card.label}</CardDescription>
+							<CardDescription className="flex items-center gap-1">
+								{card.label}
+								<InfoHint text={card.hint} />
+							</CardDescription>
 							<CardTitle className="text-xl tabular-nums">
 								{card.value}
 							</CardTitle>
@@ -178,17 +208,72 @@ function AttributionPageContent() {
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead>Источник</TableHead>
-									<TableHead>Кампания</TableHead>
-									<TableHead className="text-right">Расход</TableHead>
-									<TableHead className="text-right">Сделок</TableHead>
-									<TableHead className="text-right">CPL</TableHead>
-									<TableHead className="text-right">Выиграно</TableHead>
-									<TableHead className="text-right">Выручка</TableHead>
-									<TableHead className="text-right">CAC</TableHead>
-									<TableHead className="text-right">ROMI</TableHead>
-									<TableHead className="text-right">Новые клиенты</TableHead>
-									<TableHead className="text-right">Повторные</TableHead>
+									<TableHead>
+										<div className="flex items-center gap-1">
+											Источник
+											<InfoHint text="Канал трафика, определённый по UTM-метке utm_source сделки (например, yandex, google, органика)." />
+										</div>
+									</TableHead>
+									<TableHead>
+										<div className="flex items-center gap-1">
+											Кампания
+											<InfoHint text="Название рекламной кампании по UTM-метке utm_campaign. Под ним — название кампании из рекламного кабинета, если удалось сопоставить по числовому ID или ручной привязке." />
+										</div>
+									</TableHead>
+									<TableHead className="text-right">
+										<div className="flex items-center justify-end gap-1">
+											Расход
+											<InfoHint text="Расход на рекламу по этой кампании за период, подтягивается из Яндекс.Директ. «—», если кампанию не удалось сопоставить." />
+										</div>
+									</TableHead>
+									<TableHead className="text-right">
+										<div className="flex items-center justify-end gap-1">
+											Сделок
+											<InfoHint text="Количество сделок с этим источником и кампанией за период. Клик по числу открывает список сделок." />
+										</div>
+									</TableHead>
+									<TableHead className="text-right">
+										<div className="flex items-center justify-end gap-1">
+											CPL
+											<InfoHint text="Cost Per Lead — средняя стоимость одной сделки (лида): Расход / Сделок." />
+										</div>
+									</TableHead>
+									<TableHead className="text-right">
+										<div className="flex items-center justify-end gap-1">
+											Выиграно
+											<InfoHint text="Количество сделок со статусом «Выиграна» из этой группы." />
+										</div>
+									</TableHead>
+									<TableHead className="text-right">
+										<div className="flex items-center justify-end gap-1">
+											Выручка
+											<InfoHint text="Сумма выигранных сделок по этой группе." />
+										</div>
+									</TableHead>
+									<TableHead className="text-right">
+										<div className="flex items-center justify-end gap-1">
+											CAC
+											<InfoHint text="Customer Acquisition Cost — средняя стоимость привлечения одного выигранного клиента: Расход / Выиграно." />
+										</div>
+									</TableHead>
+									<TableHead className="text-right">
+										<div className="flex items-center justify-end gap-1">
+											ROMI
+											<InfoHint text="Return on Marketing Investment — окупаемость рекламы по этой группе: (Выручка − Расход) / Расход × 100%." />
+										</div>
+									</TableHead>
+									<TableHead className="text-right">
+										<div className="flex items-center justify-end gap-1">
+											Новые клиенты
+											<InfoHint text="Количество и выручка клиентов, для которых сделка в этой группе — первая за всю историю." />
+										</div>
+									</TableHead>
+									<TableHead className="text-right">
+										<div className="flex items-center justify-end gap-1">
+											Повторные
+											<InfoHint text="Количество и выручка клиентов, у которых уже была более ранняя сделка до этой." />
+										</div>
+									</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
