@@ -40,6 +40,8 @@ export interface AttributionRow {
 	 * подпись рядом с UTM-меткой, которая сама по себе часто нечитаема. undefined —
 	 * ID кампании не определился или для него нет данных в ad_daily_stats. */
 	adCampaignName?: string;
+	/** ID кампании в рекламном кабинете, с которой сматчен расход (см. spendByCampaign). */
+	adCampaignId?: string;
 	cpl?: number;
 	cac?: number;
 	romi?: number;
@@ -67,6 +69,19 @@ export interface AttributionSummary {
 	totalNewClientsRevenue: number;
 	totalRepeatClients: number;
 	totalRepeatRevenue: number;
+}
+
+/**
+ * Расход одной кампании Яндекс.Директа за период — расшифровка цифр
+ * «Расход» в отчёте (клик по ним): из каких кампаний кабинета он сложился
+ * и к каким строкам отчёта привязан. Пустой rowKeys — расход попал в строку
+ * «не привязано к UTM-кампании».
+ */
+export interface AdCampaignSpend {
+	campaignId: string;
+	campaignName?: string;
+	spend: number;
+	rowKeys: string[];
 }
 
 const EMPTY_CLIENT_ACQUISITION: Omit<ClientAcquisitionRow, "key"> = {
@@ -111,6 +126,7 @@ function toRow(
 		conversionRate: group.conversionRate,
 		spend,
 		adCampaignName: campaignId ? campaignNameById.get(campaignId) : undefined,
+		adCampaignId: spend !== undefined ? campaignId : undefined,
 		cpl:
 			spend !== undefined && group.deals > 0 ? spend / group.deals : undefined,
 		cac: spend !== undefined && group.won > 0 ? spend / group.won : undefined,
@@ -164,9 +180,11 @@ function buildUnattributedRow(spend: number): AttributionRow {
  * сопоставление по числовому ID кампании в её названии, та же логика,
  * что и в /bot-funnel).
  */
-export async function fetchAttributionReport(
-	range: DateRange,
-): Promise<{ rows: AttributionRow[]; summary: AttributionSummary }> {
+export async function fetchAttributionReport(range: DateRange): Promise<{
+	rows: AttributionRow[];
+	summary: AttributionSummary;
+	spendByCampaign: AdCampaignSpend[];
+}> {
 	const [
 		dealGroups,
 		adStats,
@@ -261,5 +279,22 @@ export async function fetchAttributionReport(
 		totalRepeatRevenue: rows.reduce((sum, row) => sum + row.repeatRevenue, 0),
 	};
 
-	return { rows, summary };
+	const rowKeysByCampaignId = new Map<string, string[]>();
+	for (const row of rows) {
+		if (!row.adCampaignId) continue;
+		const keys = rowKeysByCampaignId.get(row.adCampaignId) ?? [];
+		keys.push(row.key);
+		rowKeysByCampaignId.set(row.adCampaignId, keys);
+	}
+	const spendByCampaign: AdCampaignSpend[] = [...spendByCampaignId]
+		.map(([campaignId, spend]) => ({
+			campaignId,
+			campaignName: campaignNameById.get(campaignId),
+			spend,
+			rowKeys: rowKeysByCampaignId.get(campaignId) ?? [],
+		}))
+		.filter((campaign) => campaign.spend > 0)
+		.sort((a, b) => b.spend - a.spend);
+
+	return { rows, summary, spendByCampaign };
 }

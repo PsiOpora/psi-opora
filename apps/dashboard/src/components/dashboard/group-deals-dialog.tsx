@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+	DealClientType,
 	DealGroupDimension,
 	DealRow,
 	DealStatus,
@@ -38,18 +39,35 @@ import { formatDateParam } from "@/lib/analytics/date-range";
 import { STATUS_LABEL } from "@/lib/analytics/status-label";
 import type { DateRange } from "@/lib/analytics/types";
 import { dealUrl } from "@/lib/deal-url";
-import { formatMoney, formatNumber } from "@/lib/format";
+import { formatDateRange, formatMoney, formatNumber } from "@/lib/format";
 
 const PAGE_SIZE = 10;
 const SEARCH_DEBOUNCE_MS = 300;
 
 export interface GroupDealsSelection {
-	dimension: DealGroupDimension;
-	key: string;
+	/** Без dimension/key — все сделки периода (итоговые карточки отчёта). */
+	dimension?: DealGroupDimension;
+	key?: string;
 	label: string;
-	deals: number;
-	won: number;
-	wonSum: number;
+	deals?: number;
+	won?: number;
+	wonSum?: number;
+	/** Сузить список до сделок, из которых сложилась конкретная цифра. */
+	status?: DealStatus[];
+	clientType?: DealClientType;
+	/** Своё пояснение (например, расчёт CPL/ROMI) вместо сводки по группе. */
+	description?: string;
+}
+
+function defaultDescription(selection: GroupDealsSelection): string | null {
+	if (
+		selection.deals === undefined ||
+		selection.won === undefined ||
+		selection.wonSum === undefined
+	) {
+		return null;
+	}
+	return `${formatNumber(selection.deals)} сделок · выиграно ${formatNumber(selection.won)} на сумму ${formatMoney(selection.wonSum)}`;
 }
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
@@ -169,6 +187,8 @@ export function GroupDealsDialog({
 			"dashboard-group-deals",
 			selection?.dimension,
 			selection?.key,
+			selection?.status?.join(","),
+			selection?.clientType,
 			formatDateParam(range.from),
 			formatDateParam(range.to),
 			search,
@@ -179,14 +199,22 @@ export function GroupDealsDialog({
 		queryFn: async () => {
 			if (!selection) return { rows: [], total: 0 };
 			const params = new URLSearchParams({
-				dimension: selection.dimension,
-				key: selection.key,
 				from: formatDateParam(range.from),
 				to: formatDateParam(range.to),
 				page: String(pagination.pageIndex + 1),
 				pageSize: String(pagination.pageSize),
 				sortDir: sort?.desc === false ? "asc" : "desc",
 			});
+			if (selection.dimension !== undefined && selection.key !== undefined) {
+				params.set("dimension", selection.dimension);
+				params.set("key", selection.key);
+			}
+			for (const status of selection.status ?? []) {
+				params.append("status", status);
+			}
+			if (selection.clientType) {
+				params.set("clientType", selection.clientType);
+			}
 			if (search.trim()) params.set("search", search.trim());
 			if (sortField) params.set("sort", sortField);
 
@@ -232,9 +260,13 @@ export function GroupDealsDialog({
 			<DialogContent className="flex max-h-[85vh] flex-col gap-4 sm:max-w-3xl">
 				<DialogHeader>
 					<DialogTitle>{selection?.label}</DialogTitle>
-					<DialogDescription>
-						{selection &&
-							`${formatNumber(selection.deals)} сделок · выиграно ${formatNumber(selection.won)} на сумму ${formatMoney(selection.wonSum)}`}
+					<DialogDescription className="flex flex-col gap-1">
+						{selection && (
+							<span>
+								{selection.description ?? defaultDescription(selection)}
+							</span>
+						)}
+						<span>Период: {formatDateRange(range.from, range.to)}</span>
 					</DialogDescription>
 				</DialogHeader>
 

@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type {
+	AdCampaignSpend,
 	AttributionRow,
 	AttributionSummary,
 } from "@/lib/analytics/attribution";
@@ -25,6 +26,7 @@ export function useAttributionReport(range: DateRange) {
 			return (await res.json()) as {
 				rows: AttributionRow[];
 				summary: AttributionSummary;
+				spendByCampaign: AdCampaignSpend[];
 			};
 		},
 	});

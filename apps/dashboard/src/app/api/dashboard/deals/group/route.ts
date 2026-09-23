@@ -1,9 +1,14 @@
 import type {
+	DealClientType,
 	DealGroupDimension,
 	DealStatus,
 	ListDealsOptions,
 } from "@psi-opora/db/queries";
-import { DEAL_GROUP_DIMENSIONS, listDealsInGroup } from "@psi-opora/db/queries";
+import {
+	DEAL_GROUP_DIMENSIONS,
+	listDeals,
+	listDealsInGroup,
+} from "@psi-opora/db/queries";
 import { NextResponse } from "next/server";
 import { parseDateRange } from "@/lib/analytics/date-range";
 import {
@@ -47,6 +52,10 @@ function parseStatus(values: string[]): DealStatus | DealStatus[] | undefined {
 	return valid.length === 1 ? valid[0] : valid;
 }
 
+function parseClientType(value: string | null): DealClientType | undefined {
+	return value === "new" || value === "repeat" ? value : undefined;
+}
+
 function parseMulti(values: string[]): string | string[] | undefined {
 	if (values.length === 0) return undefined;
 	return values.length === 1 ? values[0] : values;
@@ -55,13 +64,16 @@ function parseMulti(values: string[]): string | string[] | undefined {
 /**
  * Сделки одной группы разреза (клик по строке отчёта → диалог со списком) —
  * замена среза уже загруженного group.items на клиенте (GroupDealsDialog).
+ * Без dimension и key — все сделки периода (клик по итоговой карточке отчёта).
  */
 export async function GET(request: Request) {
 	const url = new URL(request.url);
 	const params = url.searchParams;
-	const dimension = parseDimension(params.get("dimension"));
+	const rawDimension = params.get("dimension");
+	const dimension = parseDimension(rawDimension);
 	const key = params.get("key");
-	if (!dimension || key === null) {
+	const isGroup = rawDimension !== null || key !== null;
+	if (isGroup && (!dimension || key === null)) {
 		return NextResponse.json(
 			{ error: "Missing/invalid dimension or key" },
 			{ status: 400 },
@@ -100,7 +112,7 @@ export async function GET(request: Request) {
 		throw err;
 	}
 
-	const { rows, total } = await listDealsInGroup(dimension, key, {
+	const options: ListDealsOptions = {
 		from: range.from,
 		to: range.to,
 		status: parseStatus(params.getAll("status")),
@@ -111,12 +123,17 @@ export async function GET(request: Request) {
 		utmSource: parseMulti(params.getAll("utmSource")),
 		utmMedium: parseMulti(params.getAll("utmMedium")),
 		utmCampaign: parseMulti(params.getAll("utmCampaignFilter")),
+		clientType: parseClientType(params.get("clientType")),
 		search: params.get("search") ?? undefined,
 		sort: parseSort(params.get("sort")),
 		sortDir: params.get("sortDir") === "asc" ? "asc" : "desc",
 		limit: pageSize,
 		offset: (page - 1) * pageSize,
-	});
+	};
+	const { rows, total } =
+		dimension && key !== null
+			? await listDealsInGroup(dimension, key, options)
+			: await listDeals(options);
 
 	return NextResponse.json({ rows, total, page, pageSize });
 }

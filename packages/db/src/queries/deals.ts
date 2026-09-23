@@ -154,6 +154,14 @@ export async function getSyncWatermark(): Promise<Date | null> {
 /** Одно значение — точное совпадение; массив — "любое из" (IN). */
 type FilterValue<T extends string> = T | T[];
 
+/**
+ * "new" — сделка самая ранняя для своего contact_id за всю историю,
+ * "repeat" — у контакта уже была более ранняя сделка (та же семантика и
+ * порядок (date_create, id), что и в getClientAcquisitionByCampaign).
+ * Сделки без contact_id не попадают ни в одну из групп.
+ */
+export type DealClientType = "new" | "repeat";
+
 export interface ListDealsOptions {
 	from?: Date;
 	to?: Date;
@@ -165,6 +173,7 @@ export interface ListDealsOptions {
 	utmSource?: FilterValue<string>;
 	utmMedium?: FilterValue<string>;
 	utmCampaign?: FilterValue<string>;
+	clientType?: DealClientType;
 	search?: string;
 	/**
 	 * Сделки, у которых был переход на stageId (в рамках categoryId на момент
@@ -240,6 +249,7 @@ function dealsWhere(
 		| "utmSource"
 		| "utmMedium"
 		| "utmCampaign"
+		| "clientType"
 		| "search"
 		| "reachedStage"
 	>,
@@ -265,6 +275,17 @@ function dealsWhere(
 	if (utmMedium) clauses.push(utmMedium);
 	const utmCampaign = matchClause(deals.utmCampaign, options.utmCampaign);
 	if (utmCampaign) clauses.push(utmCampaign);
+	if (options.clientType) {
+		const earlierDeal = sql`exists (
+      select 1 from ${deals} as earlier
+      where earlier.contact_id = ${deals.contactId}
+        and (earlier.date_create, earlier.id) < (${deals.dateCreate}, ${deals.id})
+    )`;
+		clauses.push(sql`${deals.contactId} is not null`);
+		clauses.push(
+			options.clientType === "new" ? sql`not ${earlierDeal}` : earlierDeal,
+		);
+	}
 	if (options.search?.trim()) {
 		const term = `%${options.search.trim()}%`;
 		clauses.push(sql`(
@@ -531,6 +552,7 @@ export async function listDealsInGroup(
 		| "utmSource"
 		| "utmMedium"
 		| "utmCampaign"
+		| "clientType"
 		| "search"
 		| "sort"
 		| "sortDir"
