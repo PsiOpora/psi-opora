@@ -6,6 +6,7 @@ import {
 	CheckCheckIcon,
 	CheckIcon,
 	CircleAlertIcon,
+	Clock3Icon,
 	DownloadIcon,
 	FileIcon,
 	HeadsetIcon,
@@ -63,6 +64,7 @@ const STATUS_META: Record<
 	MessageDeliveryStatus,
 	{ icon: typeof CheckIcon; className?: string; label?: string }
 > = {
+	queued: { icon: Clock3Icon, label: "ожидает отправки" },
 	sent: { icon: CheckIcon },
 	delivered: { icon: CheckCheckIcon },
 	read: { icon: CheckCheckIcon, className: "text-sky-500" },

@@ -86,9 +86,12 @@ export function parseMessageSenderForm(
  * записаны как 8XXXXXXXXXX или без кода страны — WhatsApp/Telegram
  * понимают только 7XXXXXXXXXX. */
 export function normalizePhoneDigits(phone: string): string | null {
-	let digits = phone.replace(/\D/g, "");
-	if (digits.length === 10 && digits.startsWith("9")) digits = `7${digits}`;
-	if (digits.length === 11 && digits.startsWith("8"))
+	const trimmed = phone.trim();
+	const international = trimmed.startsWith("+");
+	let digits = trimmed.replace(/\D/g, "");
+	if (!international && digits.length === 10 && digits.startsWith("9"))
+		digits = `7${digits}`;
+	if (!international && digits.length === 11 && digits.startsWith("8"))
 		digits = `7${digits.slice(1)}`;
 	return digits.length >= 10 && digits.length <= 15 ? digits : null;
 }

@@ -73,6 +73,8 @@ describe("normalizePhoneDigits", () => {
 
 	test("оставляет международные номера и отклоняет мусор", () => {
 		expect(normalizePhoneDigits("+375 29 123-45-67")).toBe("375291234567");
+		expect(normalizePhoneDigits("  +999 123 45 67 ")).toBe("9991234567");
+		expect(normalizePhoneDigits("+8 999 123 45 67")).toBe("89991234567");
 		expect(normalizePhoneDigits("123")).toBeNull();
 	});
 });

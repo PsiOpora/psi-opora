@@ -58,6 +58,7 @@ async function pickAccount<T extends { connectorId: string; status: string }>(
 
 interface SendOutcome {
 	ok: boolean;
+	queued?: boolean;
 	error?: string;
 	/** ID сообщения в мессенджере — для WhatsApp по нему приходит ack. */
 	externalId?: string;
@@ -141,9 +142,9 @@ async function sendViaTelegram(
 	if (!result) {
 		return {
 			ok: false,
+			queued: true,
 			userId: phone,
 			connectorId: account.connectorId,
-			error: "воркер личного Telegram не ответил (apps/tg-userbot-worker)",
 		};
 	}
 	return {
@@ -155,7 +156,7 @@ async function sendViaTelegram(
 	};
 }
 
-async function updateStatus(
+export async function updateStatus(
 	memberId: string,
 	code: string,
 	messageId: string,
@@ -259,13 +260,21 @@ export async function handleMessageSenderPayload(
 		console.log(
 			`[message-sender] ${messenger}: отправлено ${payload.messageId} на ${phone}`,
 		);
+	} else if (outcome.queued) {
+		console.log(
+			`[message-sender] ${messenger}: ожидается ответ воркера для ${payload.messageId} на ${phone}`,
+		);
 	} else {
 		console.error(
 			`[message-sender] ${messenger}: не отправлено ${payload.messageId} на ${phone}: ${outcome.error}`,
 		);
 	}
 
-	const status: MessageDeliveryStatus = outcome.ok ? "sent" : "failed";
+	const status: MessageDeliveryStatus = outcome.queued
+		? "queued"
+		: outcome.ok
+			? "sent"
+			: "failed";
 	await insertBotMessage({
 		messenger,
 		userId: outcome.userId,
@@ -323,12 +332,7 @@ export async function handleMessageSenderPayload(
 			);
 	}
 
-	await updateStatus(
-		payload.memberId,
-		payload.code,
-		payload.messageId,
-		outcome.ok ? "sent" : "failed",
-	);
+	await updateStatus(payload.memberId, payload.code, payload.messageId, status);
 }
 
 /**

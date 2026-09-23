@@ -53,6 +53,7 @@ import { uploadWahaMedia } from "./media-storage";
 import {
 	forwardWhatsappAckToMessageSender,
 	handleMessageSenderPayload,
+	updateStatus,
 } from "./message-sender";
 import { parseMessageSenderForm } from "./message-sender-payload";
 import {
@@ -906,6 +907,16 @@ async function handleMessageSender(request: Request): Promise<Response> {
 	} catch (err) {
 		console.error(
 			`[message-sender] ошибка обработки ${payload.messageId}: ${(err as Error).message}`,
+		);
+		await updateStatus(
+			payload.memberId,
+			payload.code,
+			payload.messageId,
+			"failed",
+		).catch((statusError) =>
+			console.error(
+				`[message-sender] не удалось сообщить об ошибке ${payload.messageId}: ${(statusError as Error).message}`,
+			),
 		);
 	}
 	return Response.json({ success: true });
