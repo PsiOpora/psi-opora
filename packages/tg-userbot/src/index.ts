@@ -13,6 +13,7 @@ export {
 	type OutboundMessage,
 	pushOutboundMessage,
 	type SendResult,
+	sendOutboundMessageAndWait,
 	setSendResult,
 } from "./outbox";
 export {

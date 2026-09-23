@@ -2,6 +2,7 @@ import { BotConnectorCard } from "./bot-connector-card";
 import { CrmWidgetsCard } from "./crm-widgets-card";
 import { TgPersonalConnectorCard } from "./tg-personal-connector-card";
 import { MaxPersonalConnectorCard } from "./max-personal-connector-card";
+import { MessageSenderCard } from "./message-sender-card";
 import { WaPersonalConnectorCard } from "./wa-personal-connector-card";
 
 export default function BotConnectorsPage() {
@@ -17,6 +18,8 @@ export default function BotConnectorsPage() {
 			</div>
 
 			<CrmWidgetsCard />
+
+			<MessageSenderCard />
 
 			<BotConnectorCard messenger="telegram" label="Telegram" />
 			<BotConnectorCard messenger="max" label="MAX" />
