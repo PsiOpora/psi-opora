@@ -7,7 +7,7 @@ import {
 	setWhatsappPersonalAccountStateBySession,
 	upsertBotUserPresence,
 } from "@psi-opora/db/queries";
-import { getSendResult, pushOutboundMessage } from "@psi-opora/tg-userbot";
+import { sendOutboundMessageAndWait } from "@psi-opora/tg-userbot";
 import {
 	jidFromPhone,
 	wahaGetChatPresence,
@@ -24,9 +24,6 @@ import {
 	type RawContact,
 } from "../../broadcast-send";
 import type { WidgetChannel, WidgetEntity, WidgetHistoryItem } from "./types";
-
-const SEND_RESULT_POLL_INTERVAL_MS = 300;
-const SEND_RESULT_TIMEOUT_MS = 6000;
 
 export async function captureWhatsappPresence(
 	session: string,
@@ -72,12 +69,11 @@ export async function sendViaPersonalNumber(params: {
 	telegramUserId?: string;
 	externalId?: string;
 }> {
-	const jobId = crypto.randomUUID();
-	await pushOutboundMessage({
+	const result = await sendOutboundMessageAndWait({
 		memberId: params.memberId,
 		openLineId: params.openLineId,
 		connectorId: params.connectorId,
-		jobId,
+		jobId: crypto.randomUUID(),
 		...(params.target.kind === "phone" ? { phone: params.target.value } : {}),
 		...(params.target.kind === "username"
 			? { telegramUsername: params.target.value }
@@ -89,26 +85,19 @@ export async function sendViaPersonalNumber(params: {
 		...(params.attachment ? { attachment: params.attachment } : {}),
 	});
 
-	const deadline = Date.now() + SEND_RESULT_TIMEOUT_MS;
-	while (Date.now() < deadline) {
-		const result = await getSendResult(jobId);
-		if (result) {
-			return result.ok
-				? {
-						ok: true,
-						telegramUserId: result.telegramUserId,
-						externalId: result.externalId,
-					}
-				: { error: `Не отправлено: ${result.error ?? "неизвестная ошибка"}` };
-		}
-		await new Promise((resolve) =>
-			setTimeout(resolve, SEND_RESULT_POLL_INTERVAL_MS),
-		);
+	if (!result) {
+		return {
+			error:
+				"Не удалось дождаться ответа от воркера личного номера — проверьте, что apps/tg-userbot-worker запущен",
+		};
 	}
-	return {
-		error:
-			"Не удалось дождаться ответа от воркера личного номера — проверьте, что apps/tg-userbot-worker запущен",
-	};
+	return result.ok
+		? {
+				ok: true,
+				telegramUserId: result.telegramUserId,
+				externalId: result.externalId,
+			}
+		: { error: `Не отправлено: ${result.error ?? "неизвестная ошибка"}` };
 }
 
 /**

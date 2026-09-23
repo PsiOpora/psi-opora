@@ -51,6 +51,12 @@ import {
 import { Hono } from "hono";
 import { uploadWahaMedia } from "./media-storage";
 import {
+	forwardWhatsappAckToMessageSender,
+	handleMessageSenderPayload,
+	updateStatus,
+} from "./message-sender";
+import { parseMessageSenderForm } from "./message-sender-payload";
+import {
 	claimOperatorReply,
 	isMirroredOperatorReply,
 } from "./operator-reply-guard";
@@ -555,6 +561,11 @@ async function handleWahaWebhook(request: Request): Promise<Response> {
 					`[waha-webhook] не удалось обновить статус сообщения ${id}: ${(err as Error).message}`,
 				),
 			);
+			await forwardWhatsappAckToMessageSender(id, status).catch((err) =>
+				console.error(
+					`[waha-webhook] не удалось передать статус ${id} в провайдер CRM: ${(err as Error).message}`,
+				),
+			);
 		}
 		return Response.json({ ok: true });
 	}
@@ -872,6 +883,45 @@ async function handleDealSyncDelete(request: Request): Promise<Response> {
 	}
 }
 
+/**
+ * HANDLER провайдеров сообщений CRM (messageservice.sender.add, см.
+ * message-sender.ts) — «Написать клиенту»/роботы «Отправить SMS» с личного
+ * номера WhatsApp/Telegram. Отправку дожидаемся в рамках запроса (не в фоне),
+ * чтобы обработчик оставался serverless-совместимым; итоговый статус
+ * Bitrix получает отдельным вызовом messageservice.message.status.update.
+ */
+async function handleMessageSender(request: Request): Promise<Response> {
+	const form = await verifyCrmWebhookForm(request);
+	if (!form) return new Response("Unauthorized", { status: 401 });
+
+	const payload = parseMessageSenderForm(form);
+	if (!payload) {
+		console.warn(
+			`[message-sender] некорректный запрос провайдера: code=${String(form.get("code"))} message_id=${String(form.get("message_id"))}`,
+		);
+		return Response.json({ success: false }, { status: 400 });
+	}
+
+	try {
+		await handleMessageSenderPayload(payload);
+	} catch (err) {
+		console.error(
+			`[message-sender] ошибка обработки ${payload.messageId}: ${(err as Error).message}`,
+		);
+		await updateStatus(
+			payload.memberId,
+			payload.code,
+			payload.messageId,
+			"failed",
+		).catch((statusError) =>
+			console.error(
+				`[message-sender] не удалось сообщить об ошибке ${payload.messageId}: ${(statusError as Error).message}`,
+			),
+		);
+	}
+	return Response.json({ success: true });
+}
+
 const CRM_DEAL_UPDATE_HANDLER_URL =
 	process.env.BITRIX_CRM_DEAL_UPDATE_HANDLER_URL?.trim() ||
 	"https://psi-opora-bitrix-webhook.orixon.ru/api/consultation-reminder-deal-update";
@@ -922,6 +972,9 @@ app.post("/api/bitrix-webhook", (c) => bitrixHandler(c.req.raw));
 app.get("/api/waha-webhook", (c) => c.json({ status: "ok" }));
 app.post("/api/waha-webhook", (c) => handleWahaWebhook(c.req.raw));
 app.post("/api/payform-webhook", (c) => handlePayformWebhook(c.req.raw));
+
+app.get("/api/message-sender", (c) => c.json({ status: "ok" }));
+app.post("/api/message-sender", (c) => handleMessageSender(c.req.raw));
 
 app.get("/api/consultation-reminder-deal-update", (c) =>
 	c.json({ status: "ok" }),

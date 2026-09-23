@@ -39,7 +39,7 @@ export const botMessages = pgTable(
 		 * assignedOperatorName в bot_conversations, чтобы не резолвить его заново
 		 * через Bitrix REST при каждом показе истории. */
 		operatorName: text("operator_name"),
-		/** sent | delivered | read | failed. Доставку/прочтение сейчас отдаёт
+		/** queued | sent | delivered | read | failed. Доставку/прочтение сейчас отдаёт
 		 * только WAHA (ack-вебхук) — для остальных каналов статус не поднимается
 		 * выше "sent". */
 		status: text("status").notNull().default("sent"),

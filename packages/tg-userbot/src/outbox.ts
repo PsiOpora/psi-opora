@@ -119,3 +119,27 @@ export async function getSendResult(jobId: string): Promise<SendResult | null> {
 	const redis = createRedisClient();
 	return (await redis.get<SendResult>(sendResultKey(jobId))) ?? null;
 }
+
+const SEND_RESULT_POLL_INTERVAL_MS = 300;
+const SEND_RESULT_TIMEOUT_MS = 6000;
+
+/**
+ * Ставит сообщение в очередь воркера и коротким поллингом ждёт результат —
+ * для стейтлес-вызывающих (API дашборда, провайдер сообщений CRM в
+ * apps/bitrix-webhook), которым нужен ответ «отправлено/ошибка», а не просто
+ * факт постановки в очередь. null — воркер не ответил за таймаут.
+ */
+export async function sendOutboundMessageAndWait(
+	message: OutboundMessage,
+): Promise<SendResult | null> {
+	await pushOutboundMessage(message);
+	const deadline = Date.now() + SEND_RESULT_TIMEOUT_MS;
+	while (Date.now() < deadline) {
+		const result = await getSendResult(message.jobId);
+		if (result) return result;
+		await new Promise((resolve) =>
+			setTimeout(resolve, SEND_RESULT_POLL_INTERVAL_MS),
+		);
+	}
+	return null;
+}

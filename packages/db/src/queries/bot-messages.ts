@@ -44,7 +44,12 @@ export type NewBotMessage = typeof botMessages.$inferInsert;
 
 /** Доставку/прочтение отдаёт сейчас только WAHA (WhatsApp) — для остальных
  * каналов статус не поднимается выше "sent". */
-export type MessageDeliveryStatus = "sent" | "delivered" | "read" | "failed";
+export type MessageDeliveryStatus =
+	| "queued"
+	| "sent"
+	| "delivered"
+	| "read"
+	| "failed";
 
 export interface BotMessageEntry {
 	id?: string;

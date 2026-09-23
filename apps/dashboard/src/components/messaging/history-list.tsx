@@ -1,7 +1,12 @@
 "use client";
 
 import type { WidgetHistoryItem } from "@psi-opora/api";
-import { CheckCheckIcon, CheckIcon, CircleAlertIcon } from "lucide-react";
+import {
+	CheckCheckIcon,
+	CheckIcon,
+	CircleAlertIcon,
+	Clock3Icon,
+} from "lucide-react";
 import { useEffect, useRef } from "react";
 import { MessengerIcon } from "@/components/messaging/messenger-icon";
 import { messengerLabel } from "@/components/messaging/messenger-meta";
@@ -29,6 +34,7 @@ const STATUS_META: Record<
 	string,
 	{ icon: typeof CheckIcon; className?: string; label: string }
 > = {
+	queued: { icon: Clock3Icon, label: "ожидает отправки" },
 	sent: { icon: CheckIcon, label: "отправлено" },
 	delivered: { icon: CheckCheckIcon, label: "доставлено" },
 	read: { icon: CheckCheckIcon, className: "text-sky-500", label: "прочитано" },
