@@ -28,7 +28,13 @@ import {
 import { useAttributionReport } from "@/hooks/use-attribution-report";
 import { useBitrixData, useDashboardRange } from "@/hooks/use-bitrix-data";
 import { UNATTRIBUTED_KEY } from "@/lib/analytics/attribution-constants";
-import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
+import { formatDateParam } from "@/lib/analytics/date-range";
+import {
+	formatDateRange,
+	formatMoney,
+	formatNumber,
+	formatPercent,
+} from "@/lib/format";
 
 export default function AttributionPage() {
 	return (
@@ -73,6 +79,7 @@ function AttributionPageContent() {
 	}
 
 	const { rows, summary } = data;
+	const periodLabel = formatDateRange(range.from, range.to);
 	const summaryCards = [
 		{
 			label: "Расход на рекламу",
@@ -165,6 +172,7 @@ function AttributionPageContent() {
 			<Card>
 				<CardHeader>
 					<CardTitle>По источникам и кампаниям</CardTitle>
+					<p className="text-sm font-medium">Период: {periodLabel}</p>
 					<CardDescription>
 						Расход/CPL/CAC/ROAS сопоставляются с кампанией по её числовому ID в
 						названии или по ручной привязке UTM-кампании в настройках рекламы —
@@ -178,7 +186,7 @@ function AttributionPageContent() {
 					</CardDescription>
 					<div className="flex justify-end">
 						<ExportCsvButton
-							filename="attribution.csv"
+							filename={`okupaemost-reklamy_${formatDateParam(range.from)}_${formatDateParam(range.to)}.csv`}
 							headers={[
 								"Источник",
 								"Кампания",
