@@ -62,12 +62,14 @@ async function yandexRequest<T>(
 	method: string,
 	body: Record<string, unknown>,
 	token: string,
+	clientLogin?: string,
 ): Promise<T> {
 	const res = await fetch(`${YANDEX_API_URL}/${method}`, {
 		method: "POST",
 		headers: {
 			Authorization: `Bearer ${token}`,
 			"Content-Type": "application/json",
+			...(clientLogin ? { "Client-Login": clientLogin } : {}),
 		},
 		body: JSON.stringify(body),
 	});
@@ -97,7 +99,10 @@ export interface YandexReportRow {
 	Date: string;
 }
 
-async function getYandexCampaigns(token: string): Promise<YandexCampaign[]> {
+async function getYandexCampaigns(
+	token: string,
+	clientLogin?: string,
+): Promise<YandexCampaign[]> {
 	const data = await yandexRequest<{ Campaigns: YandexCampaign[] }>(
 		"campaigns",
 		{
@@ -108,6 +113,7 @@ async function getYandexCampaigns(token: string): Promise<YandexCampaign[]> {
 			},
 		},
 		token,
+		clientLogin,
 	);
 	return data.Campaigns ?? [];
 }
@@ -135,6 +141,7 @@ async function requestYandexReportOnce(
 	dateFrom: string,
 	dateTo: string,
 	reportName: string,
+	clientLogin?: string,
 ): Promise<{ status: number; retryInSeconds: number | null; body: string }> {
 	const res = await fetch(`${YANDEX_API_URL}/reports`, {
 		method: "POST",
@@ -144,6 +151,7 @@ async function requestYandexReportOnce(
 			processingMode: "auto",
 			skipReportHeader: "true",
 			skipReportSummary: "true",
+			...(clientLogin ? { "Client-Login": clientLogin } : {}),
 		},
 		body: JSON.stringify({
 			params: {
@@ -212,6 +220,7 @@ async function getYandexReport(
 	token: string,
 	dateFrom: string,
 	dateTo: string,
+	clientLogin?: string,
 ): Promise<YandexReportRow[]> {
 	const reportName = `psi-opora_${Date.now()}`;
 	for (let attempt = 0; attempt < REPORT_MAX_ATTEMPTS; attempt++) {
@@ -220,6 +229,7 @@ async function getYandexReport(
 			dateFrom,
 			dateTo,
 			reportName,
+			clientLogin,
 		);
 		if (status === 200) return parseYandexReportTsv(body);
 		if (status === 201 || status === 202) {
@@ -280,6 +290,7 @@ export async function fetchAdStats(
 		yandexClientId?: string | null;
 		yandexClientSecret?: string | null;
 		yandexRefreshToken?: string | null;
+		yandexClientLogin?: string | null;
 	} | null,
 	dateFrom?: string,
 	dateTo?: string,
@@ -316,11 +327,13 @@ export async function fetchAdStats(
 			// (см. комментарий в requestYandexReportOnce) — иначе гейт
 			// "yandexCampaigns.length > 0" тоже пропустил бы отчёт целиком, если
 			// в кабинете сейчас нет ни одной активной кампании.
-			const yandexCampaigns = await getYandexCampaigns(token);
+			const clientLogin = creds.yandexClientLogin ?? undefined;
+			const yandexCampaigns = await getYandexCampaigns(token, clientLogin);
 			const report = await getYandexReport(
 				token,
 				resolvedDateFrom,
 				resolvedDateTo,
+				clientLogin,
 			);
 			for (const row of report) {
 				totalSpend += row.Cost;

@@ -31,6 +31,7 @@ function toFormValues(creds: AdCredentials): AdCredentialsInput {
 		yandexClientId: creds?.yandexClientId ?? "",
 		yandexClientSecret: creds?.yandexClientSecret ?? "",
 		yandexRefreshToken: creds?.yandexRefreshToken ?? "",
+		yandexClientLogin: creds?.yandexClientLogin ?? "",
 	};
 }
 
@@ -175,6 +176,38 @@ export function AdCredentialsForm({
 									)}
 								</button>
 							</div>
+							<FormMessage />
+						</FormItem>
+					)}
+				/>
+
+				<FormField
+					control={form.control}
+					name="yandexClientLogin"
+					render={({ field }) => (
+						<FormItem>
+							<FormLabel className="text-xs text-muted-foreground">
+								Client Login (только если токен от представителя/агентства)
+							</FormLabel>
+							<FormControl>
+								<Input
+									placeholder="e-16521988"
+									className="font-mono text-sm"
+									{...field}
+								/>
+							</FormControl>
+							<p className="text-xs text-muted-foreground">
+								Заполните, если ClientID/Secret/Refresh Token выданы другим
+								Яндекс-логином, у которого есть доступ к этому рекламному
+								кабинету как у представителя (проверить — открыть кампании по
+								ссылке вида{" "}
+								<code className="font-mono">
+									direct.yandex.ru/dna/grid/campaigns/?ulogin=ЛОГИН_КАБИНЕТА
+								</code>
+								, будучи залогиненным под логином из токена). Впишите сюда
+								ЛОГИН_КАБИНЕТА. Если токен уже принадлежит владельцу самого
+								кабинета — оставьте пустым.
+							</p>
 							<FormMessage />
 						</FormItem>
 					)}

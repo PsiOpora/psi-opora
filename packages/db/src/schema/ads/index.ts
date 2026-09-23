@@ -5,6 +5,12 @@ export const adCredentials = pgTable("ad_credentials", {
 	yandexClientId: text("yandex_client_id"),
 	yandexClientSecret: text("yandex_client_secret"),
 	yandexRefreshToken: text("yandex_refresh_token"),
+	/**
+	 * Логин клиентского аккаунта Директа (Client-Login), если OAuth-токен
+	 * выдан представителем/агентством, а не владельцем самого кабинета —
+	 * без этого заголовка API отдаёт кампании представителя, а не клиента.
+	 */
+	yandexClientLogin: text("yandex_client_login"),
 	updatedAt: timestamp("updated_at").defaultNow(),
 });
 
