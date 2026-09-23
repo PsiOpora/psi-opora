@@ -84,8 +84,17 @@ function toRow(
 	campaignNameById: Map<string, string>,
 ): AttributionRow {
 	const [source, campaign] = group.key.split(UTM_CAMPAIGN_KEY_SEPARATOR);
-	const spend = matchAdSpend(campaign ?? "", spendByCampaignId, overrides);
-	const campaignId = resolveAdCampaignId(campaign ?? "", overrides);
+	const spend = matchAdSpend(
+		source ?? "",
+		campaign ?? "",
+		spendByCampaignId,
+		overrides,
+	);
+	const campaignId = resolveAdCampaignId(
+		source ?? "",
+		campaign ?? "",
+		overrides,
+	);
 	const acquisition =
 		clientAcquisitionByKey.get(group.key) ?? EMPTY_CLIENT_ACQUISITION;
 	return {
@@ -200,8 +209,12 @@ export async function fetchAttributionReport(
 	);
 	const matchedCampaignIds = new Set(
 		dealGroups.flatMap((group) => {
-			const [, campaign] = group.key.split(UTM_CAMPAIGN_KEY_SEPARATOR);
-			const campaignId = resolveAdCampaignId(campaign ?? "", overrides);
+			const [source, campaign] = group.key.split(UTM_CAMPAIGN_KEY_SEPARATOR);
+			const campaignId = resolveAdCampaignId(
+				source ?? "",
+				campaign ?? "",
+				overrides,
+			);
 			return campaignId && spendByCampaignId.has(campaignId)
 				? [campaignId]
 				: [];

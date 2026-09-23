@@ -21,6 +21,15 @@ export const SITE_CODES: Record<string, SiteCodeEntry> = {
 		source: "yandex",
 		campaign: "rsya_retarget_anorexia_710733080",
 	},
+	/** Кампания 712406846 в Директе — статичная метка в её TrackingParams
+	 * (utm_campaign=rsya_retarget_anorexia_v2, без макроса {campaign_id}),
+	 * но записи здесь не было: реальные сделки по этой ссылке приходили с
+	 * utm_source="max" (фолбэк бота при нераспознанном коде) вместо "yandex",
+	 * поэтому расход кампании никогда не мог сматчиться. */
+	rsya_retarget_anorexia_v2: {
+		source: "yandex",
+		campaign: "rsya_retarget_anorexia_v2",
+	},
 	"РК- ОКР по конверсиям": {
 		source: "yandex",
 		campaign: "РК- ОКР по конверсиям",
