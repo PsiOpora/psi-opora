@@ -93,8 +93,13 @@ export async function fetchBotFunnelSourceEnriched(
 
 	return rows.map((row) => {
 		const deal = dealsByKey.get(row.key);
-		const spend = matchAdSpend(row.campaign, spendByCampaignId, overrides);
-		const campaignId = resolveAdCampaignId(row.campaign, overrides);
+		const spend = matchAdSpend(
+			row.source,
+			row.campaign,
+			spendByCampaignId,
+			overrides,
+		);
+		const campaignId = resolveAdCampaignId(row.source, row.campaign, overrides);
 
 		return {
 			...row,

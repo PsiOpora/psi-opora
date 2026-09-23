@@ -14,6 +14,18 @@ export function getAdCampaignId(campaignName: string): string | undefined {
 }
 
 /**
+ * Расход из ad_daily_stats (Яндекс.Директ) матчим только сделкам с
+ * utm_source="yandex" — тот же текст кампании может случайно встретиться и
+ * у сделок из других источников (например, веб-форма Bitrix со своим
+ * utm_source="ya", или фолбэк-тег бота utm_medium="max_bot" при
+ * нераспознанном start-параметре) — таким сделкам реальный расход
+ * Директа не принадлежит, а без этой проверки на них "сматчивался" бы
+ * весь расход кампании целиком, задваивая его в отчёте и портя их
+ * собственные CPL/CAC/ROMI.
+ */
+const YANDEX_SOURCE = "yandex";
+
+/**
  * Ручные привязки (ad_campaign_id_overrides, настраиваются в
  * /settings/ads) перекрывают автовывод по цифрам в имени — нужны, когда
  * кампанию пересоздали в рекламном кабинете (новый ID), а трекинговую
@@ -21,9 +33,11 @@ export function getAdCampaignId(campaignName: string): string | undefined {
  * навсегда осталась бы без сматченного расхода.
  */
 export function resolveAdCampaignId(
+	source: string,
 	campaignName: string,
 	overrides: Map<string, string>,
 ): string | undefined {
+	if (source !== YANDEX_SOURCE) return undefined;
 	return overrides.get(campaignName) ?? getAdCampaignId(campaignName);
 }
 
@@ -72,12 +86,13 @@ export function buildAdCampaignNameById(
 	return new Map([...nameById].map(([id, v]) => [id, v.name]));
 }
 
-/** undefined — если в имени кампании нет числового ID (и нет ручной привязки) или расход по нему не найден ("нет данных", не 0). */
+/** undefined — источник не "yandex", либо в имени кампании нет числового ID (и нет ручной привязки), либо расход по нему не найден ("нет данных", не 0). */
 export function matchAdSpend(
+	source: string,
 	campaignName: string,
 	spendByCampaignId: Map<string, number>,
 	overrides: Map<string, string> = new Map(),
 ): number | undefined {
-	const campaignId = resolveAdCampaignId(campaignName, overrides);
+	const campaignId = resolveAdCampaignId(source, campaignName, overrides);
 	return campaignId ? spendByCampaignId.get(campaignId) : undefined;
 }
