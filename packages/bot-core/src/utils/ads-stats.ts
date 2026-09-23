@@ -156,11 +156,12 @@ async function requestYandexReportOnce(
 		body: JSON.stringify({
 			params: {
 				// Без фильтра по CampaignId: campaigns.get отдаёт только текущие
-				// (неудалённые) кампании, а отчёт должен видеть и удалённые/архивные
-				// — иначе расход кампании, которую уже снесли в кабинете, молча
-				// пропадает из ad_daily_stats задним числом (см. историю бага —
-				// кампания 713815639 с реальным расходом исчезла из campaigns.get,
-				// но осталась в отчёте по конкретному ID).
+				// (неудалённые) кампании этого клиента, а отчёт должен видеть и
+				// удалённые/архивные — иначе расход кампании, которую уже снесли в
+				// кабинете, молча пропадает из ad_daily_stats задним числом. Чужие
+				// кампании, которые из-за этого просачиваются через отчёт (см.
+				// FOREIGN_CAMPAIGN_IDS ниже), отсеиваются точечно по ID, а не общим
+				// фильтром по campaigns.get.
 				SelectionCriteria: {
 					DateFrom: dateFrom,
 					DateTo: dateTo,
@@ -279,6 +280,18 @@ const CACHE_KEY = "ad_stats:live";
 const CACHE_TTL = 3600;
 
 /**
+ * Кампания 713815639 ("Мастер кампании от Яндекса - Интуитивное родительство")
+ * рекламирует чужой сайт (ir.academy-ei.ru, другой счётчик Метрики 106821857) —
+ * не наш кабинет psi-opora. campaigns.get с текущим Client-Login её вообще не
+ * отдаёт (проверено запросом с явным SelectionCriteria.Ids — кампании нет в
+ * ответе), а вот CAMPAIGN_PERFORMANCE_REPORT почему-то её расход всё равно
+ * возвращает — похоже, представитель имеет доступ на чтение отчётов сразу по
+ * нескольким кабинетам, а не только по клиенту из Client-Login. Без этого
+ * фильтра её расход молча приплюсовывался к totalSpend/ROMI на /attribution.
+ */
+const FOREIGN_CAMPAIGN_IDS = new Set(["713815639"]);
+
+/**
  * dateFrom/dateTo — YYYY-MM-DD, по умолчанию последние 7 дней (как раньше).
  * Более широкое окно нужно только разовому бэкафиллу истории
  * (scripts/backfill-ads-stats.ts) — обычный крон/кнопка «Обновить» берут
@@ -336,6 +349,7 @@ export async function fetchAdStats(
 				clientLogin,
 			);
 			for (const row of report) {
+				if (FOREIGN_CAMPAIGN_IDS.has(String(row.CampaignId))) continue;
 				totalSpend += row.Cost;
 				totalImpressions += row.Impressions;
 				totalClicks += row.Clicks;
