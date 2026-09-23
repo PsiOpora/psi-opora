@@ -249,6 +249,7 @@ function dealsWhere(
 		| "utmSource"
 		| "utmMedium"
 		| "utmCampaign"
+		| "clientType"
 		| "search"
 		| "reachedStage"
 	>,
