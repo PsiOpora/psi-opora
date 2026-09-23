@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 	}
 
 	const range = parseDateRange(Object.fromEntries(params));
-	const { rows, summary } = await fetchAttributionReport(range);
+	const report = await fetchAttributionReport(range);
 
-	return NextResponse.json({ rows, summary });
+	return NextResponse.json(report);
 }
