@@ -116,15 +116,26 @@ export async function updateDealContactIds(
 	}
 }
 
-/** Удаление одной сделки — вебхук-обработчик (OnCrmDealDelete). */
+/**
+ * Удаление одной сделки — вебхук-обработчик (OnCrmDealDelete). Вместе со
+ * сделкой чистится её история стадий, иначе удалённая сделка продолжает
+ * считаться в отчёте "дошли до стадии" (getStageReachCounts).
+ */
 export async function deleteDeal(id: string): Promise<void> {
-	if (!db) return;
-	await db.delete(deals).where(eq(deals.id, id));
+	await deleteDeals([id]);
 }
 
-/** Батч-удаление по id — периодическая сверка удалений (syncDeletedDeals). */
+/**
+ * Батч-удаление по id — периодическая сверка удалений (syncDeletedDeals).
+ * Без транзакции (neon-http её не поддерживает): история удаляется первой —
+ * если упадёт удаление сделки, она останется в зеркале и следующая сверка
+ * повторит оба шага.
+ */
 export async function deleteDeals(ids: string[]): Promise<void> {
 	if (!db || ids.length === 0) return;
+	await db
+		.delete(dealStageHistory)
+		.where(inArray(dealStageHistory.dealId, ids));
 	await db.delete(deals).where(inArray(deals.id, ids));
 }
 

@@ -3,7 +3,8 @@ import { index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 /**
  * Локальная копия истории переходов сделок по стадиям (crm.stagehistory.list,
  * entityTypeId=2) — синкается packages/jobs/src/deal-stage-history-sync.ts.
- * Append-only: Bitrix не меняет и не удаляет уже созданные записи истории.
+ * Bitrix не меняет уже созданные записи истории; удаляются они только вместе
+ * со сделкой (deleteDeals в packages/db/src/queries/deals.ts).
  * id — ID записи из Bitrix24 (глобально монотонный по порталу) как есть,
  * текстом: одновременно ключ идемпотентности вставки и курсор синка.
  */
