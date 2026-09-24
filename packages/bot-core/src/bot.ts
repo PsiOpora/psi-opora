@@ -56,6 +56,7 @@ import {
 	createTelegramFetch,
 	resolveTelegramApiRoot,
 } from "./utils/telegram-proxy";
+import { logSlowUpdate, withTimeout } from "./utils/timeout";
 import { triageOffScriptMessage } from "./utils/triage";
 import { upsertBotUserProfile } from "./utils/user-profile";
 import {
@@ -149,18 +150,24 @@ async function collectTelegramProfile(
 	let avatarS3Key: string | undefined;
 	if (photoFileId && uploadAvatar) {
 		try {
-			const url = await resolveTelegramFileUrl(ctx.api, token, photoFileId);
-			if (url) {
-				const res = await telegramFetch(url);
+			const urls = await resolveTelegramFileUrl(ctx.api, token, photoFileId);
+			if (urls) {
+				const res = await telegramFetch(urls.downloadUrl, {
+					signal: AbortSignal.timeout(FILE_DOWNLOAD_TIMEOUT_MS),
+				});
 				if (res.ok) {
 					const bytes = new Uint8Array(await res.arrayBuffer());
 					const contentType = res.headers.get("content-type") || "image/jpeg";
-					const uploaded = await uploadAvatar({
-						bytes,
-						contentType,
-						messenger: "telegram",
-						userId: from.id,
-					});
+					const uploaded = await withTimeout(
+						uploadAvatar({
+							bytes,
+							contentType,
+							messenger: "telegram",
+							userId: from.id,
+						}),
+						UPLOAD_TIMEOUT_MS,
+						"avatar upload",
+					);
 					avatarS3Key = uploaded.avatarS3Key;
 				}
 			}
@@ -263,25 +270,37 @@ export async function sendTelegramScenarioMessage(
 	// на email (см. dispatchScenarioOutput/sendGuideEmail)
 }
 
-/**
- * Строит прямую (временную) ссылку на файл Telegram для пересылки вложения
- * в Открытую линию (message.files в imconnector.send.messages). Ссылка
- * держится ограниченное время — этого достаточно, чтобы оператор открыл её
- * вскоре после получения; постоянного хранилища для вложений бота нет.
- *
- * Всегда возвращает прямой URL api.telegram.org, даже если включён прокси —
- * URL используется для передачи в Bitrix24, который не имеет доступа к
- * защищённому прокси (нет x-proxy-secret заголовка).
- */
+interface TelegramFileUrls {
+	/**
+	 * Прямой (временный) URL api.telegram.org — для пересылки вложения в
+	 * Открытую линию (message.files в imconnector.send.messages): Bitrix24 не
+	 * может ходить через наш прокси (нет x-proxy-secret заголовка).
+	 */
+	bitrixUrl: string;
+	/**
+	 * URL для скачивания самим ботом — через прокси, если он включён: прямые
+	 * запросы к Telegram из k3s ненадёжны, и скачивание по bitrixUrl висело
+	 * до TCP-таймаута (минуты).
+	 */
+	downloadUrl: string;
+}
+
+const FILE_DOWNLOAD_TIMEOUT_MS = 30_000;
+const UPLOAD_TIMEOUT_MS = 20_000;
+
 async function resolveTelegramFileUrl(
 	api: Api,
 	token: string,
 	fileId: string,
-): Promise<string | null> {
+): Promise<TelegramFileUrls | null> {
 	try {
 		const file = await api.getFile(fileId);
 		if (!file.file_path) return null;
-		return `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+		const path = `/file/bot${token}/${file.file_path}`;
+		return {
+			bitrixUrl: `https://api.telegram.org${path}`,
+			downloadUrl: `${telegramApiRoot}${path}`,
+		};
 	} catch (err) {
 		console.error(
 			`[bitrix] не удалось получить ссылку на файл Telegram: ${(err as Error).message}`,
@@ -306,6 +325,9 @@ export function createBot({
 		client: {
 			apiRoot: telegramApiRoot,
 			fetch: telegramFetch,
+			// Дефолт grammY — 500 с: зависший запрос к Bot API держал бы
+			// обработку апдейта (и лок чата) больше 8 минут.
+			timeoutSeconds: 15,
 			...client,
 		},
 	});
@@ -318,7 +340,16 @@ export function createBot({
 	bot.use(async (ctx, next) => {
 		const chatId = ctx.chat?.id;
 		if (chatId === undefined) return next();
-		await withUserLock(redis, `telegram:${chatId}`, next);
+		const startedAt = Date.now();
+		try {
+			await withUserLock(redis, `telegram:${chatId}`, next);
+		} finally {
+			logSlowUpdate(
+				"telegram",
+				`update=${ctx.update.update_id} chat=${chatId}`,
+				startedAt,
+			);
+		}
 	});
 
 	bot.use(
@@ -327,6 +358,23 @@ export function createBot({
 			storage,
 		}),
 	);
+
+	// Профиль (getChat, скачивание аватара, S3, bot_users) клиенту не нужен
+	// для ответа — собираем в фоне, вне лока чата, чтобы приветствие уходило
+	// сразу, а медленная сеть/БД не задерживала ни его, ни следующие апдейты.
+	const collectProfileInBackground = (ctx: AppContext) => {
+		void collectTelegramProfile(
+			ctx,
+			ctx.session.source,
+			ctx.session.campaign,
+			resolvedToken,
+			uploadAvatar,
+		).catch((err) => {
+			console.error(
+				`[profile] не удалось собрать профиль user=${ctx.from?.id}: ${(err as Error).message}`,
+			);
+		});
+	};
 
 	const dispatch = async (
 		ctx: AppContext,
@@ -395,7 +443,9 @@ export function createBot({
 	bot.command("start", async (ctx) => {
 		const rawParam = typeof ctx.match === "string" ? ctx.match : undefined;
 
-		await logBotMessage({
+		// Не ждём запись в журнал: время сообщения фиксируется в момент вызова,
+		// так что порядок в истории сохранится, а ответ не ждёт БД.
+		void logBotMessage({
 			messenger: "telegram",
 			userId: ctx.from?.id,
 			direction: "in",
@@ -433,13 +483,7 @@ export function createBot({
 			log(
 				`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} book_preorder${bookPreorder.intent ? ` intent=${bookPreorder.intent}` : ""}${bookPreorder.source ? ` source=${bookPreorder.source}` : ""} messenger=telegram`,
 			);
-			await collectTelegramProfile(
-				ctx,
-				ctx.session.source,
-				ctx.session.campaign,
-				resolvedToken,
-				uploadAvatar,
-			);
+			collectProfileInBackground(ctx);
 			const texts = await getScenarioTexts();
 			// Повторный переход по этой же диплинк-кнопке (клиент передумал/
 			// вернулся) — при уже начатой сессии не начинаем сценарий с нуля
@@ -477,13 +521,7 @@ export function createBot({
 			);
 			ctx.session.campaign = campaign.keyword;
 			if (source) ctx.session.source = source;
-			await collectTelegramProfile(
-				ctx,
-				ctx.session.source,
-				ctx.session.campaign,
-				resolvedToken,
-				uploadAvatar,
-			);
+			collectProfileInBackground(ctx);
 			const texts = await getScenarioTexts();
 			await dispatch(ctx, startGuideCampaign(campaign, texts), texts, campaign);
 			return;
@@ -500,13 +538,7 @@ export function createBot({
 		log(
 			`[START] user=${ctx.from?.id} chat=${ctx.chat?.id} ${formatUtmLog(utm)} messenger=telegram`,
 		);
-		await collectTelegramProfile(
-			ctx,
-			ctx.session.source,
-			ctx.session.campaign,
-			resolvedToken,
-			uploadAvatar,
-		);
+		collectProfileInBackground(ctx);
 
 		const texts = await getScenarioTexts();
 		await dispatch(ctx, startScenario(texts), texts);
@@ -982,23 +1014,29 @@ export function createBot({
 			}
 			if (!fileId) return;
 
-			const url = await resolveTelegramFileUrl(ctx.api, resolvedToken, fileId);
+			const urls = await resolveTelegramFileUrl(ctx.api, resolvedToken, fileId);
 			const isVoice = kind === "voice";
 
 			// Перезаливаем вложение в наше S3 — чтобы инбокс «Клиенты» показывал
 			// плеер/превью/ссылку на скачивание, а не заглушку `[file.ext]`.
 			let mediaS3Key: string | undefined;
-			if (uploadMedia && url) {
+			if (uploadMedia && urls) {
 				try {
-					const res = await telegramFetch(url);
+					const res = await telegramFetch(urls.downloadUrl, {
+						signal: AbortSignal.timeout(FILE_DOWNLOAD_TIMEOUT_MS),
+					});
 					if (res.ok) {
 						const bytes = new Uint8Array(await res.arrayBuffer());
-						const uploaded = await uploadMedia({
-							bytes,
-							contentType: mimeType || "application/octet-stream",
-							messenger: "telegram",
-							fileId,
-						});
+						const uploaded = await withTimeout(
+							uploadMedia({
+								bytes,
+								contentType: mimeType || "application/octet-stream",
+								messenger: "telegram",
+								fileId,
+							}),
+							UPLOAD_TIMEOUT_MS,
+							"media upload",
+						);
 						mediaS3Key = uploaded.mediaS3Key;
 					}
 				} catch (err) {
@@ -1025,7 +1063,7 @@ export function createBot({
 					: {}),
 			});
 
-			if (!url) return;
+			if (!urls) return;
 
 			await sendMessageToOpenLine(bitrixApi, {
 				messenger: "telegram",
@@ -1033,7 +1071,7 @@ export function createBot({
 				chatId: ctx.chatId,
 				text: caption,
 				messageId: ctx.message.message_id,
-				files: [{ url, name: fileName }],
+				files: [{ url: urls.bitrixUrl, name: fileName }],
 				name: [ctx.from.first_name, ctx.from.last_name]
 					.filter(Boolean)
 					.join(" "),

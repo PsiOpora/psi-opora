@@ -24,6 +24,7 @@ import {
 	handleStageConsentClick,
 	loadGuideCampaignContext,
 	logBotMessage,
+	logSlowUpdate,
 	looksLikeDiagnosticConsent,
 	matchesBookPreorderStartParam,
 	parseDripCallback,
@@ -49,6 +50,7 @@ import {
 	toInlineKeyboard as toStageConsentInlineKeyboard,
 	triageOffScriptMessage,
 	upsertBotUserProfile,
+	withTimeout,
 	withUserLock,
 } from "@psi-opora/bot-core";
 import { logger } from "@psi-opora/config";
@@ -162,6 +164,10 @@ function sessionKeyOf(ctx: AppContext): string {
 	return String(ctx.user?.user_id ?? ctx.chatId ?? "anon");
 }
 
+const AVATAR_DOWNLOAD_TIMEOUT_MS = 15_000;
+const AVATAR_UPLOAD_TIMEOUT_MS = 20_000;
+const FILE_TRANSFER_TIMEOUT_MS = 30_000;
+
 /**
  * Скачивает аватар клиента с CDN MAX и перезаливает в наше S3 (см.
  * ./avatar-storage.ts) — max-bot работает как обычный Node.js-сервер в k3s,
@@ -173,11 +179,17 @@ async function syncMaxAvatar(
 	sourceUrl: string,
 ): Promise<{ avatarS3Key: string } | undefined> {
 	try {
-		const res = await fetch(sourceUrl);
+		const res = await fetch(sourceUrl, {
+			signal: AbortSignal.timeout(AVATAR_DOWNLOAD_TIMEOUT_MS),
+		});
 		if (!res.ok) throw new Error(`источник недоступен: HTTP ${res.status}`);
 		const bytes = new Uint8Array(await res.arrayBuffer());
 		const contentType = res.headers.get("content-type") || "image/jpeg";
-		return await uploadMaxAvatar({ bytes, contentType, userId });
+		return await withTimeout(
+			uploadMaxAvatar({ bytes, contentType, userId }),
+			AVATAR_UPLOAD_TIMEOUT_MS,
+			"avatar upload",
+		);
 	} catch (err) {
 		log(
 			`[profile] не удалось перезалить аватар для user=${userId}: ${describeError(err)}`,
@@ -275,7 +287,9 @@ async function sendMaxGuideFile(
 	ctx: AppContext,
 	guide: { url: string; name: string },
 ): Promise<void> {
-	const fileRes = await fetch(guide.url);
+	const fileRes = await fetch(guide.url, {
+		signal: AbortSignal.timeout(FILE_TRANSFER_TIMEOUT_MS),
+	});
 	if (!fileRes.ok) throw new Error(`гайд недоступен: HTTP ${fileRes.status}`);
 	const bytes = await fileRes.arrayBuffer();
 
@@ -286,7 +300,11 @@ async function sendMaxGuideFile(
 		new Blob([bytes], { type: "application/pdf" }),
 		guide.name,
 	);
-	const uploadRes = await fetch(upload.url, { method: "POST", body: form });
+	const uploadRes = await fetch(upload.url, {
+		method: "POST",
+		body: form,
+		signal: AbortSignal.timeout(FILE_TRANSFER_TIMEOUT_MS),
+	});
 	if (!uploadRes.ok) {
 		throw new Error(`загрузка в MAX не удалась: HTTP ${uploadRes.status}`);
 	}
@@ -349,7 +367,16 @@ export function createMaxBot({
 	// двух почти одновременных апдейтах (двойной тап по кнопке, повторная
 	// доставка вебхука) и дают зацикливание шагов сценария/задвоенные заявки.
 	bot.use(async (ctx, next) => {
-		await withUserLock(redis, `max:${sessionKeyOf(ctx)}`, next);
+		const startedAt = Date.now();
+		try {
+			await withUserLock(redis, `max:${sessionKeyOf(ctx)}`, next);
+		} finally {
+			logSlowUpdate(
+				"max",
+				`update=${ctx.updateType} user=${sessionKeyOf(ctx)}`,
+				startedAt,
+			);
+		}
 	});
 
 	bot.use(sessionMiddleware(storage));
@@ -443,12 +470,25 @@ export function createMaxBot({
 		});
 	};
 
+	// См. collectProfileInBackground в packages/bot-core/src/bot.ts: профиль
+	// для ответа не нужен, поэтому собираем его в фоне, вне лока.
+	const collectProfileInBackground = (ctx: AppContext) => {
+		void collectMaxProfile(ctx, ctx.session.source, ctx.session.campaign).catch(
+			(err) => {
+				log(
+					`[profile] не удалось собрать профиль user=${ctx.user?.user_id}: ${describeError(err)}`,
+				);
+			},
+		);
+	};
+
 	/** Обрабатывает /start, включая возобновление активного предзаказа книги. */
 	async function handleStart(
 		ctx: AppContext,
 		startPayload: string | undefined,
 	) {
-		await logBotMessage({
+		// Не ждём запись в журнал — время фиксируется в момент вызова.
+		void logBotMessage({
 			messenger: "max",
 			userId: ctx.user?.user_id,
 			direction: "in",
@@ -479,7 +519,7 @@ export function createMaxBot({
 			log(
 				`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} book_preorder${bookPreorder.intent ? ` intent=${bookPreorder.intent}` : ""}${bookPreorder.source ? ` source=${bookPreorder.source}` : ""} messenger=max`,
 			);
-			await collectMaxProfile(ctx, ctx.session.source, ctx.session.campaign);
+			collectProfileInBackground(ctx);
 			const texts = await getScenarioTexts();
 			// Резюме уже начатой сессии вместо сброса — см. такую же ветку в
 			// packages/bot-core/src/bot.ts.
@@ -512,7 +552,7 @@ export function createMaxBot({
 			);
 			ctx.session.campaign = campaign.keyword;
 			if (source) ctx.session.source = source;
-			await collectMaxProfile(ctx, ctx.session.source, ctx.session.campaign);
+			collectProfileInBackground(ctx);
 			const texts = await getScenarioTexts();
 			await dispatch(ctx, startGuideCampaign(campaign, texts), texts, campaign);
 			return;
@@ -525,7 +565,7 @@ export function createMaxBot({
 		log(
 			`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} ${formatUtmLog(utm)} messenger=max`,
 		);
-		await collectMaxProfile(ctx, ctx.session.source, ctx.session.campaign);
+		collectProfileInBackground(ctx);
 
 		const texts = await getScenarioTexts();
 		await dispatch(ctx, startScenario(texts), texts);
@@ -851,7 +891,9 @@ export function createMaxBot({
 		const attachment = audioAttachment ?? mediaAttachment;
 		if (attachment?.payload.url) {
 			try {
-				const res = await fetch(attachment.payload.url);
+				const res = await fetch(attachment.payload.url, {
+					signal: AbortSignal.timeout(FILE_TRANSFER_TIMEOUT_MS),
+				});
 				if (res.ok) {
 					const bytes = new Uint8Array(await res.arrayBuffer());
 					mediaKind = audioAttachment

@@ -6,6 +6,7 @@ import {
 	markGuideDiagnosticRequested,
 } from "@psi-opora/db/queries";
 import { appendDealComment } from "../utils/bitrix";
+import { DB_TIMEOUT_MS, withTimeout } from "../utils/timeout";
 import { splitStartParam } from "../utils/utm";
 import type { GuideCampaignContext } from "./engine";
 import type { ScenarioTexts } from "./texts";
@@ -28,7 +29,11 @@ function toContext(row: BotGuideCampaign): GuideCampaignContext {
 export async function findGuideCampaignByText(
 	text: string,
 ): Promise<GuideCampaignContext | null> {
-	const row = await getBotGuideCampaignByKeyword(text);
+	const row = await withTimeout(
+		getBotGuideCampaignByKeyword(text),
+		DB_TIMEOUT_MS,
+		"bot_guide_campaigns",
+	);
 	return row ? toContext(row) : null;
 }
 
@@ -45,17 +50,27 @@ export interface GuideCampaignStart {
  * splitStartParam) — так дашборд собирает разные ссылки на одну кампанию
  * под разные площадки, не заводя кампанию под каждую отдельно.
  * Используется и для /start-параметра, и для кодового слова текстом в чате.
+ *
+ * БД недоступна — возвращает null: клиент сразу получит обычное меню,
+ * а не молчание или «что-то пошло не так».
  */
 export async function resolveGuideCampaignStart(
 	text: string,
 ): Promise<GuideCampaignStart | null> {
-	const direct = await findGuideCampaignByText(text);
-	if (direct) return { campaign: direct };
+	try {
+		const direct = await findGuideCampaignByText(text);
+		if (direct) return { campaign: direct };
 
-	const { keyword, source } = splitStartParam(text);
-	if (!source) return null;
-	const campaign = await findGuideCampaignByText(keyword);
-	return campaign ? { campaign, source } : null;
+		const { keyword, source } = splitStartParam(text);
+		if (!source) return null;
+		const campaign = await findGuideCampaignByText(keyword);
+		return campaign ? { campaign, source } : null;
+	} catch (err) {
+		console.error(
+			`[guide-campaign] не удалось найти кампанию по «${text}»: ${(err as Error).message}`,
+		);
+		return null;
+	}
 }
 
 /**

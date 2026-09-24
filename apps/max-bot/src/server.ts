@@ -5,6 +5,7 @@ import {
 	createRedisClient,
 	createRedisStorage,
 	resolveMaxBotToken,
+	warmScenarioTexts,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { Hono } from "hono";
@@ -19,6 +20,8 @@ const bitrixApi = env.BITRIX_MEMBER_ID
 	? resolveBitrixApi(env.BITRIX_MEMBER_ID)
 	: undefined;
 const token = await resolveMaxBotToken();
+// Не ждём: первый /start подхватит уже идущую загрузку, а не начнёт свою.
+void warmScenarioTexts();
 const bot = createMaxBot({
 	storage,
 	redis,
