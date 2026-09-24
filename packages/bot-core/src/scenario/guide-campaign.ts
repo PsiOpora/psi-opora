@@ -66,8 +66,10 @@ export async function resolveGuideCampaignStart(
 		const campaign = await findGuideCampaignByText(keyword);
 		return campaign ? { campaign, source } : null;
 	} catch (err) {
+		// Сам текст не логируем: это может быть любое сообщение клиента (телефон,
+		// email, описание проблемы), а не только кодовое слово.
 		console.error(
-			`[guide-campaign] не удалось найти кампанию по «${text}»: ${(err as Error).message}`,
+			`[guide-campaign] не удалось найти кампанию (текст ${text.length} симв.): ${(err as Error).message}`,
 		);
 		return null;
 	}

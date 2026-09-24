@@ -56,6 +56,9 @@ async function createDatabase(): Promise<Database> {
 		idle_timeout: 10,
 		connect_timeout: 10,
 		max_lifetime: 60 * 30,
+		...(env.DB_STATEMENT_TIMEOUT_MS
+			? { connection: { statement_timeout: env.DB_STATEMENT_TIMEOUT_MS } }
+			: {}),
 	});
 	return drizzlePostgresJs(sql, { schema, casing: "snake_case" });
 }
