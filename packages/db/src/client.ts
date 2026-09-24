@@ -56,6 +56,9 @@ async function createDatabase(): Promise<Database> {
 		idle_timeout: 10,
 		connect_timeout: 10,
 		max_lifetime: 60 * 30,
+		// Страхует от случая, когда сокет обрывается уже во время запроса
+		// (а не в простое) — без этого такой запрос виснет на TCP-таймауте ОС.
+		connection: { statement_timeout: 10_000 },
 	});
 	return drizzlePostgresJs(sql, { schema, casing: "snake_case" });
 }

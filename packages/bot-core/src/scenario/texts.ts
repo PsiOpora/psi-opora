@@ -995,8 +995,18 @@ export interface GuideFile {
 
 const CACHE_TTL_MS = 60_000;
 
+// Зависший TCP-сокет в пуле (см. packages/db/src/client.ts) может держать
+// запрос десятки секунд — /start не должен ждать дольше кэша ради текстов.
+const OVERRIDES_TIMEOUT_MS = 5_000;
+
 let cachedOverrides: Record<string, string> | null = null;
 let cachedAt = 0;
+
+function timeout(ms: number): Promise<never> {
+	return new Promise((_, reject) =>
+		setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms),
+	);
+}
 
 /** Строки bot_texts с кэшем на минуту; при недоступной БД — прошлый кэш. */
 async function getOverrides(): Promise<Record<string, string>> {
@@ -1007,7 +1017,10 @@ async function getOverrides(): Promise<Record<string, string>> {
 		// Ленивый импорт: клиент БД падает при загрузке без POSTGRES_URL,
 		// а дефолтные тексты и defs нужны и без базы (дашборд, тесты)
 		const { getBotTextsRecord } = await import("@psi-opora/db/queries");
-		cachedOverrides = await getBotTextsRecord();
+		cachedOverrides = await Promise.race([
+			getBotTextsRecord(),
+			timeout(OVERRIDES_TIMEOUT_MS),
+		]);
 		cachedAt = now;
 		return cachedOverrides;
 	} catch (err) {
