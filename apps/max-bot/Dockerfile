@@ -23,5 +23,8 @@ COPY --from=builder --chown=bot:nodejs /app .
 
 WORKDIR /app/apps/max-bot
 ENV PORT=3000
+# Запросы, брошенные ботом по таймауту (withTimeout в bot-core), иначе
+# продолжали бы занимать соединения пула на медленной БД.
+ENV DB_STATEMENT_TIMEOUT_MS=5000
 EXPOSE 3000
 CMD ["bun", "run", "src/server.ts"]

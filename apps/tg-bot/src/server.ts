@@ -6,6 +6,7 @@ import {
 	createRedisClient,
 	createRedisStorage,
 	resolveTelegramBotToken,
+	warmScenarioTexts,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { webhookCallback } from "grammy";
@@ -21,6 +22,8 @@ const bitrixApi = env.BITRIX_MEMBER_ID
 	? resolveBitrixApi(env.BITRIX_MEMBER_ID)
 	: undefined;
 const token = await resolveTelegramBotToken();
+// Не ждём: первый /start подхватит уже идущую загрузку, а не начнёт свою.
+void warmScenarioTexts();
 const bot = createBot({
 	storage,
 	redis,

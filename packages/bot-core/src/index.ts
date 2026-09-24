@@ -102,6 +102,7 @@ export {
 	type ScenarioTextSection,
 	type ScenarioTexts,
 	TG_BOT_USERNAME_KEY,
+	warmScenarioTexts,
 } from "./scenario/texts";
 export {
 	createRedisClient,
@@ -214,6 +215,7 @@ export {
 	createTelegramFetch,
 	resolveTelegramApiRoot,
 } from "./utils/telegram-proxy";
+export { logSlowUpdate, withTimeout } from "./utils/timeout";
 export { resolveMaxBotToken, resolveTelegramBotToken } from "./utils/token";
 export { type TriageMessage, triageOffScriptMessage } from "./utils/triage";
 export {

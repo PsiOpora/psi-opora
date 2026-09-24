@@ -180,17 +180,21 @@ export function createRedisClient(): RedisClient {
 		throw new Error("REDIS_URL или REDIS_HOST не задан");
 	}
 
+	// Без commandTimeout команда на тихо оборванном сокете висит до
+	// TCP-таймаута ОС (минуты) — а через Redis идут лок и сессия каждого
+	// апдейта бота. Блокирующих команд (BLPOP и т.п.) в проекте нет.
+	const options = {
+		lazyConnect: true,
+		maxRetriesPerRequest: 3,
+		commandTimeout: 5_000,
+	};
 	const client = env.REDIS_URL
-		? new Redis(env.REDIS_URL, {
-				lazyConnect: true,
-				maxRetriesPerRequest: 3,
-			})
+		? new Redis(env.REDIS_URL, options)
 		: new Redis({
 				host: env.REDIS_HOST,
 				port: env.REDIS_PORT,
 				password: env.REDIS_PASSWORD,
-				lazyConnect: true,
-				maxRetriesPerRequest: 3,
+				...options,
 			});
 
 	client.on("error", (error) => {

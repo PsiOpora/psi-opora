@@ -1,4 +1,5 @@
 import { upsertBotUser } from "@psi-opora/db/queries";
+import { DB_TIMEOUT_MS, withTimeout } from "./timeout";
 
 export interface BotUserProfileInput {
 	messenger: string;
@@ -29,7 +30,7 @@ export async function upsertBotUserProfile(
 	if (entry.userId === undefined || entry.userId === null) return;
 
 	try {
-		await upsertBotUser({
+		const upsert = upsertBotUser({
 			messenger: entry.messenger,
 			userId: String(entry.userId),
 			firstName: entry.firstName,
@@ -46,6 +47,7 @@ export async function upsertBotUserProfile(
 			campaign: entry.campaign,
 			rawProfile: entry.rawProfile,
 		});
+		await withTimeout(upsert, DB_TIMEOUT_MS, "bot_users");
 	} catch (err) {
 		const error = err as Error;
 		console.error(

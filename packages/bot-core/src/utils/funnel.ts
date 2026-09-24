@@ -5,6 +5,7 @@ import {
 	type RedisClient,
 } from "../storage/redis";
 import { FUNNEL_STEPS, type FunnelStep } from "./funnel-steps";
+import { DB_TIMEOUT_MS, withTimeout } from "./timeout";
 
 export { FUNNEL_STEPS, type FunnelStep };
 
@@ -103,16 +104,20 @@ export async function trackFunnelStep(
 
 	// 1. Записываем в PostgreSQL (основное хранилище)
 	try {
-		await _upsertFn({
-			day,
-			messenger: ctx.messenger,
-			step,
-			source,
-			campaign,
-			userId: ctx.userId,
-			flow: ctx.flow,
-			reason: ctx.reason,
-		});
+		await withTimeout(
+			_upsertFn({
+				day,
+				messenger: ctx.messenger,
+				step,
+				source,
+				campaign,
+				userId: ctx.userId,
+				flow: ctx.flow,
+				reason: ctx.reason,
+			}),
+			DB_TIMEOUT_MS,
+			"bot_funnel_events",
+		);
 	} catch (err) {
 		console.error(
 			`[funnel] не удалось записать событие ${step} в Postgres: ${(err as Error).message}`,

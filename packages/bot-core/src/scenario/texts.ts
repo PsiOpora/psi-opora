@@ -1,3 +1,5 @@
+import { DB_TIMEOUT_MS, withTimeout } from "../utils/timeout";
+
 /**
  * Тексты сценария бота. Значения по умолчанию заданы здесь,
  * переопределения хранятся в таблице bot_texts и редактируются в дашборде
@@ -994,43 +996,56 @@ export interface GuideFile {
 }
 
 const CACHE_TTL_MS = 60_000;
-
-// Зависший TCP-сокет в пуле (см. packages/db/src/client.ts) может держать
-// запрос десятки секунд — /start не должен ждать дольше кэша ради текстов.
-const OVERRIDES_TIMEOUT_MS = 5_000;
+// После неудачной загрузки повторяем раньше TTL, чтобы правки из дашборда
+// не пропадали на целую минуту из-за разового сбоя БД.
+const FAILED_RETRY_MS = 5_000;
 
 let cachedOverrides: Record<string, string> | null = null;
 let cachedAt = 0;
+let refreshing: Promise<Record<string, string>> | null = null;
 
-function timeout(ms: number): Promise<never> {
-	return new Promise((_, reject) =>
-		setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms),
-	);
+function refreshOverrides(): Promise<Record<string, string>> {
+	refreshing ??= (async () => {
+		try {
+			// Ленивый импорт: клиент БД падает при загрузке без POSTGRES_URL,
+			// а дефолтные тексты и defs нужны и без базы (дашборд, тесты)
+			const { getBotTextsRecord } = await import("@psi-opora/db/queries");
+			cachedOverrides = await withTimeout(
+				getBotTextsRecord(),
+				DB_TIMEOUT_MS,
+				"bot_texts",
+			);
+			cachedAt = Date.now();
+		} catch (err) {
+			const cause = (err as Error).cause;
+			console.error(
+				`[texts] не удалось загрузить тексты бота: ${(err as Error).message}`,
+				cause ? `cause: ${cause}` : "",
+			);
+			cachedOverrides ??= {};
+			cachedAt = Date.now() - CACHE_TTL_MS + FAILED_RETRY_MS;
+		} finally {
+			refreshing = null;
+		}
+		return cachedOverrides;
+	})();
+	return refreshing;
 }
 
-/** Строки bot_texts с кэшем на минуту; при недоступной БД — прошлый кэш. */
+/**
+ * Строки bot_texts. Если в памяти уже что-то есть — отдаём сразу, а
+ * устаревший кэш обновляем в фоне: ответ клиенту не ждёт БД. Ждём базу
+ * только при самом первом обращении (и то не дольше DB_TIMEOUT_MS).
+ */
 async function getOverrides(): Promise<Record<string, string>> {
-	const now = Date.now();
-	if (cachedOverrides && now - cachedAt < CACHE_TTL_MS) return cachedOverrides;
+	if (!cachedOverrides) return refreshOverrides();
+	if (Date.now() - cachedAt >= CACHE_TTL_MS) void refreshOverrides();
+	return cachedOverrides;
+}
 
-	try {
-		// Ленивый импорт: клиент БД падает при загрузке без POSTGRES_URL,
-		// а дефолтные тексты и defs нужны и без базы (дашборд, тесты)
-		const { getBotTextsRecord } = await import("@psi-opora/db/queries");
-		cachedOverrides = await Promise.race([
-			getBotTextsRecord(),
-			timeout(OVERRIDES_TIMEOUT_MS),
-		]);
-		cachedAt = now;
-		return cachedOverrides;
-	} catch (err) {
-		const cause = (err as Error).cause;
-		console.error(
-			`[texts] не удалось загрузить тексты бота: ${(err as Error).message}`,
-			cause ? `cause: ${cause}` : "",
-		);
-		return cachedOverrides ?? {};
-	}
+/** Прогрев кэша текстов при старте бота — чтобы и первый /start не ждал БД. */
+export async function warmScenarioTexts(): Promise<void> {
+	await refreshOverrides();
 }
 
 /**

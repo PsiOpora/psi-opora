@@ -14,6 +14,9 @@ export const env = createEnv({
 		// Database
 		POSTGRES_URL: z.url().optional(),
 		DB_DRIVER: z.enum(["node", "neon-http"]).optional(),
+		// Серверный лимит на запрос (мс) для процесса — задаётся только ботам
+		// (см. их Dockerfile), у дашборда и джобов бывают долгие запросы.
+		DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
 
 		// App
 		APP_URL: z.string().default("https://psi-opora-dashboard.orixon.ru"),
@@ -194,6 +197,7 @@ export const env = createEnv({
 		VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
 		POSTGRES_URL: process.env.POSTGRES_URL,
 		DB_DRIVER: process.env.DB_DRIVER,
+		DB_STATEMENT_TIMEOUT_MS: process.env.DB_STATEMENT_TIMEOUT_MS,
 		APP_URL: process.env.APP_URL,
 		BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
 		UNISENDER_API_KEY: process.env.UNISENDER_API_KEY,

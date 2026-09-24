@@ -185,6 +185,23 @@ describe("телеграм-бот: /start", () => {
 		).toEqual(["sc_consult", "sc_guide", "sc_book"]);
 	});
 
+	test("отвечает, не дожидаясь сбора профиля (getChat завис)", async () => {
+		const { bot, sent } = makeBot();
+		bot.api.config.use((prev, method, payload, signal) =>
+			method === "getChat"
+				? new Promise(() => {})
+				: prev(method, payload, signal),
+		);
+
+		const handled = await Promise.race([
+			bot.handleUpdate(commandUpdate("/start")).then(() => true),
+			new Promise<false>((resolve) => setTimeout(() => resolve(false), 1_000)),
+		]);
+
+		expect(handled).toBe(true);
+		expect(sentMessages(sent).map((m) => m.payload.text)).toEqual([t.welcome]);
+	});
+
 	test("/start с utm-меткой тоже запускает сценарий", async () => {
 		const { bot, sent } = makeBot();
 		await bot.handleUpdate(

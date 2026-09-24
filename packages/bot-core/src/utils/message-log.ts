@@ -1,4 +1,5 @@
 import { insertBotMessage } from "@psi-opora/db/queries";
+import { DB_TIMEOUT_MS, withTimeout } from "./timeout";
 
 export type BotMessageDirection = "in" | "out";
 export type BotMessageSource = "scenario" | "reminder" | "widget" | "broadcast";
@@ -37,7 +38,7 @@ export async function logBotMessage(
 	if (!text) return undefined;
 
 	try {
-		return await insertBotMessage({
+		const insert = insertBotMessage({
 			messenger: entry.messenger,
 			userId: String(entry.userId),
 			direction: entry.direction,
@@ -51,6 +52,7 @@ export async function logBotMessage(
 			status: entry.status,
 			externalId: entry.externalId,
 		});
+		return await withTimeout(insert, DB_TIMEOUT_MS, "bot_messages");
 	} catch (err) {
 		const error = err as Error;
 		console.error(
