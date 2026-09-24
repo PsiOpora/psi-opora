@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { StorageAdapter } from "grammy";
 import type { ConsultationSession } from "./types/context";
+import type {
+	BotBackgroundQueue,
+	BotBackgroundTask,
+} from "./utils/background-tasks";
 
 // Мокаем слой БД до импорта бота: иначе logBotMessage/getScenarioTexts
 // пытались бы открыть настоящее сетевое соединение на каждый шаг сценария —
@@ -58,6 +62,7 @@ mock.module("@psi-opora/db/queries", () => ({
 }));
 
 const { createBot } = await import("./bot");
+const { createBotBackgroundQueue } = await import("./utils/background-tasks");
 const { DEFAULT_SCENARIO_TEXTS: t } = await import("./scenario/texts");
 
 beforeEach(() => {
@@ -71,10 +76,14 @@ interface SentCall {
 }
 
 /** Бот с замоканным Bot API: вызовы копятся в sent, сеть не трогается. */
-function makeBot(storage?: StorageAdapter<ConsultationSession>) {
+function makeBot(
+	storage?: StorageAdapter<ConsultationSession>,
+	background?: BotBackgroundQueue,
+) {
 	const bot = createBot({
 		token: "1:TEST_TOKEN",
 		storage,
+		background,
 		// Эти тесты проверяют сценарий и журнал, а не реальный Bitrix.
 		enrichCrm: () => Promise.resolve(),
 	});
@@ -408,5 +417,115 @@ describe("телеграм-бот: журнал сообщений (bot_messages
 			.map(([entry]) => entry)
 			.filter((e) => e.direction === "in");
 		expect(inbound.map((e) => e.text)).toEqual(["/start", t.btn_guide]);
+	});
+});
+
+const openLine = (text: string) => ({
+	messenger: "telegram",
+	userId: 1,
+	chatId: 1,
+	text,
+});
+
+describe("фоновая очередь бота", () => {
+	test("пересылает в Открытую линию по порядку; waitForOpenLine ждёт пересылку", async () => {
+		const delivered: string[] = [];
+		let release = () => {};
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const queue = createBotBackgroundQueue({
+			runTask: async (task) => {
+				if (task.type !== "openline") return;
+				if (task.data.text === "первое") await gate;
+				delivered.push(task.data.text);
+			},
+		});
+
+		queue.mirrorToOpenLine("telegram:1", "send", openLine("первое"));
+		queue.mirrorToOpenLine("telegram:1", "send", openLine("второе"));
+		let waited = false;
+		const wait = queue.waitForOpenLine("telegram:1").then(() => {
+			waited = true;
+		});
+		await Bun.sleep(10);
+		expect(delivered).toEqual([]);
+		expect(waited).toBe(false);
+
+		release();
+		await wait;
+		expect(delivered).toEqual(["первое", "второе"]);
+	});
+
+	test("неудачную пересылку ставит на повтор в Hatchet с исходными id и временем", async () => {
+		const enqueued: BotBackgroundTask[] = [];
+		const queue = createBotBackgroundQueue({
+			runTask: () => Promise.reject(new Error("Bitrix недоступен")),
+			enqueue: async (task) => {
+				enqueued.push(task);
+			},
+		});
+
+		queue.mirrorToOpenLine("telegram:1", "send", openLine("привет"));
+		await queue.drain(1_000);
+
+		expect(enqueued).toHaveLength(1);
+		const task = enqueued[0];
+		if (task?.type !== "openline") throw new Error("ожидалась задача openline");
+		expect(task.data.date).toBeNumber();
+		expect(task.data.externalId).toStartWith("telegram-1-");
+	});
+
+	test("анализ идёт после пересылки чата: в Hatchet, а без него — в процессе", async () => {
+		const ran: string[] = [];
+		const runTask = async (task: BotBackgroundTask) => {
+			ran.push(task.type);
+		};
+		const analysis = {
+			type: "triage" as const,
+			chatKey: "telegram:1",
+			message: { messenger: "telegram", userId: "1", text: "текст" },
+		};
+
+		const withHatchet = createBotBackgroundQueue({
+			runTask,
+			enqueue: async (task) => {
+				ran.push(`hatchet:${task.type}`);
+			},
+		});
+		withHatchet.mirrorToOpenLine("telegram:1", "send", openLine("текст"));
+		withHatchet.analyze(analysis);
+		await withHatchet.drain(1_000);
+		expect(ran).toEqual(["openline", "hatchet:triage"]);
+
+		ran.length = 0;
+		const withoutHatchet = createBotBackgroundQueue({
+			runTask,
+			enqueue: () => Promise.reject(new Error("Hatchet недоступен")),
+		});
+		withoutHatchet.mirrorToOpenLine("telegram:1", "send", openLine("текст"));
+		withoutHatchet.analyze(analysis);
+		await withoutHatchet.drain(1_000);
+		expect(ran).toEqual(["openline", "triage"]);
+	});
+
+	test("бот отвечает на шаге сценария, не дожидаясь Открытой линии", async () => {
+		const background = createBotBackgroundQueue({
+			runTask: () => new Promise(() => {}),
+		});
+		const { bot, sent } = makeBot(undefined, background);
+		await bot.handleUpdate(commandUpdate("/start"));
+		await bot.handleUpdate(callbackUpdate("sc_consult", 2));
+		await bot.handleUpdate(callbackUpdate("consent_agree", 3));
+
+		const handled = await Promise.race([
+			bot.handleUpdate(textUpdate("Анна", 4)).then(() => true),
+			new Promise<false>((resolve) => setTimeout(() => resolve(false), 1_000)),
+		]);
+
+		expect(handled).toBe(true);
+		expect(sentMessages(sent).at(-1)?.payload.text).toBe(
+			t.consult_phone_question,
+		);
 	});
 });

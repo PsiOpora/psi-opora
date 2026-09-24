@@ -17,6 +17,7 @@
 		"@psi-opora/bot-core": "workspace:*",
 		"@psi-opora/config": "workspace:*",
 		"@psi-opora/db": "workspace:*",
+		"@psi-opora/jobs": "workspace:*",
 		"grammy": "1.46.0",
 		"hono": "4.13.8"
 	},

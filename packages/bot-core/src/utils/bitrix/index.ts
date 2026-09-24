@@ -10,8 +10,10 @@ export {
 	resolveKnownContact,
 } from "./known-contact";
 export {
+	deliverMessageToOpenLine,
 	mirrorOperatorMessageToOpenLine,
 	type OpenLineConnector,
+	type OpenLineDeliveryKind,
 	type OpenLineMessageData,
 	type OperatorReplyData,
 	sendMessageToOpenLine,

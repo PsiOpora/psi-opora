@@ -38,11 +38,10 @@ import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
 import type { RedisClient } from "./storage/redis";
 import type { AppContext, ConsultationSession } from "./types/context";
 import {
-	type BitrixApiLike,
-	resolveKnownContact,
-	sendMessageToOpenLine,
-	updateMessageInOpenLine,
-} from "./utils/bitrix";
+	type BotBackgroundQueue,
+	createBotBackgroundQueue,
+} from "./utils/background-tasks";
+import { type BitrixApiLike, resolveKnownContact } from "./utils/bitrix";
 import { enrichCrmFromClientMessage } from "./utils/crm-enrichment";
 import { withUserLock } from "./utils/lock";
 import { logBotMessage } from "./utils/message-log";
@@ -57,7 +56,6 @@ import {
 	resolveTelegramApiRoot,
 } from "./utils/telegram-proxy";
 import { logSlowUpdate, withTimeout } from "./utils/timeout";
-import { triageOffScriptMessage } from "./utils/triage";
 import { upsertBotUserProfile } from "./utils/user-profile";
 import {
 	decodeStartParam,
@@ -215,8 +213,12 @@ export interface BotOptions {
 	 * Без неё голосовые пересылаются в Открытую линию Bitrix как раньше, но
 	 * в bot_messages/инбоксе «Клиенты» остаются текстом-заглушкой. */
 	uploadMedia?: MediaUploader;
-	/** Подмена CRM-обогащения в интеграционных тестах бота. */
+	/** Подмена CRM-обогащения в интеграционных тестах бота. Используется
+	 * только очередью по умолчанию (без явного `background`). */
 	enrichCrm?: typeof enrichCrmFromClientMessage;
+	/** Фоновая работа по сообщениям (Открытая линия, обогащение CRM, триаж) —
+	 * см. utils/background-tasks.ts. По умолчанию — очередь без Hatchet. */
+	background?: BotBackgroundQueue;
 }
 
 interface TelegramScenarioMessage extends Omit<ScenarioMessage, "buttons"> {
@@ -319,8 +321,10 @@ export function createBot({
 	uploadAvatar,
 	uploadMedia,
 	enrichCrm = enrichCrmFromClientMessage,
+	background = createBotBackgroundQueue({ bitrixApi, enrichCrm }),
 }: BotOptions = {}) {
 	const resolvedToken = token || "";
+	const chatKeyOf = (chatId: number) => `telegram:${chatId}`;
 	const bot = new Bot<AppContext>(resolvedToken, {
 		client: {
 			apiRoot: telegramApiRoot,
@@ -342,7 +346,7 @@ export function createBot({
 		if (chatId === undefined) return next();
 		const startedAt = Date.now();
 		try {
-			await withUserLock(redis, `telegram:${chatId}`, next);
+			await withUserLock(redis, chatKeyOf(chatId), next);
 		} finally {
 			logSlowUpdate(
 				"telegram",
@@ -374,6 +378,13 @@ export function createBot({
 				`[profile] не удалось собрать профиль user=${ctx.from?.id}: ${(err as Error).message}`,
 			);
 		});
+	};
+
+	// Контакт ищется и по диалогу Открытой линии — он появляется в Bitrix с
+	// первым пересланным сообщением, поэтому сначала дожидаемся пересылки.
+	const lookupKnownContact = async (userId: number, chatId: number) => {
+		await background.waitForOpenLine(chatKeyOf(chatId));
+		return resolveKnownContact({ messenger: "telegram", userId, chatId });
 	};
 
 	const dispatch = async (
@@ -412,6 +423,7 @@ export function createBot({
 			ymClientId: ctx.session.ymClientId,
 			yclid: ctx.session.yclid,
 			guideCampaign,
+			waitForOpenLine: () => background.waitForOpenLine(chatKeyOf(chatId)),
 		});
 	};
 
@@ -436,6 +448,7 @@ export function createBot({
 			source: ctx.session.source,
 			campaign: ctx.session.campaign,
 			ymClientId: ctx.session.ymClientId,
+			waitForOpenLine: () => background.waitForOpenLine(chatKeyOf(chatId)),
 		});
 	};
 
@@ -752,11 +765,7 @@ export function createBot({
 				state.step === "consent" &&
 				ctx.from &&
 				ctx.chatId
-					? await resolveKnownContact({
-							messenger: "telegram",
-							userId: ctx.from.id,
-							chatId: ctx.chatId,
-						})
+					? await lookupKnownContact(ctx.from.id, ctx.chatId)
 					: null;
 			out = state
 				? applyScenarioAction(state, action, texts, guideCampaign, knownContact)
@@ -803,33 +812,41 @@ export function createBot({
 		});
 
 		// Дублируем в Открытую линию Bitrix24 — вся переписка видна оператору,
-		// и он может ответить прямо оттуда (см. sendMessageToOpenLine).
-		if (ctx.chatId && ctx.from) {
-			await sendMessageToOpenLine(bitrixApi, {
+		// и он может ответить прямо оттуда. Пересылка, обогащение CRM и триаж
+		// идут в фоне (utils/background-tasks.ts): ответ клиенту их не ждёт.
+		const from = ctx.from;
+		const chatKey = chatKeyOf(ctx.chatId);
+		const name = [from.first_name, from.last_name].filter(Boolean).join(" ");
+		background.mirrorToOpenLine(chatKey, "send", {
+			messenger: "telegram",
+			userId: from.id,
+			chatId: ctx.chatId,
+			text,
+			messageId: ctx.message.message_id,
+			date: ctx.message.date,
+			name,
+		});
+		background.analyze({
+			type: "crm-enrichment",
+			chatKey,
+			message: {
 				messenger: "telegram",
-				userId: ctx.from.id,
-				chatId: ctx.chatId,
+				userId: String(from.id),
 				text,
-				messageId: ctx.message.message_id,
-				name: [ctx.from.first_name, ctx.from.last_name]
-					.filter(Boolean)
-					.join(" "),
+				name,
+				chatId: ctx.chatId,
+				source: ctx.session.source,
+				campaign: ctx.session.campaign,
+			},
+		});
+		// Сообщение не по сценарию: бот не отвечает, а решает в фоне, показать
+		// ли его оператору с пометкой (см. triageOffScriptMessage).
+		const triageInBackground = () =>
+			background.analyze({
+				type: "triage",
+				chatKey,
+				message: { messenger: "telegram", userId: String(from.id), text },
 			});
-		}
-
-		const crmEnrichment = ctx.from
-			? enrichCrm({
-					messenger: "telegram",
-					userId: String(ctx.from.id),
-					text,
-					name: [ctx.from.first_name, ctx.from.last_name]
-						.filter(Boolean)
-						.join(" "),
-					chatId: ctx.chatId,
-					source: ctx.session.source,
-					campaign: ctx.session.campaign,
-				})
-			: Promise.resolve();
 
 		// Активный сценарий предзаказа книги — раньше основного движка, чтобы
 		// текст на его шагах не путался с веткой консультации/гайда (см.
@@ -839,20 +856,10 @@ export function createBot({
 			const texts = await getScenarioTexts();
 			const bpOut = await applyBookPreorderText(bookPreorderState, text, texts);
 			if (!bpOut) {
-				await Promise.all([
-					crmEnrichment,
-					ctx.from
-						? triageOffScriptMessage({
-								messenger: "telegram",
-								userId: String(ctx.from.id),
-								text,
-							})
-						: Promise.resolve(),
-				]);
+				triageInBackground();
 				return;
 			}
 			await dispatchBookPreorder(ctx, bpOut, texts);
-			await crmEnrichment;
 			return;
 		}
 
@@ -875,7 +882,6 @@ export function createBot({
 					texts,
 					campaign,
 				);
-				await crmEnrichment;
 				return;
 			}
 
@@ -900,21 +906,11 @@ export function createBot({
 						source: "scenario",
 						text: reply,
 					});
-					await crmEnrichment;
 					return;
 				}
 			}
 
-			await Promise.all([
-				crmEnrichment,
-				ctx.from
-					? triageOffScriptMessage({
-							messenger: "telegram",
-							userId: String(ctx.from.id),
-							text,
-						})
-					: Promise.resolve(),
-			]);
+			triageInBackground();
 			return;
 		}
 
@@ -928,38 +924,30 @@ export function createBot({
 			// пишет что-то своё, а не то, что просит сценарий) — бот здесь не
 			// пытается сам помочь/ответить, только тихо решает, стоит ли передать
 			// его оператору с пометкой (см. triageOffScriptMessage).
-			await Promise.all([
-				crmEnrichment,
-				ctx.from
-					? triageOffScriptMessage({
-							messenger: "telegram",
-							userId: String(ctx.from.id),
-							text,
-						})
-					: Promise.resolve(),
-			]);
+			triageInBackground();
 			return;
 		}
 
 		await dispatch(ctx, out, texts, guideCampaign);
-		await crmEnrichment;
 	});
 
 	// Клиент отредактировал уже отправленное сообщение — пересылаем правку
-	// в Открытую линию (см. updateMessageInOpenLine), чтобы оператор видел
-	// актуальный текст, а не устаревший. Telegram Bot API не сообщает об
+	// в Открытую линию (imconnector.update.messages), чтобы оператор видел
+	// актуальный текст, а не устаревший. Та же очередь чата, что и у исходного
+	// сообщения, — правка не обгонит его. Telegram Bot API не сообщает об
 	// удалении сообщений клиентом — такие правки в Открытую линию попасть
 	// не могут, это ограничение платформы, а не пробел в реализации.
-	bot.on("edited_message:text", async (ctx) => {
+	bot.on("edited_message:text", (ctx) => {
 		const text = ctx.editedMessage.text.trim();
 		if (!text || !ctx.chatId || !ctx.from) return;
 
-		await updateMessageInOpenLine(bitrixApi, {
+		background.mirrorToOpenLine(chatKeyOf(ctx.chatId), "update", {
 			messenger: "telegram",
 			userId: ctx.from.id,
 			chatId: ctx.chatId,
 			text,
 			messageId: ctx.editedMessage.message_id,
+			date: ctx.editedMessage.edit_date ?? ctx.editedMessage.date,
 			name: [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" "),
 		});
 	});
@@ -1065,12 +1053,13 @@ export function createBot({
 
 			if (!urls) return;
 
-			await sendMessageToOpenLine(bitrixApi, {
+			background.mirrorToOpenLine(chatKeyOf(ctx.chatId), "send", {
 				messenger: "telegram",
 				userId: ctx.from.id,
 				chatId: ctx.chatId,
 				text: caption,
 				messageId: ctx.message.message_id,
+				date: ctx.message.date,
 				files: [{ url: urls.bitrixUrl, name: fileName }],
 				name: [ctx.from.first_name, ctx.from.last_name]
 					.filter(Boolean)

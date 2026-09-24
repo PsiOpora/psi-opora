@@ -122,6 +122,14 @@ export {
 	type YandexReportRow,
 } from "./utils/ads-stats";
 export {
+	type BotBackgroundDeps,
+	type BotBackgroundQueue,
+	type BotBackgroundTask,
+	createBotBackgroundQueue,
+	type EnqueueBotTask,
+	runBotBackgroundTask,
+} from "./utils/background-tasks";
+export {
 	appendDealComment,
 	type BitrixApiLike,
 	type BitrixSource,

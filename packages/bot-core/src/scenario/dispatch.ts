@@ -46,6 +46,9 @@ export interface ScenarioDispatchDeps {
 	yclid?: string;
 	/** Данные кампании гайда при out.state.campaignId — переопределяет тему/текст письма и фиксирует выдачу. */
 	guideCampaign?: GuideCampaignContext | null;
+	/** Дождаться пересылки сообщений чата в Открытую линию — контакт и сделка
+	 * привязываются к её диалогу (см. createBitrixContact). */
+	waitForOpenLine?: () => Promise<void>;
 }
 
 /** Что именно клиент получил вместе с материалом — для комментария в сделке. */
@@ -249,6 +252,7 @@ export async function dispatchScenarioOutput(
 		console.log(
 			`[SCENARIO] заявка flow=${out.lead.flow} name=${name} phone=${out.lead.phone}${out.lead.email ? ` email=${out.lead.email}` : ""}${out.lead.audience ? ` audience=${out.lead.audience}` : ""}${out.lead.issue ? ` issue=${out.lead.issue}` : ""} user=${deps.userId} messenger=${deps.messenger}`,
 		);
+		await deps.waitForOpenLine?.();
 		const dealId = await submitConsultationDeal({
 			name,
 			phone: out.lead.phone,
@@ -324,6 +328,7 @@ export async function dispatchScenarioOutput(
 	}
 
 	if (out.contact) {
+		await deps.waitForOpenLine?.();
 		const contactId = await submitBitrixContact({
 			name: deps.userName,
 			email: out.contact.email,

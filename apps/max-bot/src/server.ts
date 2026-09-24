@@ -2,12 +2,17 @@ import { serve } from "@hono/node-server";
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import {
 	type ConsultationSession,
+	createBotBackgroundQueue,
 	createRedisClient,
 	createRedisStorage,
 	resolveMaxBotToken,
 	warmScenarioTexts,
 } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
+import {
+	enqueueBotBackgroundTask,
+	isHatchetConfigured,
+} from "@psi-opora/jobs/bot-background";
 import { Hono } from "hono";
 import { createMaxBot, processUpdate } from "./bot";
 
@@ -22,7 +27,14 @@ const bitrixApi = env.BITRIX_MEMBER_ID
 const token = await resolveMaxBotToken();
 // Не ждём: первый /start подхватит уже идущую загрузку, а не начнёт свою.
 void warmScenarioTexts();
+// Открытая линия, обогащение CRM и триаж — в фоне, ответ клиенту их не ждёт;
+// без Hatchet (локальная разработка) задачи выполняются прямо в процессе.
+const background = createBotBackgroundQueue({
+	bitrixApi: bitrixApi ?? undefined,
+	enqueue: isHatchetConfigured() ? enqueueBotBackgroundTask : undefined,
+});
 const bot = createMaxBot({
+	background,
 	storage,
 	redis,
 	bitrixApi: bitrixApi ?? undefined,
@@ -93,5 +105,9 @@ const server = serve({ fetch: app.fetch, port }, (info) => {
 // При rollout k8s шлёт SIGTERM до SIGKILL — дожидаемся завершения активных
 // запросов вместо мгновенного обрыва соединений.
 process.on("SIGTERM", () => {
-	server.close(() => process.exit(0));
+	server.close(async () => {
+		// Не теряем фоновые задачи, уже принятые от мессенджера.
+		await background.drain(10_000);
+		process.exit(0);
+	});
 });
