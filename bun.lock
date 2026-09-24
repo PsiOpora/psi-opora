@@ -31,7 +31,7 @@
         "@psi-opora/storage": "workspace:*",
         "@psi-opora/tg-userbot": "workspace:*",
         "@psi-opora/waha": "workspace:*",
-        "hono": "4.13.8",
+        "hono": "4.13.9",
         "zod": "4.6.5",
       },
       "devDependencies": {
@@ -151,7 +151,7 @@
         "@psi-opora/config": "workspace:*",
         "@psi-opora/db": "workspace:*",
         "@psi-opora/storage": "workspace:*",
-        "hono": "4.13.8",
+        "hono": "4.13.9",
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
@@ -187,7 +187,7 @@
         "@psi-opora/db": "workspace:*",
         "@psi-opora/storage": "workspace:*",
         "grammy": "1.46.0",
-        "hono": "4.13.8",
+        "hono": "4.13.9",
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
@@ -214,7 +214,7 @@
       "name": "@psi-opora/tg-vercel-proxy",
       "version": "0.0.3",
       "dependencies": {
-        "hono": "4.13.8",
+        "hono": "4.13.9",
       },
       "devDependencies": {
         "typescript": "7.0.2",
@@ -1743,7 +1743,7 @@
 
     "hasown": ["hasown@2.0.4", "", { "dependencies": { "function-bind": "^1.1.2" } }, "sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A=="],
 
-    "hono": ["hono@4.13.8", "", {}, "sha512-/Gng7NfoykZl2pjukW5Z6+8Yxm3BPRf86GTbQnt0SbySkvax4fyL4H3HhY1cCpBGmiW9XDRFzRV+CXK2W8QudQ=="],
+    "hono": ["hono@4.13.9", "", {}, "sha512-7dMkQmZoC4E6F7AtaQSPhlWAdnBti+j7rreMZl8QB4jFiEhP9TWbGWUMi8WYzBCgmgulxuvLQupKqo+Co6Omyg=="],
 
     "hookable": ["hookable@6.1.1", "", {}, "sha512-U9LYDy1CwhMCnprUfeAZWZGByVbhd54hwepegYTK7Pi5NvqEj63ifz5z+xukznehT7i6NIZRu89Ay1AZmRsLEQ=="],
 
