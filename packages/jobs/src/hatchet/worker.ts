@@ -1,3 +1,4 @@
+import { botBackgroundTasks } from "../bot-background";
 import { adsStatsSync } from "./ads-stats-sync";
 import { bookPreorderDrip } from "./book-preorder-drip";
 import { deliverBroadcast } from "./broadcast";
@@ -29,6 +30,7 @@ export const hatchetTasks = [
 	maxWebhookHealthcheck,
 	stageConsentOutbox,
 	bookPreorderDrip,
+	...botBackgroundTasks,
 ];
 
 export async function startHatchetWorker(): Promise<void> {

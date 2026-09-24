@@ -51,13 +51,28 @@ line/connector ID и никакого ручного запуска скрипт
      значение используется как есть, путь `/api/webhook` должен уже быть
      частью самой переменной (см. `.env.example`); заменяет ручной запуск
      `set-webhook.ts`.
-- На горячем пути (`sendMessageToOpenLine`, `packages/bot-core/src/utils/bitrix/openline.ts`)
+- При пересылке (`deliverMessageToOpenLine`, `packages/bot-core/src/utils/bitrix/openline.ts`)
   бот читает `connectorId`/`openLineId` из той же таблицы `bot_connectors`
   (через `@psi-opora/db/queries`, драйвер `node-postgres`), а OAuth-клиент
   для самого вызова `imconnector.send.messages` резолвится при старте бота:
   `apps/tg-bot/src/server.ts` и `apps/max-bot/src/server.ts` вызывают
   `resolveBitrixApi(env.BITRIX_MEMBER_ID)`
   (`packages/bitrix-client`) и передают его в `createBot`/`createMaxBot` как `bitrixApi`.
+- Пересылка идёт **в фоне** — ответ клиенту её не ждёт
+  (`createBotBackgroundQueue`, `packages/bot-core/src/utils/background-tasks.ts`):
+  - сообщения одного чата уходят в линию строго по очереди, прямо из
+    процесса бота;
+  - если Bitrix недоступен, сообщение ставится в Hatchet (`bot-openline-retry`,
+    `packages/jobs/src/bot-background.ts`) и повторяется с backoff около часа
+    с тем же внешним ID и временем, что у исходной попытки;
+  - создание контакта/сделки и поиск контакта по диалогу сначала дожидаются
+    пересылки сообщений чата: диалог Открытой линии появляется только с
+    первым пересланным сообщением, без него переписка не привяжется к карточке;
+  - обогащение CRM из сообщения и триаж сообщений не по сценарию (LLM)
+    выполняются в Hatchet (`bot-message-analysis`), по одной задаче на чат.
+
+  Без `HATCHET_CLIENT_TOKEN` у бота (локальная разработка) всё это
+  выполняется в самом процессе, тоже в фоне, но без повторов.
 - Ответ оператора приходит в `apps/bitrix-webhook` вебхуком
   (событие `ONIMCONNECTORMESSAGEADD`) и пересылается обратно клиенту через
   Bot API (`sendMessengerMessage`, `packages/jobs`).

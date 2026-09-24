@@ -110,16 +110,78 @@ export interface OpenLineMessageData {
 	 * в Telegram). Без него используется текущее время — обновить такое
 	 * сообщение позже уже нельзя. */
 	messageId?: number;
+	/** Готовый внешний ID, если числового messageId нет (MAX: mid) —
+	 * повторная отправка из фоновой задачи должна прийти с тем же ID. */
+	externalId?: string;
+	/** Время сообщения, unix-секунды. По умолчанию — момент отправки; при
+	 * отложенной доставке нужно исходное время, а не время ретрая. */
+	date?: number;
 	/** Вложения (фото/документ/голосовое) — прямая ссылка и имя файла. */
 	files?: { url: string; name: string }[];
 }
 
-function buildExternalMessageId(
-	data: Pick<OpenLineMessageData, "messenger" | "userId" | "messageId">,
+export function buildExternalMessageId(
+	data: Pick<
+		OpenLineMessageData,
+		"messenger" | "userId" | "messageId" | "externalId"
+	>,
 ): string {
+	if (data.externalId) return data.externalId;
 	return data.messageId != null
 		? `${data.messenger}-${data.userId}-${data.messageId}`
 		: `${data.messenger}-${data.userId}-${Date.now()}`;
+}
+
+export type OpenLineDeliveryKind = "send" | "update";
+
+/**
+ * Отправляет (imconnector.send.messages) или обновляет
+ * (imconnector.update.messages) сообщение клиента в Открытой линии.
+ * В отличие от sendMessageToOpenLine бросает ошибку — нужно фоновой задаче
+ * для повторных попыток. Без `api` или без записи в bot_connectors тихо
+ * выходит: канал ещё не активирован, повторять нечего.
+ */
+export async function deliverMessageToOpenLine(
+	api: BitrixApiLike | undefined,
+	data: OpenLineMessageData,
+	kind: OpenLineDeliveryKind = "send",
+): Promise<void> {
+	if (!api) return;
+	const config = await getBotConnector(data.messenger);
+	if (!config) return;
+
+	const name = sanitizeOpenLineName(data.name);
+
+	await api.call(
+		kind === "send"
+			? "imconnector.send.messages"
+			: "imconnector.update.messages",
+		{
+			CONNECTOR: config.connectorId,
+			LINE: Number(config.openLineId),
+			MESSAGES: [
+				{
+					user: {
+						id: String(data.userId),
+						...(name ? { name } : {}),
+						skip_phone_validate: "Y",
+					},
+					message: {
+						id: buildExternalMessageId(data),
+						date: data.date ?? Math.floor(Date.now() / 1000),
+						text: data.text,
+						...(kind === "send" && data.files?.length
+							? { files: data.files }
+							: {}),
+					},
+					chat: {
+						id: String(data.chatId),
+						name: data.name || `${data.messenger} #${data.userId}`,
+					},
+				},
+			],
+		},
+	);
 }
 
 /**
@@ -135,42 +197,15 @@ function buildExternalMessageId(
  * автоматически при активации канала бота в Контакт-центре (см.
  * packages/api/src/routers/bot-connector), а не из .env. Без `api` или
  * без записи в БД тихо пропускаем (канал ещё не активирован — не
- * критично для остальной работы бота).
+ * критично для остальной работы бота). Ошибки логируются и глотаются;
+ * боты шлют сообщения через фоновую очередь (utils/background-tasks.ts).
  */
 export async function sendMessageToOpenLine(
 	api: BitrixApiLike | undefined,
 	data: OpenLineMessageData,
 ): Promise<void> {
-	if (!api) return;
-	const config = await getBotConnector(data.messenger);
-	if (!config) return;
-
-	const name = sanitizeOpenLineName(data.name);
-
 	try {
-		await api.call("imconnector.send.messages", {
-			CONNECTOR: config.connectorId,
-			LINE: Number(config.openLineId),
-			MESSAGES: [
-				{
-					user: {
-						id: String(data.userId),
-						...(name ? { name } : {}),
-						skip_phone_validate: "Y",
-					},
-					message: {
-						id: buildExternalMessageId(data),
-						date: Math.floor(Date.now() / 1000),
-						text: data.text,
-						...(data.files?.length ? { files: data.files } : {}),
-					},
-					chat: {
-						id: String(data.chatId),
-						name: data.name || `${data.messenger} #${data.userId}`,
-					},
-				},
-			],
-		});
+		await deliverMessageToOpenLine(api, data, "send");
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);
 		console.error(
@@ -190,35 +225,8 @@ export async function updateMessageInOpenLine(
 	api: BitrixApiLike | undefined,
 	data: OpenLineMessageData & { messageId: number },
 ): Promise<void> {
-	if (!api) return;
-	const config = await getBotConnector(data.messenger);
-	if (!config) return;
-
-	const name = sanitizeOpenLineName(data.name);
-
 	try {
-		await api.call("imconnector.update.messages", {
-			CONNECTOR: config.connectorId,
-			LINE: Number(config.openLineId),
-			MESSAGES: [
-				{
-					user: {
-						id: String(data.userId),
-						...(name ? { name } : {}),
-						skip_phone_validate: "Y",
-					},
-					message: {
-						id: buildExternalMessageId(data),
-						date: Math.floor(Date.now() / 1000),
-						text: data.text,
-					},
-					chat: {
-						id: String(data.chatId),
-						name: data.name || `${data.messenger} #${data.userId}`,
-					},
-				},
-			],
-		});
+		await deliverMessageToOpenLine(api, data, "update");
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);
 		console.error(

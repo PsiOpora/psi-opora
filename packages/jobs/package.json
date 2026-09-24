@@ -6,6 +6,10 @@
 	"main": "./dist/index.mjs",
 	"types": "./dist/index.d.mts",
 	"exports": {
+		"./bot-background": {
+			"types": "./dist/bot-background.d.mts",
+			"default": "./dist/bot-background.mjs"
+		},
 		".": {
 			"types": "./dist/index.d.mts",
 			"default": "./dist/index.mjs"

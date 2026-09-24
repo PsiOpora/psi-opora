@@ -3,6 +3,7 @@ import { defineConfig } from "tsdown";
 export default defineConfig({
 	entry: [
 		"src/index.ts",
+		"src/bot-background.ts",
 		"src/messenger.ts",
 		"src/backup.ts",
 		"src/hatchet/broadcast.ts",

@@ -32,6 +32,8 @@ export interface BookPreorderDispatchDeps {
 	source?: string;
 	campaign?: string;
 	ymClientId?: string;
+	/** См. ScenarioDispatchDeps.waitForOpenLine. */
+	waitForOpenLine?: () => Promise<void>;
 }
 
 function orderKey(messenger: string, userId: number): string {
@@ -88,6 +90,7 @@ export async function dispatchBookPreorderOutput(
 				? "Заявка: Предзаказ книги — оплата сразу"
 				: "Заявка: Предзаказ книги — бесплатная бронь") + phoneNote;
 
+		await deps.waitForOpenLine?.();
 		const dealId = await submitConsultationDeal({
 			name,
 			phone: out.lead.phone ?? "",

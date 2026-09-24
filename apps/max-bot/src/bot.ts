@@ -9,12 +9,13 @@ import {
 	type BitrixApiLike,
 	BOOK_PREORDER_ACTIONS,
 	type BookPreorderOutput,
+	type BotBackgroundQueue,
 	bpActionLabel,
 	type ConsultationSession,
+	createBotBackgroundQueue,
 	decodeStartParam,
 	dispatchBookPreorderOutput,
 	dispatchScenarioOutput,
-	enrichCrmFromClientMessage,
 	extractYmClientId,
 	formatUtmLog,
 	type GuideCampaignContext,
@@ -40,7 +41,6 @@ import {
 	type ScenarioTexts,
 	STAGE_CONSENT_ACTIONS,
 	type StorageAdapter,
-	sendMessageToOpenLine,
 	setFunnelUpsert,
 	stageConsentActionLabel,
 	startBookPreorder,
@@ -48,7 +48,6 @@ import {
 	startGuideCampaign,
 	startScenario,
 	toInlineKeyboard as toStageConsentInlineKeyboard,
-	triageOffScriptMessage,
 	upsertBotUserProfile,
 	withTimeout,
 	withUserLock,
@@ -149,11 +148,14 @@ export interface MaxBotOptions {
 	redis?: RedisClient;
 	/** OAuth-клиент Bitrix24 (resolveBitrixApi из @psi-opora/bitrix-client) —
 	 * для дублирования переписки в Открытую линию. Без него дублирование
-	 * отключено (см. sendMessageToOpenLine). */
+	 * отключено (см. deliverMessageToOpenLine). */
 	bitrixApi?: BitrixApiLike;
 	/** Токен бота — достаётся из БД (resolveMaxBotToken из @psi-opora/bot-core)
 	 * раньше вызова createMaxBot; без него бот не создать. */
 	token?: string;
+	/** Фоновая работа по сообщениям (Открытая линия, обогащение CRM, триаж) —
+	 * см. createBotBackgroundQueue в bot-core. По умолчанию — без Hatchet. */
+	background?: BotBackgroundQueue;
 }
 
 function createInitialSession(): ConsultationSession {
@@ -357,9 +359,17 @@ export function createMaxBot({
 	redis,
 	bitrixApi,
 	token,
+	background = createBotBackgroundQueue({ bitrixApi }),
 }: MaxBotOptions = {}): MaxBot {
 	const resolvedToken = token || "";
 	const bot = new Bot<AppContext>(resolvedToken, { contextType: AppContext });
+	// Тот же ключ, что у лока (sessionKeyOf = user_id): Открытая линия MAX тоже
+	// адресуется по user_id (см. комментарий у mirrorToOpenLine ниже).
+	const chatKeyOf = (userId: number) => `max:${userId}`;
+	const waitForOpenLine = (ctx: AppContext) => {
+		const userId = ctx.user?.user_id;
+		return userId ? background.waitForOpenLine(chatKeyOf(userId)) : undefined;
+	};
 
 	// Сериализуем обработку апдейтов одного пользователя (см.
 	// @psi-opora/bot-core/utils/lock.ts) — без этого чтение и запись сессии
@@ -431,7 +441,7 @@ export function createMaxBot({
 			messenger: "max",
 			sessionKey: sessionKeyOf(ctx),
 			// Bitrix-коннектор получает в качестве chat.id именно user_id (см.
-			// комментарий у sendMessageToOpenLine ниже) — тот же ID используем
+			// комментарий у mirrorToOpenLine ниже) — тот же ID используем
 			// здесь для поиска диалога через USER_CODE.
 			chatId: ctx.user?.user_id,
 			redis,
@@ -444,6 +454,7 @@ export function createMaxBot({
 			ymClientId: ctx.session.ymClientId,
 			yclid: ctx.session.yclid,
 			guideCampaign,
+			waitForOpenLine: () => waitForOpenLine(ctx) ?? Promise.resolve(),
 		});
 	};
 
@@ -467,6 +478,7 @@ export function createMaxBot({
 			source: ctx.session.source,
 			campaign: ctx.session.campaign,
 			ymClientId: ctx.session.ymClientId,
+			waitForOpenLine: () => waitForOpenLine(ctx) ?? Promise.resolve(),
 		});
 	};
 
@@ -815,11 +827,15 @@ export function createMaxBot({
 				state?.flow === "consult" &&
 				state.step === "consent" &&
 				userId
-					? await resolveKnownContact({
-							messenger: "max",
-							userId,
-							chatId: userId,
-						})
+					? // Контакт ищется и по диалогу Открытой линии — он появляется с
+						// первым пересланным сообщением, поэтому ждём пересылки.
+						await background.waitForOpenLine(chatKeyOf(userId)).then(() =>
+							resolveKnownContact({
+								messenger: "max",
+								userId,
+								chatId: userId,
+							}),
+						)
 					: null;
 			let out = state
 				? applyScenarioAction(state, action, texts, guideCampaign, knownContact)
@@ -941,17 +957,23 @@ export function createMaxBot({
 		});
 
 		// Дублируем в Открытую линию Bitrix24 — вся переписка видна оператору,
-		// и он может ответить прямо оттуда (см. sendMessageToOpenLine). В качестве
-		// внешнего chat.id передаём user_id, а не MAX chat_id: обратная отправка
-		// (sendMessengerMessage → MAX API messages.send) адресуется по user_id,
-		// так что для маршрутизации ответа назад нужен именно он.
-		if (userId) {
-			await sendMessageToOpenLine(bitrixApi, {
+		// и он может ответить прямо оттуда. В качестве внешнего chat.id передаём
+		// user_id, а не MAX chat_id: обратная отправка (sendMessengerMessage →
+		// MAX API messages.send) адресуется по user_id, так что для маршрутизации
+		// ответа назад нужен именно он. Пересылка, обогащение CRM и триаж идут в
+		// фоне (createBotBackgroundQueue): ответ клиенту их не ждёт.
+		const chatKey = userId ? chatKeyOf(userId) : undefined;
+		if (userId && chatKey) {
+			const mid = appCtx.message?.body.mid;
+			const timestamp = appCtx.message?.timestamp;
+			background.mirrorToOpenLine(chatKey, "send", {
 				messenger: "max",
 				userId,
 				chatId: userId,
 				text,
 				name: appCtx.user?.name,
+				...(mid ? { externalId: `max-${userId}-${mid}` } : {}),
+				...(timestamp ? { date: Math.floor(timestamp / 1000) } : {}),
 				...(attachment?.payload.url
 					? {
 							files: [
@@ -964,8 +986,11 @@ export function createMaxBot({
 
 		if (!text) return;
 
-		const crmEnrichment = userId
-			? enrichCrmFromClientMessage({
+		if (userId && chatKey) {
+			background.analyze({
+				type: "crm-enrichment",
+				chatKey,
+				message: {
 					messenger: "max",
 					userId: String(userId),
 					text,
@@ -973,8 +998,19 @@ export function createMaxBot({
 					chatId: userId,
 					source: appCtx.session.source,
 					campaign: appCtx.session.campaign,
-				})
-			: Promise.resolve();
+				},
+			});
+		}
+		// Сообщение не по сценарию: бот не отвечает, а решает в фоне, показать
+		// ли его оператору с пометкой (см. triageOffScriptMessage).
+		const triageInBackground = () => {
+			if (!userId || !chatKey) return;
+			background.analyze({
+				type: "triage",
+				chatKey,
+				message: { messenger: "max", userId: String(userId), text },
+			});
+		};
 
 		// Активный сценарий предзаказа книги — раньше основного движка (см.
 		// такую же ветку в packages/bot-core/src/bot.ts).
@@ -983,20 +1019,10 @@ export function createMaxBot({
 			const texts = await getScenarioTexts();
 			const bpOut = await applyBookPreorderText(bookPreorderState, text, texts);
 			if (!bpOut) {
-				await Promise.all([
-					crmEnrichment,
-					userId
-						? triageOffScriptMessage({
-								messenger: "max",
-								userId: String(userId),
-								text,
-							})
-						: Promise.resolve(),
-				]);
+				triageInBackground();
 				return;
 			}
 			await dispatchBookPreorder(appCtx, bpOut, texts);
-			await crmEnrichment;
 			return;
 		}
 
@@ -1019,7 +1045,6 @@ export function createMaxBot({
 					texts,
 					campaign,
 				);
-				await crmEnrichment;
 				return;
 			}
 
@@ -1041,21 +1066,11 @@ export function createMaxBot({
 						source: "scenario",
 						text: reply,
 					});
-					await crmEnrichment;
 					return;
 				}
 			}
 
-			await Promise.all([
-				crmEnrichment,
-				userId
-					? triageOffScriptMessage({
-							messenger: "max",
-							userId: String(userId),
-							text,
-						})
-					: Promise.resolve(),
-			]);
+			triageInBackground();
 			return;
 		}
 
@@ -1069,21 +1084,11 @@ export function createMaxBot({
 			// пишет что-то своё, а не то, что просит сценарий) — бот здесь не
 			// пытается сам помочь/ответить, только тихо решает, стоит ли передать
 			// его оператору с пометкой (см. triageOffScriptMessage).
-			await Promise.all([
-				crmEnrichment,
-				userId
-					? triageOffScriptMessage({
-							messenger: "max",
-							userId: String(userId),
-							text,
-						})
-					: Promise.resolve(),
-			]);
+			triageInBackground();
 			return;
 		}
 
 		await dispatch(appCtx, out, texts, guideCampaign);
-		await crmEnrichment;
 	});
 
 	bot.catch((err, ctx) => {
