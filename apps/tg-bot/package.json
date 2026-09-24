@@ -19,7 +19,7 @@
 		"@psi-opora/db": "workspace:*",
 		"@psi-opora/jobs": "workspace:*",
 		"grammy": "1.46.0",
-		"hono": "4.13.8"
+		"hono": "4.13.9"
 	},
 	"devDependencies": {
 		"@psi-opora/tsconfig": "workspace:*",
