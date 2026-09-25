@@ -4,6 +4,7 @@ import {
 	dealStageHistory,
 	dealStageHistorySync,
 } from "../schema/deal-stage-history";
+import { deals } from "../schema/deals";
 
 export type DealStageHistoryEvent = typeof dealStageHistory.$inferSelect;
 export type NewDealStageHistoryEvent = typeof dealStageHistory.$inferInsert;
@@ -54,7 +55,12 @@ export interface StageReachCount {
 	uniqueDeals: number;
 }
 
-/** Кол-во уникальных сделок, побывавших на каждой стадии воронки за период. */
+/**
+ * Кол-во уникальных сделок, побывавших на каждой стадии воронки за период.
+ * Только сделки, которые есть в зеркале deals: история могла досинхронизироваться
+ * уже после удаления сделки (deleteDeals её не застал) — такие не считаем,
+ * иначе отчёт расходится со списком сделок стадии (listDeals.reachedStage).
+ */
 export async function getStageReachCounts(options: {
 	categoryId: string;
 	from: Date;
@@ -67,6 +73,7 @@ export async function getStageReachCounts(options: {
 			uniqueDeals: sql<number>`count(distinct ${dealStageHistory.dealId})::int`,
 		})
 		.from(dealStageHistory)
+		.innerJoin(deals, eq(deals.id, dealStageHistory.dealId))
 		.where(
 			and(
 				eq(dealStageHistory.categoryId, options.categoryId),
