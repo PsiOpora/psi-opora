@@ -3,6 +3,7 @@ export {
 	BOOK_PREORDER_STAGE_IDS,
 	type BookPreorderStage,
 	moveBookPreorderDealStage,
+	tryMoveBookPreorderDealStage,
 } from "./book-preorder-pipeline";
 export { createBitrixContact, createBitrixDeal } from "./create-deal";
 export {

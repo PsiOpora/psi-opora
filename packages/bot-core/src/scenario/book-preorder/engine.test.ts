@@ -32,15 +32,76 @@ describe("book preorder email exhaustion", () => {
 		});
 	});
 
-	test("reuses an existing deal instead of creating another lead", async () => {
+	test("reuses an existing order instead of creating another lead", async () => {
 		const result = await applyBookPreorderText(
-			{ ...state, dealId: 42 },
+			{ ...state, dealId: 42, orderNo: 1001 },
 			"invalid-email",
 			DEFAULT_SCENARIO_TEXTS,
 		);
 
 		expect(result?.emailFailed).toBe(true);
 		expect(result?.lead).toBeUndefined();
+	});
+});
+
+describe("book preorder new request", () => {
+	const state: BookPreorderState = {
+		step: "phone",
+		name: "Ирина",
+		consentAt: "2026-09-14T00:00:00.000Z",
+	};
+
+	/** Проверяет заявку на «Новой заявке» для не определившихся. */
+	test("requests a new-request deal after the phone when no branch is chosen", async () => {
+		const result = await applyBookPreorderText(
+			state,
+			"+79991234567",
+			DEFAULT_SCENARIO_TEXTS,
+		);
+
+		expect(result).toMatchObject({
+			state: { step: "about_book" },
+			newRequest: true,
+		});
+		expect(result?.lead).toBeUndefined();
+	});
+
+	test("requests a new-request deal for the pay intent before the email", async () => {
+		const result = await applyBookPreorderText(
+			{ ...state, intent: "pay" },
+			"+79991234567",
+			DEFAULT_SCENARIO_TEXTS,
+		);
+
+		expect(result).toMatchObject({
+			state: { step: "email_for_payment" },
+			newRequest: true,
+		});
+	});
+
+	test("goes straight to a reservation lead for the reserve intent", async () => {
+		const result = await applyBookPreorderText(
+			{ ...state, intent: "reserve" },
+			"+79991234567",
+			DEFAULT_SCENARIO_TEXTS,
+		);
+
+		expect(result?.newRequest).toBeUndefined();
+		expect(result?.lead).toMatchObject({ paymentChoice: "deferred" });
+	});
+
+	/** Сделка с «Новой заявки» без заказа — lead всё равно нужен для заказа. */
+	test("still emits a lead on email when only a new-request deal exists", async () => {
+		const result = await applyBookPreorderText(
+			{ step: "email_for_payment", name: "Ирина", dealId: 42 },
+			"irina@example.com",
+			DEFAULT_SCENARIO_TEXTS,
+		);
+
+		expect(result).toMatchObject({
+			buildPaymentLink: true,
+			lead: { email: "irina@example.com", paymentChoice: "immediate" },
+		});
 	});
 });
 

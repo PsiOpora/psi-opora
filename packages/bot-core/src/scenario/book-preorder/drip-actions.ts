@@ -5,7 +5,10 @@ import {
 	recordBookPreorderDripAnyClick,
 	recordBookPreorderDripDeferred,
 } from "@psi-opora/db/queries";
-import { appendDealComment } from "../../utils/bitrix";
+import {
+	appendDealComment,
+	tryMoveBookPreorderDealStage,
+} from "../../utils/bitrix";
 import { buildProdamusPaymentUrl } from "../../utils/prodamus";
 import type { ScenarioTexts } from "../texts";
 import { bpPaymentLinkMessage } from "./questions";
@@ -98,9 +101,8 @@ export async function handleBookPreorderDripCallback(
 				parsed.action === "buy2480"
 					? BOOK_PREORDER_REGULAR_PRICE_RUB
 					: BOOK_PREORDER_PRICE_RUB;
-			// Переводим заказ в awaiting_payment до выдачи ссылки — иначе
-			// markBookPreorderPaid (вебхук Prodamus) не найдёт заказ в нужном
-			// статусе и подтверждение оплаты будет молча потеряно.
+			// Заказ и сделку — в «Ждёт оплаты» до выдачи ссылки, чтобы в CRM было
+			// видно, кто открыл оплату из напоминания.
 			await markBookPreorderAwaitingPayment(order.id, {});
 			const url = buildProdamusPaymentUrl({
 				orderId: order.orderNo,
@@ -109,6 +111,11 @@ export async function handleBookPreorderDripCallback(
 				sum,
 			});
 			if (order.dealId) {
+				await tryMoveBookPreorderDealStage(
+					messenger,
+					order.dealId,
+					"awaitingPayment",
+				);
 				await appendDealComment(
 					messenger,
 					order.dealId,
@@ -128,6 +135,7 @@ export async function handleBookPreorderDripCallback(
 			await recordBookPreorderDripAnyClick(order.id);
 			await markBookPreorderDeclined(order.id);
 			if (order.dealId) {
+				await tryMoveBookPreorderDealStage(messenger, order.dealId, "declined");
 				await appendDealComment(
 					messenger,
 					order.dealId,
@@ -151,6 +159,7 @@ export async function handleBookPreorderDripCallback(
 		case "stop": {
 			await markBookPreorderDeclined(order.id);
 			if (order.dealId) {
+				await tryMoveBookPreorderDealStage(messenger, order.dealId, "declined");
 				await appendDealComment(
 					messenger,
 					order.dealId,
