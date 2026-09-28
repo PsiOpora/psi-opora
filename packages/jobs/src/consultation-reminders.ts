@@ -5,9 +5,12 @@ import {
 import type { RedisClient } from "@psi-opora/bot-core";
 import { getScenarioTexts } from "@psi-opora/bot-core";
 import { findContactEmail } from "./diagnostic-scheduling";
+import { addCalendarEventOnce } from "./reminders/calendar-events";
 import {
 	appendReminderSentComment,
 	botDeliveryLabel,
+	CONSULTATION_STATE_TTL_SECONDS,
+	consultationStateKey,
 	DEAL_CATEGORY_ID,
 	DEAL_STAGE_IDS,
 	extractClientContactId,
@@ -28,7 +31,6 @@ const RESPONSIBLE_USER_ID = 1;
 // Напоминание шлём, если консультация через 0–70 минут — запас на случай
 // редких прогонов крона (крон раз в 10 минут).
 const REMINDER_WINDOW_MS = 70 * 60 * 1000;
-const STATE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 // Бесплатная консультация проходит по телефону, без видеозвонка.
 const CONSULTATION_DURATION_MS = 30 * 60 * 1000;
@@ -37,10 +39,6 @@ const CONSULTATION_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
 	dateStyle: "long",
 	timeStyle: "short",
 });
-
-function dealStateKey(dealId: number): string {
-	return `consult-reminder:deal:${dealId}`;
-}
 
 function dealLockKey(dealId: number): string {
 	return `consult-reminder:lock:${dealId}`;
@@ -220,6 +218,7 @@ async function syncConsultationCalendarEvent(params: {
 				})
 			: false;
 	const clientName = consultationContactName(contact);
+	const phone = consultationContactPhone(contact);
 	const fields = consultationCalendarFields({
 		dealId,
 		contactId,
@@ -228,17 +227,15 @@ async function syncConsultationCalendarEvent(params: {
 		description: consultationEventDescription({
 			dealId,
 			clientName,
-			phone: consultationContactPhone(contact),
+			phone,
 		}),
 	});
 
 	if (!calendarEventId) {
-		calendarEventId = Number(
-			await calendarApi.call("calendar.event.add", {
-				...fields,
-				auto_detect_section: "Y",
-			}),
-		);
+		({ id: calendarEventId } = await addCalendarEventOnce(calendarApi, fields, {
+			dealId,
+			phone,
+		}));
 		if (!calendarEventId) {
 			throw new Error("Bitrix24 не вернул ID события консультации");
 		}
@@ -254,12 +251,10 @@ async function syncConsultationCalendarEvent(params: {
 		console.warn(
 			`[consultation-reminder] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
 		);
-		calendarEventId = Number(
-			await calendarApi.call("calendar.event.add", {
-				...fields,
-				auto_detect_section: "Y",
-			}),
-		);
+		({ id: calendarEventId } = await addCalendarEventOnce(calendarApi, fields, {
+			dealId,
+			phone,
+		}));
 		if (!calendarEventId) throw error;
 	}
 	return calendarEventId;
@@ -292,7 +287,8 @@ async function readState(
 	dealId: number,
 ): Promise<ConsultationState | undefined> {
 	return (
-		(await redis.get<ConsultationState>(dealStateKey(dealId))) ?? undefined
+		(await redis.get<ConsultationState>(consultationStateKey(dealId))) ??
+		undefined
 	);
 }
 
@@ -301,7 +297,9 @@ async function writeState(
 	dealId: number,
 	state: ConsultationState,
 ): Promise<void> {
-	await redis.set(dealStateKey(dealId), state, { ex: STATE_TTL_SECONDS });
+	await redis.set(consultationStateKey(dealId), state, {
+		ex: CONSULTATION_STATE_TTL_SECONDS,
+	});
 	await redis.sadd(INDEX_KEY, String(dealId));
 }
 

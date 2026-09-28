@@ -63,6 +63,7 @@ describe("handleConsultationDealUpdate", () => {
 						PHONE: [{ VALUE: "+79990000000" }],
 					} as T;
 				}
+				if (method === "calendar.event.get") return [] as T;
 				if (method === "calendar.event.add") return 501 as T;
 				if (method === "crm.timeline.comment.add") return 1 as T;
 				throw new Error(`Unexpected method ${method}`);
@@ -82,5 +83,61 @@ describe("handleConsultationDealUpdate", () => {
 		const to = new Date(String(add?.params.to)).getTime();
 		expect(to - from).toBe(30 * 60 * 1000);
 		expect(add?.params.crm_fields).toEqual(["D_42", "C_9"]);
+	});
+
+	it("reuses a manual calendar entry with the client's phone", async () => {
+		const calls: Array<{ method: string; params: Record<string, unknown> }> =
+			[];
+		const api: BitrixApi = {
+			async call<T>(method: string, params: Record<string, unknown> = {}) {
+				calls.push({ method, params });
+				if (method === "crm.deal.get") {
+					return {
+						ID: "42",
+						CATEGORY_ID: "0",
+						STAGE_ID: "UC_WWIO8W",
+						CONTACT_ID: "9",
+						UF_CRM_1779802779513: "2026-08-05T10:00:00+03:00",
+					} as T;
+				}
+				if (method === "crm.contact.get") {
+					return {
+						ID: "9",
+						NAME: "Ольга",
+						PHONE: [{ VALUE: "79536613066" }],
+					} as T;
+				}
+				if (method === "calendar.event.get") {
+					return [
+						{
+							ID: "7344",
+							NAME: "б/п консультация Ольга +7 953 661-30-66",
+							DATE_FROM: "05.08.2026 10:00:00",
+							DATE_TO: "05.08.2026 10:30:00",
+							TZ_OFFSET_FROM: "10800",
+							TZ_OFFSET_TO: "10800",
+						},
+					] as T;
+				}
+				if (method === "crm.timeline.comment.add") return 1 as T;
+				throw new Error(`Unexpected method ${method}`);
+			},
+			async list<T>() {
+				return [] as T[];
+			},
+		};
+		const redis = new MemoryRedis() as unknown as RedisClient;
+
+		const result = await handleConsultationDealUpdate(api, redis, 42);
+
+		expect(result.action).toBe("init");
+		expect(result).toMatchObject({ calendarEventId: 7344 });
+		expect(
+			calls.some(
+				(call) =>
+					call.method === "calendar.event.add" ||
+					call.method === "calendar.event.update",
+			),
+		).toBe(false);
 	});
 });

@@ -3,6 +3,11 @@ import {
 	resolveCalendarBitrixApi,
 } from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
+import type { Messenger } from "./messenger";
+import {
+	addCalendarEventOnce,
+	takeOverConsultationEvent,
+} from "./reminders/calendar-events";
 import {
 	appendReminderSentComment,
 	botDeliveryLabel,
@@ -12,7 +17,6 @@ import {
 	sendReminderBotMessage,
 	sendReminderWhatsappMessage,
 } from "./reminders/shared";
-import type { Messenger } from "./messenger";
 
 export const DIAGNOSTIC_DT_FIELD = "UF_CRM_1779871551489";
 export const PAYMENT_PENDING_STAGE_ID = "UC_PV8XUM";
@@ -323,11 +327,12 @@ export async function handleDiagnosticDealUpdate(
 				: false;
 		const clientName = contactName(contact);
 		const email = findContactEmail(contact);
+		const phone = contactPhone(contact);
 		const description = eventDescription({
 			dealId,
 			clientName,
 			email,
-			phone: contactPhone(contact),
+			phone,
 		});
 		const fields = calendarFields({
 			dealId,
@@ -355,14 +360,25 @@ export async function handleDiagnosticDealUpdate(
 		// уйдёт, а каждый повторный ONCRMDEALUPDATE будет заново падать здесь.
 		try {
 			if (!calendarEventId) {
-				calendarEventId = Number(
-					await calendarApi.call("calendar.event.add", {
-						...fields,
-						auto_detect_section: "Y",
-					}),
+				calendarEventId = await takeOverConsultationEvent(
+					calendarApi,
+					redis,
+					dealId,
+					fields,
 				);
-				if (!calendarEventId) throw new Error("Bitrix24 не вернул ID события");
-				action = "created";
+				if (calendarEventId) {
+					action = "updated";
+				} else {
+					({ id: calendarEventId } = await addCalendarEventOnce(
+						calendarApi,
+						fields,
+						{ dealId, phone },
+					));
+					if (!calendarEventId) {
+						throw new Error("Bitrix24 не вернул ID события");
+					}
+					action = "created";
+				}
 			} else if (previous?.diagnosticAt !== diagnosticAt) {
 				try {
 					await calendarApi.call("calendar.event.update", {
@@ -374,12 +390,11 @@ export async function handleDiagnosticDealUpdate(
 					console.warn(
 						`[diagnostic-schedule] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
 					);
-					calendarEventId = Number(
-						await calendarApi.call("calendar.event.add", {
-							...fields,
-							auto_detect_section: "Y",
-						}),
-					);
+					({ id: calendarEventId } = await addCalendarEventOnce(
+						calendarApi,
+						fields,
+						{ dealId, phone },
+					));
 					if (!calendarEventId) throw error;
 					action = "created";
 				}

@@ -123,6 +123,7 @@ describe("handleDiagnosticDealUpdate", () => {
 					} as T;
 				}
 				if (method === "crm.deal.fields") return {} as T;
+				if (method === "calendar.event.get") return [] as T;
 				if (method === "calendar.event.add") return 501 as T;
 				if (method === "calendar.event.update") return 501 as T;
 				if (method === "crm.timeline.comment.add") return 1 as T;
@@ -158,5 +159,70 @@ describe("handleDiagnosticDealUpdate", () => {
 		const to = new Date(String(add?.params.to)).getTime();
 		expect(to - from).toBe(90 * 60 * 1000);
 		expect(add?.params.crm_fields).toEqual(["D_42", "C_9"]);
+	});
+
+	it("moves the upcoming free consultation event instead of creating a second one", async () => {
+		process.env.DIAGNOSTIC_PAYMENT_URL = "https://pay.example/diagnostic";
+		const calls: Array<{ method: string; params: Record<string, unknown> }> =
+			[];
+		const api: BitrixApi = {
+			async call<T>(method: string, params: Record<string, unknown> = {}) {
+				calls.push({ method, params });
+				if (method === "crm.deal.get") {
+					return {
+						ID: "42",
+						CATEGORY_ID: "0",
+						STAGE_ID: PAYMENT_PENDING_STAGE_ID,
+						CONTACT_ID: "9",
+						UF_CRM_1779871551489: "2026-08-05T18:00:00+03:00",
+					} as T;
+				}
+				if (method === "crm.contact.get") {
+					return { ID: "9", NAME: "Ирина", EMAIL: [] } as T;
+				}
+				if (method === "calendar.event.getbyid") {
+					return {
+						ID: "7328",
+						DATE_FROM: "05.08.2099 11:00:00",
+						DATE_TO: "05.08.2099 11:30:00",
+						TZ_OFFSET_FROM: "10800",
+						TZ_OFFSET_TO: "10800",
+					} as T;
+				}
+				if (method === "crm.deal.fields") return {} as T;
+				if (method === "calendar.event.update") return 7328 as T;
+				if (method === "crm.timeline.comment.add") return 1 as T;
+				throw new Error(`Unexpected method ${method}`);
+			},
+			async list<T>() {
+				return [] as T[];
+			},
+		};
+		const memory = new MemoryRedis();
+		memory.values.set("consult-reminder:deal:42", {
+			lastConsultationAt: "2026-08-05T11:00:00.000Z",
+			calendarEventId: 7328,
+			reminderSentAt: null,
+		});
+		const redis = memory as unknown as RedisClient;
+
+		const result = await handleDiagnosticDealUpdate(api, redis, 42);
+
+		expect(result.calendarEventId).toBe(7328);
+		expect(calls.some((call) => call.method === "calendar.event.add")).toBe(
+			false,
+		);
+		const update = calls.find(
+			(call) => call.method === "calendar.event.update",
+		);
+		expect(update?.params.id).toBe(7328);
+		expect(String(update?.params.name)).toStartWith("Диагностика");
+		expect(
+			(
+				memory.values.get("consult-reminder:deal:42") as {
+					calendarEventId?: number;
+				}
+			).calendarEventId,
+		).toBeUndefined();
 	});
 });

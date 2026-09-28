@@ -14,6 +14,15 @@ export const DEAL_CATEGORY_ID = 0;
 export const DEAL_STAGE_IDS = ["UC_WWIO8W"];
 export const MESSENGER_FIELD = "UF_CRM_1779643796551";
 
+// Состояние бесплатной консультации в Redis. Читается и обработчиком
+// диагностики — он забирает себе событие календаря консультации (см.
+// takeOverConsultationEvent в calendar-events.ts).
+export const CONSULTATION_STATE_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+export function consultationStateKey(dealId: number): string {
+	return `consult-reminder:deal:${dealId}`;
+}
+
 // Значения поля сделки "Мессенджер" → наш бот, через которого отправляем
 // сообщение напрямую. Открытые линии Bitrix24 для доставки не используются.
 export const MESSENGER_BOT_MAP: Record<string, Messenger> = {
