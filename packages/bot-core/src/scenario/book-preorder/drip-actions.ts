@@ -4,8 +4,12 @@ import {
 	markBookPreorderDeclined,
 	recordBookPreorderDripAnyClick,
 	recordBookPreorderDripDeferred,
+	withBookPreorderOrderLock,
 } from "@psi-opora/db/queries";
-import { appendDealComment } from "../../utils/bitrix";
+import {
+	appendDealComment,
+	tryMoveBookPreorderDealStage,
+} from "../../utils/bitrix";
 import { buildProdamusPaymentUrl } from "../../utils/prodamus";
 import type { ScenarioTexts } from "../texts";
 import { bpPaymentLinkMessage } from "./questions";
@@ -70,6 +74,18 @@ export async function handleBookPreorderDripCallback(
 	parsed: ParsedDripCallback,
 	t: ScenarioTexts,
 ): Promise<BookPreorderMessage | null> {
+	return withBookPreorderOrderLock(`${messenger}:${userId}`, () =>
+		handleLockedDripCallback(messenger, userId, chatId, parsed, t),
+	);
+}
+
+async function handleLockedDripCallback(
+	messenger: string,
+	userId: string | number,
+	chatId: string | number | undefined,
+	parsed: ParsedDripCallback,
+	t: ScenarioTexts,
+): Promise<BookPreorderMessage | null> {
 	const order = await getBookPreorderOrderByOrderNo(parsed.orderNo);
 	if (!order) return null;
 	if (order.messenger !== messenger || order.userId !== String(userId)) {
@@ -98,10 +114,11 @@ export async function handleBookPreorderDripCallback(
 				parsed.action === "buy2480"
 					? BOOK_PREORDER_REGULAR_PRICE_RUB
 					: BOOK_PREORDER_PRICE_RUB;
-			// Переводим заказ в awaiting_payment до выдачи ссылки — иначе
-			// markBookPreorderPaid (вебхук Prodamus) не найдёт заказ в нужном
-			// статусе и подтверждение оплаты будет молча потеряно.
-			await markBookPreorderAwaitingPayment(order.id, {});
+			// Заказ и сделку — в «Ждёт оплаты» до выдачи ссылки, чтобы в CRM было
+			// видно, кто открыл оплату из напоминания.
+			if (!(await markBookPreorderAwaitingPayment(order.id, {}, "reserved"))) {
+				return { text: t.bp_drip_already_settled_reply };
+			}
 			const url = buildProdamusPaymentUrl({
 				orderId: order.orderNo,
 				phone: order.phone ?? undefined,
@@ -109,6 +126,11 @@ export async function handleBookPreorderDripCallback(
 				sum,
 			});
 			if (order.dealId) {
+				await tryMoveBookPreorderDealStage(
+					messenger,
+					order.dealId,
+					"awaitingPayment",
+				);
 				await appendDealComment(
 					messenger,
 					order.dealId,
@@ -126,8 +148,11 @@ export async function handleBookPreorderDripCallback(
 
 		case "cancel": {
 			await recordBookPreorderDripAnyClick(order.id);
-			await markBookPreorderDeclined(order.id);
+			if (!(await markBookPreorderDeclined(order.id, "reserved"))) {
+				return { text: t.bp_drip_already_settled_reply };
+			}
 			if (order.dealId) {
+				await tryMoveBookPreorderDealStage(messenger, order.dealId, "declined");
 				await appendDealComment(
 					messenger,
 					order.dealId,
@@ -149,8 +174,11 @@ export async function handleBookPreorderDripCallback(
 		}
 
 		case "stop": {
-			await markBookPreorderDeclined(order.id);
+			if (!(await markBookPreorderDeclined(order.id, "reserved"))) {
+				return { text: t.bp_drip_already_settled_reply };
+			}
 			if (order.dealId) {
+				await tryMoveBookPreorderDealStage(messenger, order.dealId, "declined");
 				await appendDealComment(
 					messenger,
 					order.dealId,

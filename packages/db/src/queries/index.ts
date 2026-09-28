@@ -645,8 +645,9 @@ export async function listReservedBookPreorderOrders() {
 export async function markBookPreorderAwaitingPayment(
 	id: string,
 	patch: Parameters<typeof _markBookPreorderAwaitingPayment>[2],
+	expectedStatus?: "reserved",
 ) {
-	return _markBookPreorderAwaitingPayment(db, id, patch);
+	return _markBookPreorderAwaitingPayment(db, id, patch, expectedStatus);
 }
 
 export async function markBookPreorderPaid(orderNo: number) {
@@ -669,8 +670,11 @@ export async function releaseBookPreorderDealPaidSync(id: string) {
 	return _releaseBookPreorderDealPaidSync(db, id);
 }
 
-export async function markBookPreorderDeclined(id: string) {
-	return _markBookPreorderDeclined(db, id);
+export async function markBookPreorderDeclined(
+	id: string,
+	expectedStatus?: "reserved",
+) {
+	return _markBookPreorderDeclined(db, id, expectedStatus);
 }
 
 /** Возвращает заказ предзаказа в статус брони. */
@@ -719,3 +723,5 @@ export async function recordBookPreorderDripDeferred(id: string) {
 export async function recordBookPreorderDripAnyClick(id: string) {
 	return _recordBookPreorderDripAnyClick(db, id);
 }
+
+export { withBookPreorderOrderLock } from "./book-preorder-lock";

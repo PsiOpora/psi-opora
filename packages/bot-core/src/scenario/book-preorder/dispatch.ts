@@ -3,13 +3,16 @@ import {
 	markBookPreorderDeclined,
 	markBookPreorderReserved,
 	upsertBookPreorderOrder,
+	withBookPreorderOrderLock,
 } from "@psi-opora/db/queries";
 import {
 	appendDealComment,
 	BOOK_PREORDER_CATEGORY_ID,
 	BOOK_PREORDER_STAGE_IDS,
+	type BookPreorderStage,
 	createBitrixTask,
 	moveBookPreorderDealStage,
+	tryMoveBookPreorderDealStage,
 } from "../../utils/bitrix";
 import { submitConsultationDeal } from "../../utils/consultation-deal";
 import { logBotMessage } from "../../utils/message-log";
@@ -18,6 +21,7 @@ import type { ScenarioTexts } from "../texts";
 import { bpPaymentLinkMessage } from "./questions";
 import {
 	BOOK_PREORDER_PRICE_RUB,
+	type BookPreorderLead,
 	type BookPreorderMessage,
 	type BookPreorderOutput,
 } from "./types";
@@ -40,6 +44,13 @@ function orderKey(messenger: string, userId: number): string {
 	return `${messenger}:${userId}`;
 }
 
+function dealName(
+	lead: Pick<BookPreorderLead, "name">,
+	deps: BookPreorderDispatchDeps,
+): string {
+	return lead.name?.trim() || deps.userName?.trim() || "Клиент из бота";
+}
+
 /**
  * Исполняет результат шага сценария предзаказа книги: отправляет сообщения,
  * создаёт сделку/строку заказа, строит ссылку на оплату и двигает сделку по
@@ -52,6 +63,17 @@ function orderKey(messenger: string, userId: number): string {
  * а каждый переход виден и стадией сделки, и комментарием в её таймлайне.
  */
 export async function dispatchBookPreorderOutput(
+	out: BookPreorderOutput,
+	deps: BookPreorderDispatchDeps,
+): Promise<void> {
+	if (deps.userId === undefined)
+		return dispatchLockedBookPreorderOutput(out, deps);
+	return withBookPreorderOrderLock(orderKey(deps.messenger, deps.userId), () =>
+		dispatchLockedBookPreorderOutput(out, deps),
+	);
+}
+
+async function dispatchLockedBookPreorderOutput(
 	out: BookPreorderOutput,
 	deps: BookPreorderDispatchDeps,
 ): Promise<void> {
@@ -81,20 +103,17 @@ export async function dispatchBookPreorderOutput(
 	if (deps.userId === undefined) return;
 	const key = orderKey(deps.messenger, deps.userId);
 
-	if (out.lead) {
-		const name =
-			out.lead.name?.trim() || deps.userName?.trim() || "Клиент из бота";
-		const phoneNote = out.state.phoneSkipped ? "\n(телефон не получен)" : "";
-		const comment =
-			(out.lead.paymentChoice === "immediate"
-				? "Заявка: Предзаказ книги — оплата сразу"
-				: "Заявка: Предзаказ книги — бесплатная бронь") + phoneNote;
-
+	const phoneNote = out.state.phoneSkipped ? "\n(телефон не получен)" : "";
+	const createDeal = async (
+		lead: Omit<BookPreorderLead, "paymentChoice">,
+		comment: string,
+		stage: BookPreorderStage,
+	): Promise<void> => {
 		await deps.waitForOpenLine?.();
 		const dealId = await submitConsultationDeal({
-			name,
-			phone: out.lead.phone ?? "",
-			email: out.lead.email,
+			name: dealName(lead, deps),
+			phone: lead.phone ?? "",
+			email: lead.email,
 			messenger: deps.messenger,
 			userId: deps.userId,
 			chatId: deps.chatId,
@@ -103,14 +122,49 @@ export async function dispatchBookPreorderOutput(
 			ymClientId: deps.ymClientId,
 			comment,
 			flow: "book_preorder",
-			consentAt: out.lead.consentAt,
+			consentAt: lead.consentAt,
 			categoryId: BOOK_PREORDER_CATEGORY_ID,
-			stageId:
-				out.lead.paymentChoice === "immediate"
-					? BOOK_PREORDER_STAGE_IDS.awaitingPayment
-					: BOOK_PREORDER_STAGE_IDS.reserved,
+			stageId: BOOK_PREORDER_STAGE_IDS[stage],
 		});
 		if (dealId) out.state.dealId = dealId;
+	};
+
+	if (out.newRequest && !out.state.dealId) {
+		await createDeal(
+			{
+				name: out.state.name,
+				phone: out.state.phone,
+				consentAt: out.state.consentAt,
+			},
+			`Заявка: Предзаказ книги — ещё не выбрал(а) бронь или оплату${phoneNote}`,
+			"newRequest",
+		);
+	}
+
+	if (out.lead) {
+		const name = dealName(out.lead, deps);
+		const comment =
+			(out.lead.paymentChoice === "immediate"
+				? "Заявка: Предзаказ книги — оплата сразу"
+				: "Заявка: Предзаказ книги — бесплатная бронь") + phoneNote;
+		// «Ждёт оплаты» — только когда клиенту действительно уходит ссылка;
+		// без неё (email так и не распознан) заказ остаётся в статусе
+		// "reserved" и получает цепочку Б1–Б6 — стадия сделки должна совпадать.
+		const stage: BookPreorderStage = out.buildPaymentLink
+			? "awaitingPayment"
+			: "reserved";
+
+		if (out.state.dealId) {
+			// Сделка уже заведена на «Новой заявке» — переводим, а не плодим вторую.
+			await tryMoveBookPreorderDealStage(
+				deps.messenger,
+				out.state.dealId,
+				stage,
+			);
+			await appendDealComment(deps.messenger, out.state.dealId, comment);
+		} else {
+			await createDeal(out.lead, comment, stage);
+		}
 
 		const order = await upsertBookPreorderOrder({
 			messenger: deps.messenger,
@@ -120,7 +174,7 @@ export async function dispatchBookPreorderOutput(
 			phone: out.lead.phone,
 			email: out.lead.email,
 			consentAt: out.lead.consentAt ? new Date(out.lead.consentAt) : undefined,
-			dealId: dealId ?? undefined,
+			dealId: out.state.dealId,
 			paymentChoice: out.lead.paymentChoice,
 			source: deps.source,
 			campaign: deps.campaign,
@@ -167,8 +221,8 @@ export async function dispatchBookPreorderOutput(
 		}
 		if (out.state.dealId) {
 			// Сделка уже существовала до этого вызова (бронь → «Оплатить сейчас»)
-			// — переводим на стадию оплаты; если её только что завели в этом же
-			// вызове (сразу оплата), stageId уже выставлен при создании выше.
+			// — переводим на стадию оплаты; если в этом же вызове был lead, стадия
+			// уже выставлена выше (создание или перевод с «Новой заявки»).
 			if (!out.lead) {
 				await moveBookPreorderDealStage(
 					deps.messenger,

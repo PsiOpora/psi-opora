@@ -36,9 +36,8 @@ export {
  * оплата (Prodamus/payform.ru) и многодневная рассылка
  * (packages/jobs/src/book-preorder-drip.ts) — общего с флоу консультации/гайда
  * почти нет, кроме общего key-value хранилища текстов (../texts.ts). Сделки
- * Bitrix остаются в обычной стадии — отдельную воронку завести не вышло
- * (ограничение тарифа на crm.dealcategory.add), статус заказа отслеживается
- * в book_preorder_orders.status и комментариях сделки.
+ * ведутся в воронке «Предзаказ книги» (см. utils/bitrix/book-preorder-pipeline.ts),
+ * статус заказа — в book_preorder_orders.status и комментариях сделки.
  *
  * Дерево:
  *   /start TELO|TELOPAY|TELOBOOK → согласие на ПДн → имя → телефон →
@@ -46,12 +45,15 @@ export {
  *   │     → рассказ о книге без кнопок → бронь (создаётся сделка/заказ,
  *   │       paymentChoice=deferred) → «Оплатить сейчас» / «Ещё отрывок» / «Вопрос»
  *   ├── /start TELOPAY (кнопка «Оформить предзаказ», intent=pay)
- *   │     → рассказ о книге без кнопок → email → ссылка на оплату сразу
- *   └── /start TELO (без выбора на сайте) → рассказ о книге с двумя кнопками
- *         «Забронировать бесплатно» / «Оплатить 1 980 ₽» — дальше как выше
+ *   │     → сделка на «Новой заявке» → рассказ о книге без кнопок → email →
+ *   │       ссылка на оплату сразу
+ *   └── /start TELO (без выбора на сайте) → сделка на «Новой заявке» →
+ *         рассказ о книге с двумя кнопками «Забронировать бесплатно» /
+ *         «Оплатить 1 980 ₽» — дальше как выше
  *
- * В любой из веток «Оплатить» ведёт к email → ссылке на оплату (сделка/заказ
- * создаются здесь, если ещё не было брони) → ждём вебхук Prodamus (см.
+ * В любой из веток «Оплатить» ведёт к email → ссылке на оплату (заказ
+ * создаётся здесь, если ещё не было брони; сделка переводится с «Новой
+ * заявки» или создаётся, если её завести не удалось) → ждём вебхук Prodamus (см.
  * apps/bitrix-webhook/src/payform-webhook.ts). Матчинг /start-параметра —
  * см. matchesBookPreorderStartParam в utils/utm.ts.
  *
@@ -75,6 +77,7 @@ export function output(
 	extra: Partial<
 		Pick<
 			BookPreorderOutput,
+			| "newRequest"
 			| "lead"
 			| "buildPaymentLink"
 			| "manualPaymentCheck"
@@ -133,6 +136,10 @@ function enterReserved(
  * спрашивать «забронировать или оплатить» незачем, кнопку на сайте он уже
  * нажал. Без intent (голый /start TELO) — прежнее поведение: рассказ с
  * двумя кнопками (см. bpAboutBookQuestion).
+ *
+ * Всем, кто ещё не выбрал бронь (голый TELO и TELOPAY до ввода email),
+ * сразу заводим сделку на стадии «Новая заявка» (newRequest) — иначе
+ * оставившие телефон, но не дошедшие до выбора, не видны в CRM.
  */
 function afterPhoneOutput(
 	state: BookPreorderState,
@@ -142,14 +149,20 @@ function afterPhoneOutput(
 		return enterReserved(state, t, [bpAboutBookInfoMessage(state.name, t)]);
 	}
 	if (state.intent === "pay") {
-		return output({ ...state, step: "email_for_payment" }, [
-			bpAboutBookInfoMessage(state.name, t),
-			{ text: t.bp_payment_intro_text },
-		]);
+		return output(
+			{ ...state, step: "email_for_payment" },
+			[
+				bpAboutBookInfoMessage(state.name, t),
+				{ text: t.bp_payment_intro_text },
+			],
+			{ newRequest: true },
+		);
 	}
-	return output({ ...state, step: "about_book" }, [
-		bpAboutBookQuestion(state.name, t),
-	]);
+	return output(
+		{ ...state, step: "about_book" },
+		[bpAboutBookQuestion(state.name, t)],
+		{ newRequest: true },
+	);
 }
 
 export function startBookPreorder(
@@ -314,7 +327,7 @@ export async function applyBookPreorderText(
 				};
 				return output(next, [], {
 					buildPaymentLink: true,
-					...(state.dealId
+					...(state.orderNo !== undefined
 						? {}
 						: {
 								lead: {
@@ -338,7 +351,7 @@ export async function applyBookPreorderText(
 					[{ text: t.bp_email_invalid_final }],
 					{
 						emailFailed: true,
-						...(state.dealId
+						...(state.orderNo !== undefined
 							? {}
 							: {
 									lead: {

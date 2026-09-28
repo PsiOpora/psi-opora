@@ -12,6 +12,8 @@ import { bitrixPost } from "./client";
 export const BOOK_PREORDER_CATEGORY_ID = 8;
 
 export const BOOK_PREORDER_STAGE_IDS = {
+	/** Оставил имя и телефон, но ещё не выбрал бронь или оплату. */
+	newRequest: "C8:NEW",
 	reserved: "C8:UC_0HJ3ZP",
 	awaitingPayment: "C8:AMO_65CAC4EC",
 	paid: "C8:EXECUTING",
@@ -37,5 +39,22 @@ export async function moveBookPreorderDealStage(
 			`[bitrix] не удалось перевести сделку предзаказа ${dealId} на стадию ${stage}: ${(err as Error).message}`,
 		);
 		throw err;
+	}
+}
+
+/**
+ * То же, но без проброса ошибки — для мест, где сбой Bitrix не должен
+ * помешать ответить клиенту (выдать ссылку на оплату, подтвердить отмену).
+ * Ошибка уже залогирована в moveBookPreorderDealStage.
+ */
+export async function tryMoveBookPreorderDealStage(
+	messenger: string,
+	dealId: number,
+	stage: BookPreorderStage,
+): Promise<void> {
+	try {
+		await moveBookPreorderDealStage(messenger, dealId, stage);
+	} catch {
+		// см. комментарий выше
 	}
 }

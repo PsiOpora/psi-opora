@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import type { Database } from "../client.types";
 import { bookPreorderOrders } from "../schema/book-preorder-orders";
 
@@ -90,9 +90,10 @@ export async function markBookPreorderAwaitingPayment(
 	db: Database,
 	id: string,
 	patch: { email?: string; dealId?: number },
-): Promise<void> {
-	if (!db) return;
-	await db
+	expectedStatus?: "reserved",
+): Promise<boolean> {
+	if (!db) return false;
+	const rows = await db
 		.update(bookPreorderOrders)
 		.set({
 			status: "awaiting_payment",
@@ -100,9 +101,25 @@ export async function markBookPreorderAwaitingPayment(
 			updatedAt: sql`now()`,
 			...patch,
 		})
-		.where(eq(bookPreorderOrders.id, id));
+		.where(
+			and(
+				eq(bookPreorderOrders.id, id),
+				expectedStatus
+					? eq(bookPreorderOrders.status, expectedStatus)
+					: undefined,
+			),
+		)
+		.returning({ id: bookPreorderOrders.id });
+	return rows.length > 0;
 }
 
+/**
+ * Засчитывает оплату по заказу в любом статусе, кроме уже оплаченного:
+ * ссылка на оплату детерминирована по orderNo и остаётся рабочей, так что
+ * клиент может заплатить по ней и после «Оплата позже» (заказ вернулся в
+ * "reserved") или даже после отмены брони ("declined") — деньги пришли,
+ * терять такой платёж нельзя.
+ */
 export async function markBookPreorderPaid(
 	db: Database,
 	orderNo: number,
@@ -116,7 +133,7 @@ export async function markBookPreorderPaid(
 				eq(bookPreorderOrders.orderNo, orderNo),
 				// Идемпотентность: повторный вебхук об этом же платеже не должен
 				// повторно запускать запрос адреса доставки клиенту.
-				eq(bookPreorderOrders.status, "awaiting_payment"),
+				ne(bookPreorderOrders.status, "paid"),
 			),
 		)
 		.returning();
@@ -193,12 +210,22 @@ export async function releaseBookPreorderDealPaidSync(
 export async function markBookPreorderDeclined(
 	db: Database,
 	id: string,
-): Promise<void> {
-	if (!db) return;
-	await db
+	expectedStatus?: "reserved",
+): Promise<boolean> {
+	if (!db) return false;
+	const rows = await db
 		.update(bookPreorderOrders)
 		.set({ status: "declined", declinedAt: sql`now()`, updatedAt: sql`now()` })
-		.where(eq(bookPreorderOrders.id, id));
+		.where(
+			and(
+				eq(bookPreorderOrders.id, id),
+				expectedStatus
+					? eq(bookPreorderOrders.status, expectedStatus)
+					: undefined,
+			),
+		)
+		.returning({ id: bookPreorderOrders.id });
+	return rows.length > 0;
 }
 
 /** Клиент выбрал «Оплата позже» на шаге оплаты — возвращает заказ из

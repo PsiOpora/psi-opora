@@ -6,6 +6,7 @@ import type { ConsultationSession, StorageAdapter } from "@psi-opora/bot-core";
 // imports the same scenario graph as the Telegram bot, so all statically
 // imported query functions must be available before importing the adapter.
 mock.module("@psi-opora/db/queries", () => ({
+	withBookPreorderOrderLock: <T>(_id: string, fn: () => Promise<T>) => fn(),
 	insertBotMessage: () => Promise.resolve(null),
 	getBitrixCrmLink: () => Promise.resolve(null),
 	getBotTextsRecord: () => Promise.resolve({}),
