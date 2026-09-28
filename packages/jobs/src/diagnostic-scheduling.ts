@@ -6,6 +6,7 @@ import type { RedisClient } from "@psi-opora/bot-core";
 import type { Messenger } from "./messenger";
 import {
 	addCalendarEventOnce,
+	type CalendarEventMatch,
 	takeOverConsultationEvent,
 } from "./reminders/calendar-events";
 import {
@@ -42,6 +43,7 @@ const DIAGNOSTIC_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
 
 interface DiagnosticScheduleState {
 	calendarEventId: number;
+	calendarEventAdopted?: CalendarEventMatch["source"];
 	diagnosticAt: string;
 	lastChatStageId?: string;
 	lastEmailStageId?: string;
@@ -345,6 +347,7 @@ export async function handleDiagnosticDealUpdate(
 		const previous =
 			(await redis.get<DiagnosticScheduleState>(stateKey(dealId))) ?? undefined;
 		let calendarEventId = previous?.calendarEventId ?? 0;
+		let calendarEventAdopted = previous?.calendarEventAdopted;
 		let action: DiagnosticDealUpdateResult["action"] = "unchanged";
 
 		// calendar.event.add/update в чужой календарь (ownerId != вызывающий)
@@ -367,18 +370,25 @@ export async function handleDiagnosticDealUpdate(
 					fields,
 				);
 				if (calendarEventId) {
+					calendarEventAdopted = undefined;
 					action = "updated";
 				} else {
-					({ id: calendarEventId } = await addCalendarEventOnce(
-						calendarApi,
-						fields,
-						{ dealId, phone },
-					));
+					({ id: calendarEventId, adopted: calendarEventAdopted } =
+						await addCalendarEventOnce(calendarApi, fields, { dealId, phone }));
 					if (!calendarEventId) {
 						throw new Error("Bitrix24 не вернул ID события");
 					}
 					action = "created";
 				}
+			} else if (
+				previous?.diagnosticAt !== diagnosticAt &&
+				calendarEventAdopted === "phone"
+			) {
+				// Ручную запись не переносим: ищем совпадение на новом времени.
+				({ id: calendarEventId, adopted: calendarEventAdopted } =
+					await addCalendarEventOnce(calendarApi, fields, { dealId, phone }));
+				if (!calendarEventId) throw new Error("Bitrix24 не вернул ID события");
+				action = "created";
 			} else if (previous?.diagnosticAt !== diagnosticAt) {
 				try {
 					await calendarApi.call("calendar.event.update", {
@@ -390,11 +400,8 @@ export async function handleDiagnosticDealUpdate(
 					console.warn(
 						`[diagnostic-schedule] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
 					);
-					({ id: calendarEventId } = await addCalendarEventOnce(
-						calendarApi,
-						fields,
-						{ dealId, phone },
-					));
+					({ id: calendarEventId, adopted: calendarEventAdopted } =
+						await addCalendarEventOnce(calendarApi, fields, { dealId, phone }));
 					if (!calendarEventId) throw error;
 					action = "created";
 				}
@@ -404,10 +411,12 @@ export async function handleDiagnosticDealUpdate(
 				`[diagnostic-schedule] не удалось синхронизировать событие календаря для сделки ${dealId}: ${(error as Error).message}`,
 			);
 			calendarEventId = previous?.calendarEventId ?? 0;
+			calendarEventAdopted = previous?.calendarEventAdopted;
 		}
 
 		let state: DiagnosticScheduleState = {
 			calendarEventId,
+			calendarEventAdopted,
 			diagnosticAt,
 			lastChatStageId: previous?.lastChatStageId,
 			lastEmailStageId: previous?.lastEmailStageId,

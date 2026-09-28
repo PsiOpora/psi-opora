@@ -173,6 +173,7 @@ export async function addCalendarEventOnce(
 
 interface ConsultationCalendarState {
 	calendarEventId?: number;
+	calendarEventAdopted?: CalendarEventMatch["source"];
 }
 
 /**
@@ -191,7 +192,7 @@ export async function takeOverConsultationEvent(
 	const key = consultationStateKey(dealId);
 	const state = await redis.get<ConsultationCalendarState>(key);
 	const eventId = Number(state?.calendarEventId ?? 0);
-	if (!state || !eventId) return 0;
+	if (!state || !eventId || state.calendarEventAdopted === "phone") return 0;
 
 	try {
 		const event = await calendarApi.call<BitrixCalendarEvent | null>(
@@ -211,7 +212,7 @@ export async function takeOverConsultationEvent(
 
 	await redis.set(
 		key,
-		{ ...state, calendarEventId: undefined },
+		{ ...state, calendarEventId: undefined, calendarEventAdopted: undefined },
 		{ ex: CONSULTATION_STATE_TTL_SECONDS },
 	);
 	console.log(

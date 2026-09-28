@@ -5,7 +5,10 @@ import {
 import type { RedisClient } from "@psi-opora/bot-core";
 import { getScenarioTexts } from "@psi-opora/bot-core";
 import { findContactEmail } from "./diagnostic-scheduling";
-import { addCalendarEventOnce } from "./reminders/calendar-events";
+import {
+	addCalendarEventOnce,
+	type CalendarEventMatch,
+} from "./reminders/calendar-events";
 import {
 	appendReminderSentComment,
 	botDeliveryLabel,
@@ -69,6 +72,7 @@ interface ConsultationState {
 	lastActivityId?: number;
 	lastDescription?: string;
 	calendarEventId?: number;
+	calendarEventAdopted?: CalendarEventMatch["source"];
 	reminderSentAt: string | null;
 	updatedAt: string;
 }
@@ -196,12 +200,16 @@ async function syncConsultationCalendarEvent(params: {
 	consultationAt: string;
 	previousConsultationAt?: string;
 	previousCalendarEventId?: number;
-}): Promise<number> {
+	previousCalendarEventAdopted?: CalendarEventMatch["source"];
+}): Promise<
+	Pick<ConsultationState, "calendarEventId" | "calendarEventAdopted">
+> {
 	const { api, dealId, deal, contactId, consultationAt } = params;
 	let calendarEventId = params.previousCalendarEventId ?? 0;
+	let calendarEventAdopted = params.previousCalendarEventAdopted;
 
 	if (calendarEventId && params.previousConsultationAt === consultationAt) {
-		return calendarEventId;
+		return { calendarEventId, calendarEventAdopted };
 	}
 
 	// calendar.event.add/update в чужой календарь (ownerId != вызывающий)
@@ -231,15 +239,17 @@ async function syncConsultationCalendarEvent(params: {
 		}),
 	});
 
-	if (!calendarEventId) {
-		({ id: calendarEventId } = await addCalendarEventOnce(calendarApi, fields, {
-			dealId,
-			phone,
-		}));
+	// Ручную запись не переносим: ищем совпадение на новом времени.
+	if (!calendarEventId || calendarEventAdopted === "phone") {
+		({ id: calendarEventId, adopted: calendarEventAdopted } =
+			await addCalendarEventOnce(calendarApi, fields, {
+				dealId,
+				phone,
+			}));
 		if (!calendarEventId) {
 			throw new Error("Bitrix24 не вернул ID события консультации");
 		}
-		return calendarEventId;
+		return { calendarEventId, calendarEventAdopted };
 	}
 
 	try {
@@ -251,13 +261,14 @@ async function syncConsultationCalendarEvent(params: {
 		console.warn(
 			`[consultation-reminder] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
 		);
-		({ id: calendarEventId } = await addCalendarEventOnce(calendarApi, fields, {
-			dealId,
-			phone,
-		}));
+		({ id: calendarEventId, adopted: calendarEventAdopted } =
+			await addCalendarEventOnce(calendarApi, fields, {
+				dealId,
+				phone,
+			}));
 		if (!calendarEventId) throw error;
 	}
-	return calendarEventId;
+	return { calendarEventId, calendarEventAdopted };
 }
 
 /**
@@ -270,15 +281,24 @@ async function syncConsultationCalendarEvent(params: {
  */
 async function safeSyncConsultationCalendarEvent(
 	params: Parameters<typeof syncConsultationCalendarEvent>[0],
-): Promise<{ success: boolean; calendarEventId?: number }> {
+): Promise<
+	{ success: boolean } & Pick<
+		ConsultationState,
+		"calendarEventId" | "calendarEventAdopted"
+	>
+> {
 	try {
-		const calendarEventId = await syncConsultationCalendarEvent(params);
-		return { success: true, calendarEventId };
+		const event = await syncConsultationCalendarEvent(params);
+		return { success: true, ...event };
 	} catch (error) {
 		console.error(
 			`[consultation-reminder] не удалось синхронизировать событие календаря для сделки ${params.dealId}: ${(error as Error).message}`,
 		);
-		return { success: false, calendarEventId: params.previousCalendarEventId };
+		return {
+			success: false,
+			calendarEventId: params.previousCalendarEventId,
+			calendarEventAdopted: params.previousCalendarEventAdopted,
+		};
 	}
 }
 
@@ -446,6 +466,7 @@ async function handleConsultationDealUpdateLocked(
 			contactId,
 			consultationAt: newConsultationAt,
 			previousCalendarEventId: state?.calendarEventId,
+			previousCalendarEventAdopted: state?.calendarEventAdopted,
 		});
 		await sendConsultationBookedNotification(
 			api,
@@ -457,6 +478,7 @@ async function handleConsultationDealUpdateLocked(
 		await writeState(redis, dealId, {
 			lastConsultationAt: newConsultationAt,
 			calendarEventId: syncResult.calendarEventId,
+			calendarEventAdopted: syncResult.calendarEventAdopted,
 			reminderSentAt: null,
 			updatedAt: now,
 		});
@@ -494,11 +516,13 @@ async function handleConsultationDealUpdateLocked(
 			consultationAt: newConsultationAt,
 			previousConsultationAt: oldConsultationAt,
 			previousCalendarEventId: state.calendarEventId,
+			previousCalendarEventAdopted: state.calendarEventAdopted,
 		});
 		await writeState(redis, dealId, {
 			...state,
 			lastConsultationAt: newConsultationAt,
 			calendarEventId: syncResult.calendarEventId,
+			calendarEventAdopted: syncResult.calendarEventAdopted,
 			updatedAt: now,
 		});
 		return {
@@ -537,6 +561,7 @@ async function handleConsultationDealUpdateLocked(
 			consultationAt: newConsultationAt,
 			previousConsultationAt: oldConsultationAt,
 			previousCalendarEventId: state.calendarEventId,
+			previousCalendarEventAdopted: state.calendarEventAdopted,
 		});
 		await sendConsultationBookedNotification(
 			api,
@@ -549,6 +574,7 @@ async function handleConsultationDealUpdateLocked(
 			...state,
 			lastConsultationAt: newConsultationAt,
 			calendarEventId: syncResult.calendarEventId,
+			calendarEventAdopted: syncResult.calendarEventAdopted,
 			reminderSentAt: null,
 			updatedAt: now,
 		});
@@ -610,6 +636,7 @@ async function handleConsultationDealUpdateLocked(
 		consultationAt: newConsultationAt,
 		previousConsultationAt: oldConsultationAt,
 		previousCalendarEventId: state.calendarEventId,
+		previousCalendarEventAdopted: state.calendarEventAdopted,
 	});
 
 	await sendConsultationBookedNotification(
@@ -625,6 +652,7 @@ async function handleConsultationDealUpdateLocked(
 		lastActivityId: newActivityId ?? undefined,
 		lastDescription: oldDescription,
 		calendarEventId: syncResult.calendarEventId,
+		calendarEventAdopted: syncResult.calendarEventAdopted,
 		reminderSentAt: null,
 		updatedAt: now,
 	});

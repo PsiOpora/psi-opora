@@ -94,72 +94,112 @@ describe("diagnostic scheduling messages", () => {
 });
 
 describe("handleDiagnosticDealUpdate", () => {
-	it("creates one 90-minute event and updates it when the date changes", async () => {
-		process.env.DIAGNOSTIC_PAYMENT_URL = "https://pay.example/diagnostic";
-		process.env.BITRIX_DIAGNOSTIC_USER_ID = "17";
+	it.each([false, true])(
+		"reschedules events while preserving manual ownership (manual=%s)",
+		async (manual) => {
+			process.env.DIAGNOSTIC_PAYMENT_URL = "https://pay.example/diagnostic";
+			process.env.BITRIX_DIAGNOSTIC_USER_ID = "17";
 
-		let diagnosticAt = "2026-08-05T10:00:00+03:00";
-		const calls: Array<{ method: string; params: Record<string, unknown> }> =
-			[];
-		const api: BitrixApi = {
-			async call<T>(method: string, params: Record<string, unknown> = {}) {
-				calls.push({ method, params });
-				if (method === "crm.deal.get") {
-					return {
-						ID: "42",
-						TITLE: "Диагностика Анны",
-						CATEGORY_ID: "0",
-						STAGE_ID: PAYMENT_PENDING_STAGE_ID,
-						CONTACT_ID: "9",
-						UF_CRM_1779871551489: diagnosticAt,
-					} as T;
-				}
-				if (method === "crm.contact.get") {
-					return {
-						ID: "9",
-						NAME: "Анна",
-						EMAIL: [],
-						PHONE: [{ VALUE: "+79990000000" }],
-					} as T;
-				}
-				if (method === "crm.deal.fields") return {} as T;
-				if (method === "calendar.event.get") return [] as T;
-				if (method === "calendar.event.add") return 501 as T;
-				if (method === "calendar.event.update") return 501 as T;
-				if (method === "crm.timeline.comment.add") return 1 as T;
-				throw new Error(`Unexpected method ${method}`);
-			},
-			async list<T>() {
-				return [] as T[];
-			},
-		};
-		const redis = new MemoryRedis() as unknown as RedisClient;
+			let diagnosticAt = "2026-08-05T10:00:00+03:00";
+			const calls: Array<{ method: string; params: Record<string, unknown> }> =
+				[];
+			const api: BitrixApi = {
+				async call<T>(method: string, params: Record<string, unknown> = {}) {
+					calls.push({ method, params });
+					if (method === "crm.deal.get") {
+						return {
+							ID: "42",
+							TITLE: "Диагностика Анны",
+							CATEGORY_ID: "0",
+							STAGE_ID: PAYMENT_PENDING_STAGE_ID,
+							CONTACT_ID: "9",
+							UF_CRM_1779871551489: diagnosticAt,
+						} as T;
+					}
+					if (method === "crm.contact.get") {
+						return {
+							ID: "9",
+							NAME: "Анна",
+							EMAIL: [],
+							PHONE: [{ VALUE: "+79990000000" }],
+						} as T;
+					}
+					if (method === "crm.deal.fields") return {} as T;
+					if (method === "calendar.event.get")
+						return (
+							manual
+								? [
+										{
+											ID: "7344",
+											NAME: "Анна +79990000000",
+											DESCRIPTION: "Manual notes",
+											DATE_FROM: "05.08.2026 10:00:00",
+											DATE_TO: "05.08.2026 11:30:00",
+											TZ_OFFSET_FROM: "10800",
+											TZ_OFFSET_TO: "10800",
+										},
+									]
+								: []
+						) as T;
+					if (method === "calendar.event.add") return 501 as T;
+					if (method === "calendar.event.update") return 501 as T;
+					if (method === "crm.timeline.comment.add") return 1 as T;
+					throw new Error(`Unexpected method ${method}`);
+				},
+				async list<T>() {
+					return [] as T[];
+				},
+			};
+			const memory = new MemoryRedis();
+			const redis = memory as unknown as RedisClient;
 
-		const created = await handleDiagnosticDealUpdate(api, redis, 42);
-		const repeated = await handleDiagnosticDealUpdate(api, redis, 42);
-		diagnosticAt = "2026-08-06T12:30:00+03:00";
-		const updated = await handleDiagnosticDealUpdate(api, redis, 42);
+			const created = await handleDiagnosticDealUpdate(api, redis, 42);
+			const repeated = await handleDiagnosticDealUpdate(api, redis, 42);
+			expect(memory.values.get("diagnostic-schedule:deal:42")).toMatchObject({
+				calendarEventId: manual ? 7344 : 501,
+				calendarEventAdopted: manual ? "phone" : undefined,
+			});
+			diagnosticAt = "2026-08-05T10:15:00+03:00";
+			await handleDiagnosticDealUpdate(api, redis, 42);
+			expect(memory.values.get("diagnostic-schedule:deal:42")).toMatchObject({
+				calendarEventId: manual ? 7344 : 501,
+				calendarEventAdopted: manual ? "phone" : undefined,
+			});
+			diagnosticAt = "2026-08-06T12:30:00+03:00";
+			const updated = await handleDiagnosticDealUpdate(api, redis, 42);
 
-		expect(created.action).toBe("created");
-		expect(repeated.action).toBe("unchanged");
-		expect(updated.action).toBe("updated");
-		expect(
-			calls.filter((call) => call.method === "calendar.event.add"),
-		).toHaveLength(1);
-		expect(
-			calls.filter((call) => call.method === "calendar.event.update"),
-		).toHaveLength(1);
-		expect(
-			calls.filter((call) => call.method === "crm.timeline.comment.add"),
-		).toHaveLength(2);
+			expect(created.action).toBe("created");
+			expect(repeated.action).toBe("unchanged");
+			expect(updated.action).toBe(manual ? "created" : "updated");
+			expect(memory.values.get("diagnostic-schedule:deal:42")).toMatchObject({
+				calendarEventId: 501,
+				calendarEventAdopted: undefined,
+			});
+			diagnosticAt = "2026-08-07T12:30:00+03:00";
+			await handleDiagnosticDealUpdate(api, redis, 42);
+			expect(
+				calls.filter((call) => call.method === "calendar.event.add"),
+			).toHaveLength(1);
+			expect(
+				calls.filter((call) => call.method === "calendar.event.update"),
+			).toHaveLength(manual ? 1 : 3);
+			expect(
+				calls
+					.filter((call) => call.method === "calendar.event.update")
+					.every((call) => call.params.id === 501),
+			).toBe(true);
+			expect(
+				calls.filter((call) => call.method === "crm.timeline.comment.add"),
+			).toHaveLength(4);
 
-		const add = calls.find((call) => call.method === "calendar.event.add");
-		expect(add?.params.ownerId).toBe(17);
-		const from = new Date(String(add?.params.from)).getTime();
-		const to = new Date(String(add?.params.to)).getTime();
-		expect(to - from).toBe(90 * 60 * 1000);
-		expect(add?.params.crm_fields).toEqual(["D_42", "C_9"]);
-	});
+			const add = calls.find((call) => call.method === "calendar.event.add");
+			expect(add?.params.ownerId).toBe(17);
+			const from = new Date(String(add?.params.from)).getTime();
+			const to = new Date(String(add?.params.to)).getTime();
+			expect(to - from).toBe(90 * 60 * 1000);
+			expect(add?.params.crm_fields).toEqual(["D_42", "C_9"]);
+		},
+	);
 
 	it("moves the upcoming free consultation event instead of creating a second one", async () => {
 		process.env.DIAGNOSTIC_PAYMENT_URL = "https://pay.example/diagnostic";
