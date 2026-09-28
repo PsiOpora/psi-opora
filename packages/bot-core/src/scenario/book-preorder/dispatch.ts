@@ -3,6 +3,7 @@ import {
 	markBookPreorderDeclined,
 	markBookPreorderReserved,
 	upsertBookPreorderOrder,
+	withBookPreorderOrderLock,
 } from "@psi-opora/db/queries";
 import {
 	appendDealComment,
@@ -62,6 +63,17 @@ function dealName(
  * а каждый переход виден и стадией сделки, и комментарием в её таймлайне.
  */
 export async function dispatchBookPreorderOutput(
+	out: BookPreorderOutput,
+	deps: BookPreorderDispatchDeps,
+): Promise<void> {
+	if (deps.userId === undefined)
+		return dispatchLockedBookPreorderOutput(out, deps);
+	return withBookPreorderOrderLock(orderKey(deps.messenger, deps.userId), () =>
+		dispatchLockedBookPreorderOutput(out, deps),
+	);
+}
+
+async function dispatchLockedBookPreorderOutput(
 	out: BookPreorderOutput,
 	deps: BookPreorderDispatchDeps,
 ): Promise<void> {

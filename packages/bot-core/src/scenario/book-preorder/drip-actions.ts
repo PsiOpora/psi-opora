@@ -4,6 +4,7 @@ import {
 	markBookPreorderDeclined,
 	recordBookPreorderDripAnyClick,
 	recordBookPreorderDripDeferred,
+	withBookPreorderOrderLock,
 } from "@psi-opora/db/queries";
 import {
 	appendDealComment,
@@ -73,6 +74,18 @@ export async function handleBookPreorderDripCallback(
 	parsed: ParsedDripCallback,
 	t: ScenarioTexts,
 ): Promise<BookPreorderMessage | null> {
+	return withBookPreorderOrderLock(`${messenger}:${userId}`, () =>
+		handleLockedDripCallback(messenger, userId, chatId, parsed, t),
+	);
+}
+
+async function handleLockedDripCallback(
+	messenger: string,
+	userId: string | number,
+	chatId: string | number | undefined,
+	parsed: ParsedDripCallback,
+	t: ScenarioTexts,
+): Promise<BookPreorderMessage | null> {
 	const order = await getBookPreorderOrderByOrderNo(parsed.orderNo);
 	if (!order) return null;
 	if (order.messenger !== messenger || order.userId !== String(userId)) {
@@ -103,7 +116,9 @@ export async function handleBookPreorderDripCallback(
 					: BOOK_PREORDER_PRICE_RUB;
 			// Заказ и сделку — в «Ждёт оплаты» до выдачи ссылки, чтобы в CRM было
 			// видно, кто открыл оплату из напоминания.
-			await markBookPreorderAwaitingPayment(order.id, {});
+			if (!(await markBookPreorderAwaitingPayment(order.id, {}, "reserved"))) {
+				return { text: t.bp_drip_already_settled_reply };
+			}
 			const url = buildProdamusPaymentUrl({
 				orderId: order.orderNo,
 				phone: order.phone ?? undefined,
@@ -133,7 +148,9 @@ export async function handleBookPreorderDripCallback(
 
 		case "cancel": {
 			await recordBookPreorderDripAnyClick(order.id);
-			await markBookPreorderDeclined(order.id);
+			if (!(await markBookPreorderDeclined(order.id, "reserved"))) {
+				return { text: t.bp_drip_already_settled_reply };
+			}
 			if (order.dealId) {
 				await tryMoveBookPreorderDealStage(messenger, order.dealId, "declined");
 				await appendDealComment(
@@ -157,7 +174,9 @@ export async function handleBookPreorderDripCallback(
 		}
 
 		case "stop": {
-			await markBookPreorderDeclined(order.id);
+			if (!(await markBookPreorderDeclined(order.id, "reserved"))) {
+				return { text: t.bp_drip_already_settled_reply };
+			}
 			if (order.dealId) {
 				await tryMoveBookPreorderDealStage(messenger, order.dealId, "declined");
 				await appendDealComment(

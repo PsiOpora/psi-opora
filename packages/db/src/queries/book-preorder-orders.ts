@@ -90,9 +90,10 @@ export async function markBookPreorderAwaitingPayment(
 	db: Database,
 	id: string,
 	patch: { email?: string; dealId?: number },
-): Promise<void> {
-	if (!db) return;
-	await db
+	expectedStatus?: "reserved",
+): Promise<boolean> {
+	if (!db) return false;
+	const rows = await db
 		.update(bookPreorderOrders)
 		.set({
 			status: "awaiting_payment",
@@ -100,7 +101,16 @@ export async function markBookPreorderAwaitingPayment(
 			updatedAt: sql`now()`,
 			...patch,
 		})
-		.where(eq(bookPreorderOrders.id, id));
+		.where(
+			and(
+				eq(bookPreorderOrders.id, id),
+				expectedStatus
+					? eq(bookPreorderOrders.status, expectedStatus)
+					: undefined,
+			),
+		)
+		.returning({ id: bookPreorderOrders.id });
+	return rows.length > 0;
 }
 
 /**
@@ -200,12 +210,22 @@ export async function releaseBookPreorderDealPaidSync(
 export async function markBookPreorderDeclined(
 	db: Database,
 	id: string,
-): Promise<void> {
-	if (!db) return;
-	await db
+	expectedStatus?: "reserved",
+): Promise<boolean> {
+	if (!db) return false;
+	const rows = await db
 		.update(bookPreorderOrders)
 		.set({ status: "declined", declinedAt: sql`now()`, updatedAt: sql`now()` })
-		.where(eq(bookPreorderOrders.id, id));
+		.where(
+			and(
+				eq(bookPreorderOrders.id, id),
+				expectedStatus
+					? eq(bookPreorderOrders.status, expectedStatus)
+					: undefined,
+			),
+		)
+		.returning({ id: bookPreorderOrders.id });
+	return rows.length > 0;
 }
 
 /** Клиент выбрал «Оплата позже» на шаге оплаты — возвращает заказ из

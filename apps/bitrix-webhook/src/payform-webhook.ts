@@ -12,6 +12,7 @@ import {
 	markBookPreorderPaid,
 	releaseBookPreorderDealPaidSync,
 	releaseBookPreorderPaidNotification,
+	withBookPreorderOrderLock,
 } from "@psi-opora/db/queries";
 import { type Messenger, sendMessengerMessage } from "@psi-opora/jobs";
 import { z } from "zod";
@@ -112,6 +113,12 @@ export async function handlePayformWebhook(
 		return Response.json({ ok: true });
 	}
 
+	const order = await getBookPreorderOrderByOrderNo(orderNo);
+	if (!order) return Response.json({ ok: true });
+	return withBookPreorderOrderLock(order.id, () => processPaidOrder(orderNo));
+}
+
+async function processPaidOrder(orderNo: number): Promise<Response> {
 	// markBookPreorderPaid переводит в paid заказ в любом статусе, кроме уже
 	// оплаченного (в т.ч. вернувшийся в бронь после «Оплата позже»), и вернёт
 	// null на повторный вебхук по уже оплаченному заказу — тогда договариваем недоделанные побочные операции по заказу,
