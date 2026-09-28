@@ -71,6 +71,14 @@ export {
 	type SendClientMessageInput,
 	sendClientMessageSchema,
 } from "./messages";
+export {
+	extractPhones,
+	formatPhone,
+	normalizePhone,
+	type SetClientPhoneInput,
+	samePhone,
+	setClientPhoneSchema,
+} from "./phone";
 export { type ResendSettingsInput, resendSettingsSchema } from "./resend";
 export {
 	type EmailProviderInput,

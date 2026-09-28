@@ -71,12 +71,16 @@ export type {
 	ClientNoteItem,
 	ClientProfile,
 	CrmContactLink,
+	CrmContactRef,
 	CrmDealLink,
 	CrmLeadLink,
 	CrmLinksResult,
+	CrmPhone,
 	InboxMessenger,
 	MessageDeliveryStatus,
+	PhoneHint,
 	QuickReplyItem,
+	SetClientPhoneResult,
 } from "./routers/messages";
 export type { TelegramPersonalAccountView } from "./routers/telegram-personal";
 export type { WhatsappPersonalAccountView } from "./routers/whatsapp-personal";

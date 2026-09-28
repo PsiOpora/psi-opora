@@ -1,5 +1,6 @@
 import { router } from "../../orpc";
 import { assign } from "./assign";
+import { phoneHints, setClientPhone } from "./client-phone";
 import { crmLinks } from "./crm-links";
 import { crmLinksByDialog } from "./crm-links-by-dialog";
 import { deleteMessage } from "./delete";
@@ -35,6 +36,8 @@ export const messagesRouter = router({
 	guideActivity,
 	crmLinks,
 	crmLinksByDialog,
+	setClientPhone,
+	phoneHints,
 	setTags,
 	notes,
 	addNote,
@@ -45,6 +48,11 @@ export const messagesRouter = router({
 });
 
 export type {
+	CrmContactRef,
+	PhoneHint,
+	SetClientPhoneResult,
+} from "./client-phone";
+export type {
 	ClientGuideItem,
 	ClientListItem,
 	ClientMessageItem,
@@ -54,6 +62,7 @@ export type {
 	CrmDealLink,
 	CrmLeadLink,
 	CrmLinksResult,
+	CrmPhone,
 	InboxMessenger,
 	MessageDeliveryStatus,
 	QuickReplyItem,

@@ -33,11 +33,18 @@ export interface ClientListItem {
 	linkedChannels: InboxMessenger[];
 }
 
+export interface CrmPhone {
+	/** ID значения мультиполя PHONE — нужен, чтобы исправить именно этот номер. */
+	id: string | null;
+	value: string;
+}
+
 export interface CrmContactLink {
 	id: string;
 	name: string;
 	/** null — домен портала неизвестен (нет ни OAuth-сессии, ни вебхука). */
 	url: string | null;
+	phones: CrmPhone[];
 }
 
 export interface CrmLeadLink {
