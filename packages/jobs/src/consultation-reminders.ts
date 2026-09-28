@@ -6,8 +6,14 @@ import type { RedisClient } from "@psi-opora/bot-core";
 import { getScenarioTexts } from "@psi-opora/bot-core";
 import { findContactEmail } from "./diagnostic-scheduling";
 import {
+	addCalendarEventOnce,
+	type CalendarEventMatch,
+} from "./reminders/calendar-events";
+import {
 	appendReminderSentComment,
 	botDeliveryLabel,
+	CONSULTATION_STATE_TTL_SECONDS,
+	consultationStateKey,
 	DEAL_CATEGORY_ID,
 	DEAL_STAGE_IDS,
 	extractClientContactId,
@@ -28,7 +34,6 @@ const RESPONSIBLE_USER_ID = 1;
 // Напоминание шлём, если консультация через 0–70 минут — запас на случай
 // редких прогонов крона (крон раз в 10 минут).
 const REMINDER_WINDOW_MS = 70 * 60 * 1000;
-const STATE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 // Бесплатная консультация проходит по телефону, без видеозвонка.
 const CONSULTATION_DURATION_MS = 30 * 60 * 1000;
@@ -37,10 +42,6 @@ const CONSULTATION_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
 	dateStyle: "long",
 	timeStyle: "short",
 });
-
-function dealStateKey(dealId: number): string {
-	return `consult-reminder:deal:${dealId}`;
-}
 
 function dealLockKey(dealId: number): string {
 	return `consult-reminder:lock:${dealId}`;
@@ -71,6 +72,7 @@ interface ConsultationState {
 	lastActivityId?: number;
 	lastDescription?: string;
 	calendarEventId?: number;
+	calendarEventAdopted?: CalendarEventMatch["source"];
 	reminderSentAt: string | null;
 	updatedAt: string;
 }
@@ -198,12 +200,16 @@ async function syncConsultationCalendarEvent(params: {
 	consultationAt: string;
 	previousConsultationAt?: string;
 	previousCalendarEventId?: number;
-}): Promise<number> {
+	previousCalendarEventAdopted?: CalendarEventMatch["source"];
+}): Promise<
+	Pick<ConsultationState, "calendarEventId" | "calendarEventAdopted">
+> {
 	const { api, dealId, deal, contactId, consultationAt } = params;
 	let calendarEventId = params.previousCalendarEventId ?? 0;
+	let calendarEventAdopted = params.previousCalendarEventAdopted;
 
 	if (calendarEventId && params.previousConsultationAt === consultationAt) {
-		return calendarEventId;
+		return { calendarEventId, calendarEventAdopted };
 	}
 
 	// calendar.event.add/update в чужой календарь (ownerId != вызывающий)
@@ -220,6 +226,7 @@ async function syncConsultationCalendarEvent(params: {
 				})
 			: false;
 	const clientName = consultationContactName(contact);
+	const phone = consultationContactPhone(contact);
 	const fields = consultationCalendarFields({
 		dealId,
 		contactId,
@@ -228,21 +235,21 @@ async function syncConsultationCalendarEvent(params: {
 		description: consultationEventDescription({
 			dealId,
 			clientName,
-			phone: consultationContactPhone(contact),
+			phone,
 		}),
 	});
 
-	if (!calendarEventId) {
-		calendarEventId = Number(
-			await calendarApi.call("calendar.event.add", {
-				...fields,
-				auto_detect_section: "Y",
-			}),
-		);
+	// Ручную запись не переносим: ищем совпадение на новом времени.
+	if (!calendarEventId || calendarEventAdopted === "phone") {
+		({ id: calendarEventId, adopted: calendarEventAdopted } =
+			await addCalendarEventOnce(calendarApi, fields, {
+				dealId,
+				phone,
+			}));
 		if (!calendarEventId) {
 			throw new Error("Bitrix24 не вернул ID события консультации");
 		}
-		return calendarEventId;
+		return { calendarEventId, calendarEventAdopted };
 	}
 
 	try {
@@ -254,15 +261,14 @@ async function syncConsultationCalendarEvent(params: {
 		console.warn(
 			`[consultation-reminder] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
 		);
-		calendarEventId = Number(
-			await calendarApi.call("calendar.event.add", {
-				...fields,
-				auto_detect_section: "Y",
-			}),
-		);
+		({ id: calendarEventId, adopted: calendarEventAdopted } =
+			await addCalendarEventOnce(calendarApi, fields, {
+				dealId,
+				phone,
+			}));
 		if (!calendarEventId) throw error;
 	}
-	return calendarEventId;
+	return { calendarEventId, calendarEventAdopted };
 }
 
 /**
@@ -275,15 +281,24 @@ async function syncConsultationCalendarEvent(params: {
  */
 async function safeSyncConsultationCalendarEvent(
 	params: Parameters<typeof syncConsultationCalendarEvent>[0],
-): Promise<{ success: boolean; calendarEventId?: number }> {
+): Promise<
+	{ success: boolean } & Pick<
+		ConsultationState,
+		"calendarEventId" | "calendarEventAdopted"
+	>
+> {
 	try {
-		const calendarEventId = await syncConsultationCalendarEvent(params);
-		return { success: true, calendarEventId };
+		const event = await syncConsultationCalendarEvent(params);
+		return { success: true, ...event };
 	} catch (error) {
 		console.error(
 			`[consultation-reminder] не удалось синхронизировать событие календаря для сделки ${params.dealId}: ${(error as Error).message}`,
 		);
-		return { success: false, calendarEventId: params.previousCalendarEventId };
+		return {
+			success: false,
+			calendarEventId: params.previousCalendarEventId,
+			calendarEventAdopted: params.previousCalendarEventAdopted,
+		};
 	}
 }
 
@@ -292,7 +307,8 @@ async function readState(
 	dealId: number,
 ): Promise<ConsultationState | undefined> {
 	return (
-		(await redis.get<ConsultationState>(dealStateKey(dealId))) ?? undefined
+		(await redis.get<ConsultationState>(consultationStateKey(dealId))) ??
+		undefined
 	);
 }
 
@@ -301,7 +317,9 @@ async function writeState(
 	dealId: number,
 	state: ConsultationState,
 ): Promise<void> {
-	await redis.set(dealStateKey(dealId), state, { ex: STATE_TTL_SECONDS });
+	await redis.set(consultationStateKey(dealId), state, {
+		ex: CONSULTATION_STATE_TTL_SECONDS,
+	});
 	await redis.sadd(INDEX_KEY, String(dealId));
 }
 
@@ -448,6 +466,7 @@ async function handleConsultationDealUpdateLocked(
 			contactId,
 			consultationAt: newConsultationAt,
 			previousCalendarEventId: state?.calendarEventId,
+			previousCalendarEventAdopted: state?.calendarEventAdopted,
 		});
 		await sendConsultationBookedNotification(
 			api,
@@ -459,6 +478,7 @@ async function handleConsultationDealUpdateLocked(
 		await writeState(redis, dealId, {
 			lastConsultationAt: newConsultationAt,
 			calendarEventId: syncResult.calendarEventId,
+			calendarEventAdopted: syncResult.calendarEventAdopted,
 			reminderSentAt: null,
 			updatedAt: now,
 		});
@@ -496,11 +516,13 @@ async function handleConsultationDealUpdateLocked(
 			consultationAt: newConsultationAt,
 			previousConsultationAt: oldConsultationAt,
 			previousCalendarEventId: state.calendarEventId,
+			previousCalendarEventAdopted: state.calendarEventAdopted,
 		});
 		await writeState(redis, dealId, {
 			...state,
 			lastConsultationAt: newConsultationAt,
 			calendarEventId: syncResult.calendarEventId,
+			calendarEventAdopted: syncResult.calendarEventAdopted,
 			updatedAt: now,
 		});
 		return {
@@ -539,6 +561,7 @@ async function handleConsultationDealUpdateLocked(
 			consultationAt: newConsultationAt,
 			previousConsultationAt: oldConsultationAt,
 			previousCalendarEventId: state.calendarEventId,
+			previousCalendarEventAdopted: state.calendarEventAdopted,
 		});
 		await sendConsultationBookedNotification(
 			api,
@@ -551,6 +574,7 @@ async function handleConsultationDealUpdateLocked(
 			...state,
 			lastConsultationAt: newConsultationAt,
 			calendarEventId: syncResult.calendarEventId,
+			calendarEventAdopted: syncResult.calendarEventAdopted,
 			reminderSentAt: null,
 			updatedAt: now,
 		});
@@ -612,6 +636,7 @@ async function handleConsultationDealUpdateLocked(
 		consultationAt: newConsultationAt,
 		previousConsultationAt: oldConsultationAt,
 		previousCalendarEventId: state.calendarEventId,
+		previousCalendarEventAdopted: state.calendarEventAdopted,
 	});
 
 	await sendConsultationBookedNotification(
@@ -627,6 +652,7 @@ async function handleConsultationDealUpdateLocked(
 		lastActivityId: newActivityId ?? undefined,
 		lastDescription: oldDescription,
 		calendarEventId: syncResult.calendarEventId,
+		calendarEventAdopted: syncResult.calendarEventAdopted,
 		reminderSentAt: null,
 		updatedAt: now,
 	});

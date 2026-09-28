@@ -3,6 +3,12 @@ import {
 	resolveCalendarBitrixApi,
 } from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
+import type { Messenger } from "./messenger";
+import {
+	addCalendarEventOnce,
+	type CalendarEventMatch,
+	takeOverConsultationEvent,
+} from "./reminders/calendar-events";
 import {
 	appendReminderSentComment,
 	botDeliveryLabel,
@@ -12,7 +18,6 @@ import {
 	sendReminderBotMessage,
 	sendReminderWhatsappMessage,
 } from "./reminders/shared";
-import type { Messenger } from "./messenger";
 
 export const DIAGNOSTIC_DT_FIELD = "UF_CRM_1779871551489";
 export const PAYMENT_PENDING_STAGE_ID = "UC_PV8XUM";
@@ -38,6 +43,7 @@ const DIAGNOSTIC_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
 
 interface DiagnosticScheduleState {
 	calendarEventId: number;
+	calendarEventAdopted?: CalendarEventMatch["source"];
 	diagnosticAt: string;
 	lastChatStageId?: string;
 	lastEmailStageId?: string;
@@ -323,11 +329,12 @@ export async function handleDiagnosticDealUpdate(
 				: false;
 		const clientName = contactName(contact);
 		const email = findContactEmail(contact);
+		const phone = contactPhone(contact);
 		const description = eventDescription({
 			dealId,
 			clientName,
 			email,
-			phone: contactPhone(contact),
+			phone,
 		});
 		const fields = calendarFields({
 			dealId,
@@ -340,6 +347,7 @@ export async function handleDiagnosticDealUpdate(
 		const previous =
 			(await redis.get<DiagnosticScheduleState>(stateKey(dealId))) ?? undefined;
 		let calendarEventId = previous?.calendarEventId ?? 0;
+		let calendarEventAdopted = previous?.calendarEventAdopted;
 		let action: DiagnosticDealUpdateResult["action"] = "unchanged";
 
 		// calendar.event.add/update в чужой календарь (ownerId != вызывающий)
@@ -355,12 +363,30 @@ export async function handleDiagnosticDealUpdate(
 		// уйдёт, а каждый повторный ONCRMDEALUPDATE будет заново падать здесь.
 		try {
 			if (!calendarEventId) {
-				calendarEventId = Number(
-					await calendarApi.call("calendar.event.add", {
-						...fields,
-						auto_detect_section: "Y",
-					}),
+				calendarEventId = await takeOverConsultationEvent(
+					calendarApi,
+					redis,
+					dealId,
+					fields,
 				);
+				if (calendarEventId) {
+					calendarEventAdopted = undefined;
+					action = "updated";
+				} else {
+					({ id: calendarEventId, adopted: calendarEventAdopted } =
+						await addCalendarEventOnce(calendarApi, fields, { dealId, phone }));
+					if (!calendarEventId) {
+						throw new Error("Bitrix24 не вернул ID события");
+					}
+					action = "created";
+				}
+			} else if (
+				previous?.diagnosticAt !== diagnosticAt &&
+				calendarEventAdopted === "phone"
+			) {
+				// Ручную запись не переносим: ищем совпадение на новом времени.
+				({ id: calendarEventId, adopted: calendarEventAdopted } =
+					await addCalendarEventOnce(calendarApi, fields, { dealId, phone }));
 				if (!calendarEventId) throw new Error("Bitrix24 не вернул ID события");
 				action = "created";
 			} else if (previous?.diagnosticAt !== diagnosticAt) {
@@ -374,12 +400,8 @@ export async function handleDiagnosticDealUpdate(
 					console.warn(
 						`[diagnostic-schedule] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
 					);
-					calendarEventId = Number(
-						await calendarApi.call("calendar.event.add", {
-							...fields,
-							auto_detect_section: "Y",
-						}),
-					);
+					({ id: calendarEventId, adopted: calendarEventAdopted } =
+						await addCalendarEventOnce(calendarApi, fields, { dealId, phone }));
 					if (!calendarEventId) throw error;
 					action = "created";
 				}
@@ -389,10 +411,12 @@ export async function handleDiagnosticDealUpdate(
 				`[diagnostic-schedule] не удалось синхронизировать событие календаря для сделки ${dealId}: ${(error as Error).message}`,
 			);
 			calendarEventId = previous?.calendarEventId ?? 0;
+			calendarEventAdopted = previous?.calendarEventAdopted;
 		}
 
 		let state: DiagnosticScheduleState = {
 			calendarEventId,
+			calendarEventAdopted,
 			diagnosticAt,
 			lastChatStageId: previous?.lastChatStageId,
 			lastEmailStageId: previous?.lastEmailStageId,
