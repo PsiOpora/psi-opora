@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { extractPhones, formatPhone, normalizePhone, samePhone } from "./phone";
+import {
+	extractPhones,
+	formatPhone,
+	normalizePhone,
+	samePhone,
+	setClientPhoneSchema,
+} from "./phone";
 
 describe("normalizePhone", () => {
 	test("приводит российские варианты записи к +7", () => {
@@ -7,6 +13,22 @@ describe("normalizePhone", () => {
 		expect(normalizePhone("79991234567")).toBe("+79991234567");
 		expect(normalizePhone("+7 999 123 45 67")).toBe("+79991234567");
 		expect(normalizePhone("9991234567")).toBe("+79991234567");
+	});
+
+	test("принимает десятизначные российские номера с 3–9, включая стационарные", () => {
+		for (const prefix of [3, 4, 5, 6, 7, 8, 9]) {
+			const phone = `${prefix}95 123-45-67`;
+			expect(normalizePhone(phone)).toBe(`+7${prefix}951234567`);
+			expect(
+				setClientPhoneSchema.safeParse({
+					messenger: "telegram",
+					userId: "1",
+					phone,
+				}).success,
+			).toBe(true);
+		}
+		expect(samePhone("495 123-45-67", "8 (495) 123-45-67")).toBe(true);
+		expect(extractPhones("Звоните (495) 123-45-67")).toEqual(["+74951234567"]);
 	});
 
 	test("оставляет международные номера как есть", () => {
@@ -20,6 +42,10 @@ describe("normalizePhone", () => {
 		expect(normalizePhone("телефон 89991234567")).toBeNull();
 		expect(normalizePhone("2200 1234 5678 9012")).toBeNull();
 		expect(normalizePhone("1234567890")).toBeNull();
+		expect(normalizePhone("2951234567")).toBeNull();
+		expect(normalizePhone("+4951234567")).toBeNull();
+		expect(normalizePhone("+123456789012345")).toBe("+123456789012345");
+		expect(normalizePhone("+1234567890123456")).toBeNull();
 	});
 });
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { inboxMessengerSchema } from "./messages";
+import { clientThreadSchema, inboxMessengerSchema } from "./messages";
 
 /** Символы, из которых может состоять записанный человеком номер. */
 const PHONE_CHARS = /^[\d\s+\-().]+$/;
@@ -7,7 +7,7 @@ const PHONE_CHARS = /^[\d\s+\-().]+$/;
 /**
  * Приводит введённый оператором/клиентом номер к E.164-подобному виду
  * `+79991234567`. Рассчитано на российские номера, но не ломает
- * международные: `8 999 …`/`7 999 …`/`999 …` (10 цифр с 9) → `+7…`,
+ * международные: `8 999 …`/`7 999 …`/`999 …` (10 цифр с 3–9) → `+7…`,
  * остальное с 11–15 цифрами — `+` и цифры как есть.
  * `null` — строка не похожа на телефон (слишком коротко/длинно, буквы).
  *
@@ -24,7 +24,7 @@ export function normalizePhone(input: string): string | null {
 		if (digits.length === 11 && /^[78]/.test(digits)) {
 			return `+7${digits.slice(1)}`;
 		}
-		if (digits.length === 10 && digits.startsWith("9")) return `+7${digits}`;
+		if (digits.length === 10 && /^[3-9]/.test(digits)) return `+7${digits}`;
 	}
 	if (digits.length < 11 || digits.length > 15) return null;
 	return `+${digits}`;
@@ -77,3 +77,12 @@ export const setClientPhoneSchema = z.object({
 	createNew: z.boolean().optional(),
 });
 export type SetClientPhoneInput = z.infer<typeof setClientPhoneSchema>;
+
+/** Повтор только локальной CRM-привязки после успешного сохранения телефона. */
+export const retryClientPhoneLinkSchema = clientThreadSchema.extend({
+	contactId: z.string().regex(/^[1-9]\d*$/),
+	dealId: z
+		.string()
+		.regex(/^[1-9]\d*$/)
+		.nullable(),
+});

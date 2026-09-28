@@ -12,6 +12,7 @@ import { clientThreadSchema } from "../../schemas/messages";
 import {
 	extractPhones,
 	normalizePhone,
+	retryClientPhoneLinkSchema,
 	samePhone,
 	setClientPhoneSchema,
 } from "../../schemas/phone";
@@ -38,6 +39,9 @@ export type SetClientPhoneResult =
 			outcome: "added" | "updated" | "unchanged" | "linked" | "created";
 			phone: string;
 			contact: CrmContactRef;
+			dealId: string | null;
+			/** ok означает, что телефон уже в CRM; привязку можно повторить отдельно. */
+			linkError: string | null;
 			/** Другие контакты CRM с тем же номером — повод объединить их в Bitrix. */
 			duplicates: CrmContactRef[];
 	  }
@@ -84,6 +88,43 @@ async function resolveContact(
 	};
 }
 
+/** Ошибка локальной привязки не отменяет уже сохранённый в CRM телефон. */
+async function persistPhoneLink(
+	messenger: string,
+	userId: string,
+	contactId: string,
+	dealId: string | null,
+): Promise<string | null> {
+	try {
+		await upsertBitrixCrmLink({
+			messenger,
+			userId,
+			contactId,
+			...(dealId ? { dealId } : {}),
+		});
+		return null;
+	} catch (err) {
+		return `Не удалось привязать диалог к контакту: ${(err as Error).message}`;
+	}
+}
+
+export const retryClientPhoneLink = bitrixProcedure
+	.input(retryClientPhoneLinkSchema)
+	.handler(async ({ input }): Promise<{ linkError: string | null }> => {
+		const primary = await resolveCanonicalIdentity(
+			input.messenger,
+			input.userId,
+		);
+		return {
+			linkError: await persistPhoneLink(
+				primary.messenger,
+				primary.userId,
+				input.contactId,
+				input.dealId,
+			),
+		};
+	});
+
 /**
  * Телефон клиента в CRM — для случаев, когда клиент не оставил его боту:
  * номер пишется в мультиполе PHONE контакта Bitrix24, привязанного к диалогу.
@@ -107,13 +148,8 @@ export const setClientPhone = bitrixProcedure
 			input.userId,
 		);
 		const domain = await resolvePortalDomain(context.memberId);
-		const link = (contactId: string, dealId?: string | null) =>
-			upsertBitrixCrmLink({
-				messenger: primary.messenger,
-				userId: primary.userId,
-				contactId,
-				...(dealId ? { dealId } : {}),
-			});
+		const link = (contactId: string, dealId: string | null) =>
+			persistPhoneLink(primary.messenger, primary.userId, contactId, dealId);
 		const ref = (id: string, raw: RawCrmContact | null): CrmContactRef => ({
 			id,
 			name: contactDisplayName(raw, id),
@@ -160,7 +196,7 @@ export const setClientPhone = bitrixProcedure
 					outcome = "added";
 				}
 
-				await link(contactId, dealId);
+				const linkError = await link(contactId, dealId);
 				const otherIds = (
 					await findContactIdsByPhone(api, phone).catch(() => [])
 				)
@@ -171,6 +207,8 @@ export const setClientPhone = bitrixProcedure
 					outcome,
 					phone,
 					contact: ref(contactId, raw),
+					dealId,
+					linkError,
 					duplicates: await loadContactRefs(api, domain, otherIds),
 				};
 			}
@@ -187,12 +225,14 @@ export const setClientPhone = bitrixProcedure
 				const [contact] = await loadContactRefs(api, domain, [
 					input.linkContactId,
 				]);
-				await link(input.linkContactId);
+				const linkError = await link(input.linkContactId, dealId);
 				return {
 					ok: true,
 					outcome: "linked",
 					phone,
 					contact: contact ?? ref(input.linkContactId, null),
+					dealId,
+					linkError,
 					duplicates: [],
 				};
 			}
@@ -227,12 +267,14 @@ export const setClientPhone = bitrixProcedure
 			const createdId = String(
 				await api.call<number>("crm.contact.add", { fields }),
 			);
-			await link(createdId);
+			const linkError = await link(createdId, dealId);
 			return {
 				ok: true,
 				outcome: "created",
 				phone,
 				contact: ref(createdId, fields),
+				dealId,
+				linkError,
 				duplicates: [],
 			};
 		} catch (err) {

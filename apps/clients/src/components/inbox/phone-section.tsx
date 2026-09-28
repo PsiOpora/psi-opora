@@ -12,6 +12,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PhoneForm } from "@/components/inbox/phone-form";
 import type { SelectedClient } from "@/components/inbox/thread-pane";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc, orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
@@ -111,6 +112,10 @@ export function PhoneSection({ selected }: { selected: SelectedClient }) {
 	const [editing, setEditing] = useState<Editing>(null);
 	const [value, setValue] = useState("");
 	const [conflict, setConflict] = useState<CrmContactRef[] | null>(null);
+	const [pendingLink, setPendingLink] = useState<Extract<
+		SetClientPhoneResult,
+		{ ok: true }
+	> | null>(null);
 	const [saving, startSaving] = useTransition();
 
 	const formOpen = missing || editing !== null;
@@ -134,7 +139,7 @@ export function PhoneSection({ selected }: { selected: SelectedClient }) {
 	const save = (
 		extra: { linkContactId?: string; createNew?: boolean } = {},
 	) => {
-		if (saving) return;
+		if (saving || pendingLink) return;
 		startSaving(async () => {
 			let result: SetClientPhoneResult;
 			try {
@@ -155,7 +160,11 @@ export function PhoneSection({ selected }: { selected: SelectedClient }) {
 				return;
 			}
 
-			toast.success(successMessage(result));
+			if (result.linkError) {
+				setPendingLink(result);
+			} else {
+				toast.success(successMessage(result));
+			}
 			if (result.duplicates.length > 0) {
 				toast.warning(
 					`Этот номер есть и у других контактов CRM: ${result.duplicates
@@ -167,6 +176,30 @@ export function PhoneSection({ selected }: { selected: SelectedClient }) {
 			await queryClient.invalidateQueries({
 				queryKey: orpc.messages.crmLinks.key({ input }),
 			});
+		});
+	};
+
+	const retryLink = () => {
+		if (saving || !pendingLink) return;
+		startSaving(async () => {
+			try {
+				const result = await orpcClient.messages.retryClientPhoneLink({
+					...input,
+					contactId: pendingLink.contact.id,
+					dealId: pendingLink.dealId,
+				});
+				if (result.linkError) {
+					setPendingLink({ ...pendingLink, linkError: result.linkError });
+					return;
+				}
+				setPendingLink(null);
+				toast.success("Диалог привязан к контакту CRM");
+				await queryClient.invalidateQueries({
+					queryKey: orpc.messages.crmLinks.key({ input }),
+				});
+			} catch (err) {
+				toast.error((err as Error).message || "Не удалось привязать диалог");
+			}
 		});
 	};
 
@@ -183,7 +216,7 @@ export function PhoneSection({ selected }: { selected: SelectedClient }) {
 					<PhoneIcon className="size-3.5" />
 					Телефон
 				</div>
-				{phones.length > 0 && editing === null && (
+				{phones.length > 0 && editing === null && !pendingLink && (
 					<button
 						type="button"
 						onClick={() => setEditing({})}
@@ -195,7 +228,23 @@ export function PhoneSection({ selected }: { selected: SelectedClient }) {
 				)}
 			</div>
 
-			{crm.isLoading ? (
+			{pendingLink ? (
+				<div className="flex flex-col gap-2 text-xs" role="status">
+					<p>
+						Телефон {formatPhone(pendingLink.phone)} сохранён в контакте «
+						{pendingLink.contact.name}» в CRM.
+					</p>
+					<p className="text-destructive">{pendingLink.linkError}</p>
+					<Button
+						size="xs"
+						variant="outline"
+						disabled={saving}
+						onClick={retryLink}
+					>
+						Повторить привязку
+					</Button>
+				</div>
+			) : crm.isLoading ? (
 				<Skeleton className="h-5 w-32" />
 			) : crm.data?.error ? (
 				<p className="text-xs text-destructive">

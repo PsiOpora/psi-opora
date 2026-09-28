@@ -1,6 +1,10 @@
 import { router } from "../../orpc";
 import { assign } from "./assign";
-import { phoneHints, setClientPhone } from "./client-phone";
+import {
+	phoneHints,
+	retryClientPhoneLink,
+	setClientPhone,
+} from "./client-phone";
 import { crmLinks } from "./crm-links";
 import { crmLinksByDialog } from "./crm-links-by-dialog";
 import { deleteMessage } from "./delete";
@@ -37,6 +41,7 @@ export const messagesRouter = router({
 	crmLinks,
 	crmLinksByDialog,
 	setClientPhone,
+	retryClientPhoneLink,
 	phoneHints,
 	setTags,
 	notes,
