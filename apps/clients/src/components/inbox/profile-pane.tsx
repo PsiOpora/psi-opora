@@ -15,8 +15,9 @@ import { ClientAvatar } from "@/components/inbox/client-avatar";
 import { CrmSection } from "@/components/inbox/crm-section";
 import { GuidesSection } from "@/components/inbox/guides-section";
 import { MergeSection } from "@/components/inbox/merge-section";
-import { messengerLabel } from "@/components/inbox/messenger-meta";
+import { clientKey, messengerLabel } from "@/components/inbox/messenger-meta";
 import { NotesSection } from "@/components/inbox/notes-section";
+import { PhoneSection } from "@/components/inbox/phone-section";
 import { TagsEditor } from "@/components/inbox/tags-editor";
 import type {
 	CurrentOperator,
@@ -175,6 +176,11 @@ export function ProfilePane({
 					{profile.bio}
 				</p>
 			)}
+
+			<PhoneSection
+				key={clientKey(selected.messenger, selected.userId)}
+				selected={selected}
+			/>
 
 			<Separator />
 

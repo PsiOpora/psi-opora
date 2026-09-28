@@ -84,8 +84,8 @@ export function CrmSection({ selected }: { selected: SelectedClient }) {
 				<p className="text-xs text-destructive">{data.error}</p>
 			) : !data || (!data.contact && !data.lead && data.deals.length === 0) ? (
 				<p className="text-xs text-muted-foreground">
-					Контакт в CRM не найден — он появится после того, как трекер Открытой
-					линии обработает первое сообщение клиента.
+					Контакт в CRM не найден. Укажите телефон клиента выше — найдём контакт
+					по номеру или создадим новый.
 				</p>
 			) : (
 				<div className="flex flex-col gap-2 text-sm">

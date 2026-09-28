@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MESSAGE_MAX_LENGTH } from "./broadcast";
 
-const inboxMessengerSchema = z.enum([
+export const inboxMessengerSchema = z.enum([
 	"telegram",
 	"max",
 	"telegram-personal",
