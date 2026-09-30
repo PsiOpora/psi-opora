@@ -7,6 +7,7 @@ export {
 	type MaxUserbotSession,
 } from "./login";
 export {
+	assertMaxLoginCommandDeadline,
 	callMaxLoginWorker,
 	claimMaxLoginCommand,
 	type MaxLoginCommand,

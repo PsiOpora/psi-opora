@@ -1,4 +1,5 @@
 import {
+	assertMaxLoginCommandDeadline,
 	claimMaxLoginCommand,
 	decryptSecret,
 	encryptSecret,
@@ -62,6 +63,7 @@ async function executeCommand(
 	queued: QueuedMaxLoginCommand,
 ): Promise<MaxLoginStepResult> {
 	const { loginId, command } = queued;
+	assertMaxLoginCommandDeadline(command, queued.expiresAt);
 	switch (command.action) {
 		case "start": {
 			const { flow, result } = await MaxLoginFlow.start(command.phone);
@@ -120,11 +122,11 @@ async function handleCommand(queued: QueuedMaxLoginCommand): Promise<void> {
 	}
 }
 
-function enqueue(queued: QueuedMaxLoginCommand): void {
+export function enqueue(queued: QueuedMaxLoginCommand): Promise<void> {
 	const previous = loginQueues.get(queued.loginId) ?? Promise.resolve();
 	const next = previous.then(() => handleCommand(queued));
 	loginQueues.set(queued.loginId, next);
-	void next.finally(() => {
+	return next.finally(() => {
 		if (loginQueues.get(queued.loginId) === next)
 			loginQueues.delete(queued.loginId);
 	});
@@ -135,7 +137,7 @@ export async function runLoginBroker(): Promise<never> {
 		try {
 			const queued = await claimMaxLoginCommand();
 			if (queued) {
-				enqueue(queued);
+				void enqueue(queued);
 				continue;
 			}
 		} catch (error) {

@@ -1,5 +1,9 @@
 import { createRedisClient } from "@psi-opora/bot-core";
 import { z } from "zod";
+import {
+	DEFAULT_CONNECT_TIMEOUT_MS,
+	DEFAULT_REQUEST_TIMEOUT_MS,
+} from "./protocol/client";
 
 /**
  * Передача шагов входа в личный MAX от дашборда (packages/api) воркеру
@@ -23,8 +27,9 @@ const replyKey = (requestId: string) => `max-userbot:login:reply:${requestId}`;
 
 const REPLY_TTL_SECONDS = 120;
 const REPLY_POLL_INTERVAL_MS = 250;
-/** Подключение + SESSION_INIT + AUTH_REQUEST — до трёх запросов по 15 с. */
-const DEFAULT_CALL_TIMEOUT_MS = 50_000;
+/** Запас на доставку ответа и ожидание в очереди. */
+const REPLY_BUDGET_MS = 1_000;
+const QUEUE_BUDGET_MS = 4_000;
 
 const commandSchema = z.discriminatedUnion("action", [
 	z.object({ action: z.literal("start"), phone: z.string().min(1) }),
@@ -36,6 +41,30 @@ const commandSchema = z.discriminatedUnion("action", [
 	z.object({ action: z.literal("cancel") }),
 ]);
 export type MaxLoginCommand = z.infer<typeof commandSchema>;
+
+function executionBudgetMs(command: MaxLoginCommand): number {
+	switch (command.action) {
+		case "start":
+			return DEFAULT_CONNECT_TIMEOUT_MS + 2 * DEFAULT_REQUEST_TIMEOUT_MS;
+		case "code":
+		case "password":
+			return DEFAULT_REQUEST_TIMEOUT_MS;
+		case "cancel":
+			return 0;
+	}
+}
+
+/** Проверяется до публикации и после ожидания в очереди одного входа. */
+export function assertMaxLoginCommandDeadline(
+	command: MaxLoginCommand,
+	expiresAt: number,
+): void {
+	if (expiresAt - Date.now() < executionBudgetMs(command) + REPLY_BUDGET_MS) {
+		throw new Error(
+			"Недостаточно времени для шага входа в MAX — повторите попытку",
+		);
+	}
+}
 
 const queuedCommandSchema = z.object({
 	requestId: z.string().min(1),
@@ -65,11 +94,12 @@ const delay = (milliseconds: number) =>
 export async function callMaxLoginWorker(
 	loginId: string,
 	command: MaxLoginCommand,
-	timeoutMs = DEFAULT_CALL_TIMEOUT_MS,
+	timeoutMs = executionBudgetMs(command) + REPLY_BUDGET_MS + QUEUE_BUDGET_MS,
 ): Promise<MaxLoginStepResult> {
+	const deadline = Date.now() + timeoutMs;
+	assertMaxLoginCommandDeadline(command, deadline);
 	const redis = createRedisClient();
 	const requestId = crypto.randomUUID();
-	const deadline = Date.now() + timeoutMs;
 	const queued: QueuedMaxLoginCommand = {
 		requestId,
 		loginId,

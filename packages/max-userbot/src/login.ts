@@ -353,7 +353,10 @@ export class MaxLoginFlow {
 		const client = new MaxProtocolClient({
 			onClose: (error) => {
 				connectionState.lost = true;
-				if (flow) flow.lost = true;
+				if (flow) {
+					flow.lost = true;
+					flow.close();
+				}
 				console.error(
 					`[max-personal-login] соединение входа закрыто: ${error.message}`,
 				);
@@ -466,7 +469,11 @@ export class MaxLoginFlow {
 			`[max-personal-login] AUTH_LOGIN_CHECK_PASSWORD response: ${describeResponse(response)}`,
 		);
 		if (response.error != null) {
-			throw new Error("Неверный облачный пароль MAX");
+			throw new Error(
+				response.error === "password.invalid"
+					? "Неверный облачный пароль MAX"
+					: `Ошибка проверки облачного пароля MAX: ${JSON.stringify(response.error)}`,
+			);
 		}
 
 		const sessionToken = readLoginToken(response);

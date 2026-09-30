@@ -1,4 +1,17 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	spyOn,
+	test,
+} from "bun:test";
+import { MaxLoginFlow } from "./login";
+import {
+	MaxProtocolClient,
+	type MaxProtocolClientOptions,
+} from "./protocol/client";
 import { OPCODE } from "./protocol/opcodes";
 
 type Responder = (
@@ -12,35 +25,31 @@ let connections = 0;
 let respond: Responder = () => ({});
 let closeConnection: ((error: Error) => void) | undefined;
 
-// mock.module подменяет модуль на весь процесс bun test — остальные экспорты
-// (nextFrameSequence для client.test.ts) оставляем настоящими.
-const actualClient = await import("./protocol/client");
-mock.module("./protocol/client", () => ({
-	...actualClient,
-	MaxProtocolClient: class {
-		constructor(options: { onClose?: (error: Error) => void } = {}) {
-			closeConnection = options.onClose;
-		}
-		async connect() {
+beforeEach(() => {
+	requests.length = 0;
+	connections = 0;
+	spyOn(MaxProtocolClient.prototype, "connect").mockImplementation(
+		async function (this: MaxProtocolClient) {
 			connections += 1;
-		}
-		close() {}
-		async request(opcode: number, payload: Record<string, unknown>) {
+			// Capture the callback without replacing the module for other test files.
+			closeConnection = (
+				this as unknown as { options: MaxProtocolClientOptions }
+			).options.onClose;
+		},
+	);
+	spyOn(MaxProtocolClient.prototype, "close").mockImplementation(() => {});
+	spyOn(MaxProtocolClient.prototype, "request").mockImplementation(
+		async (opcode, payload) => {
 			requests.push({ opcode, payload });
 			if (opcode === OPCODE.SESSION_INIT) return {};
 			if (opcode === OPCODE.AUTH_REQUEST)
 				return { token: "verify-token", codeLength: 6 };
 			return respond(opcode, payload);
-		}
-	},
-}));
-
-const { MaxLoginFlow } = await import("./login");
-
-beforeEach(() => {
-	requests.length = 0;
-	connections = 0;
+		},
+	);
 });
+
+afterEach(() => mock.restore());
 
 describe("MaxLoginFlow", () => {
 	test("без облачного пароля возвращает сессию после кода", async () => {
@@ -100,6 +109,23 @@ describe("MaxLoginFlow", () => {
 		expect(connected.status).toBe("connected");
 	});
 
+	test.each(["service.unavailable", "password.attempts.exceeded"])(
+		"сохраняет исходную ошибку проверки пароля: %s",
+		async (error) => {
+			respond = (opcode) =>
+				opcode === OPCODE.AUTH
+					? { passwordChallenge: { trackId: "track-1" } }
+					: { error };
+			const { flow } = await MaxLoginFlow.start("+79991234567");
+			try {
+				await flow.submitCode("123456");
+				await expect(flow.submitPassword("secret")).rejects.toThrow(error);
+			} finally {
+				flow.close();
+			}
+		},
+	);
+
 	test("не шлёт пароль, если сервер его не запрашивал", async () => {
 		const { flow } = await MaxLoginFlow.start("+79991234567");
 		const sent = requests.length;
@@ -112,7 +138,13 @@ describe("MaxLoginFlow", () => {
 
 	test("после обрыва соединения просит начать заново", async () => {
 		const { flow } = await MaxLoginFlow.start("+79991234567");
-		closeConnection?.(new Error("closed"));
+		const clearPing = spyOn(globalThis, "clearInterval");
+		try {
+			closeConnection?.(new Error("closed"));
+			expect(clearPing).toHaveBeenCalledTimes(1);
+		} finally {
+			clearPing.mockRestore();
+		}
 		expect(flow.connectionLost).toBe(true);
 		await expect(flow.submitCode("123456")).rejects.toThrow(
 			/запросите код заново/,
