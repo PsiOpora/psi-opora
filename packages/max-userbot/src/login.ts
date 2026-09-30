@@ -164,17 +164,14 @@ export async function sessionInit(
 		`[max-personal-login] SESSION_INIT response: ${JSON.stringify(response)}`,
 	);
 	// `isVpn` — сервер сам детектит VPN/датацентр-IP уже на SESSION_INIT (см.
-	// PronikFire/Max-API-Guide). Если true, сервер почти наверняка тихо
-	// глотает реальную отправку кода на AUTH_REQUEST дальше (возвращает
-	// валидный token, но SMS/push не уходит) — это внешний по отношению к
-	// протоколу антифрод-сигнал, byte-perfect payload его не обойдёт.
+	// PronikFire/Max-API-Guide). На вход не влияет: при isVpn=true код
+	// приходит и вход с облачным паролем проходит (проверено 2026-09-30,
+	// после согласования appVersion с `mode`, см. MAX_CLIENT_BUILD). Логируем
+	// как сигнал на случай, если антифрод MAX начнёт его учитывать.
 	if (response.isVpn === true) {
 		console.warn(
-			"[max-personal-login] MAX пометил соединение как isVpn=true — сервер, " +
-				"скорее всего, не отправит реальный код на AUTH_REQUEST, даже если " +
-				"тот ответит без ошибки. Нужен исходящий IP не из диапазонов " +
-				"дата-центра/VPN (см. src/protocol/client.ts — сейчас соединение " +
-				"идёт напрямую с сервера, без прокси).",
+			"[max-personal-login] MAX пометил соединение как isVpn=true (IP дата-центра/VPN). " +
+				"Сейчас на вход это не влияет; если коды перестанут приходить — проверьте исходящий IP.",
 		);
 	}
 	const callsSeed = callsSeedSchema.safeParse(response.callsSeed).data;
@@ -296,11 +293,6 @@ function describeResponse(payload: Record<string, unknown>): string {
 	});
 }
 
-/** Keepalive, как у kolibri-net (session/manager.rs::maintain): PING с
- * `interactive` раз в 30 секунд, пока соединение живо. Без него сервер может
- * закрыть простаивающее соединение, пока человек ищет код. */
-const LOGIN_PING_INTERVAL_MS = 30_000;
-
 const CONNECTION_LOST_MESSAGE =
 	"Соединение с MAX прервалось во время входа — запросите код заново";
 
@@ -321,7 +313,6 @@ export class MaxLoginFlow {
 	private stage: LoginStage = "awaiting_code";
 	private lost = false;
 	private passwordTrackId: string | undefined;
-	private readonly pingTimer: ReturnType<typeof setInterval>;
 
 	private constructor(
 		private readonly client: MaxProtocolClient,
@@ -334,10 +325,6 @@ export class MaxLoginFlow {
 		connectionState: { lost: boolean },
 	) {
 		this.lost = connectionState.lost;
-		this.pingTimer = setInterval(() => {
-			this.client.request(OPCODE.PING, { interactive: true }).catch(() => {});
-		}, LOGIN_PING_INTERVAL_MS);
-		this.pingTimer.unref?.();
 	}
 
 	/** SESSION_INIT + AUTH_REQUEST (START_AUTH) — MAX отправляет код. */
@@ -496,7 +483,6 @@ export class MaxLoginFlow {
 	}
 
 	close(): void {
-		clearInterval(this.pingTimer);
 		this.client.close();
 	}
 

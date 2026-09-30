@@ -43,3 +43,26 @@ test("bounds a stalled TLS handshake and closes the socket", async () => {
 		await new Promise<void>((resolve) => server.close(() => resolve()));
 	}
 });
+
+describe("keepalive", () => {
+	test("шлёт PING { interactive: true } по интервалу и перестаёт после close()", async () => {
+		const { MaxProtocolClient } = await import("./client");
+		const { OPCODE } = await import("./opcodes");
+		const client = new MaxProtocolClient({ keepAliveIntervalMs: 10 });
+		const calls: Array<[number, Record<string, unknown>]> = [];
+		client.request = async (opcode, payload) => {
+			calls.push([opcode, payload]);
+			return {};
+		};
+		// connect() запускает keepalive после TLS-рукопожатия; сокет в тесте не
+		// нужен — проверяем только таймер.
+		(client as unknown as { startKeepAlive(): void }).startKeepAlive();
+		await new Promise((resolve) => setTimeout(resolve, 35));
+		client.close();
+		const sent = calls.length;
+		expect(sent).toBeGreaterThanOrEqual(2);
+		expect(calls[0]).toEqual([OPCODE.PING, { interactive: true }]);
+		await new Promise((resolve) => setTimeout(resolve, 25));
+		expect(calls).toHaveLength(sent);
+	});
+});

@@ -7,6 +7,7 @@ import {
 	HEADER_LENGTH,
 } from "./frame";
 import { decompressLz4Block } from "./lz4";
+import { OPCODE } from "./opcodes";
 import { RUSSIAN_TRUSTED_ROOT_CA } from "./russian-trusted-ca";
 
 /** По разбору koval01 — raw TLS TCP, а не WebSocket (расхождение с описанием
@@ -18,6 +19,11 @@ export const MAX_API_PORT = 443;
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 export const DEFAULT_CONNECT_TIMEOUT_MS = 15_000;
+/** Keepalive, как у kolibri-net (session/manager.rs::maintain): PING
+ * `{ interactive: true }` раз в 30 секунд, первый — через интервал после
+ * подключения. Без него сервер может молча закрыть простаивающее соединение
+ * (вход, пока человек ищет код; воркер, пока нет сообщений). */
+export const DEFAULT_KEEPALIVE_INTERVAL_MS = 30_000;
 
 export interface MaxProtocolClientOptions {
 	host?: string;
@@ -29,6 +35,8 @@ export interface MaxProtocolClientOptions {
 	onClose?: (error: Error) => void;
 	requestTimeoutMs?: number;
 	connectTimeoutMs?: number;
+	/** Интервал PING; 0 — не пинговать. */
+	keepAliveIntervalMs?: number;
 }
 
 interface PendingRequest {
@@ -63,6 +71,7 @@ export class MaxProtocolClient {
 	private readonly requestTimeoutMs: number;
 	private closing = false;
 	private fatalErrorHandled = false;
+	private keepAliveTimer: ReturnType<typeof setInterval> | undefined;
 
 	constructor(private readonly options: MaxProtocolClientOptions = {}) {
 		this.requestTimeoutMs =
@@ -103,10 +112,12 @@ export class MaxProtocolClient {
 			);
 			this.socket = socket;
 		});
+		this.startKeepAlive();
 	}
 
 	close(): void {
 		this.closing = true;
+		this.stopKeepAlive();
 		this.socket?.destroy();
 		this.socket = null;
 	}
@@ -215,9 +226,28 @@ export class MaxProtocolClient {
 		this.options.onPush?.(header.opcode, payload);
 	}
 
+	private startKeepAlive(): void {
+		this.stopKeepAlive();
+		const interval =
+			this.options.keepAliveIntervalMs ?? DEFAULT_KEEPALIVE_INTERVAL_MS;
+		if (interval <= 0) return;
+		this.keepAliveTimer = setInterval(() => {
+			// Ответ на PING не нужен; таймаут или ошибку игнорируем — обрыв
+			// соединения всё равно придёт через onFatalError.
+			this.request(OPCODE.PING, { interactive: true }).catch(() => {});
+		}, interval);
+		this.keepAliveTimer.unref?.();
+	}
+
+	private stopKeepAlive(): void {
+		if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
+		this.keepAliveTimer = undefined;
+	}
+
 	private onFatalError(err: Error): void {
 		if (this.fatalErrorHandled) return;
 		this.fatalErrorHandled = true;
+		this.stopKeepAlive();
 		if (!this.closing) {
 			console.error(`[max-userbot] соединение с MAX прервано: ${err.message}`);
 		}

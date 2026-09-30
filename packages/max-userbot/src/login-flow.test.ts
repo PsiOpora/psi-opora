@@ -138,13 +138,7 @@ describe("MaxLoginFlow", () => {
 
 	test("после обрыва соединения просит начать заново", async () => {
 		const { flow } = await MaxLoginFlow.start("+79991234567");
-		const clearPing = spyOn(globalThis, "clearInterval");
-		try {
-			closeConnection?.(new Error("closed"));
-			expect(clearPing).toHaveBeenCalledTimes(1);
-		} finally {
-			clearPing.mockRestore();
-		}
+		closeConnection?.(new Error("closed"));
 		expect(flow.connectionLost).toBe(true);
 		await expect(flow.submitCode("123456")).rejects.toThrow(
 			/запросите код заново/,
