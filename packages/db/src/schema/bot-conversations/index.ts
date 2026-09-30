@@ -20,6 +20,13 @@ export const botConversations = pgTable(
 		/** Теги диалога для фильтрации в инбоксе «Клиенты» (apps/clients). */
 		tags: jsonb("tags").$type<string[]>(),
 		lastReadAt: timestamp("last_read_at"),
+		/** Оператор удалил диалог из инбокса «Клиенты»: сообщения, созданные до
+		 * этого момента, больше не показываются ни в списке, ни в треде. Строки
+		 * bot_messages физически остаются (по ним bitrix-webhook выбирает номер
+		 * для ответа, а напоминания — дедуплицируют неудачи). Если клиент
+		 * напишет снова, диалог появится в списке уже только с новыми сообщениями. */
+		deletedAt: timestamp("deleted_at"),
+		deletedByOperatorId: text("deleted_by_operator_id"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
 	(table) => [index("bot_conversations_messenger_idx").on(table.messenger)],

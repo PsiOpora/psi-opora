@@ -145,6 +145,39 @@ export async function addConversationTag(
 		});
 }
 
+/**
+ * Удаляет диалог из инбокса «Клиенты» — мягко, через курсор deletedAt (см.
+ * schema/bot-conversations). Заодно сбрасывает ответственного и теги: если
+ * клиент напишет снова, это уже новый диалог, а не продолжение удалённого.
+ * lastReadAt сдвигается туда же, чтобы старые входящие не считались
+ * непрочитанными.
+ */
+export async function deleteConversation(
+	db: Database,
+	messenger: string,
+	userId: string,
+	operatorId: string,
+): Promise<void> {
+	if (!db) return;
+	const id = makeId(messenger, userId);
+	const now = new Date();
+	const reset = {
+		deletedAt: now,
+		deletedByOperatorId: operatorId,
+		lastReadAt: now,
+		assignedOperatorId: null,
+		assignedOperatorName: null,
+		tags: null,
+	};
+	await db
+		.insert(botConversations)
+		.values({ id, messenger, userId, ...reset })
+		.onConflictDoUpdate({
+			target: botConversations.id,
+			set: { ...reset, updatedAt: now },
+		});
+}
+
 export async function getConversationMeta(
 	db: Database,
 	messenger: string,

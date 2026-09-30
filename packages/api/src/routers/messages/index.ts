@@ -8,6 +8,7 @@ import {
 import { crmLinks } from "./crm-links";
 import { crmLinksByDialog } from "./crm-links-by-dialog";
 import { deleteMessage } from "./delete";
+import { deleteConversation } from "./delete-conversation";
 import { edit } from "./edit";
 import { guideActivity } from "./guide-activity";
 import { list } from "./list";
@@ -32,6 +33,7 @@ export const messagesRouter = router({
 	send,
 	edit,
 	delete: deleteMessage,
+	deleteConversation,
 	markRead,
 	assign,
 	mergeClients,

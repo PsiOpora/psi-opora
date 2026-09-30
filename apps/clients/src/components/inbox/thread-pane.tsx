@@ -13,6 +13,7 @@ import {
 	PanelRightOpenIcon,
 	SaveIcon,
 	SendIcon,
+	Trash2Icon,
 	UserCheckIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
@@ -90,6 +91,8 @@ interface ThreadPaneProps {
 	onAfterSend: () => void;
 	/** Отразить назначение ответственного в списке диалогов. */
 	onAssigned: (operator: CurrentOperator) => void;
+	/** Диалог удалён из инбокса — закрыть его и убрать из списка. */
+	onConversationDeleted: (client: SelectedClient) => void;
 }
 
 export function ThreadPane({
@@ -100,6 +103,7 @@ export function ThreadPane({
 	onToggleProfile,
 	onAfterSend,
 	onAssigned,
+	onConversationDeleted,
 }: ThreadPaneProps) {
 	const [messages, setMessages] = useState<ThreadMessage[]>([]);
 	const [threadLoading, setThreadLoading] = useState(false);
@@ -113,6 +117,9 @@ export function ThreadPane({
 	const [deleting, startDeleting] = useTransition();
 	const [deleteTarget, setDeleteTarget] = useState<ThreadMessage | null>(null);
 	const [assigning, startAssigning] = useTransition();
+	const [deletingConversation, startDeletingConversation] = useTransition();
+	const [confirmConversationDelete, setConfirmConversationDelete] =
+		useState(false);
 	const sinceRef = useRef(new Date().toISOString());
 	const attachmentUploadRef = useRef<AbortController | null>(null);
 	const attachmentPreviewUrlRef = useRef("");
@@ -162,6 +169,7 @@ export function ThreadPane({
 		setEditTarget(null);
 		setEditText("");
 		setDeleteTarget(null);
+		setConfirmConversationDelete(false);
 		setPersonalAccounts([]);
 		setConnectorId(undefined);
 		if (!selected) return;
@@ -549,6 +557,26 @@ export function ThreadPane({
 		});
 	};
 
+	const deleteConversation = () => {
+		if (!selected || deletingConversation) return;
+		const target = selected;
+
+		startDeletingConversation(async () => {
+			try {
+				await orpcClient.messages.deleteConversation({
+					messenger: target.messenger,
+					userId: target.userId,
+				});
+			} catch {
+				toast.error("Не удалось удалить диалог");
+				return;
+			}
+			setConfirmConversationDelete(false);
+			onConversationDeleted(target);
+			toast.success("Диалог удалён");
+		});
+	};
+
 	const copyDialogLink = async () => {
 		if (!selected) return;
 		const link = buildDialogLink(selected, window.location);
@@ -617,6 +645,14 @@ export function ThreadPane({
 						Назначить на себя
 					</Button>
 				)}
+				<Button
+					variant="ghost"
+					size="icon"
+					onClick={() => setConfirmConversationDelete(true)}
+					title="Удалить диалог"
+				>
+					<Trash2Icon className="size-4" />
+				</Button>
 				<Button
 					variant="ghost"
 					size="icon"
@@ -790,6 +826,48 @@ export function ThreadPane({
 						>
 							{deleting && <Loader2Icon className="size-4 animate-spin" />}
 							Удалить
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={confirmConversationDelete}
+				onOpenChange={(open) => {
+					if (!open && !deletingConversation)
+						setConfirmConversationDelete(false);
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Удалить диалог?</DialogTitle>
+						<DialogDescription>
+							Переписка с «{name}» пропадёт из списка «Клиенты», ответственный и
+							теги будут сброшены. У клиента в мессенджере и в Открытой линии
+							Битрикс24 ничего не удалится. Если клиент напишет снова, диалог
+							появится заново — только с новыми сообщениями.
+							{client?.linkedChannels.length
+								? " Объединённые каналы этого клиента тоже будут удалены."
+								: ""}
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setConfirmConversationDelete(false)}
+							disabled={deletingConversation}
+						>
+							Отмена
+						</Button>
+						<Button
+							variant="destructive"
+							onClick={deleteConversation}
+							disabled={deletingConversation}
+						>
+							{deletingConversation && (
+								<Loader2Icon className="size-4 animate-spin" />
+							)}
+							Удалить диалог
 						</Button>
 					</DialogFooter>
 				</DialogContent>

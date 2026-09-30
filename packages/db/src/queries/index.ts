@@ -38,6 +38,7 @@ import {
 	addConversationTag as _addConversationTag,
 	assignConversation as _assignConversation,
 	assignConversationIfUnassigned as _assignConversationIfUnassigned,
+	deleteConversation as _deleteConversation,
 	getConversationMeta as _getConversationMeta,
 	markConversationRead as _markConversationRead,
 	setConversationTags as _setConversationTags,
@@ -450,6 +451,14 @@ export async function assignConversationIfUnassigned(
 	entry: ConversationAssignment,
 ): Promise<void> {
 	return _assignConversationIfUnassigned(db, entry);
+}
+
+export async function deleteConversation(
+	messenger: string,
+	userId: string,
+	operatorId: string,
+): Promise<void> {
+	return _deleteConversation(db, messenger, userId, operatorId);
 }
 
 export async function getConversationMeta(messenger: string, userId: string) {
