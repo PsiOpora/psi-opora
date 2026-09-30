@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeMaxPhone, sessionInit, userAgentPayload } from "./login";
+import {
+	MAX_CLIENT_BUILD,
+	normalizeMaxPhone,
+	sessionInit,
+	userAgentPayload,
+} from "./login";
 import type { MaxProtocolClient } from "./protocol/client";
 
 function sessionInitClient(
@@ -11,14 +16,28 @@ function sessionInitClient(
 }
 
 describe("userAgentPayload", () => {
-	test("представляется актуальной поддерживаемой Android-сборкой MAX", () => {
+	test("представляется той же сборкой MAX, чьи дайджесты уходят в mode", () => {
 		expect(userAgentPayload()).toMatchObject({
-			appVersion: "26.25.0",
-			buildNumber: 6790,
+			appVersion: MAX_CLIENT_BUILD.appVersion,
+			buildNumber: MAX_CLIENT_BUILD.buildNumber,
 			deviceType: "ANDROID",
-			deviceName: "samsung SM-G998B",
-			installSource: "com.android.vending",
 		});
+	});
+
+	test("повторяет набор и порядок полей SESSION_INIT у Komet (kolibri-net)", () => {
+		expect(Object.keys(userAgentPayload())).toEqual([
+			"deviceType",
+			"appVersion",
+			"osVersion",
+			"timezone",
+			"screen",
+			"pushDeviceType",
+			"locale",
+			"deviceName",
+			"deviceLocale",
+			"arch",
+			"buildNumber",
+		]);
 	});
 });
 
@@ -49,12 +68,21 @@ describe("sessionInit", () => {
 		}
 	});
 
-	test("отклоняет callsSeed вне signed int64 и нестроковые значения", async () => {
+	test("принимает callsSeed, закодированный компактным msgpack-целым", async () => {
+		const result = await sessionInit(
+			sessionInitClient({ callsSeed: 123 }),
+			"device-id",
+			"instance-id",
+		);
+		expect(result.callsSeed).toBe("123");
+	});
+
+	test("отклоняет callsSeed вне signed int64 и нецелые значения", async () => {
 		for (const callsSeed of [
 			"-9223372036854775809",
 			"9223372036854775808",
 			"not-an-integer",
-			123,
+			1.5,
 			null,
 		]) {
 			const result = await sessionInit(

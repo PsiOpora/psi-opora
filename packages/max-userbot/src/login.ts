@@ -1,5 +1,4 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { env } from "@psi-opora/config";
 import { z } from "zod";
 import { MaxProtocolClient } from "./protocol/client";
 import { OPCODE } from "./protocol/opcodes";
@@ -26,27 +25,50 @@ import { OPCODE } from "./protocol/opcodes";
  * этим занимается relay.ts (Фаза 2, воркер личного номера), а не логин-флоу.
  */
 
+/**
+ * Сборка Android-клиента MAX, которой мы представляемся. Версия, номер
+ * сборки и дайджесты APK для `mode` (см. chatCacheFingerprint) — одно целое:
+ * дайджесты DEX/SO меняются с каждой сборкой (у kolibri-net для 26.20.2 они
+ * другие), и сервер, получив `mode` от одной сборки при `appVersion` другой,
+ * отвечает на AUTH_REQUEST валидным token, но код не отправляет. Поэтому
+ * версию нельзя поднимать отдельно от дайджестов — только вместе, из того же
+ * источника. Значения — Komet (lib/core/storage/spoofing_service.dart::
+ * hardcodedAppVersion/hardcodedBuildNumber и
+ * lib/core/protocol/chat_cache_fingerprint.dart).
+ */
+export const MAX_CLIENT_BUILD = {
+	appVersion: "26.23.2",
+	buildNumber: 6779,
+	signatureDigest:
+		"1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
+	dexDigest: "38cff46f392dc1734c308be011c2f0d8da152a390b41063dbb2c913e3032f4b3",
+	soDigest: "634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
+} as const;
+
 /** Экспортируется для переиспользования в relay.ts (Фаза 2) — одна и та же
  * user-agent форма должна уходить что на разовых подключениях логина, что
- * на постоянном соединении воркера. */
+ * на постоянном соединении воркера.
+ *
+ * Набор полей, их порядок и формат значений повторяют SESSION_INIT Komet
+ * (kolibri-net, src/session/manager.rs::build_handshake_payload): без
+ * `carrierName`/`networkType`/`vendor`/`installSource`, `osVersion` вида
+ * "Android 14", `screen` вида "<bucket> <dpi> <WxH>", двухбуквенный
+ * `deviceLocale`, `arch`/`buildNumber` в конце. Устройство — пресет Komet
+ * (lib/core/config/device_presets.dart) с русской локалью. */
 export function userAgentPayload() {
 	// Порядок ключей важен (см. src/protocol/frame.ts) — не менять местами.
 	return {
 		deviceType: "ANDROID",
-		pushDeviceType: "GCM",
-		appVersion: env.MAX_USERBOT_APP_VERSION,
-		arch: "arm64-v8a",
-		buildNumber: env.MAX_USERBOT_BUILD_NUMBER,
-		osVersion: "34",
-		locale: "ru",
-		deviceLocale: "ru_RU",
-		deviceName: "samsung SM-G998B",
-		screen: "1080x1920",
+		appVersion: MAX_CLIENT_BUILD.appVersion,
+		osVersion: "Android 14",
 		timezone: "Europe/Moscow",
-		carrierName: "MTS",
-		networkType: "wifi",
-		vendor: "samsung",
-		installSource: "com.android.vending",
+		screen: "xxhdpi 450dpi 1440x3120",
+		pushDeviceType: "GCM",
+		locale: "ru",
+		deviceName: "Samsung Galaxy S24 Ultra",
+		deviceLocale: "ru",
+		arch: "arm64-v8a",
+		buildNumber: MAX_CLIENT_BUILD.buildNumber,
 	};
 }
 
@@ -108,9 +130,12 @@ export interface SessionInitResult {
 	callsSeed: string | undefined;
 }
 
+/** int64 от сервера приходит bigint'ом (→ строка, см. normalizeBigInts), но
+ * msgpack кодирует целое минимальным форматом: небольшой `callsSeed` придёт
+ * обычным number. Без этого `mode` в AUTH_REQUEST молча не отправлялся бы. */
 const callsSeedSchema = z
-	.string()
-	.regex(/^-?\d+$/)
+	.union([z.number().int().safe().transform(String), z.string()])
+	.pipe(z.string().regex(/^-?\d+$/))
 	.refine(
 		(value) => {
 			try {
@@ -130,11 +155,12 @@ export async function sessionInit(
 	deviceId: string,
 	instanceId: string,
 ): Promise<SessionInitResult> {
+	// Порядок ключей — как у kolibri-net (build_handshake_payload).
 	const response = await client.request(OPCODE.SESSION_INIT, {
-		userAgent: userAgentPayload(),
-		deviceId,
-		clientSessionId: generateClientSessionId(),
 		mt_instanceid: instanceId,
+		userAgent: userAgentPayload(),
+		clientSessionId: generateClientSessionId(),
+		deviceId,
 	});
 	console.log(
 		`[max-personal-login] SESSION_INIT response: ${JSON.stringify(response)}`,
@@ -167,21 +193,12 @@ export async function sessionInit(
  *   sha256(dexDigest       + seed_int64_big_endian + deviceId_utf8)
  *   sha256(soDigest        + seed_int64_big_endian + deviceId_utf8)
  *
- * Дайджесты — публичные константы из исходников Komet (chat_cache_fingerprint.dart).
+ * Дайджесты привязаны к сборке APK — см. MAX_CLIENT_BUILD.
  */
 function chatCacheFingerprint(callsSeed: string, deviceId: string): Uint8Array {
-	const SIGNATURE_DIGEST = Buffer.from(
-		"1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
-		"hex",
-	);
-	const SO_DIGEST = Buffer.from(
-		"634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
-		"hex",
-	);
-	const DEX_DIGEST = Buffer.from(
-		"38cff46f392dc1734c308be011c2f0d8da152a390b41063dbb2c913e3032f4b3",
-		"hex",
-	);
+	const SIGNATURE_DIGEST = Buffer.from(MAX_CLIENT_BUILD.signatureDigest, "hex");
+	const SO_DIGEST = Buffer.from(MAX_CLIENT_BUILD.soDigest, "hex");
+	const DEX_DIGEST = Buffer.from(MAX_CLIENT_BUILD.dexDigest, "hex");
 
 	const seed = Buffer.allocUnsafe(8);
 	// callsSeed — 64-битное целое от сервера (в строке, см. SessionInitResult),
