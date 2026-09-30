@@ -16,7 +16,8 @@ import { RUSSIAN_TRUSTED_ROOT_CA } from "./russian-trusted-ca";
 export const MAX_API_HOST = "api2.oneme.ru";
 export const MAX_API_PORT = 443;
 
-const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+export const DEFAULT_CONNECT_TIMEOUT_MS = 15_000;
 
 export interface MaxProtocolClientOptions {
 	host?: string;
@@ -27,6 +28,7 @@ export interface MaxProtocolClientOptions {
 	/** Неожиданный обрыв постоянного соединения. Не вызывается при close(). */
 	onClose?: (error: Error) => void;
 	requestTimeoutMs?: number;
+	connectTimeoutMs?: number;
 }
 
 interface PendingRequest {
@@ -75,16 +77,25 @@ export class MaxProtocolClient {
 
 		await new Promise<void>((resolve, reject) => {
 			let settled = false;
-			const socket = connect(
-				{ host, port, ca: RUSSIAN_TRUSTED_ROOT_CA },
-				() => {
-					settled = true;
-					resolve();
-				},
+			const finish = (error?: Error) => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timeout);
+				if (error) reject(error);
+				else resolve();
+			};
+			const socket = connect({ host, port, ca: RUSSIAN_TRUSTED_ROOT_CA }, () =>
+				finish(),
 			);
-			socket.once("error", (err) => {
-				if (!settled) reject(err);
-			});
+			const timeout = setTimeout(() => {
+				const error = new Error("Истекло время подключения к MAX");
+				finish(error);
+				this.onFatalError(error);
+			}, this.options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS);
+			socket.once("error", finish);
+			socket.once("close", () =>
+				finish(new Error("Соединение с MAX закрыто до подключения")),
+			);
 			socket.on("data", (chunk: Buffer) => this.onData(chunk));
 			socket.on("error", (err) => this.onFatalError(err));
 			socket.on("close", () =>

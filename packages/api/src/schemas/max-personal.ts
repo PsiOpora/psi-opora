@@ -20,3 +20,9 @@ export const disconnectMaxPersonalSchema = z.object({
 export type DisconnectMaxPersonalInput = z.infer<
 	typeof disconnectMaxPersonalSchema
 >;
+
+export const submitMaxPasswordSchema = z.object({
+	loginId: z.string().min(1),
+	password: z.string().min(1),
+});
+export type SubmitMaxPasswordInput = z.infer<typeof submitMaxPasswordSchema>;

@@ -12,6 +12,8 @@
  * (обычно только номера подтверждены, форма — нет).
  */
 export const OPCODE = {
+	/** Keepalive `{ interactive }` — kolibri-net шлёт его раз в 30 секунд. */
+	PING: 1,
 	/** Инициализация сессии устройства — первый запрос на новом соединении. */
 	SESSION_INIT: 6,
 	/** Запрос SMS-кода по номеру телефона. */
@@ -23,6 +25,10 @@ export const OPCODE = {
 	 * (см. login.ts и relay.ts: `tokenAttrs.LOGIN.token` персистится и
 	 * предъявляется здесь заново при каждом реконнекте воркера). */
 	LOGIN: 19,
+	/** Проверка облачного пароля (2FA) при входе: `{ trackId, password }`,
+	 * trackId — из `passwordChallenge` ответа AUTH (Komet:
+	 * Opcode.authLoginCheckPassword). */
+	AUTH_LOGIN_CHECK_PASSWORD: 115,
 	/** Онлайн-статус контактов — `contactIds` + опциональный `sync`. */
 	CONTACT_PRESENCE: 35,
 	/** Резолв контакта по номеру телефона — для «написать первым». */
