@@ -1,6 +1,12 @@
 "use client";
 
-import { CheckIcon, Loader2Icon, MessageCircleIcon } from "lucide-react";
+import {
+	CheckIcon,
+	EyeIcon,
+	EyeOffIcon,
+	Loader2Icon,
+	MessageCircleIcon,
+} from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +42,7 @@ function formatPhoneDisplay(digits: string): string {
 	return out;
 }
 
-type Step = "phone" | "code" | "connected";
+type Step = "phone" | "code" | "password" | "connected";
 
 export function MaxPersonalConnectorClient({
 	lineId,
@@ -49,6 +55,10 @@ export function MaxPersonalConnectorClient({
 	const [phoneDigits, setPhoneDigits] = useState("");
 	const [code, setCode] = useState("");
 	const [codeLength, setCodeLength] = useState(6);
+	const [password, setPassword] = useState("");
+	const [passwordVisible, setPasswordVisible] = useState(false);
+	const [passwordHint, setPasswordHint] = useState<string | null>(null);
+	const [passwordEmail, setPasswordEmail] = useState<string | null>(null);
 	const [loginId, setLoginId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [activationError, setActivationError] = useState<string | null>(null);
@@ -106,6 +116,29 @@ export function MaxPersonalConnectorClient({
 			const result = await orpcClient.maxPersonal.submitCode({
 				loginId,
 				code: code.trim(),
+			});
+			if (result.error) {
+				setError(result.error);
+				return;
+			}
+			if (result.status === "password_required") {
+				setPasswordHint(result.passwordHint ?? null);
+				setPasswordEmail(result.passwordEmail ?? null);
+				setStep("password");
+				return;
+			}
+			setActivationError(result.activationError ?? null);
+			setStep("connected");
+		});
+	};
+
+	const submitPassword = () => {
+		if (!loginId || !password) return;
+		setError(null);
+		startTransition(async () => {
+			const result = await orpcClient.maxPersonal.submitPassword({
+				loginId,
+				password,
 			});
 			if (result.error) {
 				setError(result.error);
@@ -174,6 +207,48 @@ export function MaxPersonalConnectorClient({
 						disabled={busy}
 					>
 						Отправить код повторно
+					</Button>
+				</>
+			)}
+			{step === "password" && (
+				<>
+					<p className="text-xs text-muted-foreground">
+						На аккаунте включён облачный пароль MAX — введите его.
+						{passwordHint && ` Подсказка: ${passwordHint}.`}
+						{passwordEmail && ` Почта восстановления: ${passwordEmail}.`}
+					</p>
+					<div className="relative">
+						<Input
+							type={passwordVisible ? "text" : "password"}
+							value={password}
+							onChange={(event) => setPassword(event.target.value)}
+							placeholder="Облачный пароль"
+							aria-label="Облачный пароль MAX"
+							disabled={busy}
+							autoFocus
+							className="pr-8"
+						/>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon-xs"
+							className="absolute right-1 top-1"
+							aria-label={passwordVisible ? "Скрыть пароль" : "Показать пароль"}
+							onClick={() => setPasswordVisible((visible) => !visible)}
+						>
+							{passwordVisible ? (
+								<EyeOffIcon className="size-3.5" />
+							) : (
+								<EyeIcon className="size-3.5" />
+							)}
+						</Button>
+					</div>
+					<Button
+						size="sm"
+						onClick={submitPassword}
+						disabled={busy || !password}
+					>
+						{busy && <Loader2Icon className="size-3.5 animate-spin" />} Войти
 					</Button>
 				</>
 			)}

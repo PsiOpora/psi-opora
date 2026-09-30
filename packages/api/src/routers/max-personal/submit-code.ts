@@ -1,4 +1,4 @@
-import { confirmLoginCode } from "@psi-opora/max-userbot";
+import { callMaxLoginWorker } from "@psi-opora/max-userbot";
 import { publicProcedure } from "../../orpc";
 import { submitMaxCodeSchema } from "../../schemas/max-personal";
 import {
@@ -6,6 +6,7 @@ import {
 	finalizeMaxLogin,
 	getPendingMaxLogin,
 	maskPhone,
+	savePendingMaxLogin,
 } from "./helpers";
 
 export const submitCode = publicProcedure.input(submitMaxCodeSchema).handler(
@@ -13,8 +14,12 @@ export const submitCode = publicProcedure.input(submitMaxCodeSchema).handler(
 		input,
 		context,
 	}): Promise<{
-		status?: "connected";
+		status?: "connected" | "password_required";
 		activationError?: string;
+		/** Подсказка к облачному паролю и маскированная почта восстановления —
+		 * только при status "password_required". */
+		passwordHint?: string;
+		passwordEmail?: string;
 		error?: string;
 	}> => {
 		const pending = await getPendingMaxLogin(input.loginId);
@@ -28,13 +33,28 @@ export const submitCode = publicProcedure.input(submitMaxCodeSchema).handler(
 			`[max-personal-login] submitCode: loginId=${input.loginId} memberId=${pending.memberId} phone=${maskPhone(pending.phone)}`,
 		);
 		try {
-			const result = await confirmLoginCode({
-				pendingSession: pending.pendingSession,
+			const result = await callMaxLoginWorker(input.loginId, {
+				action: "code",
 				code: input.code,
 			});
+			if (result.status === "password_required") {
+				// Продлеваем pending на время ввода пароля.
+				await savePendingMaxLogin(input.loginId, pending);
+				console.log(
+					`[max-personal-login] submitCode: loginId=${input.loginId} phone=${maskPhone(pending.phone)} — нужен облачный пароль`,
+				);
+				return {
+					status: "password_required",
+					passwordHint: result.hint,
+					passwordEmail: result.email,
+				};
+			}
+			if (result.status !== "connected") {
+				throw new Error(`Неожиданный ответ воркера MAX: ${result.status}`);
+			}
 			const { activationError } = await finalizeMaxLogin({
 				...pending,
-				session: result.session,
+				sessionEncrypted: result.sessionEncrypted,
 				getBitrixApi: context.getBitrixApi,
 			});
 			await deletePendingMaxLogin(input.loginId);

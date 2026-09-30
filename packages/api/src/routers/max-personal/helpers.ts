@@ -2,14 +2,12 @@ import type { BitrixApi } from "@psi-opora/bitrix-client";
 import { createRedisClient } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { upsertMaxPersonalAccountConnected } from "@psi-opora/db/queries";
-import { encryptSecret } from "@psi-opora/max-userbot";
 
 export interface PendingMaxPersonalLogin {
 	memberId: string;
 	lineId: string;
 	connectorId: string;
 	phone: string;
-	pendingSession: string;
 }
 
 const PENDING_LOGIN_TTL_SECONDS = 10 * 60;
@@ -54,7 +52,8 @@ export async function finalizeMaxLogin(params: {
 	lineId: string;
 	connectorId: string;
 	phone: string;
-	session: string;
+	/** Сессия, уже зашифрованная воркером (см. login-broker.ts). */
+	sessionEncrypted: string;
 	getBitrixApi: () => Promise<BitrixApi | null>;
 }): Promise<{ activationError?: string }> {
 	await upsertMaxPersonalAccountConnected({
@@ -62,7 +61,7 @@ export async function finalizeMaxLogin(params: {
 		openLineId: params.lineId,
 		connectorId: params.connectorId,
 		phone: params.phone,
-		sessionEncrypted: encryptSecret(params.session),
+		sessionEncrypted: params.sessionEncrypted,
 	});
 	try {
 		const api = await params.getBitrixApi();

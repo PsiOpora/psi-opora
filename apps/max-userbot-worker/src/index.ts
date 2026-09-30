@@ -2,8 +2,8 @@ import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import {
 	insertBotMessage,
 	listConnectedMaxPersonalAccounts,
-	markMaxPersonalAccountError,
 	type MaxPersonalAccount,
+	markMaxPersonalAccountError,
 	updateBotMessageExternalResult,
 	upsertBotUser,
 } from "@psi-opora/db/queries";
@@ -18,6 +18,7 @@ import {
 	sendUserbotMessage,
 	setMaxSendResult,
 } from "@psi-opora/max-userbot";
+import { runLoginBroker } from "./login";
 
 const OUTBOX_POLL_INTERVAL_MS = 3000;
 const ACCOUNTS_RESCAN_INTERVAL_MS = 5000;
@@ -287,6 +288,10 @@ async function stopRuntime(runtime: AccountRuntime): Promise<void> {
 }
 
 async function main(): Promise<void> {
+	// Входы в личный MAX (код + облачный пароль) держат соединение здесь —
+	// см. ./login.ts и packages/max-userbot/src/login-broker.ts.
+	void runLoginBroker();
+
 	let scanning = false;
 	const scan = async () => {
 		if (scanning) return;
