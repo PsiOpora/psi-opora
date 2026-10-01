@@ -34,6 +34,16 @@ function identitiesFilter(identities: ClientIdentityRef[]) {
 	);
 }
 
+/** Сообщение не скрыто удалением диалога из инбокса (bot_conversations.
+ * deleted_at, см. deleteConversation) — всё, что создано до удаления,
+ * инбокс больше не показывает. Поиск по id использует PK bot_conversations. */
+const visibleInInbox = sql`not exists (
+  select 1 from bot_conversations
+  where bot_conversations.id = ${botMessages.messenger} || ':' || ${botMessages.userId}
+    and bot_conversations.deleted_at is not null
+    and ${botMessages.createdAt} <= bot_conversations.deleted_at
+)`;
+
 // Автосообщения без привязки к оператору (напоминания, виджет) — правит и
 // удаляет любой оператор, а не только тот, кто их отправил, ведь отправил их
 // не человек.
@@ -353,7 +363,7 @@ export async function listAllBotMessagesForGroup(
 	return db
 		.select()
 		.from(botMessages)
-		.where(identitiesFilter(identities))
+		.where(and(identitiesFilter(identities), visibleInInbox))
 		.orderBy(desc(botMessages.createdAt));
 }
 
@@ -397,7 +407,13 @@ export async function listBotMessagesSinceForGroup(
 	return db
 		.select()
 		.from(botMessages)
-		.where(and(identitiesFilter(identities), gt(botMessages.updatedAt, since)))
+		.where(
+			and(
+				identitiesFilter(identities),
+				gt(botMessages.updatedAt, since),
+				visibleInInbox,
+			),
+		)
 		.orderBy(asc(botMessages.updatedAt))
 		.limit(limit);
 }
@@ -462,7 +478,7 @@ export async function getClientMessageStatsForGroup(
 			lastMessageAt: sql<Date | null>`max(${botMessages.createdAt})`,
 		})
 		.from(botMessages)
-		.where(identitiesFilter(identities));
+		.where(and(identitiesFilter(identities), visibleInInbox));
 	return row ?? empty;
 }
 
@@ -509,6 +525,7 @@ export async function listClientsWithLastMessage(
 			createdAt: botMessages.createdAt,
 		})
 		.from(botMessages)
+		.where(visibleInInbox)
 		.orderBy(
 			botMessages.messenger,
 			botMessages.userId,
@@ -540,7 +557,7 @@ export async function listClientsWithLastMessage(
         where bot_messages.messenger = ${lastMessage.messenger}
           and bot_messages.user_id = ${lastMessage.userId}
           and bot_messages.direction = 'in'
-          and bot_messages.created_at > coalesce(${botConversations.lastReadAt}, to_timestamp(0))
+          and bot_messages.created_at > coalesce(greatest(${botConversations.lastReadAt}, ${botConversations.deletedAt}), to_timestamp(0))
       )`,
 		})
 		.from(lastMessage)

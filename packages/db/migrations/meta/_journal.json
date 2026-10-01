@@ -392,6 +392,13 @@
       "when": 1790145728854,
       "tag": "0055_flat_dragon_man",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1790794359174,
+      "tag": "0056_steady_karma",
+      "breakpoints": true
     }
   ]
 }

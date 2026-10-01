@@ -13,6 +13,7 @@ import {
 	PanelRightOpenIcon,
 	SaveIcon,
 	SendIcon,
+	Trash2Icon,
 	UserCheckIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
@@ -23,6 +24,7 @@ import {
 	mergeThread,
 	type ThreadMessage,
 } from "@/components/inbox/message-list";
+import { resolveThreadPoll } from "@/components/inbox/thread-poll";
 import { messengerLabel } from "@/components/inbox/messenger-meta";
 import { QuickReplies } from "@/components/inbox/quick-replies";
 import {
@@ -90,6 +92,8 @@ interface ThreadPaneProps {
 	onAfterSend: () => void;
 	/** Отразить назначение ответственного в списке диалогов. */
 	onAssigned: (operator: CurrentOperator) => void;
+	/** Диалог удалён из инбокса — закрыть его и убрать из списка. */
+	onConversationDeleted: (client: SelectedClient) => void;
 }
 
 export function ThreadPane({
@@ -100,6 +104,7 @@ export function ThreadPane({
 	onToggleProfile,
 	onAfterSend,
 	onAssigned,
+	onConversationDeleted,
 }: ThreadPaneProps) {
 	const [messages, setMessages] = useState<ThreadMessage[]>([]);
 	const [threadLoading, setThreadLoading] = useState(false);
@@ -113,7 +118,11 @@ export function ThreadPane({
 	const [deleting, startDeleting] = useTransition();
 	const [deleteTarget, setDeleteTarget] = useState<ThreadMessage | null>(null);
 	const [assigning, startAssigning] = useTransition();
+	const [deletingConversation, startDeletingConversation] = useTransition();
+	const [confirmConversationDelete, setConfirmConversationDelete] =
+		useState(false);
 	const sinceRef = useRef(new Date().toISOString());
+	const deletionVersionRef = useRef<string | undefined>(undefined);
 	const attachmentUploadRef = useRef<AbortController | null>(null);
 	const attachmentPreviewUrlRef = useRef("");
 	const pendingPreviewUrlsRef = useRef(new Map<string, string>());
@@ -157,11 +166,13 @@ export function ThreadPane({
 		clearAttachment();
 		revokeAllPendingPreviewUrls();
 		setMessages([]);
+		deletionVersionRef.current = undefined;
 		setText("");
 		setSendError(null);
 		setEditTarget(null);
 		setEditText("");
 		setDeleteTarget(null);
+		setConfirmConversationDelete(false);
 		setPersonalAccounts([]);
 		setConnectorId(undefined);
 		if (!selected) return;
@@ -208,6 +219,7 @@ export function ThreadPane({
 					})),
 				);
 				sinceRef.current = latestUpdatedAt(threadRes.messages);
+				deletionVersionRef.current = threadRes.deletionVersion;
 
 				if (!isPersonal) return;
 				const accounts = accountsRes.accounts;
@@ -261,7 +273,12 @@ export function ThreadPane({
 		let polling = false;
 
 		const poll = async () => {
-			if (document.hidden || polling) return;
+			if (
+				document.hidden ||
+				polling ||
+				deletionVersionRef.current === undefined
+			)
+				return;
 			polling = true;
 			try {
 				const result = await orpcClient.messages.poll({
@@ -271,9 +288,30 @@ export function ThreadPane({
 				});
 				// Запрос мог завершиться уже после переключения на другой диалог.
 				// В таком случае его сообщения нельзя вливать в новый открытый тред.
-				if (cancelled || !result.messages || result.messages.length === 0)
+				if (cancelled) return;
+				const update = await resolveThreadPoll(
+					result,
+					deletionVersionRef.current,
+					() =>
+						orpcClient.messages.thread({
+							messenger: selectedMessenger,
+							userId: selectedUserId,
+						}),
+				);
+				if (cancelled || !update) return;
+				deletionVersionRef.current = update.deletionVersion;
+				if (update.replace) {
+					setMessages(update.messages);
+					// An empty reload must not skip messages arriving during the request.
+					if (update.messages.length > 0) {
+						sinceRef.current = latestUpdatedAt(update.messages);
+					}
+					setEditTarget(null);
+					setDeleteTarget(null);
 					return;
-				const polledMessages = result.messages;
+				}
+				const polledMessages = update.messages;
+				if (polledMessages.length === 0) return;
 				sinceRef.current = latestUpdatedAt(polledMessages);
 				setMessages((prev) =>
 					mergeThread(
@@ -299,6 +337,8 @@ export function ThreadPane({
 						})),
 					),
 				);
+			} catch {
+				// Keep the cursors unchanged after a failed request and retry next poll.
 			} finally {
 				polling = false;
 			}
@@ -549,6 +589,26 @@ export function ThreadPane({
 		});
 	};
 
+	const deleteConversation = () => {
+		if (!selected || deletingConversation) return;
+		const target = selected;
+
+		startDeletingConversation(async () => {
+			try {
+				await orpcClient.messages.deleteConversation({
+					messenger: target.messenger,
+					userId: target.userId,
+				});
+			} catch {
+				toast.error("Не удалось удалить диалог");
+				return;
+			}
+			setConfirmConversationDelete(false);
+			onConversationDeleted(target);
+			toast.success("Диалог удалён");
+		});
+	};
+
 	const copyDialogLink = async () => {
 		if (!selected) return;
 		const link = buildDialogLink(selected, window.location);
@@ -617,6 +677,14 @@ export function ThreadPane({
 						Назначить на себя
 					</Button>
 				)}
+				<Button
+					variant="ghost"
+					size="icon"
+					onClick={() => setConfirmConversationDelete(true)}
+					title="Удалить диалог"
+				>
+					<Trash2Icon className="size-4" />
+				</Button>
 				<Button
 					variant="ghost"
 					size="icon"
@@ -790,6 +858,48 @@ export function ThreadPane({
 						>
 							{deleting && <Loader2Icon className="size-4 animate-spin" />}
 							Удалить
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={confirmConversationDelete}
+				onOpenChange={(open) => {
+					if (!open && !deletingConversation)
+						setConfirmConversationDelete(false);
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Удалить диалог?</DialogTitle>
+						<DialogDescription>
+							Переписка с «{name}» пропадёт из списка «Клиенты», ответственный и
+							теги будут сброшены. У клиента в мессенджере и в Открытой линии
+							Битрикс24 ничего не удалится. Если клиент напишет снова, диалог
+							появится заново — только с новыми сообщениями.
+							{client?.linkedChannels.length
+								? " Объединённые каналы этого клиента тоже будут удалены."
+								: ""}
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setConfirmConversationDelete(false)}
+							disabled={deletingConversation}
+						>
+							Отмена
+						</Button>
+						<Button
+							variant="destructive"
+							onClick={deleteConversation}
+							disabled={deletingConversation}
+						>
+							{deletingConversation && (
+								<Loader2Icon className="size-4 animate-spin" />
+							)}
+							Удалить диалог
 						</Button>
 					</DialogFooter>
 				</DialogContent>

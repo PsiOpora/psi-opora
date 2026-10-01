@@ -1,4 +1,5 @@
 import {
+	getConversationDeletionVersionForGroup,
 	listAllBotMessagesForGroup,
 	listGroupIdentities,
 } from "@psi-opora/db/queries";
@@ -9,14 +10,20 @@ import { type ClientMessageItem, toClientMessageItem } from "./types";
 export const thread = bitrixProcedure
 	.input(clientThreadSchema)
 	.handler(
-		async ({ input, context }): Promise<{ messages: ClientMessageItem[] }> => {
+		async ({
+			input,
+			context,
+		}): Promise<{ messages: ClientMessageItem[]; deletionVersion: string }> => {
 			const identities = await listGroupIdentities(
 				input.messenger,
 				input.userId,
 			);
+			const deletionVersion =
+				await getConversationDeletionVersionForGroup(identities);
 			const rows = await listAllBotMessagesForGroup(identities);
 
 			return {
+				deletionVersion,
 				messages: rows
 					.map((row) => toClientMessageItem(row, context.bitrixSession.userId))
 					.reverse(),

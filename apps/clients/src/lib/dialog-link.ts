@@ -65,3 +65,11 @@ export function replaceDialogInCurrentUrl(reference: DialogReference): void {
 	url.searchParams.set("userId", reference.userId);
 	window.history.replaceState(window.history.state, "", url);
 }
+
+/** Убирает открытый диалог из адреса (например, после его удаления). */
+export function clearDialogInCurrentUrl(): void {
+	const url = new URL(window.location.href);
+	url.searchParams.delete("messenger");
+	url.searchParams.delete("userId");
+	window.history.replaceState(window.history.state, "", url);
+}

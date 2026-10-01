@@ -1,6 +1,7 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Database } from "../client.types";
 import { botConversations } from "../schema/bot-conversations";
+import type { ClientIdentityRef } from "./bot-messages";
 
 export type BotConversation = typeof botConversations.$inferSelect;
 
@@ -145,6 +146,60 @@ export async function addConversationTag(
 		});
 }
 
+/**
+ * Удаляет диалог из инбокса «Клиенты» — мягко, через курсор deletedAt (см.
+ * schema/bot-conversations). Заодно сбрасывает ответственного и теги: если
+ * клиент напишет снова, это уже новый диалог, а не продолжение удалённого.
+ * lastReadAt сдвигается туда же, чтобы старые входящие не считались
+ * непрочитанными.
+ */
+export async function deleteConversation(
+	db: Database,
+	messenger: string,
+	userId: string,
+	operatorId: string,
+): Promise<void> {
+	return deleteConversationsForGroup(db, [{ messenger, userId }], operatorId);
+}
+
+/** One multi-row upsert resets every channel atomically, including metadata. */
+export async function deleteConversationsForGroup(
+	db: Database,
+	identities: ClientIdentityRef[],
+	operatorId: string,
+): Promise<void> {
+	if (!db || identities.length === 0) return;
+	const uniqueIdentities = new Map(
+		identities.map((identity) => [
+			makeId(identity.messenger, identity.userId),
+			identity,
+		]),
+	);
+	const now = new Date();
+	const reset = {
+		deletedAt: now,
+		deletedByOperatorId: operatorId,
+		lastReadAt: now,
+		assignedOperatorId: null,
+		assignedOperatorName: null,
+		tags: null,
+	};
+	await db
+		.insert(botConversations)
+		.values(
+			[...uniqueIdentities].map(([id, identity]) => ({
+				id,
+				...identity,
+				...reset,
+				updatedAt: now,
+			})),
+		)
+		.onConflictDoUpdate({
+			target: botConversations.id,
+			set: { ...reset, updatedAt: now },
+		});
+}
+
 export async function getConversationMeta(
 	db: Database,
 	messenger: string,
@@ -162,4 +217,28 @@ export async function getConversationMeta(
 		)
 		.limit(1);
 	return row ?? null;
+}
+
+/** Read before fetching messages: a concurrent deletion must remain detectable
+ * by the next poll, never label stale history with a newer deletion version. */
+export async function getConversationDeletionVersionForGroup(
+	db: Database,
+	identities: ClientIdentityRef[],
+): Promise<string> {
+	if (!db || identities.length === 0) return "[]";
+	const rows = await db
+		.select({ id: botConversations.id, deletedAt: botConversations.deletedAt })
+		.from(botConversations)
+		.where(
+			inArray(
+				botConversations.id,
+				identities.map(({ messenger, userId }) => makeId(messenger, userId)),
+			),
+		);
+	return JSON.stringify(
+		rows
+			.filter((row) => row.deletedAt !== null)
+			.sort((a, b) => a.id.localeCompare(b.id))
+			.map((row) => [row.id, row.deletedAt?.toISOString()]),
+	);
 }

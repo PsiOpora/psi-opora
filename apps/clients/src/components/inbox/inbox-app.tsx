@@ -24,6 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+	clearDialogInCurrentUrl,
 	parseDialogReference,
 	replaceDialogInCurrentUrl,
 } from "@/lib/dialog-link";
@@ -206,6 +207,30 @@ export function InboxApp() {
 		[refreshList],
 	);
 
+	/** Диалог удалён из инбокса — закрываем его и сразу убираем строку из
+	 * кэша списка, не дожидаясь следующего поллинга. */
+	const handleConversationDeleted = useCallback(
+		(deleted: SelectedClient) => {
+			setSelected(null);
+			clearDialogInCurrentUrl();
+			queryClient.setQueriesData<{ items: ClientListItem[] }>(
+				{ queryKey: orpc.messages.list.key() },
+				(old) =>
+					old
+						? {
+								items: old.items.filter(
+									(c) =>
+										c.messenger !== deleted.messenger ||
+										c.userId !== deleted.userId,
+								),
+							}
+						: old,
+			);
+			refreshList();
+		},
+		[queryClient, refreshList],
+	);
+
 	const selectedClient = selected
 		? allItems.find(
 				(c) =>
@@ -382,6 +407,7 @@ export function InboxApp() {
 					onToggleProfile={() => setShowProfile((v) => !v)}
 					onAfterSend={refreshList}
 					onAssigned={handleAssigned}
+					onConversationDeleted={handleConversationDeleted}
 				/>
 				{selected && showProfile && (
 					<ProfilePane
