@@ -96,6 +96,29 @@ describe("triageOffScriptMessage", () => {
 		);
 	});
 
+	test("основная модель вернула ошибку — пробует резервную", async () => {
+		const env = (await import("@psi-opora/config")).env as {
+			OPENAI_MODELS: string;
+		};
+		env.OPENAI_MODELS = "primary,fallback";
+		generateObject.mockImplementationOnce(() =>
+			Promise.reject(new Error("403")),
+		);
+		nextResult = { needsAttention: true, summary: "Срочное обращение" };
+		try {
+			await triageOffScriptMessage({
+				messenger: "telegram",
+				userId: "7",
+				text: "Длинное сообщение клиента, требующее внимания оператора",
+			});
+		} finally {
+			env.OPENAI_MODELS = "test-model";
+		}
+		expect(generateObject).toHaveBeenCalledTimes(2);
+		expect(addClientNote).toHaveBeenCalledTimes(1);
+		expect(addConversationTag).toHaveBeenCalledTimes(1);
+	});
+
 	test("диалог уже помечен — LLM повторно не вызывается", async () => {
 		nextMeta = { tags: ["⚠️ Требует внимания"] };
 		await triageOffScriptMessage({
