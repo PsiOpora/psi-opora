@@ -48,10 +48,10 @@
 		"@neondatabase/serverless": "^1.1.0",
 		"@psi-opora/config": "workspace:*",
 		"@vercel/postgres": "0.10.0",
-		"drizzle-orm": "0.45.2",
+		"drizzle-orm": "0.45.3",
 		"drizzle-zod": "0.8.3",
 		"postgres": "^3.4.9",
-		"ws": "^8.21.3",
+		"ws": "^8.22.0",
 		"zod": "4.6.5"
 	},
 	"devDependencies": {
