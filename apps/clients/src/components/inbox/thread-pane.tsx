@@ -24,6 +24,7 @@ import {
 	mergeThread,
 	type ThreadMessage,
 } from "@/components/inbox/message-list";
+import { resolveThreadPoll } from "@/components/inbox/thread-poll";
 import { messengerLabel } from "@/components/inbox/messenger-meta";
 import { QuickReplies } from "@/components/inbox/quick-replies";
 import {
@@ -121,6 +122,7 @@ export function ThreadPane({
 	const [confirmConversationDelete, setConfirmConversationDelete] =
 		useState(false);
 	const sinceRef = useRef(new Date().toISOString());
+	const deletionVersionRef = useRef<string | undefined>(undefined);
 	const attachmentUploadRef = useRef<AbortController | null>(null);
 	const attachmentPreviewUrlRef = useRef("");
 	const pendingPreviewUrlsRef = useRef(new Map<string, string>());
@@ -164,6 +166,7 @@ export function ThreadPane({
 		clearAttachment();
 		revokeAllPendingPreviewUrls();
 		setMessages([]);
+		deletionVersionRef.current = undefined;
 		setText("");
 		setSendError(null);
 		setEditTarget(null);
@@ -216,6 +219,7 @@ export function ThreadPane({
 					})),
 				);
 				sinceRef.current = latestUpdatedAt(threadRes.messages);
+				deletionVersionRef.current = threadRes.deletionVersion;
 
 				if (!isPersonal) return;
 				const accounts = accountsRes.accounts;
@@ -269,7 +273,12 @@ export function ThreadPane({
 		let polling = false;
 
 		const poll = async () => {
-			if (document.hidden || polling) return;
+			if (
+				document.hidden ||
+				polling ||
+				deletionVersionRef.current === undefined
+			)
+				return;
 			polling = true;
 			try {
 				const result = await orpcClient.messages.poll({
@@ -279,9 +288,30 @@ export function ThreadPane({
 				});
 				// Запрос мог завершиться уже после переключения на другой диалог.
 				// В таком случае его сообщения нельзя вливать в новый открытый тред.
-				if (cancelled || !result.messages || result.messages.length === 0)
+				if (cancelled) return;
+				const update = await resolveThreadPoll(
+					result,
+					deletionVersionRef.current,
+					() =>
+						orpcClient.messages.thread({
+							messenger: selectedMessenger,
+							userId: selectedUserId,
+						}),
+				);
+				if (cancelled || !update) return;
+				deletionVersionRef.current = update.deletionVersion;
+				if (update.replace) {
+					setMessages(update.messages);
+					// An empty reload must not skip messages arriving during the request.
+					if (update.messages.length > 0) {
+						sinceRef.current = latestUpdatedAt(update.messages);
+					}
+					setEditTarget(null);
+					setDeleteTarget(null);
 					return;
-				const polledMessages = result.messages;
+				}
+				const polledMessages = update.messages;
+				if (polledMessages.length === 0) return;
 				sinceRef.current = latestUpdatedAt(polledMessages);
 				setMessages((prev) =>
 					mergeThread(
@@ -307,6 +337,8 @@ export function ThreadPane({
 						})),
 					),
 				);
+			} catch {
+				// Keep the cursors unchanged after a failed request and retry next poll.
 			} finally {
 				polling = false;
 			}

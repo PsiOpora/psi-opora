@@ -1,5 +1,5 @@
 import {
-	deleteConversation as deleteConversationRow,
+	deleteConversationsForGroup,
 	listGroupIdentities,
 } from "@psi-opora/db/queries";
 import { bitrixProcedure } from "../../orpc";
@@ -17,10 +17,6 @@ export const deleteConversation = bitrixProcedure
 	.handler(async ({ input, context }): Promise<{ ok: true }> => {
 		const operatorId = context.bitrixSession.userId;
 		const identities = await listGroupIdentities(input.messenger, input.userId);
-		await Promise.all(
-			identities.map((identity) =>
-				deleteConversationRow(identity.messenger, identity.userId, operatorId),
-			),
-		);
+		await deleteConversationsForGroup(identities, operatorId);
 		return { ok: true };
 	});

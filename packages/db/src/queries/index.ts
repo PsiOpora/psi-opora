@@ -39,6 +39,8 @@ import {
 	assignConversation as _assignConversation,
 	assignConversationIfUnassigned as _assignConversationIfUnassigned,
 	deleteConversation as _deleteConversation,
+	deleteConversationsForGroup as _deleteConversationsForGroup,
+	getConversationDeletionVersionForGroup as _getConversationDeletionVersionForGroup,
 	getConversationMeta as _getConversationMeta,
 	markConversationRead as _markConversationRead,
 	setConversationTags as _setConversationTags,
@@ -459,6 +461,19 @@ export async function deleteConversation(
 	operatorId: string,
 ): Promise<void> {
 	return _deleteConversation(db, messenger, userId, operatorId);
+}
+
+export async function deleteConversationsForGroup(
+	identities: ClientIdentityRef[],
+	operatorId: string,
+): Promise<void> {
+	return _deleteConversationsForGroup(db, identities, operatorId);
+}
+
+export async function getConversationDeletionVersionForGroup(
+	identities: ClientIdentityRef[],
+): Promise<string> {
+	return _getConversationDeletionVersionForGroup(db, identities);
 }
 
 export async function getConversationMeta(messenger: string, userId: string) {
