@@ -64,6 +64,7 @@ describe("diagnostic scheduling messages", () => {
 		expect(message).toContain("https://pay.example/42");
 		expect(message).toContain(DIAGNOSTIC_JOIN_URL);
 		expect(message).toContain("Анна");
+		expect(message).toContain("нажмите кнопку «Применить»");
 	});
 
 	it("does not repeat the payment link after payment", () => {
