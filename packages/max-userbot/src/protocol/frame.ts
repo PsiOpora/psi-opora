@@ -85,6 +85,10 @@ export function encodeFrame(
  * только эту функцию, вызывающий код (client.ts) о префиксе не знает.
  */
 export function decodePayload(payload: Uint8Array): Record<string, unknown> {
+	// Кадр с нулевой длиной — валидный пустой пакет (kolibri-net
+	// protocol/codec.rs::decode), например PING от сервера. MessagePack-декодер
+	// на пустом буфере падает с «Out of bounds access».
+	if (payload.length === 0) return {};
 	const decodeAndNormalize = (value: Uint8Array) =>
 		normalizeBigInts(decode(value, { useBigInt64: true })) as Record<
 			string,

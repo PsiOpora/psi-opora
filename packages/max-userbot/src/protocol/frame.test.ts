@@ -80,6 +80,10 @@ describe("encodeFrame", () => {
 });
 
 describe("decodePayload", () => {
+	test("пустой пейлоад (например PING от сервера) — пустая мапа", () => {
+		expect(decodePayload(new Uint8Array(0))).toEqual({});
+	});
+
 	test("разбирает обычный MessagePack-пейлоад без префикса", () => {
 		const payload = { token: "abc", codeLength: 6 };
 		const encoded = Buffer.from(encode(payload));
