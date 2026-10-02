@@ -392,10 +392,12 @@ export async function handleDiagnosticDealUpdate(
 				action = "created";
 			} else if (previous?.diagnosticAt !== diagnosticAt) {
 				try {
-					await calendarApi.call("calendar.event.update", {
+					const updated = await calendarApi.call("calendar.event.update", {
 						id: calendarEventId,
 						...fields,
 					});
+					// Событие могли удалить в календаре — тогда update не возвращает ID.
+					if (!updated) throw new Error("calendar.event.update не вернул ID");
 					action = "updated";
 				} catch (error) {
 					console.warn(
