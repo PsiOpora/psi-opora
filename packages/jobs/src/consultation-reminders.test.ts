@@ -180,4 +180,47 @@ describe("handleConsultationDealUpdate", () => {
 		expect(updates).toHaveLength(1);
 		expect(updates[0]?.params.id).toBe(501);
 	});
+
+	it("resets the sent-reminder flag when a passed consultation is rescheduled", async () => {
+		const api: BitrixApi = {
+			async call<T>(method: string) {
+				if (method === "crm.deal.get") {
+					return {
+						ID: "42",
+						CATEGORY_ID: "0",
+						STAGE_ID: "UC_WWIO8W",
+						CONTACT_ID: "9",
+						UF_CRM_1779802779513: "2099-08-05T18:00:00+03:00",
+					} as T;
+				}
+				if (method === "crm.contact.get") return { ID: "9", NAME: "Лариса" } as T;
+				if (method === "calendar.event.get") return [] as T;
+				if (method === "calendar.event.update") return 7370 as T;
+				if (method === "crm.timeline.comment.add") return 1 as T;
+				throw new Error(`Unexpected method ${method}`);
+			},
+			async list<T>() {
+				return [] as T[];
+			},
+		};
+		const memory = new MemoryRedis();
+		memory.values.set("consult-reminder:deal:42", {
+			lastConsultationAt: "2020-01-01T14:30:00.000Z",
+			calendarEventId: 7370,
+			reminderSentAt: "2020-01-01T13:23:00.000Z",
+			updatedAt: "2020-01-01T13:23:00.000Z",
+		});
+
+		const result = await handleConsultationDealUpdate(
+			api,
+			memory as unknown as RedisClient,
+			42,
+		);
+
+		expect(result).toMatchObject({ reason: "old_dt_already_passed" });
+		expect(memory.values.get("consult-reminder:deal:42")).toMatchObject({
+			lastConsultationAt: "2099-08-05T15:00:00.000Z",
+			reminderSentAt: null,
+		});
+	});
 });

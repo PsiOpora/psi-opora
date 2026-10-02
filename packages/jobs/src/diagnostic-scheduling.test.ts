@@ -95,6 +95,74 @@ describe("diagnostic scheduling messages", () => {
 });
 
 describe("handleDiagnosticDealUpdate", () => {
+	it.each([
+		{ response: 601, action: "updated", eventId: 601 },
+		{ response: "601", action: "updated", eventId: 601 },
+		...[
+			{},
+			{ ID: 601 },
+			true,
+			false,
+			null,
+			undefined,
+			[],
+			[601],
+			0,
+			-1,
+			1.5,
+			Number.NaN,
+			Number.POSITIVE_INFINITY,
+			"",
+			"invalid",
+		].map((response) => ({ response, action: "created", eventId: 602 })),
+	])(
+		"validates update response $response before saving the event ID",
+		async ({ response, action, eventId }) => {
+			const methods: string[] = [];
+			const api: BitrixApi = {
+				async call<T>(method: string) {
+					methods.push(method);
+					if (method === "crm.deal.get") {
+						return {
+							CATEGORY_ID: "0",
+							STAGE_ID: PAID_DIAGNOSTIC_STAGE_ID,
+							UF_CRM_1779871551489: "2026-08-06T12:30:00+03:00",
+						} as T;
+					}
+					if (method === "calendar.event.update") return response as T;
+					if (method === "calendar.event.get") return [] as T;
+					if (method === "calendar.event.add") return 602 as T;
+					if (method === "crm.timeline.comment.add") return 1 as T;
+					throw new Error(`Unexpected method ${method}`);
+				},
+				async list<T>() {
+					return [] as T[];
+				},
+			};
+			const memory = new MemoryRedis();
+			memory.values.set("diagnostic-schedule:deal:42", {
+				calendarEventId: 501,
+				diagnosticAt: "2026-08-05T07:00:00.000Z",
+				lastChatStageId: PAID_DIAGNOSTIC_STAGE_ID,
+				lastEmailStageId: PAID_DIAGNOSTIC_STAGE_ID,
+			});
+
+			const result = await handleDiagnosticDealUpdate(
+				api,
+				memory as unknown as RedisClient,
+				42,
+			);
+
+			expect(result.action).toBe(action);
+			expect(result.calendarEventId).toBe(eventId);
+			expect(memory.values.get("diagnostic-schedule:deal:42")).toMatchObject({
+				calendarEventId: eventId,
+			});
+			expect(methods).toContain("calendar.event.update");
+			expect(methods.includes("calendar.event.add")).toBe(action === "created");
+		},
+	);
+
 	it.each([false, true])(
 		"reschedules events while preserving manual ownership (manual=%s)",
 		async (manual) => {

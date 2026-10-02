@@ -253,10 +253,12 @@ async function syncConsultationCalendarEvent(params: {
 	}
 
 	try {
-		await calendarApi.call("calendar.event.update", {
+		const updated = await calendarApi.call("calendar.event.update", {
 			id: calendarEventId,
 			...fields,
 		});
+		// Событие могли удалить в календаре — тогда update не возвращает ID.
+		if (!updated) throw new Error("calendar.event.update не вернул ID");
 	} catch (error) {
 		console.warn(
 			`[consultation-reminder] событие ${calendarEventId} не обновлено, создаём заново: ${(error as Error).message}`,
@@ -518,13 +520,34 @@ async function handleConsultationDealUpdateLocked(
 			previousCalendarEventId: state.calendarEventId,
 			previousCalendarEventAdopted: state.calendarEventAdopted,
 		});
+		// Старая встреча уже прошла (несостоявшаяся/проведённая консультация), а
+		// менеджер назначил новую дату — это новая запись. Флаг напоминания
+		// относился к прошлой дате: без сброса бот молча пропускал напоминание
+		// о перенесённой консультации (сделка 5958).
+		if (toTimestamp(newConsultationAt) > Date.now()) {
+			await sendConsultationBookedNotification(
+				api,
+				dealId,
+				deal,
+				contactId,
+				newConsultationAt,
+			);
+		}
 		await writeState(redis, dealId, {
 			...state,
 			lastConsultationAt: newConsultationAt,
 			calendarEventId: syncResult.calendarEventId,
 			calendarEventAdopted: syncResult.calendarEventAdopted,
+			reminderSentAt: null,
 			updatedAt: now,
 		});
+		if (syncResult.success && syncResult.calendarEventId) {
+			await appendReminderSentComment(
+				api,
+				dealId,
+				`📅 Бесплатная консультация записана в календарь Андрея Клюева на ${formatConsultationDate(newConsultationAt)}. Событие #${syncResult.calendarEventId}.`,
+			);
+		}
 		return {
 			action: "skip",
 			reason: "old_dt_already_passed",
@@ -815,6 +838,18 @@ async function sendConsultationBookedNotification(
 	);
 }
 
+/**
+ * Напоминание считается отправленным только для текущей даты консультации:
+ * оно уходит строго в окне за REMINDER_WINDOW_MS до встречи. Флаг, выставленный
+ * для прошлой даты (консультацию перенесли), не должен блокировать новое.
+ */
+function reminderCoversConsultation(state: ConsultationState): boolean {
+	if (!state.reminderSentAt) return false;
+	const sentTs = toTimestamp(state.reminderSentAt);
+	const consultTs = toTimestamp(state.lastConsultationAt);
+	return sentTs >= consultTs - REMINDER_WINDOW_MS - 60_000;
+}
+
 async function trySendOneHourReminder(
 	api: BitrixApi,
 	dealId: number,
@@ -829,7 +864,9 @@ async function trySendOneHourReminder(
 		return { action: "skip", reason: "outside_1h_window" };
 	}
 
-	if (state.reminderSentAt) return { action: "skip", reason: "already_sent" };
+	if (reminderCoversConsultation(state)) {
+		return { action: "skip", reason: "already_sent" };
+	}
 
 	const deal = await api.call<Record<string, unknown> | false>("crm.deal.get", {
 		id: dealId,
