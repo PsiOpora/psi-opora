@@ -3,6 +3,7 @@ import {
 	resolveCalendarBitrixApi,
 } from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
+import { z } from "zod";
 import type { Messenger } from "./messenger";
 import {
 	addCalendarEventOnce,
@@ -35,6 +36,9 @@ export const DIAGNOSTIC_DISCOUNT_COUPON = "dia5000";
 const DIAGNOSTIC_DURATION_MS = 90 * 60 * 1000;
 const STATE_TTL_SECONDS = 366 * 24 * 60 * 60;
 const LOCK_TTL_MS = 60_000;
+const calendarEventIdSchema = z
+	.union([z.number(), z.string()])
+	.pipe(z.coerce.number<string | number>().int().positive());
 const DIAGNOSTIC_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
 	timeZone: "Europe/Moscow",
 	dateStyle: "long",
@@ -392,12 +396,12 @@ export async function handleDiagnosticDealUpdate(
 				action = "created";
 			} else if (previous?.diagnosticAt !== diagnosticAt) {
 				try {
-					const updated = await calendarApi.call("calendar.event.update", {
-						id: calendarEventId,
-						...fields,
-					});
+					const updated = await calendarApi.call<unknown>(
+						"calendar.event.update",
+						{ id: calendarEventId, ...fields },
+					);
 					// Событие могли удалить в календаре — тогда update не возвращает ID.
-					if (!updated) throw new Error("calendar.event.update не вернул ID");
+					calendarEventId = calendarEventIdSchema.parse(updated);
 					action = "updated";
 				} catch (error) {
 					console.warn(
