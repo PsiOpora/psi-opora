@@ -24,6 +24,7 @@ function isDuplicateStageGoalError(err: unknown): boolean {
 	return (err as { code?: string } | null)?.code === "23505";
 }
 
+/** Преобразует проверенные данные цели в поля БД, вычисляя воронку по ID стадии. */
 function toStageGoalRow(
 	input: ReturnType<typeof yandexMetrikaStageGoalSchema.parse>,
 ) {

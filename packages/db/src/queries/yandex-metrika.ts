@@ -77,6 +77,7 @@ export async function listEnabledYandexMetrikaGoalsForStage(
 		);
 }
 
+/** Проверяет наличие включённых целей; без подключения к БД возвращает false. */
 export async function hasEnabledYandexMetrikaStageGoals(): Promise<boolean> {
 	if (!db) return false;
 	const rows = await db
@@ -95,6 +96,7 @@ export interface YandexMetrikaStageGoalInput {
 	enabled: boolean;
 }
 
+/** Создаёт привязку цели к стадии с заданным ID; без подключения к БД ничего не делает. */
 export async function createYandexMetrikaStageGoal(
 	id: string,
 	data: YandexMetrikaStageGoalInput,
@@ -103,6 +105,7 @@ export async function createYandexMetrikaStageGoal(
 	await db.insert(yandexMetrikaStageGoals).values({ id, ...data });
 }
 
+/** Обновляет привязку и время изменения по ID; без подключения к БД ничего не делает. */
 export async function updateYandexMetrikaStageGoal(
 	id: string,
 	data: YandexMetrikaStageGoalInput,
@@ -114,6 +117,10 @@ export async function updateYandexMetrikaStageGoal(
 		.where(eq(yandexMetrikaStageGoals.id, id));
 }
 
+/**
+ * Удаляет привязку по ID вместе с её журналом конверсий (каскадное удаление).
+ * Без подключения к БД ничего не делает.
+ */
 export async function deleteYandexMetrikaStageGoal(id: string): Promise<void> {
 	if (!db) return;
 	await db
@@ -145,6 +152,7 @@ export async function saveYandexMetrikaDealVisitor(
 		});
 }
 
+/** Возвращает ClientID/yclid сделки или null, если записи либо подключения к БД нет. */
 export async function getYandexMetrikaDealVisitor(
 	dealId: string,
 ): Promise<YandexMetrikaDealVisitor | null> {

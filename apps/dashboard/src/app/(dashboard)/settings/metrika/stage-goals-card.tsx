@@ -52,6 +52,7 @@ const EMPTY_FORM: YandexMetrikaStageGoalInput = {
 	enabled: true,
 };
 
+/** Показывает цели по стадиям Bitrix, статистику конверсий и форму управления целями. */
 export function YandexMetrikaStageGoalsCard() {
 	const queryClient = useQueryClient();
 	const bitrix = useBitrixData(["stageNames", "categoryNames"]);
@@ -88,17 +89,21 @@ export function YandexMetrikaStageGoalsCard() {
 		list.push(option);
 		byCategory.set(option.categoryName, list);
 	}
+	/** Возвращает название воронки и стадии, а для неизвестной стадии — её ID. */
 	const stageLabel = (stageId: string) => {
 		const option = options.find((o) => o.stageId === stageId);
 		return option ? `${option.categoryName} → ${option.stageName}` : stageId;
 	};
 
+	/** Помечает список целей устаревшим и запускает обновление активного запроса. */
 	const invalidate = () =>
 		queryClient.invalidateQueries({
 			queryKey: orpc.yandexMetrika.listStageGoals.key(),
 		});
+	/** Показывает сообщение ошибки изменения цели или запасной текст. */
 	const onError = (error: Error) =>
 		toast.error(error.message || "Не удалось сохранить цель");
+	/** Завершает редактирование и возвращает форму к значениям для новой цели. */
 	const resetForm = () => {
 		setEditingId(null);
 		setForm(EMPTY_FORM);
@@ -136,6 +141,7 @@ export function YandexMetrikaStageGoalsCard() {
 
 	const pending = createMutation.isPending || updateMutation.isPending;
 
+	/** Проверяет форму и запускает создание либо обновление выбранной цели. */
 	function submit() {
 		const parsed = yandexMetrikaStageGoalSchema.safeParse(form);
 		if (!parsed.success) {

@@ -13,6 +13,7 @@ import { orpc } from "@/lib/orpc/client";
 import { YandexMetrikaSettingsForm } from "./credentials-form";
 import { YandexMetrikaStageGoalsCard } from "./stage-goals-card";
 
+/** Загружает настройки Метрики и показывает формы счётчика и целей по стадиям. */
 export default function YandexMetrikaSettingsPage() {
 	const { data: settings, isLoading } = useQuery(
 		orpc.yandexMetrika.getSettings.queryOptions(),
