@@ -5,7 +5,10 @@
  * Используется в TG и MAX ботах.
  */
 
-import { getBotUserProfile } from "@psi-opora/db/queries";
+import {
+	getBotUserProfile,
+	saveYandexMetrikaDealVisitor,
+} from "@psi-opora/db/queries";
 import {
 	type ContactData,
 	createBitrixContact,
@@ -156,6 +159,22 @@ export async function submitConsultationDeal(
 
 		const { dealId } = await createBitrixDeal(dealData);
 		await trackFunnelStep("deal", funnelCtx);
+
+		// ClientID/yclid запоминаем за сделкой: цели по стадиям воронки (см.
+		// packages/jobs/src/yandex-metrika-stage-goals.ts) срабатывают позже, при
+		// переносе сделки, когда сессии бота уже нет. Не критично для сделки.
+		if (dealId && (ymClientId || yclid)) {
+			try {
+				await saveYandexMetrikaDealVisitor(String(dealId), {
+					clientId: ymClientId,
+					yclid,
+				});
+			} catch (err) {
+				console.error(
+					`[deal] не удалось сохранить ClientID сделки ${dealId}: ${(err as Error).message}`,
+				);
+			}
+		}
 
 		// Целевое действие «Запись на консультацию» фиксируем именно на flow
 		// "consult" — flow "guide" тоже создаёт сделку, но это выдача

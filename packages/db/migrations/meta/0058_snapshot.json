@@ -1,6 +1,6 @@
 {
-  "id": "5cfbefa7-8cf4-42cf-9dc1-477788d36ea8",
-  "prevId": "a6a4e3b5-5baa-4980-9ba7-42723f0f1679",
+  "id": "c549a50d-1fe0-4a84-a472-1c806aaa8fc2",
+  "prevId": "ab0d69d6-cd69-4908-89d6-3e9fd8d3e997",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -336,12 +336,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "portal_key": {
-          "name": "portal_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "contact_id": {
           "name": "contact_id",
           "type": "text",
@@ -363,27 +357,6 @@
         }
       },
       "indexes": {
-        "bitrix_crm_links_portal_contact_idx": {
-          "name": "bitrix_crm_links_portal_contact_idx",
-          "columns": [
-            {
-              "expression": "portal_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "contact_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "bitrix_crm_links_dialog_idx": {
           "name": "bitrix_crm_links_dialog_idx",
           "columns": [
@@ -2181,87 +2154,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.client_merge_dismissals": {
-      "name": "client_merge_dismissals",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "key_a": {
-          "name": "key_a",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "key_b": {
-          "name": "key_b",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "dismissed_by_operator_id": {
-          "name": "dismissed_by_operator_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dismissed_by_operator_name": {
-          "name": "dismissed_by_operator_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "client_merge_dismissals_key_a_idx": {
-          "name": "client_merge_dismissals_key_a_idx",
-          "columns": [
-            {
-              "expression": "key_a",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "client_merge_dismissals_key_b_idx": {
-          "name": "client_merge_dismissals_key_b_idx",
-          "columns": [
-            {
-              "expression": "key_b",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.client_notes": {
       "name": "client_notes",
       "schema": "",
@@ -3687,6 +3579,117 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.yandex_metrika_deal_visitors": {
+      "name": "yandex_metrika_deal_visitors",
+      "schema": "",
+      "columns": {
+        "deal_id": {
+          "name": "deal_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "yclid": {
+          "name": "yclid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.yandex_metrika_goal_events": {
+      "name": "yandex_metrika_goal_events",
+      "schema": "",
+      "columns": {
+        "stage_goal_id": {
+          "name": "stage_goal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deal_id": {
+          "name": "deal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "claimed_at": {
+          "name": "claimed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "claim_token": {
+          "name": "claim_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "yandex_metrika_goal_events_stage_goal_id_yandex_metrika_stage_goals_id_fk": {
+          "name": "yandex_metrika_goal_events_stage_goal_id_yandex_metrika_stage_goals_id_fk",
+          "tableFrom": "yandex_metrika_goal_events",
+          "tableTo": "yandex_metrika_stage_goals",
+          "columnsFrom": [
+            "stage_goal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "yandex_metrika_goal_events_stage_goal_id_deal_id_pk": {
+          "name": "yandex_metrika_goal_events_stage_goal_id_deal_id_pk",
+          "columns": [
+            "stage_goal_id",
+            "deal_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.yandex_metrika_settings": {
       "name": "yandex_metrika_settings",
       "schema": "",
@@ -3735,6 +3738,79 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.yandex_metrika_stage_goals": {
+      "name": "yandex_metrika_stage_goals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "goal_id": {
+          "name": "goal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stage_id": {
+          "name": "stage_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "yandex_metrika_stage_goals_stage_goal_uq": {
+          "name": "yandex_metrika_stage_goals_stage_goal_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "stage_id",
+            "goal_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

@@ -79,3 +79,4 @@ export {
 } from "./messenger";
 export { formatMessengerError } from "./messenger-errors";
 export { handleStageConsentTrigger } from "./stage-consent";
+export { handleYandexMetrikaStageGoals } from "./yandex-metrika-stage-goals";
