@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
+const crmLinks: unknown[] = [];
 const bitrixStatuses: string[] = [];
 const journalStatuses: string[] = [];
 let sendResult: {
@@ -10,6 +11,7 @@ let sendResult: {
 } | null = null;
 
 mock.module("@psi-opora/bitrix-client", () => ({
+	resolveBitrixPortalKey: async () => "portal.test",
 	resolveBitrixApi: () => ({
 		call: async (_method: string, params: { STATUS: string }) => {
 			bitrixStatuses.push(params.STATUS);
@@ -35,7 +37,9 @@ mock.module("@psi-opora/db/queries", () => ({
 	],
 	listWhatsappPersonalAccounts: async () => [],
 	setWhatsappPersonalAccountStateBySession: async () => {},
-	upsertBitrixCrmLink: async () => {},
+	upsertBitrixCrmLink: async (entry: unknown) => {
+		crmLinks.push(entry);
+	},
 }));
 mock.module("@psi-opora/tg-userbot", () => ({
 	sendOutboundMessageAndWait: async () => sendResult,
@@ -59,6 +63,7 @@ const payload = {
 
 describe("message sender delivery states", () => {
 	beforeEach(() => {
+		crmLinks.length = 0;
 		bitrixStatuses.length = 0;
 		journalStatuses.length = 0;
 		sendResult = null;
@@ -83,4 +88,30 @@ describe("message sender delivery states", () => {
 		expect(bitrixStatuses).toEqual(["failed"]);
 		expect(journalStatuses).toEqual(["failed"]);
 	});
+});
+
+test("persists the current portal for phone and canonical Telegram links", async () => {
+	crmLinks.length = 0;
+	sendResult = { ok: true, externalId: "sent-2", telegramUserId: "12345" };
+	await handleMessageSenderPayload({
+		...payload,
+		contactId: "42",
+		dealId: "99",
+	});
+	expect(crmLinks).toEqual([
+		{
+			portalKey: "portal.test",
+			messenger: "telegram-personal",
+			userId: "79991234567",
+			contactId: "42",
+			dealId: "99",
+		},
+		{
+			portalKey: "portal.test",
+			messenger: "telegram-personal",
+			userId: "12345",
+			contactId: "42",
+			dealId: "99",
+		},
+	]);
 });

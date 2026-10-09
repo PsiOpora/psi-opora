@@ -15,6 +15,7 @@ export {
 	verifyAndSavePortalTokens,
 	verifyPortalAccessToken,
 } from "./oauth";
+export { resolveBitrixPortalKey } from "./portal-key";
 export {
 	type BitrixSessionClaims,
 	CLIENTS_SESSION_COOKIE,

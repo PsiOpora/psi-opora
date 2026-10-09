@@ -77,6 +77,7 @@ export type {
 	CrmLinksResult,
 	CrmPhone,
 	InboxMessenger,
+	MergeSuggestion,
 	MessageDeliveryStatus,
 	PhoneHint,
 	QuickReplyItem,

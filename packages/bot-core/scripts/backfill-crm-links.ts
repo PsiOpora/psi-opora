@@ -1,3 +1,4 @@
+import { bitrixPortalKey } from "@psi-opora/config";
 import {
 	getBitrixCrmLink,
 	listClientsWithLastMessage,
@@ -151,7 +152,9 @@ async function main() {
 			scanned++;
 
 			const existing = await getBitrixCrmLink(client.messenger, client.userId);
-			if (existing) {
+			if (
+				existing?.portalKey === bitrixPortalKey(webhookBase(client.messenger))
+			) {
 				alreadyLinked++;
 				continue;
 			}
@@ -163,6 +166,7 @@ async function main() {
 			}
 
 			await upsertBitrixCrmLink({
+				portalKey: bitrixPortalKey(webhookBase(client.messenger)),
 				messenger: client.messenger,
 				userId: client.userId,
 				contactId: found.contactId,

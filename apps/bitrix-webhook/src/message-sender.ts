@@ -1,4 +1,7 @@
-import { resolveBitrixApi } from "@psi-opora/bitrix-client";
+import {
+	resolveBitrixApi,
+	resolveBitrixPortalKey,
+} from "@psi-opora/bitrix-client";
 import {
 	createRedisClient,
 	isRedisConfigured,
@@ -300,8 +303,9 @@ export async function handleMessageSenderPayload(
 		const contactId = payload.contactId;
 		const userIds = new Set([phone, outcome.userId]);
 		await Promise.all(
-			[...userIds].map((userId) =>
+			[...userIds].map(async (userId) =>
 				upsertBitrixCrmLink({
+					portalKey: await resolveBitrixPortalKey(payload.memberId),
 					messenger,
 					userId,
 					contactId,

@@ -98,6 +98,18 @@ export const mergeClientsSchema = z.object({
 });
 export type MergeClientsInput = z.infer<typeof mergeClientsSchema>;
 
+export const dismissMergeSuggestionSchema = z.object({
+	messenger: inboxMessengerSchema,
+	userId: z.string(),
+	otherMessenger: inboxMessengerSchema,
+	otherUserId: z.string(),
+	operatorId: z.string().optional(),
+	operatorName: z.string().optional(),
+});
+export type DismissMergeSuggestionInput = z.infer<
+	typeof dismissMergeSuggestionSchema
+>;
+
 export const assignConversationSchema = z.object({
 	messenger: inboxMessengerSchema,
 	userId: z.string(),

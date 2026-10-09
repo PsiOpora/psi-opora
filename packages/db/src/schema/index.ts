@@ -15,6 +15,7 @@ export * from "./bot-texts";
 export * from "./bot-users";
 export * from "./broadcast";
 export * from "./client-identity-links";
+export * from "./client-merge-dismissals";
 export * from "./client-notes";
 export * from "./deal-dictionaries";
 export * from "./deal-stage-history";

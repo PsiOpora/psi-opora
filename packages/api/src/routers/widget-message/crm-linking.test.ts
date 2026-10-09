@@ -7,6 +7,7 @@ describe("persistWidgetCrmLinks", () => {
 
 		await persistWidgetCrmLinks(
 			{
+				portalKey: "portal.test",
 				messenger: "telegram-personal",
 				userId: "79870948576",
 				canonicalTelegramUserId: "987654321",
@@ -18,11 +19,13 @@ describe("persistWidgetCrmLinks", () => {
 		expect(upsert).toHaveBeenCalledTimes(2);
 		expect(upsert.mock.calls.map(([entry]) => entry)).toEqual([
 			{
+				portalKey: "portal.test",
 				messenger: "telegram-personal",
 				userId: "79870948576",
 				contactId: "7604",
 			},
 			{
+				portalKey: "portal.test",
 				messenger: "telegram-personal",
 				userId: "987654321",
 				contactId: "7604",
@@ -35,6 +38,7 @@ describe("persistWidgetCrmLinks", () => {
 
 		await persistWidgetCrmLinks(
 			{
+				portalKey: "portal.test",
 				messenger: "telegram-personal",
 				userId: "987654321",
 				canonicalTelegramUserId: "987654321",

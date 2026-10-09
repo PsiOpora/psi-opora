@@ -1,4 +1,8 @@
-import { type BitrixApi, resolveBitrixApi } from "@psi-opora/bitrix-client";
+import {
+	type BitrixApi,
+	resolveBitrixApi,
+	resolveBitrixPortalKey,
+} from "@psi-opora/bitrix-client";
 import {
 	createRedisClient,
 	isRedisConfigured,
@@ -355,8 +359,10 @@ export const send = bitrixProcedure
 							"telegram-personal",
 							input.userId,
 						);
-						if (link?.contactId) {
+						const portalKey = await resolveBitrixPortalKey(context.memberId);
+						if (link?.contactId && link.portalKey === portalKey) {
 							await upsertBitrixCrmLink({
+								portalKey,
 								messenger: "telegram-personal",
 								userId: canonicalTelegramUserId,
 								contactId: link.contactId,

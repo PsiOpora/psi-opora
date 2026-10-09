@@ -136,6 +136,21 @@ export function PhoneSection({ selected }: { selected: SelectedClient }) {
 		setConflict(null);
 	};
 
+	// Новый номер/привязка контакта — главный повод найти того же человека в
+	// другом мессенджере: обновляем блок «Возможный дубль» и подсказываем о нём.
+	const checkDuplicates = async () => {
+		const found = await queryClient
+			.fetchQuery(
+				orpc.messages.mergeSuggestions.queryOptions({ input, staleTime: 0 }),
+			)
+			.catch(() => null);
+		if (found && found.suggestions.length > 0) {
+			toast.info(
+				"Этот клиент уже писал из другого мессенджера — проверьте блок «Возможный дубль» и объедините карточки.",
+			);
+		}
+	};
+
 	const save = (
 		extra: { linkContactId?: string; createNew?: boolean } = {},
 	) => {
@@ -176,6 +191,7 @@ export function PhoneSection({ selected }: { selected: SelectedClient }) {
 			await queryClient.invalidateQueries({
 				queryKey: orpc.messages.crmLinks.key({ input }),
 			});
+			await checkDuplicates();
 		});
 	};
 
@@ -197,6 +213,7 @@ export function PhoneSection({ selected }: { selected: SelectedClient }) {
 				await queryClient.invalidateQueries({
 					queryKey: orpc.messages.crmLinks.key({ input }),
 				});
+				await checkDuplicates();
 			} catch (err) {
 				toast.error((err as Error).message || "Не удалось привязать диалог");
 			}

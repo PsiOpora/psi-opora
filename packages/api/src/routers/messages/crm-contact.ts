@@ -165,6 +165,7 @@ export async function resolveDialogCrmBindings(
 	memberId: string | null,
 	messenger: InboxMessenger,
 	userId: string,
+	portalKey?: string,
 ): Promise<CrmBindings> {
 	const identities = await listGroupIdentities(messenger, userId);
 	for (const identity of identities) {
@@ -172,7 +173,7 @@ export async function resolveDialogCrmBindings(
 			identity.messenger,
 			identity.userId,
 		).catch(() => null);
-		if (link) {
+		if (link && (portalKey === undefined || link.portalKey === portalKey)) {
 			return {
 				contactId: link.contactId,
 				dealId: link.dealId ?? null,
