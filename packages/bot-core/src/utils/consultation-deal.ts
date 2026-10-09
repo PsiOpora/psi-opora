@@ -7,6 +7,10 @@
 
 import { getBotUserProfile } from "@psi-opora/db/queries";
 import {
+	recordDealAttribution,
+	resolveDealAttribution,
+} from "./attribution/deal-attribution";
+import {
 	type ContactData,
 	createBitrixContact,
 	createBitrixDeal,
@@ -130,6 +134,15 @@ export async function submitConsultationDeal(
 			}
 		}
 
+		// Касания с рекламой по ClientID/yclid (ad_touches) — вместо одной метки
+		// из ссылки; null, если сайт касаний не присылал.
+		const attribution = await resolveDealAttribution({
+			ymClientId,
+			yclid,
+			source,
+			campaign,
+		});
+
 		const dealData: DealData = {
 			name,
 			phone,
@@ -152,9 +165,13 @@ export async function submitConsultationDeal(
 			...(ymClientId ? { ymClientId } : {}),
 			...(categoryId !== undefined ? { categoryId } : {}),
 			...(stageId ? { stageId } : {}),
+			...(attribution ? { attribution } : {}),
 		};
 
 		const { dealId } = await createBitrixDeal(dealData);
+		if (dealId && attribution) {
+			await recordDealAttribution({ messenger, dealId, attribution });
+		}
 		await trackFunnelStep("deal", funnelCtx);
 
 		// Целевое действие «Запись на консультацию» фиксируем именно на flow

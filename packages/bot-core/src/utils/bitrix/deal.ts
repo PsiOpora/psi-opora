@@ -86,7 +86,10 @@ function buildFlowLabel(data: DealData): string | undefined {
 export async function buildDealFields(data: DealData, contactId: number) {
 	const messenger = data.messenger ?? "telegram";
 	const botId = getBotId(messenger);
-	const description = [data.source, data.campaign].filter(Boolean).join(" / ");
+	const attribution = data.attribution;
+	const description =
+		attribution?.sourceDescription ||
+		[data.source, data.campaign].filter(Boolean).join(" / ");
 	const flowLabel = buildFlowLabel(data);
 
 	// Код поля для ClientID Метрики настраивается администратором в дашборде
@@ -95,7 +98,13 @@ export async function buildDealFields(data: DealData, contactId: number) {
 		? await getYandexMetrikaSettings()
 		: null;
 	const clientIdField = metrikaSettings?.bitrixClientIdField;
-	const disorderIds = resolveDisorderIds(data.campaign);
+	// Метка кампании из рекламы может быть просто числом ({campaign_id}) —
+	// тема читается из названия кампании/объявления в описании источника.
+	const disorderIds = resolveDisorderIds(
+		[data.campaign, attribution?.utmCampaign, attribution?.sourceDescription]
+			.filter(Boolean)
+			.join(" ") || undefined,
+	);
 
 	return {
 		TITLE: `Заявка (${[flowLabel, botId].filter(Boolean).join(", ")}): ${data.name}`,
@@ -108,10 +117,14 @@ export async function buildDealFields(data: DealData, contactId: number) {
 		...(data.stageId ? { STAGE_ID: data.stageId } : {}),
 		SOURCE_ID: getSourceId(messenger),
 		SOURCE_DESCRIPTION: description || `${messenger} бот`,
-		UTM_SOURCE: data.source ?? messenger,
-		UTM_MEDIUM: `${messenger}_bot`,
-		UTM_CAMPAIGN: data.campaign ?? "",
-		UTM_CONTENT: botId,
+		// Есть касания с рекламой — пишем их метки (последнее касание), иначе
+		// метку из ссылки на бота; канал и бот остаются в «Комментарии» и в
+		// поле «Мессенджер».
+		UTM_SOURCE: attribution?.utmSource ?? data.source ?? messenger,
+		UTM_MEDIUM: attribution?.utmMedium ?? `${messenger}_bot`,
+		UTM_CAMPAIGN: attribution?.utmCampaign ?? data.campaign ?? "",
+		UTM_CONTENT: attribution?.utmContent ?? botId,
+		...(attribution?.utmTerm ? { UTM_TERM: attribution.utmTerm } : {}),
 		UF_CRM_1779643796551:
 			MESSENGER_FIELD_VALUES[messenger] ?? MESSENGER_FIELD_OTHER,
 		...(data.ymClientId && clientIdField
@@ -124,6 +137,7 @@ export async function buildDealFields(data: DealData, contactId: number) {
 		COMMENTS: [
 			`Бот: ${botId}`,
 			data.telegramUserId ? `${messenger} user_id: ${data.telegramUserId}` : "",
+			...(attribution?.commentLines ?? []),
 			data.comment ?? "",
 		]
 			.filter(Boolean)
@@ -140,6 +154,7 @@ export async function linkBitrixTrace(
 	const trace = {
 		SOURCE_ID: getSourceId(messenger),
 		SOURCE_DESC:
+			data.attribution?.sourceDescription ||
 			[data.source, data.campaign].filter(Boolean).join(" / ") ||
 			`${messenger} бот`,
 	};

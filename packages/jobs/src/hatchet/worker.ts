@@ -1,4 +1,5 @@
 import { botBackgroundTasks } from "../bot-background";
+import { adEntitiesSync } from "./ad-entities-sync";
 import { adsStatsSync } from "./ads-stats-sync";
 import { bookPreorderDrip } from "./book-preorder-drip";
 import { deliverBroadcast } from "./broadcast";
@@ -22,6 +23,7 @@ export const hatchetTasks = [
 	dealsSync,
 	dealStageHistorySync,
 	adsStatsSync,
+	adEntitiesSync,
 	pollEmailCampaigns,
 	consultationReminders,
 	diagnosticReminders,

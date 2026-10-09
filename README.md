@@ -372,6 +372,89 @@ ym(COUNTER_ID, "getClientID", function (clientID) {
 7. В том же отчёте проверить, что конверсия привязалась к исходному визиту
    (источник/кампания совпадают с рекламной ссылкой из шага 1).
 
+## Касания с рекламой: кампания, объявление, ключ — прямо в сделке Bitrix
+
+Метка в start-параметре бота (`SITE_CODES`) — это одно значение на кнопку
+сайта, и start-параметр мессенджера ограничен 64 символами. Поэтому сами
+касания с рекламой едут на сервер отдельно, а с ботом их связывает тот же
+ClientID Метрики (`_ym…` в ссылке, см. выше).
+
+**Путь данных:** клик по объявлению Директа → заход на сайт с
+`utm_*`/`yclid`/макросами → скрипт на сайте шлёт касание на
+`POST /api/track-touch` (`apps/bitrix-webhook`, таблица `ad_touches`) →
+клиент переходит в бота → при создании сделки бот по ClientID/yclid
+достаёт касания за 30 дней (`packages/bot-core/src/utils/attribution`) →
+сделка в Bitrix:
+
+- `UTM_SOURCE/MEDIUM/CAMPAIGN/TERM` — с **последнего** касания.
+  `UTM_CAMPAIGN` остаётся исходной меткой (дашборд сопоставляет расход Директа
+  по числовому ID в её конце), `UTM_CONTENT` — заголовок объявления и его ID.
+- «Источник: дополнительно» (`SOURCE_DESCRIPTION`) — читаемо:
+  `Яндекс.Директ · РК «…» · группа «…» · объявление «…» (ID) · ключ «…»`.
+- Комментарий в таймлайне сделки — вся цепочка касаний с датами (МСК) и
+  страницами захода; в поле «Комментарий» — первое и последнее касание.
+- Снимок касаний сделки — в `deal_touches` (роли first/middle/last) для
+  отчётов по касаниям.
+
+Названия кампаний/групп/объявлений/ключей бот берёт из API Директа
+(`ad_entities`, кэш 7 дней; те же учётные данные, что в `/settings/ads`) —
+при создании сделки и кроном `ad-entities-sync`. Если Директ недоступен,
+в описании остаются ID, сделка создаётся как обычно. Клиенты без касаний
+(нет скрипта на сайте, не по рекламе) обрабатываются по старой схеме.
+
+**Шаблон отслеживания в Директе** (кампания → «Параметры URL», макросы
+подставляет сам Директ; `yclid` добавится автоматически, если включена
+разметка ссылок):
+
+```
+utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}&utm_term={keyword}&gbid={gbid}&phrase_id={phrase_id}
+```
+
+Если нужна читаемая метка, пишите `utm_campaign=search_anorexia_{campaign_id}` —
+ID кампании берётся из числового хвоста метки.
+
+**Скрипт на сайте (вне этого репозитория)** — на каждой странице, после
+загрузки счётчика Метрики:
+
+```js
+(function () {
+	var p = new URLSearchParams(location.search);
+	var keys = ["yclid", "utm_source", "utm_medium", "utm_campaign",
+		"utm_content", "utm_term", "campaign_id", "gbid", "ad_id", "phrase_id"];
+	var payload = {};
+	keys.forEach(function (k) { if (p.get(k)) payload[k] = p.get(k); });
+	if (!payload.yclid && !payload.utm_source && !payload.utm_campaign) return;
+	ym(COUNTER_ID, "getClientID", function (clientID) {
+		payload.clientId = clientID;
+		payload.landingUrl = location.href.split("#")[0];
+		payload.referrer = document.referrer;
+		// text/plain — «простой» CORS-запрос без preflight
+		navigator.sendBeacon(
+			"https://<домен apps/bitrix-webhook>/api/track-touch",
+			new Blob([JSON.stringify(payload)], { type: "text/plain" }),
+		);
+	});
+})();
+```
+
+Эндпоинт открыт всем, поэтому: принимает только `Origin` из
+`TRACKING_ALLOWED_ORIGINS` (по умолчанию `psi-opora.ru`), тело ≤ 4 КБ, до 60
+запросов/мин с IP, значения валидируются и обрезаются, повторный заход с теми
+же метками за 30 минут не плодит касание. Всегда отвечает 204 без тела.
+
+**Тестирование:**
+- Автотесты: `bun test` в `packages/bot-core` и `apps/bitrix-webhook` (логика,
+  Директ и Bitrix подменены). Сквозные тесты на реальном Postgres —
+  `AD_TOUCHES_TEST_DATABASE_URL=… bun test ad-touches.integration` в
+  `packages/db` и `ATTRIBUTION_TEST_DATABASE_URL=… bun test
+  attribution.integration` в `packages/bot-core` (БД с применёнными
+  миграциями; без переменной пропускаются).
+- Вручную на стенде: отправить касание —
+  `curl -i -X POST https://<домен>/api/track-touch -d '{"clientId":"163972457524306386","utm_source":"yandex","utm_medium":"cpc","utm_campaign":"search_anorexia_708811857","utm_content":"<реальный ad_id>","gbid":"<реальный gbid>"}'`
+  (ожидается `204`, строка в `ad_touches`); открыть бота ссылкой
+  `…?start=<код>_ym163972457524306386`, пройти флоу `consult` — в сделке
+  должны появиться UTM, «Источник: дополнительно» и комментарий в таймлайне.
+
 ## Быстрый старт
 
 ```bash
