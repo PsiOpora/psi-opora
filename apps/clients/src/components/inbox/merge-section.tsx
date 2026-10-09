@@ -4,6 +4,7 @@ import type { ClientListItem } from "@psi-opora/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link2Icon, Loader2Icon, XIcon } from "lucide-react";
 import { useState, useTransition } from "react";
+import { invalidateAroundMerge } from "@/components/inbox/merge-invalidate";
 import { messengerLabel } from "@/components/inbox/messenger-meta";
 import type {
 	CurrentOperator,
@@ -60,21 +61,8 @@ export function MergeSection({
 			),
 	);
 
-	const invalidateAround = (identities: SelectedClient[]) => {
-		queryClient.invalidateQueries({ queryKey: orpc.messages.list.key() });
-		for (const identity of identities) {
-			const input = { messenger: identity.messenger, userId: identity.userId };
-			queryClient.invalidateQueries({
-				queryKey: orpc.messages.profile.key({ input }),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.messages.thread.key({ input }),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.messages.notes.key({ input }),
-			});
-		}
-	};
+	const invalidateAround = (identities: SelectedClient[]) =>
+		invalidateAroundMerge(queryClient, identities);
 
 	const mergeInto = (target: ClientListItem) => {
 		startMerging(async () => {

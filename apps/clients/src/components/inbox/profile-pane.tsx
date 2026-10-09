@@ -15,6 +15,7 @@ import { ClientAvatar } from "@/components/inbox/client-avatar";
 import { CrmSection } from "@/components/inbox/crm-section";
 import { GuidesSection } from "@/components/inbox/guides-section";
 import { MergeSection } from "@/components/inbox/merge-section";
+import { MergeSuggestions } from "@/components/inbox/merge-suggestions";
 import { clientKey, messengerLabel } from "@/components/inbox/messenger-meta";
 import { NotesSection } from "@/components/inbox/notes-section";
 import { PhoneSection } from "@/components/inbox/phone-section";
@@ -180,6 +181,12 @@ export function ProfilePane({
 			<PhoneSection
 				key={clientKey(selected.messenger, selected.userId)}
 				selected={selected}
+			/>
+
+			<MergeSuggestions
+				selected={selected}
+				operator={operator}
+				onMerged={onMerged}
 			/>
 
 			<Separator />

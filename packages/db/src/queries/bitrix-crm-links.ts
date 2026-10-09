@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Database } from "../client.types";
 import { bitrixCrmLinks } from "../schema/bitrix-crm-links";
 
@@ -58,4 +58,16 @@ export async function getBitrixCrmLink(
 		)
 		.limit(1);
 	return row ?? null;
+}
+
+/** Диалоги, привязанные к любому из контактов Bitrix — для поиска дублей клиента. */
+export async function listBitrixCrmLinksByContactIds(
+	db: Database,
+	contactIds: string[],
+): Promise<BitrixCrmLink[]> {
+	if (!db || contactIds.length === 0) return [];
+	return db
+		.select()
+		.from(bitrixCrmLinks)
+		.where(inArray(bitrixCrmLinks.contactId, contactIds));
 }

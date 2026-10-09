@@ -252,3 +252,14 @@ function signedMediaUrl(messageId: string): string {
 	url.searchParams.set("signature", signature);
 	return url.toString();
 }
+
+/** Возможный дубль клиента в другом канале — подсказка оператору объединить карточки. */
+export interface MergeSuggestion {
+	messenger: InboxMessenger;
+	userId: string;
+	name: string;
+	username: string | null;
+	/** same-contact — диалог привязан к тому же контакту CRM; same-phone — совпал номер телефона. */
+	reason: "same-contact" | "same-phone";
+	phone: string | null;
+}

@@ -4,6 +4,7 @@
 import { db } from "../client";
 import {
 	getBitrixCrmLink as _getBitrixCrmLink,
+	listBitrixCrmLinksByContactIds as _listBitrixCrmLinksByContactIds,
 	upsertBitrixCrmLink as _upsertBitrixCrmLink,
 } from "./bitrix-crm-links";
 import {
@@ -128,6 +129,11 @@ import {
 	type MergeClientIdentitiesEntry,
 } from "./client-identity-links";
 import {
+	dismissMergeSuggestion as _dismissMergeSuggestion,
+	listDismissedPartnerKeys as _listDismissedPartnerKeys,
+	type DismissMergeSuggestionEntry,
+} from "./client-merge-dismissals";
+import {
 	addClientNote as _addClientNote,
 	deleteClientNote as _deleteClientNote,
 	listClientNotes as _listClientNotes,
@@ -197,6 +203,7 @@ export type {
 	ClientIdentityLink,
 	MergeClientIdentitiesEntry,
 } from "./client-identity-links";
+export type { DismissMergeSuggestionEntry } from "./client-merge-dismissals";
 export type { ClientNote, NewClientNoteEntry } from "./client-notes";
 export * from "./deal-dictionaries";
 export * from "./deal-stage-history";
@@ -226,6 +233,10 @@ export async function upsertBitrixCrmLink(
 
 export async function getBitrixCrmLink(messenger: string, userId: string) {
 	return _getBitrixCrmLink(db, messenger, userId);
+}
+
+export async function listBitrixCrmLinksByContactIds(contactIds: string[]) {
+	return _listBitrixCrmLinksByContactIds(db, contactIds);
 }
 
 export async function upsertBotConnector(
@@ -541,6 +552,18 @@ export async function unmergeClientIdentity(
 
 export async function listAllIdentityLinks(): Promise<ClientIdentityLink[]> {
 	return _listAllIdentityLinks(db);
+}
+
+export async function dismissMergeSuggestion(
+	entry: DismissMergeSuggestionEntry,
+): Promise<void> {
+	return _dismissMergeSuggestion(db, entry);
+}
+
+export async function listDismissedPartnerKeys(
+	keys: string[],
+): Promise<Set<string>> {
+	return _listDismissedPartnerKeys(db, keys);
 }
 
 export async function listQuickReplies() {

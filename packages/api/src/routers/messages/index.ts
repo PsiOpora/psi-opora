@@ -13,7 +13,12 @@ import { edit } from "./edit";
 import { guideActivity } from "./guide-activity";
 import { list } from "./list";
 import { markRead } from "./mark-read";
-import { mergeClients, unmergeClient } from "./merge";
+import {
+	dismissMergeSuggestion,
+	mergeClients,
+	mergeSuggestions,
+	unmergeClient,
+} from "./merge";
 import { addNote, deleteNote, notes } from "./notes";
 import { poll } from "./poll";
 import { profile } from "./profile";
@@ -38,6 +43,8 @@ export const messagesRouter = router({
 	assign,
 	mergeClients,
 	unmergeClient,
+	mergeSuggestions,
+	dismissMergeSuggestion,
 	profile,
 	guideActivity,
 	crmLinks,
@@ -71,6 +78,7 @@ export type {
 	CrmLinksResult,
 	CrmPhone,
 	InboxMessenger,
+	MergeSuggestion,
 	MessageDeliveryStatus,
 	QuickReplyItem,
 } from "./types";
