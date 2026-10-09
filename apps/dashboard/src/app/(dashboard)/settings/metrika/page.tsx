@@ -8,8 +8,10 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { orpc } from "@/lib/orpc/client";
 import { YandexMetrikaSettingsForm } from "./credentials-form";
+import { YandexMetrikaStageGoalsCard } from "./stage-goals-card";
 
 export default function YandexMetrikaSettingsPage() {
 	const { data: settings, isLoading } = useQuery(
@@ -24,6 +26,7 @@ export default function YandexMetrikaSettingsPage() {
 					Автоматическая офлайн-конверсия «Запись на консультацию»: сразу после
 					создания сделки в Bitrix бот отправляет в Метрику конверсию по
 					ClientID визита — без ручного экспорта заявок и загрузки конверсий.
+					Дополнительные цели можно привязать к стадиям воронки Bitrix.
 				</p>
 			</div>
 
@@ -54,6 +57,10 @@ export default function YandexMetrikaSettingsPage() {
 					)}
 				</CardContent>
 			</Card>
+
+			<PageSuspense>
+				<YandexMetrikaStageGoalsCard />
+			</PageSuspense>
 		</div>
 	);
 }
