@@ -27,7 +27,7 @@ describe.skipIf(!url)("CRM link portal isolation (PostgreSQL)", () => {
 		await client.unsafe(
 			await readFile(
 				new URL(
-					"../../migrations/0060_bitrix_crm_link_portal.sql",
+					"../../migrations/0061_bitrix_crm_link_portal.sql",
 					import.meta.url,
 				),
 				"utf8",

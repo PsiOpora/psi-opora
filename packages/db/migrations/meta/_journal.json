@@ -417,15 +417,22 @@
     {
       "idx": 59,
       "version": "7",
-      "when": 1791542265586,
-      "tag": "0059_client_merge_dismissals",
+      "when": 1791542567290,
+      "tag": "0059_ad_touches",
       "breakpoints": true
     },
     {
       "idx": 60,
       "version": "7",
+      "when": 1791547000000,
+      "tag": "0060_client_merge_dismissals",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
       "when": 1791547211796,
-      "tag": "0060_bitrix_crm_link_portal",
+      "tag": "0061_bitrix_crm_link_portal",
       "breakpoints": true
     }
   ]

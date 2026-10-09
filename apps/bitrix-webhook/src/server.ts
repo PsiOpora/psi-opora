@@ -62,6 +62,7 @@ import {
 	isMirroredOperatorReply,
 } from "./operator-reply-guard";
 import { handlePayformWebhook } from "./payform-webhook";
+import { handleTrackTouch } from "./track-touch";
 
 const operatorReplyRedis: RedisClient | null = isRedisConfigured()
 	? createRedisClient()
@@ -984,6 +985,8 @@ app.post("/api/bitrix-webhook", (c) => bitrixHandler(c.req.raw));
 app.get("/api/waha-webhook", (c) => c.json({ status: "ok" }));
 app.post("/api/waha-webhook", (c) => handleWahaWebhook(c.req.raw));
 app.post("/api/payform-webhook", (c) => handlePayformWebhook(c.req.raw));
+app.options("/api/track-touch", (c) => handleTrackTouch(c.req.raw));
+app.post("/api/track-touch", (c) => handleTrackTouch(c.req.raw));
 
 app.get("/api/message-sender", (c) => c.json({ status: "ok" }));
 app.post("/api/message-sender", (c) => handleMessageSender(c.req.raw));

@@ -61,6 +61,14 @@ mock.module("@psi-opora/db/queries", () => ({
 	markGuideDiagnosticRequested: () => Promise.resolve(),
 	upsertBotGuideDelivery: () => Promise.resolve(),
 	markBotMessageGuideEmailSent: () => Promise.resolve(),
+	// Касания с рекламой (utils/consultation-deal.ts → utils/attribution →
+	// ads-stats.ts) — тоже часть статического графа импортов bot.ts.
+	upsertAdDailyStats: () => Promise.resolve(),
+	getAdCredentials: () => Promise.resolve(null),
+	getAdEntities: () => Promise.resolve([]),
+	upsertAdEntities: () => Promise.resolve(),
+	insertDealTouches: () => Promise.resolve(),
+	listAdTouchesForClient: () => Promise.resolve([]),
 }));
 
 const { createBot } = await import("./bot");
