@@ -7,13 +7,19 @@ import {
 	getYandexMetrikaSettings,
 	hasEnabledYandexMetrikaStageGoals,
 	listEnabledYandexMetrikaGoalsForStage,
+	markYandexMetrikaGoalEventSent,
 	releaseYandexMetrikaGoalEvent,
 } from "@psi-opora/db/queries";
 
 export interface YandexMetrikaStageGoalsResult {
 	/** Идентификаторы целей Метрики, конверсии по которым отправлены. */
 	sent: string[];
-	skipped?: "no_goals" | "no_goals_for_stage" | "deal_not_found" | "no_visitor";
+	skipped?:
+		| "no_goals"
+		| "no_goals_for_stage"
+		| "deal_not_found"
+		| "no_visitor"
+		| "no_stage_time";
 }
 
 /**
@@ -72,24 +78,40 @@ export async function handleYandexMetrikaStageGoals(
 		return { sent: [], skipped: "no_visitor" };
 	}
 
+	// Без времени перехода нельзя подменять дату конверсии временем отправки.
+	const occurredAt =
+		typeof deal.MOVED_TIME === "string" && deal.MOVED_TIME.trim()
+			? new Date(deal.MOVED_TIME)
+			: null;
+	if (!occurredAt || !Number.isFinite(occurredAt.getTime())) {
+		logger.warn("yandex_metrika.stage_goal_no_stage_time", { dealId, stageId });
+		return { sent: [], skipped: "no_stage_time" };
+	}
+
 	const sent: string[] = [];
 	for (const goal of goals) {
-		if (!(await claimYandexMetrikaGoalEvent(goal.id, dealKey))) continue;
+		const claimToken = await claimYandexMetrikaGoalEvent(goal.id, dealKey);
+		if (!claimToken) continue;
+		let ok: boolean;
 		try {
-			const ok = await sendYandexMetrikaGoal({
+			ok = await sendYandexMetrikaGoal({
 				target: goal.goalId,
 				clientId,
 				yclid,
 				dealId,
+				occurredAt,
 			});
-			if (ok) {
-				sent.push(goal.goalId);
-			} else {
-				await releaseYandexMetrikaGoalEvent(goal.id, dealKey);
-			}
 		} catch (err) {
-			await releaseYandexMetrikaGoalEvent(goal.id, dealKey);
+			await releaseYandexMetrikaGoalEvent(goal.id, dealKey, claimToken);
 			throw err;
+		}
+		if (ok) {
+			// Ошибка записи результата не должна немедленно освобождать резерв:
+			// Метрика уже приняла конверсию.
+			await markYandexMetrikaGoalEventSent(goal.id, dealKey, claimToken);
+			sent.push(goal.goalId);
+		} else {
+			await releaseYandexMetrikaGoalEvent(goal.id, dealKey, claimToken);
 		}
 	}
 	return { sent };

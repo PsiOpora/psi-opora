@@ -74,10 +74,9 @@ export const yandexMetrikaDealVisitors = pgTable(
 );
 
 /**
- * Журнал отправленных конверсий по стадиям — одна запись на пару «цель +
- * сделка». Первичный ключ гарантирует, что при повторных событиях
- * OnCrmDealUpdate (и возврате сделки в ту же стадию) цель уйдёт в Метрику
- * один раз.
+ * Журнал отправок по стадиям — одна запись на пару «цель + сделка».
+ * Pending-запись резервируется на время отправки; sent не отправляется снова.
+ * Токен защищает новый резерв от завершения устаревшим обработчиком.
  */
 export const yandexMetrikaGoalEvents = pgTable(
 	"yandex_metrika_goal_events",
@@ -86,7 +85,12 @@ export const yandexMetrikaGoalEvents = pgTable(
 			.notNull()
 			.references(() => yandexMetrikaStageGoals.id, { onDelete: "cascade" }),
 		dealId: text("deal_id").notNull(),
-		sentAt: timestamp("sent_at").defaultNow().notNull(),
+		status: text("status", { enum: ["pending", "sent"] })
+			.notNull()
+			.default("pending"),
+		claimedAt: timestamp("claimed_at").defaultNow().notNull(),
+		claimToken: text("claim_token"),
+		sentAt: timestamp("sent_at"),
 	},
 	(table) => [primaryKey({ columns: [table.stageGoalId, table.dealId] })],
 );

@@ -11,6 +11,7 @@ let stageGoals: StageGoal[] = [];
 let visitor: { clientId: string | null; yclid: string | null } | null = null;
 let bitrixClientIdField: string | null = null;
 const claimed = new Set<string>();
+const occurredAt = new Date("2026-09-01T12:30:00+03:00");
 
 const listEnabledYandexMetrikaGoalsForStage = mock(
 	async (_stageId: string, _categoryId: string) => stageGoals,
@@ -18,22 +19,24 @@ const listEnabledYandexMetrikaGoalsForStage = mock(
 const claimYandexMetrikaGoalEvent = mock(
 	async (goalId: string, dealId: string) => {
 		const key = `${goalId}:${dealId}`;
-		if (claimed.has(key)) return false;
+		if (claimed.has(key)) return null;
 		claimed.add(key);
-		return true;
+		return "claim-token";
 	},
 );
 const releaseYandexMetrikaGoalEvent = mock(
-	async (goalId: string, dealId: string) => {
+	async (goalId: string, dealId: string, _claimToken: string) => {
 		claimed.delete(`${goalId}:${dealId}`);
 	},
 );
+const markYandexMetrikaGoalEventSent = mock(async () => {});
 mock.module("@psi-opora/db/queries", () => ({
 	hasEnabledYandexMetrikaStageGoals: mock(async () => hasGoals),
 	listEnabledYandexMetrikaGoalsForStage,
 	getYandexMetrikaDealVisitor: mock(async () => visitor),
 	getYandexMetrikaSettings: mock(async () => ({ bitrixClientIdField })),
 	claimYandexMetrikaGoalEvent,
+	markYandexMetrikaGoalEventSent,
 	releaseYandexMetrikaGoalEvent,
 }));
 
@@ -53,7 +56,9 @@ const { handleYandexMetrikaStageGoals } = await import(
 function apiWithDeal(deal: Record<string, unknown> | false): BitrixApi {
 	return {
 		async call<T>() {
-			return deal as T;
+			return (
+				deal ? { MOVED_TIME: occurredAt.toISOString(), ...deal } : deal
+			) as T;
 		},
 		async list() {
 			throw new Error("Unexpected list");
@@ -69,6 +74,7 @@ describe("handleYandexMetrikaStageGoals", () => {
 		bitrixClientIdField = null;
 		sendResult = true;
 		claimed.clear();
+		markYandexMetrikaGoalEventSent.mockReset();
 		listEnabledYandexMetrikaGoalsForStage.mockClear();
 		claimYandexMetrikaGoalEvent.mockClear();
 		releaseYandexMetrikaGoalEvent.mockClear();
@@ -83,6 +89,11 @@ describe("handleYandexMetrikaStageGoals", () => {
 		);
 
 		expect(result).toEqual({ sent: ["consultation_paid"] });
+		expect(markYandexMetrikaGoalEventSent).toHaveBeenCalledWith(
+			"g1",
+			"42",
+			"claim-token",
+		);
 		expect(listEnabledYandexMetrikaGoalsForStage).toHaveBeenCalledWith(
 			"C2:WON",
 			"2",
@@ -92,6 +103,7 @@ describe("handleYandexMetrikaStageGoals", () => {
 			clientId: "111",
 			yclid: undefined,
 			dealId: 42,
+			occurredAt,
 		});
 	});
 
@@ -171,6 +183,62 @@ describe("handleYandexMetrikaStageGoals", () => {
 
 		expect(first).toEqual({ sent: [] });
 		expect(releaseYandexMetrikaGoalEvent).toHaveBeenCalledTimes(1);
+		expect(releaseYandexMetrikaGoalEvent).toHaveBeenCalledWith(
+			"g1",
+			"42",
+			"claim-token",
+		);
 		expect(second).toEqual({ sent: ["consultation_paid"] });
+	});
+
+	it.each([undefined, null, "", "invalid", 123])(
+		"не отправляет конверсию без корректного MOVED_TIME: %s",
+		async (movedTime) => {
+			const result = await handleYandexMetrikaStageGoals(
+				apiWithDeal({ STAGE_ID: "C2:WON", MOVED_TIME: movedTime }),
+				42,
+			);
+			expect(result).toEqual({ sent: [], skipped: "no_stage_time" });
+			expect(sendYandexMetrikaGoal).not.toHaveBeenCalled();
+			expect(claimYandexMetrikaGoalEvent).not.toHaveBeenCalled();
+		},
+	);
+
+	it("сохраняет время перехода с часовым поясом при повторной отправке", async () => {
+		const api = apiWithDeal({
+			STAGE_ID: "C2:WON",
+			MOVED_TIME: "2026-08-15T18:45:00+03:00",
+		});
+		sendResult = false;
+		await handleYandexMetrikaStageGoals(api, 42);
+		sendResult = true;
+		await handleYandexMetrikaStageGoals(api, 42);
+		for (const [params] of sendYandexMetrikaGoal.mock.calls) {
+			expect(params.occurredAt).toEqual(new Date("2026-08-15T15:45:00Z"));
+		}
+		expect(sendYandexMetrikaGoal).toHaveBeenCalledTimes(2);
+	});
+
+	it("освобождает резерв при исключении отправки", async () => {
+		sendYandexMetrikaGoal.mockRejectedValueOnce(new Error("upload failed"));
+		await expect(
+			handleYandexMetrikaStageGoals(apiWithDeal({ STAGE_ID: "C2:WON" }), 42),
+		).rejects.toThrow("upload failed");
+		expect(releaseYandexMetrikaGoalEvent).toHaveBeenCalledWith(
+			"g1",
+			"42",
+			"claim-token",
+		);
+		expect(markYandexMetrikaGoalEventSent).not.toHaveBeenCalled();
+	});
+
+	it("не освобождает резерв при ошибке записи уже отправленной конверсии", async () => {
+		markYandexMetrikaGoalEventSent.mockRejectedValueOnce(
+			new Error("db failed"),
+		);
+		await expect(
+			handleYandexMetrikaStageGoals(apiWithDeal({ STAGE_ID: "C2:WON" }), 42),
+		).rejects.toThrow("db failed");
+		expect(releaseYandexMetrikaGoalEvent).not.toHaveBeenCalled();
 	});
 });

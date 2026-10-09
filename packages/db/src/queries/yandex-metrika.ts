@@ -1,4 +1,4 @@
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq, lt, sql } from "drizzle-orm";
 import { db } from "../client";
 import {
 	yandexMetrikaDealVisitors,
@@ -8,7 +8,8 @@ import {
 } from "../schema/yandex-metrika";
 
 export type YandexMetrikaSettings = typeof yandexMetrikaSettings.$inferSelect;
-export type YandexMetrikaStageGoal = typeof yandexMetrikaStageGoals.$inferSelect;
+export type YandexMetrikaStageGoal =
+	typeof yandexMetrikaStageGoals.$inferSelect;
 
 export async function getYandexMetrikaSettings(): Promise<YandexMetrikaSettings | null> {
 	if (!db) return null;
@@ -29,7 +30,8 @@ export async function upsertYandexMetrikaSettings(data: {
 		.onConflictDoUpdate({ target: yandexMetrikaSettings.id, set: data });
 }
 
-export interface YandexMetrikaStageGoalWithStats extends YandexMetrikaStageGoal {
+export interface YandexMetrikaStageGoalWithStats
+	extends YandexMetrikaStageGoal {
 	/** Сколько конверсий по этой цели уже отправлено в Метрику. */
 	sentCount: number;
 }
@@ -50,6 +52,7 @@ export async function listYandexMetrikaStageGoals(): Promise<
 				sent: count(),
 			})
 			.from(yandexMetrikaGoalEvents)
+			.where(eq(yandexMetrikaGoalEvents.status, "sent"))
 			.groupBy(yandexMetrikaGoalEvents.stageGoalId),
 	]);
 	const sentById = new Map(sent.map((row) => [row.stageGoalId, row.sent]));
@@ -168,36 +171,67 @@ export async function getYandexMetrikaDealVisitor(
 	return rows[0] ?? null;
 }
 
-/**
- * Занимает пару «цель + сделка»: true — конверсия по ней ещё не отправлялась
- * и теперь отправляющий отвечает за неё; false — уже отправлена (или отправляется
- * параллельным событием вебхука).
- */
+/** Срок резерва отправки; после сбоя воркера следующий вебхук может повторить её. */
+export const YANDEX_METRIKA_GOAL_CLAIM_TTL_MS = 5 * 60 * 1000;
+
+/** Возвращает токен резерва или null, если уже отправлено/занято другим воркером. */
 export async function claimYandexMetrikaGoalEvent(
 	stageGoalId: string,
 	dealId: string,
-): Promise<boolean> {
-	if (!db) return false;
+): Promise<string | null> {
+	if (!db) return null;
+	const claimToken = crypto.randomUUID();
 	const rows = await db
 		.insert(yandexMetrikaGoalEvents)
-		.values({ stageGoalId, dealId })
-		.onConflictDoNothing()
-		.returning({ dealId: yandexMetrikaGoalEvents.dealId });
-	return rows.length > 0;
+		.values({ stageGoalId, dealId, status: "pending", claimToken })
+		.onConflictDoUpdate({
+			target: [
+				yandexMetrikaGoalEvents.stageGoalId,
+				yandexMetrikaGoalEvents.dealId,
+			],
+			set: { claimToken, claimedAt: sql`now()` },
+			setWhere: and(
+				eq(yandexMetrikaGoalEvents.status, "pending"),
+				lt(
+					yandexMetrikaGoalEvents.claimedAt,
+					sql`now() - ${YANDEX_METRIKA_GOAL_CLAIM_TTL_MS} * interval '1 millisecond'`,
+				),
+			),
+		})
+		.returning({ claimToken: yandexMetrikaGoalEvents.claimToken });
+	return rows[0]?.claimToken ?? null;
 }
 
-/** Снимает занятость после неудачной отправки — следующая смена стадии повторит попытку. */
+function pendingClaim(stageGoalId: string, dealId: string, claimToken: string) {
+	return and(
+		eq(yandexMetrikaGoalEvents.stageGoalId, stageGoalId),
+		eq(yandexMetrikaGoalEvents.dealId, dealId),
+		eq(yandexMetrikaGoalEvents.status, "pending"),
+		eq(yandexMetrikaGoalEvents.claimToken, claimToken),
+	);
+}
+
+/** Фиксирует успешную отправку только для текущего владельца резерва. */
+export async function markYandexMetrikaGoalEventSent(
+	stageGoalId: string,
+	dealId: string,
+	claimToken: string,
+): Promise<void> {
+	if (!db) return;
+	await db
+		.update(yandexMetrikaGoalEvents)
+		.set({ status: "sent", sentAt: sql`now()` })
+		.where(pendingClaim(stageGoalId, dealId, claimToken));
+}
+
+/** Снимает текущий резерв после неудачной отправки, не затрагивая sent. */
 export async function releaseYandexMetrikaGoalEvent(
 	stageGoalId: string,
 	dealId: string,
+	claimToken: string,
 ): Promise<void> {
 	if (!db) return;
 	await db
 		.delete(yandexMetrikaGoalEvents)
-		.where(
-			and(
-				eq(yandexMetrikaGoalEvents.stageGoalId, stageGoalId),
-				eq(yandexMetrikaGoalEvents.dealId, dealId),
-			),
-		);
+		.where(pendingClaim(stageGoalId, dealId, claimToken));
 }

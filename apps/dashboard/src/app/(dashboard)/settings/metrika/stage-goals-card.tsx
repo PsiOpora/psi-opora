@@ -80,8 +80,9 @@ export function YandexMetrikaStageGoalsCard() {
 		})
 		.sort(
 			(a, b) =>
-				a.categoryId.localeCompare(b.categoryId, undefined, { numeric: true }) ||
-				a.sort - b.sort,
+				a.categoryId.localeCompare(b.categoryId, undefined, {
+					numeric: true,
+				}) || a.sort - b.sort,
 		);
 	const byCategory = new Map<string, StageOption[]>();
 	for (const option of options) {
@@ -129,6 +130,12 @@ export function YandexMetrikaStageGoalsCard() {
 			onError,
 		}),
 	);
+	const toggleMutation = useMutation(
+		orpc.yandexMetrika.updateStageGoal.mutationOptions({
+			onSuccess: invalidate,
+			onError,
+		}),
+	);
 	const removeMutation = useMutation(
 		orpc.yandexMetrika.removeStageGoal.mutationOptions({
 			onSuccess: () => {
@@ -161,9 +168,9 @@ export function YandexMetrikaStageGoalsCard() {
 				<CardTitle>Цели по стадиям воронки</CardTitle>
 				<CardDescription>
 					Как только сделка попадает в выбранную стадию воронки, в Метрику
-					уходит конверсия этой цели — один раз на сделку. Сработает только
-					для сделок, созданных ботом по рекламному переходу: у них есть
-					ClientID визита. Цель должна быть создана в счётчике заранее (тип
+					уходит конверсия этой цели — один раз на сделку. Сработает только для
+					сделок, созданных ботом по рекламному переходу: у них есть ClientID
+					визита. Цель должна быть создана в счётчике заранее (тип
 					«JavaScript-событие»), а счётчик и токен берутся из настроек выше.
 				</CardDescription>
 			</CardHeader>
@@ -180,8 +187,9 @@ export function YandexMetrikaStageGoalsCard() {
 								<Checkbox
 									checked={goal.enabled}
 									aria-label={`Цель «${goal.name}» включена`}
+									disabled={toggleMutation.isPending}
 									onCheckedChange={(checked) =>
-										updateMutation.mutate({
+										toggleMutation.mutate({
 											id: goal.id,
 											name: goal.name,
 											goalId: goal.goalId,
