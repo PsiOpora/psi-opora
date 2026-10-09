@@ -235,8 +235,11 @@ export async function getBitrixCrmLink(messenger: string, userId: string) {
 	return _getBitrixCrmLink(db, messenger, userId);
 }
 
-export async function listBitrixCrmLinksByContactIds(contactIds: string[]) {
-	return _listBitrixCrmLinksByContactIds(db, contactIds);
+export async function listBitrixCrmLinksByContactIds(
+	portalKey: string,
+	contactIds: string[],
+) {
+	return _listBitrixCrmLinksByContactIds(db, portalKey, contactIds);
 }
 
 export async function upsertBotConnector(

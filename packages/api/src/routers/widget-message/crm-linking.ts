@@ -1,6 +1,7 @@
 import { upsertBitrixCrmLink } from "@psi-opora/db/queries";
 
 export interface WidgetCrmLink {
+	portalKey: string;
 	messenger: string;
 	userId: string;
 	contactId: string;
@@ -26,6 +27,7 @@ export async function persistWidgetCrmLinks(
 	await Promise.all(
 		[...userIds].map((userId) =>
 			upsert({
+				portalKey: link.portalKey,
 				messenger: link.messenger,
 				userId,
 				contactId: link.contactId,

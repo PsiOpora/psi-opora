@@ -4,7 +4,7 @@ import type { MergeSuggestion } from "@psi-opora/api";
 import { formatPhone } from "@psi-opora/api/schemas";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UsersIcon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { toast } from "sonner";
 import { invalidateAroundMerge } from "@/components/inbox/merge-invalidate";
 import { messengerLabel } from "@/components/inbox/messenger-meta";
@@ -42,7 +42,6 @@ export function MergeSuggestions({
 }) {
 	const queryClient = useQueryClient();
 	const input = { messenger: selected.messenger, userId: selected.userId };
-	const [busyKey, setBusyKey] = useState<string | null>(null);
 	const [pending, startTransition] = useTransition();
 
 	const { data } = useQuery(
@@ -52,7 +51,7 @@ export function MergeSuggestions({
 	if (suggestions.length === 0) return null;
 
 	const run = (suggestion: MergeSuggestion, action: "merge" | "dismiss") => {
-		setBusyKey(`${suggestion.messenger}:${suggestion.userId}`);
+		if (pending) return;
 		startTransition(async () => {
 			try {
 				if (action === "merge") {
@@ -82,8 +81,6 @@ export function MergeSuggestions({
 				}
 			} catch (err) {
 				toast.error((err as Error).message || "Не удалось выполнить действие");
-			} finally {
-				setBusyKey(null);
 			}
 		});
 	};
@@ -113,7 +110,7 @@ export function MergeSuggestions({
 						<div className="flex gap-1.5">
 							<Button
 								size="xs"
-								disabled={pending && busyKey === key}
+								disabled={pending}
 								onClick={() => run(suggestion, "merge")}
 							>
 								Объединить
@@ -121,7 +118,7 @@ export function MergeSuggestions({
 							<Button
 								size="xs"
 								variant="ghost"
-								disabled={pending && busyKey === key}
+								disabled={pending}
 								onClick={() => run(suggestion, "dismiss")}
 							>
 								Это разные люди

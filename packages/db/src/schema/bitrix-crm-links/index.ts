@@ -19,11 +19,17 @@ export const bitrixCrmLinks = pgTable(
 		id: text("id").primaryKey(),
 		messenger: text("messenger").notNull(),
 		userId: text("user_id").notNull(),
+		// Legacy rows remain unscoped until their portal is verified by a writer.
+		portalKey: text("portal_key"),
 		contactId: text("contact_id").notNull(),
 		dealId: text("deal_id"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
 	(table) => [
+		index("bitrix_crm_links_portal_contact_idx").on(
+			table.portalKey,
+			table.contactId,
+		),
 		index("bitrix_crm_links_dialog_idx").on(table.messenger, table.userId),
 	],
 );

@@ -18,8 +18,14 @@ const profiles: Record<string, Partial<NonNullable<Profile>>> = {
 	"whatsapp-personal:79991234567@c.us": { firstName: "Анна", lastName: "П" },
 };
 
-function link(messenger: string, userId: string, contactId: string) {
+function link(
+	messenger: string,
+	userId: string,
+	contactId: string,
+	portalKey: string | null = "portal.test",
+) {
 	return {
+		portalKey,
 		id: `${messenger}:${userId}`,
 		messenger,
 		userId,
@@ -59,9 +65,9 @@ beforeEach(() => {
 				: null,
 	);
 	spyOn(queries, "listBitrixCrmLinksByContactIds").mockImplementation(
-		async (ids) =>
-			[link("telegram", "1", "42"), link("max", "2", "42")].filter((l) =>
-				ids.includes(l.contactId),
+		async (portalKey, ids) =>
+			[link("telegram", "1", "42"), link("max", "2", "42")].filter(
+				(l) => l.portalKey === portalKey && ids.includes(l.contactId),
 			),
 	);
 });
@@ -69,7 +75,13 @@ afterEach(() => mock.restore());
 
 describe("findMergeSuggestions", () => {
 	test("предлагает диалог, привязанный к тому же контакту CRM", async () => {
-		const result = await findMergeSuggestions(null, null, "telegram", "1");
+		const result = await findMergeSuggestions(
+			null,
+			null,
+			"portal.test",
+			"telegram",
+			"1",
+		);
 		expect(result).toEqual([
 			{
 				messenger: "max",
@@ -87,12 +99,16 @@ describe("findMergeSuggestions", () => {
 			{ messenger: "telegram", userId: "1" },
 			{ messenger: "max", userId: "2" },
 		];
-		expect(await findMergeSuggestions(null, null, "telegram", "1")).toEqual([]);
+		expect(
+			await findMergeSuggestions(null, null, "portal.test", "telegram", "1"),
+		).toEqual([]);
 	});
 
 	test("не предлагает пару, отклонённую оператором", async () => {
 		dismissed = new Set(["max:2"]);
-		expect(await findMergeSuggestions(null, null, "telegram", "1")).toEqual([]);
+		expect(
+			await findMergeSuggestions(null, null, "portal.test", "telegram", "1"),
+		).toEqual([]);
 	});
 
 	test("отклонение действует и после слияния кандидата с другим каналом", async () => {
@@ -108,7 +124,9 @@ describe("findMergeSuggestions", () => {
 			{ messenger: "max", userId: "2" },
 		];
 		dismissed = new Set(["max:2"]);
-		expect(await findMergeSuggestions(null, null, "telegram", "1")).toEqual([]);
+		expect(
+			await findMergeSuggestions(null, null, "portal.test", "telegram", "1"),
+		).toEqual([]);
 	});
 
 	test("находит личный WhatsApp клиента по номеру контакта CRM", async () => {
@@ -126,7 +144,13 @@ describe("findMergeSuggestions", () => {
 		} as unknown as BitrixApi;
 		spyOn(queries, "listBitrixCrmLinksByContactIds").mockResolvedValue([]);
 
-		const result = await findMergeSuggestions(api, null, "telegram", "1");
+		const result = await findMergeSuggestions(
+			api,
+			null,
+			"portal.test",
+			"telegram",
+			"1",
+		);
 		expect(result).toEqual([
 			{
 				messenger: "whatsapp-personal",
@@ -141,6 +165,32 @@ describe("findMergeSuggestions", () => {
 
 	test("без признаков (нет контакта и телефона) возвращает пустой список", async () => {
 		spyOn(queries, "getBitrixCrmLink").mockResolvedValue(null);
-		expect(await findMergeSuggestions(null, null, "telegram", "1")).toEqual([]);
+		expect(
+			await findMergeSuggestions(null, null, "portal.test", "telegram", "1"),
+		).toEqual([]);
 	});
+});
+
+test("requires a known current portal", async () => {
+	expect(await findMergeSuggestions(null, null, null, "telegram", "1")).toEqual(
+		[],
+	);
+	expect(queries.listBitrixCrmLinksByContactIds).not.toHaveBeenCalled();
+});
+for (const portalKey of ["other.test", null]) {
+	test(`ignores own links scoped to ${portalKey}`, async () => {
+		spyOn(queries, "getBitrixCrmLink").mockResolvedValue(
+			link("telegram", "1", "42", portalKey),
+		);
+		expect(
+			await findMergeSuggestions(null, null, "portal.test", "telegram", "1"),
+		).toEqual([]);
+	});
+}
+test("passes the current portal when finding CRM-linked candidates", async () => {
+	await findMergeSuggestions(null, null, "portal.test", "telegram", "1");
+	expect(queries.listBitrixCrmLinksByContactIds).toHaveBeenCalledWith(
+		"portal.test",
+		["42"],
+	);
 });

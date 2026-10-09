@@ -1,4 +1,7 @@
-import type { BitrixApi } from "@psi-opora/bitrix-client";
+import {
+	type BitrixApi,
+	resolveBitrixPortalKey,
+} from "@psi-opora/bitrix-client";
 import {
 	getBotUserProfile,
 	listAllBotMessagesForGroup,
@@ -90,6 +93,7 @@ async function resolveContact(
 
 /** Ошибка локальной привязки не отменяет уже сохранённый в CRM телефон. */
 async function persistPhoneLink(
+	memberId: string | null,
 	messenger: string,
 	userId: string,
 	contactId: string,
@@ -97,6 +101,7 @@ async function persistPhoneLink(
 ): Promise<string | null> {
 	try {
 		await upsertBitrixCrmLink({
+			portalKey: await resolveBitrixPortalKey(memberId),
 			messenger,
 			userId,
 			contactId,
@@ -110,20 +115,23 @@ async function persistPhoneLink(
 
 export const retryClientPhoneLink = bitrixProcedure
 	.input(retryClientPhoneLinkSchema)
-	.handler(async ({ input }): Promise<{ linkError: string | null }> => {
-		const primary = await resolveCanonicalIdentity(
-			input.messenger,
-			input.userId,
-		);
-		return {
-			linkError: await persistPhoneLink(
-				primary.messenger,
-				primary.userId,
-				input.contactId,
-				input.dealId,
-			),
-		};
-	});
+	.handler(
+		async ({ input, context }): Promise<{ linkError: string | null }> => {
+			const primary = await resolveCanonicalIdentity(
+				input.messenger,
+				input.userId,
+			);
+			return {
+				linkError: await persistPhoneLink(
+					context.memberId,
+					primary.messenger,
+					primary.userId,
+					input.contactId,
+					input.dealId,
+				),
+			};
+		},
+	);
 
 /**
  * Телефон клиента в CRM — для случаев, когда клиент не оставил его боту:
@@ -149,7 +157,13 @@ export const setClientPhone = bitrixProcedure
 		);
 		const domain = await resolvePortalDomain(context.memberId);
 		const link = (contactId: string, dealId: string | null) =>
-			persistPhoneLink(primary.messenger, primary.userId, contactId, dealId);
+			persistPhoneLink(
+				context.memberId,
+				primary.messenger,
+				primary.userId,
+				contactId,
+				dealId,
+			);
 		const ref = (id: string, raw: RawCrmContact | null): CrmContactRef => ({
 			id,
 			name: contactDisplayName(raw, id),

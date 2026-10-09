@@ -1,3 +1,4 @@
+import { resolveBitrixPortalKey } from "@psi-opora/bitrix-client";
 import {
 	dismissMergeSuggestion as dismissMergeSuggestionInDb,
 	mergeClientIdentities,
@@ -59,6 +60,7 @@ export const mergeSuggestions = bitrixProcedure
 				suggestions: await findMergeSuggestions(
 					api,
 					context.memberId,
+					await resolveBitrixPortalKey(context.memberId).catch(() => null),
 					input.messenger,
 					input.userId,
 				),

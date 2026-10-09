@@ -1,3 +1,4 @@
+import { resolveBitrixPortalKey } from "@psi-opora/bitrix-client";
 import { insertBotMessage } from "@psi-opora/db/queries";
 import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
 import { publicProcedure } from "../../orpc";
@@ -129,6 +130,7 @@ export const send = publicProcedure
 			// автоматически открыл тот же контакт.
 			try {
 				await persistWidgetCrmLinks({
+					portalKey: await resolveBitrixPortalKey(context.memberId),
 					messenger: channel.messenger,
 					userId: channel.userId,
 					contactId: contact.contactId,

@@ -406,6 +406,13 @@
       "when": 1791542265586,
       "tag": "0057_client_merge_dismissals",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1791547211796,
+      "tag": "0058_bitrix_crm_link_portal",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ import {
 } from "bun:test";
 import { createRouterClient } from "@orpc/server";
 import type { BitrixApi } from "@psi-opora/bitrix-client";
+import * as bitrixClient from "@psi-opora/bitrix-client";
 import * as queries from "@psi-opora/db/queries";
 import { createORPCContext } from "../../orpc";
 import { retryClientPhoneLink, setClientPhone } from "./client-phone";
@@ -58,6 +59,9 @@ const client = createRouterClient(
 
 beforeEach(() => {
 	call.mockClear();
+	spyOn(bitrixClient, "resolveBitrixPortalKey").mockResolvedValue(
+		"example.test",
+	);
 	spyOn(queries, "resolveCanonicalIdentity").mockResolvedValue({
 		messenger: "max",
 		userId: "canonical",
@@ -123,12 +127,14 @@ describe("phone save and CRM link persistence", () => {
 			expect(call).toHaveBeenCalledTimes(crmCalls);
 			expect(persist.mock.calls.map(([entry]) => entry)).toEqual([
 				{
+					portalKey: "example.test",
 					messenger: "max",
 					userId: "canonical",
 					contactId: "42",
 					dealId: "99",
 				},
 				{
+					portalKey: "example.test",
 					messenger: "max",
 					userId: "canonical",
 					contactId: "42",
@@ -168,6 +174,7 @@ describe("phone save and CRM link persistence", () => {
 			}),
 		).toEqual({ linkError: expect.stringContaining("database unavailable") });
 		expect(persist).toHaveBeenCalledWith({
+			portalKey: "example.test",
 			messenger: "max",
 			userId: "canonical",
 			contactId: "42",

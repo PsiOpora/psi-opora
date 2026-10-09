@@ -37,17 +37,19 @@ interface Candidate {
 async function collectOwnContactIds(
 	api: BitrixApi | null,
 	memberId: string | null,
+	portalKey: string | null,
 	messenger: InboxMessenger,
 	userId: string,
 	group: ClientIdentity[],
 ): Promise<Set<string>> {
 	const ids = new Set<string>();
+	if (!portalKey) return ids;
 	for (const identity of group) {
 		const link = await getBitrixCrmLink(
 			identity.messenger,
 			identity.userId,
 		).catch(() => null);
-		if (link) ids.add(link.contactId);
+		if (link?.portalKey === portalKey) ids.add(link.contactId);
 	}
 	if (ids.size === 0 && api) {
 		const bindings = await resolveDialogCrmBindings(
@@ -55,6 +57,7 @@ async function collectOwnContactIds(
 			memberId,
 			messenger,
 			userId,
+			portalKey,
 		).catch(() => null);
 		if (bindings?.contactId) ids.add(bindings.contactId);
 	}
@@ -96,6 +99,7 @@ async function collectPhones(
  */
 async function collectCandidates(
 	api: BitrixApi | null,
+	portalKey: string,
 	ownContactIds: Set<string>,
 	phones: string[],
 ): Promise<Candidate[]> {
@@ -131,6 +135,7 @@ async function collectCandidates(
 	}
 
 	const links = await listBitrixCrmLinksByContactIds(
+		portalKey,
 		[...contactReason.keys()].slice(0, CONTACTS_LIMIT),
 	).catch(() => []);
 	for (const link of links) {
@@ -158,15 +163,18 @@ async function collectCandidates(
 export async function findMergeSuggestions(
 	api: BitrixApi | null,
 	memberId: string | null,
+	portalKey: string | null,
 	messenger: InboxMessenger,
 	userId: string,
 ): Promise<MergeSuggestion[]> {
+	if (!portalKey) return [];
 	const group = await listGroupIdentities(messenger, userId);
 	const groupKeys = new Set(group.map(identityKey));
 
 	const ownContactIds = await collectOwnContactIds(
 		api,
 		memberId,
+		portalKey,
 		messenger,
 		userId,
 		group,
@@ -174,7 +182,12 @@ export async function findMergeSuggestions(
 	const phones = await collectPhones(api, ownContactIds, group);
 	if (ownContactIds.size === 0 && phones.length === 0) return [];
 
-	const candidates = await collectCandidates(api, ownContactIds, phones);
+	const candidates = await collectCandidates(
+		api,
+		portalKey,
+		ownContactIds,
+		phones,
+	);
 	const dismissed = await listDismissedPartnerKeys([...groupKeys]).catch(
 		() => new Set<string>(),
 	);

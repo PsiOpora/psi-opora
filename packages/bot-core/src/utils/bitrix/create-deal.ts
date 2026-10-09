@@ -1,5 +1,6 @@
+import { bitrixPortalKey } from "@psi-opora/config";
 import { upsertBitrixCrmLink } from "@psi-opora/db/queries";
-import { bitrixPost, getBotId, getEnv } from "./client";
+import { bitrixPost, getBotId, getEnv, getWebhookBase } from "./client";
 import {
 	buildContactFields,
 	buildMessengerLinkFields,
@@ -97,6 +98,7 @@ export async function createBitrixContact(data: ContactData): Promise<number> {
 	if (data.telegramUserId) {
 		try {
 			await upsertBitrixCrmLink({
+				portalKey: bitrixPortalKey(getWebhookBase(messenger)),
 				messenger,
 				userId: String(data.telegramUserId),
 				contactId: String(contactId),
@@ -156,6 +158,7 @@ export async function createBitrixDeal(
 	if (data.telegramUserId) {
 		try {
 			await upsertBitrixCrmLink({
+				portalKey: bitrixPortalKey(getWebhookBase(messenger)),
 				messenger,
 				userId: String(data.telegramUserId),
 				contactId: String(contactId),
