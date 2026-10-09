@@ -33,7 +33,7 @@ interface YandexApiResponse {
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0;
 
-async function getYandexToken(
+export async function getYandexToken(
 	clientId: string,
 	clientSecret: string,
 	refreshToken: string,
@@ -58,7 +58,7 @@ async function getYandexToken(
 	return cachedToken;
 }
 
-async function yandexRequest<T>(
+export async function yandexRequest<T>(
 	method: string,
 	body: Record<string, unknown>,
 	token: string,

@@ -413,6 +413,13 @@
       "when": 1791541572656,
       "tag": "0058_metrika_goal_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1791542567290,
+      "tag": "0059_ad_touches",
+      "breakpoints": true
     }
   ]
 }

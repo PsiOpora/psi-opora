@@ -140,6 +140,7 @@ import {
 	saveQuickReply as _saveQuickReply,
 } from "./quick-replies";
 
+export * from "./ad-touches";
 export * from "./ads";
 export * from "./backup";
 export type { BitrixCrmLink } from "./bitrix-crm-links";

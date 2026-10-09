@@ -16,6 +16,8 @@ export interface BitrixApiLike {
 	): Promise<T>;
 }
 
+import type { DealAttribution } from "../attribution/build";
+
 /** Данные, достаточные для создания/обновления контакта в Bitrix24. */
 export interface ContactData {
 	name: string;
@@ -74,4 +76,10 @@ export interface DealData extends ContactData {
 	 */
 	categoryId?: number;
 	stageId?: string;
+	/**
+	 * Атрибуция по цепочке касаний с рекламой (ad_touches) — если есть, её
+	 * значения идут в UTM-поля и описание источника вместо метки из ссылки
+	 * на бота. См. utils/attribution/deal-attribution.ts.
+	 */
+	attribution?: DealAttribution;
 }

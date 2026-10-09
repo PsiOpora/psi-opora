@@ -122,6 +122,25 @@ export {
 	type YandexReportRow,
 } from "./utils/ads-stats";
 export {
+	type AdEntityRefs,
+	fetchYandexEntityNames,
+	loadAdEntityNames,
+} from "./utils/attribution/ad-directory";
+export {
+	buildAttribution,
+	collectEntityRefs,
+	type DealAttribution,
+} from "./utils/attribution/build";
+export {
+	recordDealAttribution,
+	resolveDealAttribution,
+} from "./utils/attribution/deal-attribution";
+export {
+	normalizeTouchPayload,
+	type TouchPayload,
+	touchPayloadSchema,
+} from "./utils/attribution/touch";
+export {
 	type BotBackgroundDeps,
 	type BotBackgroundQueue,
 	type BotBackgroundTask,
