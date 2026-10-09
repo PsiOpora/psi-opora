@@ -4,7 +4,12 @@ import { getYandexMetrikaSettings } from "@psi-opora/db/queries";
 const UPLOAD_URL_BASE = "https://api-metrika.yandex.net/management/v1/counter";
 const DEFAULT_GOAL_ID = "free_consultation_booked";
 
-export interface ConsultationGoalParams {
+export interface YandexMetrikaGoalParams {
+	/**
+	 * Идентификатор цели в Метрике (Target в CSV). Если не указан — берётся
+	 * цель «Запись на консультацию» из настроек (/settings/metrika).
+	 */
+	target?: string;
 	/** ClientID Яндекс.Метрики визита (см. utils/utm.ts extractYmClientId). */
 	clientId?: string;
 	/**
@@ -35,9 +40,12 @@ function buildConversionsCsv(
 	return `${idColumn},Target,DateTime\n${idValue},${target},${unixTimestamp}\n`;
 }
 
+export type ConsultationGoalParams = Omit<YandexMetrikaGoalParams, "target">;
+
 /**
- * Загружает в Яндекс.Метрику офлайн-конверсию «Запись на консультацию» по
- * ClientID визита сразу после создания сделки в Bitrix — это единственный
+ * Загружает в Яндекс.Метрику офлайн-конверсию по ClientID визита (по
+ * умолчанию — «Запись на консультацию» сразу после создания сделки в
+ * Bitrix; цели по стадиям воронки передают свой `target`) — это единственный
  * официальный способ Метрики принять конверсию, привязанную к ClientID
  * (https://yandex.ru/dev/metrika/ru/management/offline-conv), без ручного
  * экспорта из Bitrix и последующей загрузки. Данные появляются в отчётах
@@ -49,13 +57,13 @@ function buildConversionsCsv(
  * их можно поменять без деплоя. Если ничего не настроено, тихо пропускает
  * отправку (warn в лог) — сделка в Bitrix при этом создаётся как обычно.
  */
-export async function sendConsultationGoalToYandexMetrika(
-	params: ConsultationGoalParams,
+export async function sendYandexMetrikaGoal(
+	params: YandexMetrikaGoalParams,
 ): Promise<boolean> {
 	const settings = await getYandexMetrikaSettings();
 	const counterId = settings?.counterId;
 	const token = settings?.oauthToken;
-	const target = settings?.goalId || DEFAULT_GOAL_ID;
+	const target = params.target || settings?.goalId || DEFAULT_GOAL_ID;
 
 	if (!counterId || !token) {
 		logger.warn("yandex_metrika.not_configured", { dealId: params.dealId });
@@ -117,4 +125,11 @@ export async function sendConsultationGoalToYandexMetrika(
 		});
 		return false;
 	}
+}
+
+/** Офлайн-конверсия «Запись на консультацию» — цель из настроек Метрики. */
+export function sendConsultationGoalToYandexMetrika(
+	params: ConsultationGoalParams,
+): Promise<boolean> {
+	return sendYandexMetrikaGoal(params);
 }

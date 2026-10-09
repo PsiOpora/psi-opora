@@ -1,6 +1,6 @@
 {
-  "id": "ab0d69d6-cd69-4908-89d6-3e9fd8d3e997",
-  "prevId": "cd1ee587-fe5a-4aec-ae0d-3c8db3dfd902",
+  "id": "c549a50d-1fe0-4a84-a472-1c806aaa8fc2",
+  "prevId": "ab0d69d6-cd69-4908-89d6-3e9fd8d3e997",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3633,12 +3633,31 @@
           "primaryKey": false,
           "notNull": true
         },
-        "sent_at": {
-          "name": "sent_at",
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "claimed_at": {
+          "name": "claimed_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "claim_token": {
+          "name": "claim_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},

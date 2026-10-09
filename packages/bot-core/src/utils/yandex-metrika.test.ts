@@ -23,7 +23,8 @@ mock.module("@psi-opora/config", () => ({
 	logger: { warn, error, info },
 }));
 
-const { sendConsultationGoalToYandexMetrika } = await import(
+const { sendConsultationGoalToYandexMetrika, sendYandexMetrikaGoal } =
+	await import(
 	"./yandex-metrika"
 );
 
@@ -133,5 +134,26 @@ describe("sendConsultationGoalToYandexMetrika", () => {
 
 		expect(ok).toBe(false);
 		expect(error).toHaveBeenCalledTimes(1);
+	});
+
+	test("sendYandexMetrikaGoal с target отправляет свою цель вместо цели из настроек", async () => {
+		let capturedInit: RequestInit | undefined;
+		globalThis.fetch = mock(async (_url: string, init: RequestInit) => {
+			capturedInit = init;
+			return new Response("{}", { status: 200 });
+		}) as unknown as typeof fetch;
+
+		const ok = await sendYandexMetrikaGoal({
+			target: "consultation_paid",
+			clientId: "163972457524306386",
+			occurredAt: new Date("2026-01-01T00:00:00Z"),
+		});
+
+		expect(ok).toBe(true);
+		const form = capturedInit?.body as FormData;
+		const file = form.get("file") as File;
+		expect(await file.text()).toBe(
+			"ClientId,Target,DateTime\n163972457524306386,consultation_paid,1767225600\n",
+		);
 	});
 });

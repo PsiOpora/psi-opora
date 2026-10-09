@@ -111,5 +111,9 @@ export {
 } from "./whatsapp-personal";
 export {
 	type YandexMetrikaSettingsInput,
+	type YandexMetrikaStageGoalInput,
+	updateYandexMetrikaStageGoalSchema,
 	yandexMetrikaSettingsSchema,
+	yandexMetrikaStageGoalIdSchema,
+	yandexMetrikaStageGoalSchema,
 } from "./yandex-metrika";

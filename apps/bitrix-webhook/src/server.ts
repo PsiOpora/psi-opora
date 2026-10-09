@@ -32,6 +32,7 @@ import {
 	handleConsultationDealUpdate,
 	handleDiagnosticDealUpdate,
 	handleStageConsentTrigger,
+	handleYandexMetrikaStageGoals,
 	type Messenger,
 	removeSyncedDeal,
 	sendMessengerMessage,
@@ -799,12 +800,23 @@ async function handleConsultationReminderDealUpdate(
 		}
 
 		const redis = createRedisClient();
-		const [consultation, diagnostic, stageConsent] = await Promise.all([
-			handleConsultationDealUpdate(api, redis, dealId),
-			handleDiagnosticDealUpdate(api, redis, dealId),
-			handleStageConsentTrigger(api, redis, dealId),
-		]);
-		const result = { consultation, diagnostic, stageConsent };
+		const [consultation, diagnostic, stageConsent, metrikaStageGoals] =
+			await Promise.all([
+				handleConsultationDealUpdate(api, redis, dealId),
+				handleDiagnosticDealUpdate(api, redis, dealId),
+				handleStageConsentTrigger(api, redis, dealId),
+				// Ошибка Метрики не должна ломать остальные обработчики события.
+				handleYandexMetrikaStageGoals(api, dealId).catch((err) => {
+					console.error("[yandex-metrika] stage-goals error:", err);
+					return { sent: [], error: String(err) };
+				}),
+			]);
+		const result = {
+			consultation,
+			diagnostic,
+			stageConsent,
+			metrikaStageGoals,
+		};
 		return Response.json({ success: true, result });
 	} catch (err) {
 		const message =
