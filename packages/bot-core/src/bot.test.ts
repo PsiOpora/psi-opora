@@ -24,6 +24,7 @@ mock.module("@psi-opora/db/queries", () => ({
 	getBotTextsRecord: () => Promise.resolve({}),
 	getBotConnector: () => Promise.resolve(null),
 	getBotUserProfile: () => Promise.resolve(null),
+	saveYandexMetrikaDealVisitor: () => Promise.resolve(),
 	getConversationMeta: () => Promise.resolve(null),
 	addClientNote: () => Promise.resolve(null),
 	addConversationTag: () => Promise.resolve(),

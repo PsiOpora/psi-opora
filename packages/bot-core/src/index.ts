@@ -248,4 +248,6 @@ export { hasPhoneNumber, isValidEmail } from "./utils/validation";
 export {
 	type ConsultationGoalParams,
 	sendConsultationGoalToYandexMetrika,
+	sendYandexMetrikaGoal,
+	type YandexMetrikaGoalParams,
 } from "./utils/yandex-metrika";
