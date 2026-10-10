@@ -43,6 +43,7 @@ import {
 } from "./utils/background-tasks";
 import { type BitrixApiLike, resolveKnownContact } from "./utils/bitrix";
 import { enrichCrmFromClientMessage } from "./utils/crm-enrichment";
+import { describeError, isGrammyNetworkError } from "./utils/describe-error";
 import { withUserLock } from "./utils/lock";
 import { logBotMessage } from "./utils/message-log";
 import {
@@ -73,6 +74,9 @@ export const log = (msg: string) => {
 // лету, только через переменные окружения и передеплой (см. utils/telegram-proxy).
 const telegramApiRoot = resolveTelegramApiRoot();
 const telegramFetch = createTelegramFetch();
+
+const GET_CHAT_ATTEMPTS = 2;
+const GET_CHAT_RETRY_DELAY_MS = 2_000;
 
 function createInitialSession(): ConsultationSession {
 	return { step: "name" };
@@ -132,17 +136,30 @@ async function collectTelegramProfile(
 	let bio: string | undefined;
 	let photoFileId: string | undefined;
 	let rawProfile: unknown;
-	try {
-		const chat = await ctx.api.getChat(from.id);
-		rawProfile = chat;
-		if (chat.type === "private") {
-			bio = chat.bio;
-			photoFileId = chat.photo?.big_file_id;
+	// Сетевой сбой (не ответ Bot API) повторяем один раз: соединение с
+	// api.telegram.org/прокси из k3s периодически рвётся, а профиль собирается
+	// в фоне, так что пауза клиенту не мешает.
+	for (let attempt = 1; attempt <= GET_CHAT_ATTEMPTS; attempt++) {
+		try {
+			const chat = await ctx.api.getChat(from.id);
+			rawProfile = chat;
+			if (chat.type === "private") {
+				bio = chat.bio;
+				photoFileId = chat.photo?.big_file_id;
+			}
+			break;
+		} catch (err) {
+			if (attempt < GET_CHAT_ATTEMPTS && isGrammyNetworkError(err)) {
+				await new Promise((resolve) =>
+					setTimeout(resolve, GET_CHAT_RETRY_DELAY_MS),
+				);
+				continue;
+			}
+			console.error(
+				`[profile] не удалось получить getChat для user=${from.id} (попытка ${attempt}/${GET_CHAT_ATTEMPTS}): ${describeError(err)}`,
+			);
+			break;
 		}
-	} catch (err) {
-		console.error(
-			`[profile] не удалось получить getChat для user=${from.id}: ${(err as Error).message}`,
-		);
 	}
 
 	let avatarS3Key: string | undefined;
@@ -171,7 +188,7 @@ async function collectTelegramProfile(
 			}
 		} catch (err) {
 			console.error(
-				`[profile] не удалось скачать аватар для user=${from.id}: ${(err as Error).message}`,
+				`[profile] не удалось скачать аватар для user=${from.id}: ${describeError(err)}`,
 			);
 		}
 	}
@@ -375,7 +392,7 @@ export function createBot({
 			uploadAvatar,
 		).catch((err) => {
 			console.error(
-				`[profile] не удалось собрать профиль user=${ctx.from?.id}: ${(err as Error).message}`,
+				`[profile] не удалось собрать профиль user=${ctx.from?.id}: ${describeError(err)}`,
 			);
 		});
 	};
