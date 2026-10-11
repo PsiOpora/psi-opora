@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import type { StorageAdapter } from "grammy";
+import { GrammyError, HttpError, type StorageAdapter } from "grammy";
 import type { ConsultationSession } from "./types/context";
 import type {
 	BotBackgroundQueue,
@@ -89,6 +89,8 @@ interface SentCall {
 function makeBot(
 	storage?: StorageAdapter<ConsultationSession>,
 	background?: BotBackgroundQueue,
+	// Хук транспорта: может бросить, чтобы сымитировать сбой Bot API / сети.
+	beforeCall?: (method: string, payload: SentCall["payload"]) => void,
 ) {
 	const bot = createBot({
 		token: "1:TEST_TOKEN",
@@ -112,6 +114,7 @@ function makeBot(
 	const sent: SentCall[] = [];
 	bot.api.config.use(async (_prev, method, payload) => {
 		sent.push({ method, payload });
+		beforeCall?.(method, payload);
 		const result = method === "sendMessage" ? { message_id: 1 } : true;
 		// biome-ignore lint/suspicious/noExplicitAny: мок транспорта grammy
 		return { ok: true, result } as any;
@@ -537,5 +540,67 @@ describe("фоновая очередь бота", () => {
 		expect(sentMessages(sent).at(-1)?.payload.text).toBe(
 			t.consult_phone_question,
 		);
+	});
+});
+
+describe("телеграм-бот: сбои Bot API", () => {
+	const apiError = (code: number, description: string) =>
+		new GrammyError(
+			`Call failed! (${code}: ${description})`,
+			{ ok: false, error_code: code, description, parameters: {} },
+			"test",
+			{},
+		);
+
+	test("устаревший callback_query не роняет обработку кнопки", async () => {
+		const { bot, sent } = makeBot(undefined, undefined, (method) => {
+			if (method === "answerCallbackQuery") {
+				throw apiError(400, "Bad Request: query is too old");
+			}
+		});
+
+		await bot.handleUpdate(callbackUpdate("start_consultation"));
+
+		expect(sentMessages(sent).map((m) => m.payload.text)).toEqual([
+			t.consent_text,
+		]);
+	});
+
+	test("сетевой сбой sendMessage: handleUpdate не отклоняется, повтора без Markdown нет", async () => {
+		let failures = 0;
+		const { bot, sent } = makeBot(undefined, undefined, (method) => {
+			if (method === "sendMessage" && failures++ === 0) {
+				throw new HttpError("Network request for 'sendMessage' failed!", {});
+			}
+		});
+
+		await expect(
+			bot.handleUpdate(callbackUpdate("start_consultation")),
+		).resolves.toBeUndefined();
+		// ответ об ошибке уходит «в фоне» (void ctx.reply)
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		const texts = sentMessages(sent).map((m) => m.payload.text);
+		expect(texts).toEqual([
+			t.consent_text,
+			"⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.",
+		]);
+	});
+
+	test("ошибка разбора Markdown: повторная отправка обычным текстом", async () => {
+		let failures = 0;
+		const { bot, sent } = makeBot(undefined, undefined, (method) => {
+			if (method === "sendMessage" && failures++ === 0) {
+				throw apiError(400, "Bad Request: can't parse entities: bad markup");
+			}
+		});
+
+		await bot.handleUpdate(callbackUpdate("start_consultation"));
+
+		const messages = sentMessages(sent);
+		expect(messages).toHaveLength(2);
+		expect(messages[0]?.payload.parse_mode).toBe("Markdown");
+		expect(messages[1]?.payload.parse_mode).toBeUndefined();
+		expect(messages[1]?.payload.text).toBe(t.consent_text);
 	});
 });

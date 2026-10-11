@@ -1,6 +1,6 @@
 import { logger } from "@psi-opora/config";
 import type { Api, StorageAdapter } from "grammy";
-import { Bot, InlineKeyboard, session } from "grammy";
+import { Bot, GrammyError, InlineKeyboard, session } from "grammy";
 import { dispatchBookPreorderOutput } from "./scenario/book-preorder/dispatch";
 import {
 	handleBookPreorderDripCallback,
@@ -254,6 +254,14 @@ function toTelegramInlineKeyboard(
 	return keyboard;
 }
 
+function isMarkdownParseError(err: unknown): boolean {
+	return (
+		err instanceof GrammyError &&
+		err.error_code === 400 &&
+		/can't parse entities/i.test(err.description)
+	);
+}
+
 /**
  * Отправка сообщения сценария в Telegram. Markdown из дашборда может быть
  * невалидным — при ошибке парсинга отправляем как обычный текст.
@@ -274,7 +282,11 @@ export async function sendTelegramScenarioMessage(
 				...options,
 				parse_mode: "Markdown",
 			});
-		} catch {
+		} catch (err) {
+			// Повтор без Markdown — только при ошибке разбора разметки (400 от Bot
+			// API). Сетевой сбой/таймаут повтором не лечится, а удваивает ожидание
+			// (2×15 с) и держит лок чата.
+			if (!isMarkdownParseError(err)) throw err;
 			await api.sendMessage(chatId, message.text, options);
 		}
 		logger.info("bot.scenario_message.sent", { messenger: "telegram", chatId });
@@ -351,6 +363,40 @@ export function createBot({
 			timeoutSeconds: 15,
 			...client,
 		},
+	});
+
+	const handleUpdateError = (ctx: AppContext, error: unknown) => {
+		log(`[ERROR] update_id=${ctx.update.update_id} ${describeError(error)}`);
+		const text =
+			"⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.";
+		// Клиент это сообщение видит, значит оно должно быть и в истории диалога —
+		// иначе оператор не понимает, почему клиент пишет «у вас ошибка».
+		void ctx
+			.reply(text)
+			.then(() =>
+				logBotMessage({
+					messenger: "telegram",
+					userId: ctx.from?.id,
+					direction: "out",
+					source: "scenario",
+					text,
+				}),
+			)
+			.catch(() => {});
+	};
+
+	// В режиме webhook bot.catch не вызывается: handleUpdate бросает BotError
+	// наружу, и webhookCallback либо отдаёт 500 (Telegram ретраит апдейт), либо
+	// — если ошибка пришла после onTimeout — оставляет необработанный reject,
+	// который валит процесс (grammY 1.46: task.finally() в timeoutIfNecessary).
+	// Поэтому ловим всё здесь, самым внешним middleware, и handleUpdate никогда
+	// не отклоняется.
+	bot.use(async (ctx, next) => {
+		try {
+			await next();
+		} catch (err) {
+			handleUpdateError(ctx, err);
+		}
 	});
 
 	// Сериализуем обработку апдейтов одного чата (см. utils/lock.ts) — без
@@ -577,7 +623,14 @@ export function createBot({
 	bot.on("callback_query:data", async (ctx) => {
 		const action = ctx.callbackQuery.data;
 		const stageConsent = parseStageConsentPayload(action);
-		await ctx.answerCallbackQuery();
+		// «query is too old» (400) — кнопку нажали давно или апдейт пришёл ретраем;
+		// ответ на callback нужен лишь чтобы убрать «часики», сценарий от него не
+		// зависит, поэтому ошибка не должна ронять обработку.
+		await ctx.answerCallbackQuery().catch((err) => {
+			log(
+				`[WARN] answerCallbackQuery update=${ctx.update.update_id}: ${describeError(err)}`,
+			);
+		});
 
 		// Кнопка из напоминания о предзаказе книги (Б1–Б6, packages/jobs) — не
 		// привязана к сессии, адресуется напрямую по номеру заказа (см.
@@ -1085,26 +1138,8 @@ export function createBot({
 		},
 	);
 
-	bot.catch((err) => {
-		const ctx = err.ctx as AppContext;
-		log(`[ERROR] update_id=${ctx.update.update_id} ${err.error}`);
-		const text =
-			"⚠️ Что-то пошло не так. Попробуйте ещё раз или напишите /start.";
-		// Клиент это сообщение видит, значит оно должно быть и в истории диалога —
-		// иначе оператор не понимает, почему клиент пишет «у вас ошибка».
-		void ctx
-			.reply(text)
-			.then(() =>
-				logBotMessage({
-					messenger: "telegram",
-					userId: ctx.from?.id,
-					direction: "out",
-					source: "scenario",
-					text,
-				}),
-			)
-			.catch(() => {});
-	});
+	// Для long polling (bot.start) и на случай ошибки вне цепочки middleware.
+	bot.catch((err) => handleUpdateError(err.ctx as AppContext, err.error));
 
 	return bot;
 }

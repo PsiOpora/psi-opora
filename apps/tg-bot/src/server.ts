@@ -65,6 +65,13 @@ const server = serve({ fetch: app.fetch, port }, (info) => {
 	console.log(`[BOT] tg-bot webhook слушает на :${info.port}`);
 });
 
+// Страховка: необработанный reject валит процесс (Bun/Node >=15). Ошибки
+// апдейтов ловит самый внешний middleware в createBot, но фоновые хвосты
+// (в т.ч. grammY после onTimeout) не должны ронять бота из-за одной ошибки.
+process.on("unhandledRejection", (reason) => {
+	console.error("[BOT] unhandledRejection:", reason);
+});
+
 // При rollout k8s шлёт SIGTERM до SIGKILL — дожидаемся завершения активных
 // запросов вместо мгновенного обрыва соединений.
 process.on("SIGTERM", () => {
