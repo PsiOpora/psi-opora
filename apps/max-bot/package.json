@@ -11,19 +11,19 @@
 	},
 	"dependencies": {
 		"@psi-opora/storage": "workspace:*",
-		"@hono/node-server": "2.1.1",
-		"@maxhub/max-bot-api": "0.3.1",
+		"@hono/node-server": "2.1.4",
+		"@maxhub/max-bot-api": "1.0.2",
 		"@psi-opora/bitrix-client": "workspace:*",
 		"@psi-opora/bot-core": "workspace:*",
 		"@psi-opora/config": "workspace:*",
 		"@psi-opora/db": "workspace:*",
 		"@psi-opora/jobs": "workspace:*",
-		"hono": "4.13.9"
+		"hono": "4.13.13"
 	},
 	"devDependencies": {
 		"@psi-opora/tsconfig": "workspace:*",
 		"@types/bun": "1.4.2",
-		"@types/node": "26.6.2",
+		"@types/node": "26.6.5",
 		"typescript": "7.0.2"
 	}
 }

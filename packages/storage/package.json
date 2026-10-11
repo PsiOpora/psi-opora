@@ -19,12 +19,12 @@
 		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
 	},
 	"dependencies": {
-		"@aws-sdk/client-s3": "^3.1116.0",
+		"@aws-sdk/client-s3": "^3.1149.0",
 		"@psi-opora/db": "workspace:*"
 	},
 	"devDependencies": {
 		"@psi-opora/tsconfig": "workspace:*",
-		"@types/node": "26.6.2",
+		"@types/node": "26.6.5",
 		"typescript": "7.0.2"
 	}
 }

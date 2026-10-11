@@ -36,15 +36,15 @@
 		"@psi-opora/unisender-client": "workspace:*",
 		"@psi-opora/waha": "workspace:*",
 		"@psi-opora/validators": "workspace:*",
-		"@orpc/contract": "1.15.1",
-		"@orpc/server": "1.15.1",
-		"better-auth": "1.7.2",
+		"@orpc/contract": "1.15.5",
+		"@orpc/server": "1.15.5",
+		"better-auth": "1.7.7",
 		"superjson": "2.2.6",
 		"zod": "4.6.5"
 	},
 	"devDependencies": {
 		"@psi-opora/tsconfig": "workspace:*",
-		"@types/node": "26.6.2",
+		"@types/node": "26.6.5",
 		"typescript": "7.0.2"
 	}
 }
