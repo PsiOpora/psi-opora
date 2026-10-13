@@ -13,7 +13,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * в плане.
  */
 
-const PAYFORM_BASE_URL = "https://payform.ru/6ucwABm/";
+const PAYFORM_BASE_URL = "https://payform.ru/5ocNiXV/";
 
 export interface ProdamusPaymentLinkParams {
 	orderId: number;
