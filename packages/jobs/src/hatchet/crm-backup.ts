@@ -39,12 +39,12 @@ export const crmBackup = CreateTaskWorkflow({
  * Ночной запуск бэкапа по расписанию. Раньше за это отвечал Vercel Cron
  * (`/api/crm-backup`), но dashboard задеплоен в k3s, а не на Vercel — тот
  * cron физически не вызывается. Живёт здесь же, в Hatchet, как и
- * остальные периодические задачи (см. diagnostic-reminders.ts).
+ * остальные периодические задачи (см. calendar-reminders.ts).
  */
 export const crmBackupSchedule = CreateTaskWorkflow({
 	name: "crm-backup-schedule",
 	// Сдвиг минуты от "0 0" — чтобы не стартовать в ту же минуту, что
-	// guide-follow-ups и другие крон-задачи на границе часа/суток.
+	// hourly-drips и другие крон-задачи на границе часа/суток.
 	on: { cron: "20 0 * * *" },
 	retries: 0,
 	executionTimeout: "1h",
