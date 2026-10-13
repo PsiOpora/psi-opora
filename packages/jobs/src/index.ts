@@ -36,12 +36,12 @@ export {
 	type SendGuideFollowUpsResult,
 	sendGuideFollowUps,
 } from "./guide-follow-ups";
-export { bookPreorderDrip } from "./hatchet/book-preorder-drip";
+export { adsSync } from "./hatchet/ads-sync";
 export {
 	type DeliverBroadcastPayload,
 	deliverBroadcast,
 } from "./hatchet/broadcast";
-export { consultationReminders } from "./hatchet/consultation-reminders";
+export { calendarReminders } from "./hatchet/calendar-reminders";
 export {
 	type CrmBackupPayload,
 	crmBackup,
@@ -49,7 +49,6 @@ export {
 } from "./hatchet/crm-backup";
 export { dealStageHistorySync } from "./hatchet/deal-stage-history-sync";
 export { dealsSync } from "./hatchet/deals-sync";
-export { diagnosticReminders } from "./hatchet/diagnostic-reminders";
 export {
 	type DeliverEmailCampaignPayload,
 	deliverEmailCampaign,
@@ -61,7 +60,7 @@ export {
 	enqueueCrmBackup,
 	enqueueEmailCampaign,
 } from "./hatchet/enqueue";
-export { guideFollowUps } from "./hatchet/guide-follow-ups";
+export { hourlyDrips } from "./hatchet/hourly-drips";
 export { maxWebhookHealthcheck } from "./hatchet/max-webhook-healthcheck";
 export { scenarioReminders } from "./hatchet/scenario-reminders";
 export { stageConsentOutbox } from "./hatchet/stage-consent";

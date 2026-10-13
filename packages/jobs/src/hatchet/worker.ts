@@ -1,16 +1,13 @@
 import { botBackgroundTasks } from "../bot-background";
-import { adEntitiesSync } from "./ad-entities-sync";
-import { adsStatsSync } from "./ads-stats-sync";
-import { bookPreorderDrip } from "./book-preorder-drip";
+import { adsSync } from "./ads-sync";
 import { deliverBroadcast } from "./broadcast";
+import { calendarReminders } from "./calendar-reminders";
 import { getHatchetClient } from "./client";
-import { consultationReminders } from "./consultation-reminders";
 import { crmBackup, crmBackupSchedule } from "./crm-backup";
 import { dealStageHistorySync } from "./deal-stage-history-sync";
 import { dealsSync } from "./deals-sync";
-import { diagnosticReminders } from "./diagnostic-reminders";
 import { deliverEmailCampaign, pollEmailCampaigns } from "./email-campaign";
-import { guideFollowUps } from "./guide-follow-ups";
+import { hourlyDrips } from "./hourly-drips";
 import { maxWebhookHealthcheck } from "./max-webhook-healthcheck";
 import { scenarioReminders } from "./scenario-reminders";
 import { stageConsentOutbox } from "./stage-consent";
@@ -22,16 +19,13 @@ export const hatchetTasks = [
 	crmBackupSchedule,
 	dealsSync,
 	dealStageHistorySync,
-	adsStatsSync,
-	adEntitiesSync,
+	adsSync,
 	pollEmailCampaigns,
-	consultationReminders,
-	diagnosticReminders,
+	calendarReminders,
 	scenarioReminders,
-	guideFollowUps,
+	hourlyDrips,
 	maxWebhookHealthcheck,
 	stageConsentOutbox,
-	bookPreorderDrip,
 	...botBackgroundTasks,
 ];
 
