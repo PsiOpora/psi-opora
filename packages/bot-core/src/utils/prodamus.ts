@@ -13,19 +13,19 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * в плане.
  */
 
-const PAYFORM_BASE_URL = "https://payform.ru/5ocNiXV/";
+const PAYFORM_BASE_URL = "https://payform.ru/sncNNUf/";
 
 export interface ProdamusPaymentLinkParams {
-	orderId: number;
-	phone?: string;
-	email?: string;
-	sum?: number;
+  orderId: number;
+  phone?: string;
+  email?: string;
+  sum?: number;
 }
 
 export function buildProdamusPaymentUrl(
-	_params: ProdamusPaymentLinkParams,
+  _params: ProdamusPaymentLinkParams,
 ): string {
-	return PAYFORM_BASE_URL;
+  return PAYFORM_BASE_URL;
 }
 
 /**
@@ -34,33 +34,33 @@ export function buildProdamusPaymentUrl(
  * (см. официальный PHP-пример `Sign::create`).
  */
 function sortRecursively(value: unknown): unknown {
-	if (Array.isArray(value)) return value.map(sortRecursively);
-	if (value && typeof value === "object") {
-		const sorted: Record<string, unknown> = {};
-		for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-			sorted[key] = sortRecursively((value as Record<string, unknown>)[key]);
-		}
-		return sorted;
-	}
-	return value;
+  if (Array.isArray(value)) return value.map(sortRecursively);
+  if (value && typeof value === "object") {
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      sorted[key] = sortRecursively((value as Record<string, unknown>)[key]);
+    }
+    return sorted;
+  }
+  return value;
 }
 
 function toQueryString(value: unknown, prefix = ""): string[] {
-	if (value === null || value === undefined) return [];
-	if (typeof value === "object") {
-		const entries = Array.isArray(value)
-			? value.map((item, index) => [String(index), item] as const)
-			: Object.entries(value as Record<string, unknown>);
-		return entries.flatMap(([key, item]) =>
-			toQueryString(item, prefix ? `${prefix}[${key}]` : key),
-		);
-	}
-	return [`${prefix}=${String(value)}`];
+  if (value === null || value === undefined) return [];
+  if (typeof value === "object") {
+    const entries = Array.isArray(value)
+      ? value.map((item, index) => [String(index), item] as const)
+      : Object.entries(value as Record<string, unknown>);
+    return entries.flatMap(([key, item]) =>
+      toQueryString(item, prefix ? `${prefix}[${key}]` : key),
+    );
+  }
+  return [`${prefix}=${String(value)}`];
 }
 
 /** Строка для подписи — PHP http_build_query-совместимый формат, без urlencode. */
 function canonicalize(data: Record<string, unknown>): string {
-	return toQueryString(sortRecursively(data)).join("&");
+  return toQueryString(sortRecursively(data)).join("&");
 }
 
 /**
@@ -70,16 +70,16 @@ function canonicalize(data: Record<string, unknown>): string {
  * PRODAMUS_SECRET_KEY, здесь только принимается параметром.
  */
 export function verifyProdamusSignature(
-	fields: Record<string, unknown>,
-	signHeader: string | null | undefined,
-	secretKey: string,
+  fields: Record<string, unknown>,
+  signHeader: string | null | undefined,
+  secretKey: string,
 ): boolean {
-	if (!signHeader) return false;
-	const expected = createHmac("sha256", secretKey)
-		.update(canonicalize(fields))
-		.digest("hex");
-	const expectedBuf = Buffer.from(expected, "utf8");
-	const actualBuf = Buffer.from(signHeader.trim(), "utf8");
-	if (expectedBuf.length !== actualBuf.length) return false;
-	return timingSafeEqual(expectedBuf, actualBuf);
+  if (!signHeader) return false;
+  const expected = createHmac("sha256", secretKey)
+    .update(canonicalize(fields))
+    .digest("hex");
+  const expectedBuf = Buffer.from(expected, "utf8");
+  const actualBuf = Buffer.from(signHeader.trim(), "utf8");
+  if (expectedBuf.length !== actualBuf.length) return false;
+  return timingSafeEqual(expectedBuf, actualBuf);
 }
