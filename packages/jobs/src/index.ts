@@ -55,10 +55,16 @@ export {
 	pollEmailCampaigns,
 } from "./hatchet/email-campaign";
 export {
+	type IngestEmailEventsPayload,
+	ingestEmailEvents,
+	type SerializedEmailEvent,
+} from "./hatchet/email-events";
+export {
 	type EnqueuedRun,
 	enqueueBroadcast,
 	enqueueCrmBackup,
 	enqueueEmailCampaign,
+	enqueueEmailEvents,
 } from "./hatchet/enqueue";
 export { hourlyDrips } from "./hatchet/hourly-drips";
 export { maxWebhookHealthcheck } from "./hatchet/max-webhook-healthcheck";

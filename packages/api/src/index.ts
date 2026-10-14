@@ -38,6 +38,13 @@ export type {
 	EmailRecipientsReport,
 } from "./email-campaign-collect";
 export {
+	EMAIL_IMAGE_MAX_SIZE,
+	getEmailImageStream,
+	handleEmailImageUpload,
+	parseEmailImageFileName,
+} from "./email-image-storage";
+export type { ImportContactsResult } from "./routers/email-lists";
+export {
 	type GuideUploadResult,
 	getGuidePdfStream,
 	handleGuideUpload,
@@ -49,6 +56,7 @@ export {
 	uploadOutboundAttachment,
 } from "./message-attachment-storage";
 export { createORPCContext } from "./orpc";
+export { publicOriginFromHeaders } from "./public-origin";
 export { type AppRouter, appRouter } from "./routers";
 export type { BotConnectorView } from "./routers/bot-connector";
 export type {

@@ -6,6 +6,22 @@ interface RusenderErrorBody {
 	description?: string;
 }
 
+/** Ошибка API Rusender с HTTP-статусом — по нему вызывающий решает, повторять ли запрос. */
+export class RusenderApiError extends Error {
+	constructor(
+		message: string,
+		readonly status: number,
+	) {
+		super(message);
+		this.name = "RusenderApiError";
+	}
+
+	/** 429 и 5xx — временные сбои, письмо можно отправить повторно. */
+	get retryable(): boolean {
+		return this.status === 429 || this.status >= 500;
+	}
+}
+
 export interface RusenderSendResult {
 	uuid: string;
 }
@@ -47,8 +63,9 @@ export function createRusenderClient(
 			| RusenderErrorBody;
 		if (!res.ok || !("uuid" in json)) {
 			const err = json as RusenderErrorBody;
-			throw new Error(
+			throw new RusenderApiError(
 				`Rusender [${path}]: ${err.message ?? err.errorDescription ?? err.description ?? `HTTP ${res.status}`}`,
+				res.status,
 			);
 		}
 		return json;

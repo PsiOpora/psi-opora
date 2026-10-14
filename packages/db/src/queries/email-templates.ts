@@ -61,28 +61,61 @@ export async function deleteEmailTemplate(id: string): Promise<void> {
 	await db.delete(emailTemplates).where(eq(emailTemplates.id, id));
 }
 
-/** Плейсхолдеры, доступные в HTML собственных email-шаблонов. */
-export const EMAIL_TEMPLATE_PLACEHOLDERS = ["name", "email"] as const;
+/**
+ * Плейсхолдеры, доступные в HTML собственных email-шаблонов.
+ * unsubscribe_url вставляется футером шаблона (ссылка «Отписаться»), а не
+ * пользователем.
+ */
+export const EMAIL_TEMPLATE_PLACEHOLDERS = [
+	"name",
+	"email",
+	"unsubscribe_url",
+] as const;
 export type EmailTemplatePlaceholder =
 	(typeof EMAIL_TEMPLATE_PLACEHOLDERS)[number];
 
-/** Подставляет {{name}}/{{email}} значениями получателя — для превью и поштучной отправки (Rusender, sendTest). */
-export function renderEmailTemplate(
-	html: string,
-	values: { name?: string | null; email?: string | null },
-): string {
-	return html
-		.replaceAll("{{name}}", values.name ?? "")
-		.replaceAll("{{email}}", values.email ?? "");
+/** Экранирует значение для вставки в HTML (текст и атрибуты). */
+function escapeHtml(value: string): string {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
 }
 
 /**
- * Заменяет {{name}}/{{email}} на теги подстановки Unisender (%Name%/%email%),
- * совпадающие с field_names у importContacts — для массовой рассылки по
- * списку, где подстановку на каждого получателя делает сам Unisender.
+ * Подставляет плейсхолдеры значениями получателя — для превью и поштучной
+ * отправки (Rusender, sendTest). Значения экранируются: имя из CSV или CRM —
+ * недоверенные данные и не должны ломать вёрстку письма. Без ссылки отписки
+ * (превью, тест) подставляется "#".
+ */
+export function renderEmailTemplate(
+	html: string,
+	values: {
+		name?: string | null;
+		email?: string | null;
+		unsubscribeUrl?: string | null;
+	},
+): string {
+	return html
+		.replaceAll("{{name}}", escapeHtml(values.name ?? ""))
+		.replaceAll("{{email}}", escapeHtml(values.email ?? ""))
+		.replaceAll(
+			"{{unsubscribe_url}}",
+			escapeHtml(values.unsubscribeUrl || "#"),
+		);
+}
+
+/**
+ * Заменяет плейсхолдеры на теги подстановки Unisender ({{Name}}/{{Email}} —
+ * Name совпадает с field_names у importContacts; {{UnsubscribeUrl}} —
+ * персональная ссылка отписки Unisender) — для массовой рассылки по списку,
+ * где подстановку на каждого получателя делает сам Unisender.
  */
 export function toUnisenderTags(html: string): string {
 	return html
-		.replaceAll("{{name}}", "%Name%")
-		.replaceAll("{{email}}", "%email%");
+		.replaceAll("{{name}}", "{{Name}}")
+		.replaceAll("{{email}}", "{{Email}}")
+		.replaceAll("{{unsubscribe_url}}", "{{UnsubscribeUrl}}");
 }

@@ -2,6 +2,7 @@ import {
 	ConcurrencyLimitStrategy,
 	CreateTaskWorkflow,
 } from "@hatchet-dev/typescript-sdk/v1";
+import { SEND_INTERVAL_MS, sleep } from "../messenger";
 
 export type DeliverEmailCampaignPayload = {
 	campaignId: string;
@@ -11,18 +12,45 @@ export type DeliverEmailCampaignPayload = {
 // чтобы не упереться в лимит тела запроса Unisender (32 МБ) на крупных стадиях.
 const IMPORT_BATCH_SIZE = 500;
 
+/** Сколько раз пытаемся отправить письмо при временном сбое Rusender (429/5xx/сеть). */
+const RUSENDER_SEND_ATTEMPTS = 3;
+
+const SUPPRESSED_REASON = "в стоп-листе: адрес отписался или недоступен";
+
+/** Персональная ссылка отписки — страница /api/email/unsubscribe дашборда. */
+function unsubscribeUrl(publicBaseUrl: string | null, recipientId: string) {
+	return publicBaseUrl
+		? `${publicBaseUrl}/api/email/unsubscribe/${recipientId}`
+		: null;
+}
+
+function isRetryableSendError(err: unknown): boolean {
+	if (err && typeof err === "object" && "retryable" in err) {
+		return Boolean((err as { retryable: unknown }).retryable);
+	}
+	// fetch бросает TypeError при сетевом сбое (DNS, обрыв соединения).
+	return err instanceof TypeError;
+}
+
 /**
- * Фоновая задача: создаёт одноразовый список в Unisender, импортирует в него
- * получателей, создаёт письмо из выбранного шаблона и запускает кампанию.
- * Дальнейший статус (доставлено/открыто/отписалось) обновляет pollEmailCampaigns.
+ * Фоновая задача: отправляет кампанию через провайдера, выбранного при запуске.
+ * Rusender — поштучно, с персональной ссылкой отписки и сохранением uuid
+ * письма для сопоставления вебхуков доставки/открытий. Unisender — через
+ * одноразовый список и кампанию; статусы по получателям присылает его
+ * вебхук (см. apps/bitrix-webhook), агрегаты — pollEmailCampaigns.
+ *
+ * Задача идемпотентна: обрабатываются только получатели в статусе pending,
+ * поэтому повторный запуск продолжит рассылку, а не начнёт её заново.
  */
 export const deliverEmailCampaign = CreateTaskWorkflow({
 	name: "email-campaign-deliver",
 	retries: 0,
-	executionTimeout: "30m",
+	// Поштучная отправка через Rusender — порядка 5–10 писем/с: запас на крупные списки.
+	executionTimeout: "4h",
 	scheduleTimeout: "24h",
 	// Одна кампания за раз — createList/importContacts на Unisender не
-	// рассчитаны на параллельные запуски по одному аккаунту.
+	// рассчитаны на параллельные запуски по одному аккаунту, а у Rusender
+	// так проще держать темп отправки в пределах лимитов API.
 	concurrency: {
 		expression: "'email-campaign-deliver'",
 		maxRuns: 1,
@@ -35,10 +63,13 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 		const {
 			finishEmailCampaign,
 			getEmailCampaign,
+			getEmailCampaignFunnel,
+			getEmailSuppressions,
 			getEmailTemplate,
 			getRusenderSettings,
 			getUnisenderSettings,
 			listEmailCampaignRecipients,
+			markEmailCampaignRunning,
 			renderEmailTemplate,
 			setEmailCampaignUnisenderIds,
 			toUnisenderTags,
@@ -54,6 +85,49 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 			throw new Error(`Email-кампания ${payload.campaignId} не найдена`);
 		}
 
+		const loadHtml = async () => {
+			const template = await getEmailTemplate(campaign.templateId);
+			if (!template) {
+				throw new Error("Шаблон письма не найден — возможно, был удалён");
+			}
+			const html = await renderCampaignTemplate(
+				template.templateKey,
+				template.fields,
+			);
+			if (!html) {
+				throw new Error(`Неизвестный тип шаблона: ${template.templateKey}`);
+			}
+			return html;
+		};
+
+		/**
+		 * Получатели в очереди с повторной проверкой стоп-листа: между
+		 * предпросмотром и запуском адрес мог отписаться или вернуть bounce.
+		 */
+		const loadPendingRecipients = async () => {
+			const pending = (
+				await listEmailCampaignRecipients(payload.campaignId)
+			).filter(
+				(r): r is typeof r & { email: string } =>
+					r.status === "pending" && !!r.email,
+			);
+			const suppressed = await getEmailSuppressions(
+				pending.map((r) => r.email),
+			);
+			const sendable: typeof pending = [];
+			for (const r of pending) {
+				if (suppressed.has(r.email.toLowerCase())) {
+					await updateEmailCampaignRecipient(r.id, {
+						status: "skipped",
+						error: SUPPRESSED_REASON,
+					});
+				} else {
+					sendable.push(r);
+				}
+			}
+			return sendable;
+		};
+
 		if (campaign.provider === "rusender") {
 			// У Rusender нет API списков/кампаний — только поштучная отправка,
 			// поэтому рассылка выполняется циклом индивидуальных запросов, а не
@@ -68,69 +142,71 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 						"Rusender не настроен — укажите API-ключ и key ID на странице /settings/email",
 					);
 				}
-				const template = await getEmailTemplate(campaign.templateId);
-				if (!template) {
-					throw new Error("Шаблон письма не найден — возможно, был удалён");
-				}
-				const html = await renderCampaignTemplate(
-					template.templateKey,
-					template.fields,
-				);
-				if (!html) {
-					throw new Error(`Неизвестный тип шаблона: ${template.templateKey}`);
-				}
-
+				const html = await loadHtml();
 				const rusenderClient = createRusenderClient(
 					settings.apiKey,
 					settings.keyId,
 				);
 
-				const recipients = (
-					await listEmailCampaignRecipients(payload.campaignId)
-				).filter(
-					(r): r is typeof r & { email: string } =>
-						r.status === "pending" && !!r.email,
-				);
-				if (recipients.length === 0) {
-					throw new Error("Среди получателей некому отправлять");
-				}
+				await markEmailCampaignRunning(campaign.id);
+				const recipients = await loadPendingRecipients();
 
-				let sent = 0;
+				let sentNow = 0;
 				for (const r of recipients) {
-					try {
-						await rusenderClient.sendEmail({
-							email: r.email,
-							senderName: campaign.senderName ?? settings.senderName ?? "",
-							senderEmail: campaign.senderEmail,
-							subject: campaign.subject,
-							body: renderEmailTemplate(html, {
-								name: r.contactName,
+					const body = renderEmailTemplate(html, {
+						name: r.contactName,
+						email: r.email,
+						unsubscribeUrl: unsubscribeUrl(campaign.publicBaseUrl, r.id),
+					});
+					let lastError: unknown = null;
+					for (let attempt = 1; attempt <= RUSENDER_SEND_ATTEMPTS; attempt++) {
+						try {
+							const result = await rusenderClient.sendEmail({
 								email: r.email,
-							}),
-						});
-						await updateEmailCampaignRecipient(r.id, {
-							status: "sent",
-							error: null,
-						});
-						sent++;
-					} catch (err) {
+								senderName: campaign.senderName ?? settings.senderName ?? "",
+								senderEmail: campaign.senderEmail,
+								subject: campaign.subject,
+								body,
+							});
+							await updateEmailCampaignRecipient(r.id, {
+								status: "sent",
+								error: null,
+								providerMessageId: result.uuid,
+								sentAt: new Date(),
+							});
+							sentNow++;
+							lastError = null;
+							break;
+						} catch (err) {
+							lastError = err;
+							if (
+								attempt === RUSENDER_SEND_ATTEMPTS ||
+								!isRetryableSendError(err)
+							)
+								break;
+							await sleep(1000 * 3 ** (attempt - 1));
+						}
+					}
+					if (lastError) {
 						await updateEmailCampaignRecipient(r.id, {
 							status: "error",
-							error: (err as Error).message,
+							error: (lastError as Error).message,
 						});
 					}
+					await sleep(SEND_INTERVAL_MS);
 				}
 
-				if (sent === 0) {
+				const funnel = await getEmailCampaignFunnel(campaign.id);
+				if (funnel.sent === 0 && recipients.length > 0) {
 					throw new Error("Ни одно письмо не удалось отправить через Rusender");
 				}
 
 				await finishEmailCampaign(campaign.id, {
 					status: "done",
-					sentCount: sent,
+					sentCount: funnel.sent,
 				});
 
-				return { imported: sent, campaignId: null };
+				return { imported: sentNow, campaignId: null };
 			} catch (err) {
 				await finishEmailCampaign(campaign.id, {
 					status: "error",
@@ -147,31 +223,20 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 					"Unisender не настроен — укажите API-ключ на странице /settings/email",
 				);
 			}
-			const template = await getEmailTemplate(campaign.templateId);
-			if (!template) {
-				throw new Error("Шаблон письма не найден — возможно, был удалён");
-			}
-			const html = await renderCampaignTemplate(
-				template.templateKey,
-				template.fields,
-			);
-			if (!html) {
-				throw new Error(`Неизвестный тип шаблона: ${template.templateKey}`);
-			}
+			const html = await loadHtml();
 			const client = createUnisenderClient(settings.apiKey);
 
-			const recipients = (
-				await listEmailCampaignRecipients(payload.campaignId)
-			).filter(
-				(r): r is typeof r & { email: string } =>
-					r.status === "pending" && !!r.email,
-			);
+			const recipients = await loadPendingRecipients();
 			if (recipients.length === 0) {
 				throw new Error("Среди получателей некому отправлять");
 			}
 
+			const audienceTitle =
+				campaign.audience === "list"
+					? `Список: ${campaign.listName ?? campaign.listId}`
+					: `CRM: ${campaign.stageName ?? campaign.stageId}`;
 			const list = await client.createList(
-				`CRM: ${campaign.stageName ?? campaign.stageId} — ${new Date().toISOString()}`,
+				`${audienceTitle} — ${new Date().toISOString()}`,
 			);
 
 			let imported = 0;
@@ -183,9 +248,11 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 					listIds: [list.id],
 					doubleOptin: 0,
 				});
-				const invalidEmails = new Set(result.invalid_emails ?? []);
+				const invalidEmails = new Set(
+					(result.invalid_emails ?? []).map((e) => e.toLowerCase()),
+				);
 				for (const r of batch) {
-					const ok = !invalidEmails.has(r.email);
+					const ok = !invalidEmails.has(r.email.toLowerCase());
 					await updateEmailCampaignRecipient(r.id, {
 						status: ok ? "imported" : "error",
 						error: ok ? null : "Unisender отклонил email как невалидный",

@@ -24,6 +24,8 @@ import { broadcastRouter } from "./broadcast";
 import { costsRouter } from "./costs";
 import { emailRouter } from "./email";
 import { emailBroadcastRouter } from "./email-broadcast";
+import { emailCampaignsRouter } from "./email-campaigns";
+import { emailListsRouter } from "./email-lists";
 import { emailTemplatesRouter } from "./email-templates";
 import { guideCampaignsRouter } from "./guide-campaigns";
 import { maxPersonalRouter } from "./max-personal";
@@ -41,6 +43,8 @@ export {
 	broadcastRouter,
 	costsRouter,
 	emailBroadcastRouter,
+	emailCampaignsRouter,
+	emailListsRouter,
 	emailRouter,
 	emailTemplatesRouter,
 	guideCampaignsRouter,
@@ -60,6 +64,8 @@ export const appRouter = {
 	costs: costsRouter,
 	email: emailRouter,
 	emailBroadcast: emailBroadcastRouter,
+	emailCampaigns: emailCampaignsRouter,
+	emailLists: emailListsRouter,
 	emailTemplates: emailTemplatesRouter,
 	guideCampaigns: guideCampaignsRouter,
 	messages: messagesRouter,

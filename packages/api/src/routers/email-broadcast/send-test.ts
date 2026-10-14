@@ -1,11 +1,12 @@
 import { getEmailTemplate, renderEmailTemplate } from "@psi-opora/db/queries";
 import { renderCampaignTemplate } from "@psi-opora/emails";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
+import { isValidEmail, normalizeEmail } from "../../schemas/email-lists";
 import { sendTestEmailSchema } from "../../schemas/broadcast";
 import { getActiveEmailSender } from "./active-sender";
 
 /** Тестовая отправка письма шаблона на один адрес — минуя список/кампанию провайдера. */
-export const sendTest = publicProcedure
+export const sendTest = bitrixProcedure
 	.input(sendTestEmailSchema)
 	.handler(async ({ input }) => {
 		const template = await getEmailTemplate(input.templateId);
@@ -16,7 +17,9 @@ export const sendTest = publicProcedure
 
 		const subject = input.subject.trim();
 		if (!subject) return { ok: false, error: "Тема письма пуста" };
-		if (!input.email) return { ok: false, error: "У контакта нет email" };
+		const email = normalizeEmail(input.email);
+		if (!email) return { ok: false, error: "У контакта нет email" };
+		if (!isValidEmail(email)) return { ok: false, error: "Некорректный email" };
 
 		const html = await renderCampaignTemplate(
 			template.templateKey,
@@ -26,11 +29,15 @@ export const sendTest = publicProcedure
 
 		try {
 			await sender.sendEmail({
-				email: input.email,
+				email,
 				subject,
 				body: renderEmailTemplate(html, {
 					name: "Иван Иванов",
-					email: input.email,
+					email,
+					// sendEmail Unisender отклоняет письмо без ссылки отписки и
+					// подставляет только свой тег; у Rusender в тесте ссылка — заглушка.
+					unsubscribeUrl:
+						sender.provider === "unisender" ? "{{UnsubscribeUrl}}" : null,
 				}),
 			});
 			return { ok: true };

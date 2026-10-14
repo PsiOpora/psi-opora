@@ -88,6 +88,7 @@ export function RecipientsReport({
 		null,
 	);
 	const [, startTransition] = useTransition();
+	const isList = report.audience === "list";
 
 	const filtered = useMemo(() => {
 		const query = search.trim().toLowerCase();
@@ -96,7 +97,7 @@ export function RecipientsReport({
 			if (
 				query &&
 				!r.contactName.toLowerCase().includes(query) &&
-				!r.dealTitle.toLowerCase().includes(query) &&
+				!(r.dealTitle ?? "").toLowerCase().includes(query) &&
 				!(r.email ?? "").toLowerCase().includes(query)
 			) {
 				return false;
@@ -106,8 +107,7 @@ export function RecipientsReport({
 	}, [report.recipients, statusFilter, search]);
 
 	const selectableIds = useMemo(
-		() =>
-			filtered.filter((r) => r.status === "pending").map((r) => r.contactId),
+		() => filtered.filter((r) => r.status === "pending").map((r) => r.key),
 		[filtered],
 	);
 	const selectedInFilter = selectableIds.filter((id) => selectedIds.has(id));
@@ -126,8 +126,8 @@ export function RecipientsReport({
 
 	const confirmTest = () => {
 		if (!testCandidate?.email) return;
-		const { email, contactId } = testCandidate;
-		setTestingId(contactId);
+		const { email, key } = testCandidate;
+		setTestingId(key);
 		startTransition(async () => {
 			const toastId = toast.loading("Отправляем тестовое письмо…");
 			const result = await orpcClient.emailBroadcast.sendTest({
@@ -135,7 +135,7 @@ export function RecipientsReport({
 				templateId,
 				subject,
 			});
-			setTestResults((prev) => ({ ...prev, [contactId]: result }));
+			setTestResults((prev) => ({ ...prev, [key]: result }));
 			setTestingId(null);
 			if (result.ok) {
 				toast.success("Тест отправлен", { id: toastId });
@@ -152,8 +152,11 @@ export function RecipientsReport({
 					{report.dryRun ? "Предпросмотр получателей" : "Результат рассылки"}
 				</CardTitle>
 				<CardDescription>
-					Сделок на стадии: {report.totalDeals} · Получателей:{" "}
-					{report.recipients.length} · Без email или отписаны: {report.skipped}
+					{isList
+						? `Контактов в списке: ${report.totalDeals}`
+						: `Сделок на стадии: ${report.totalDeals}`}{" "}
+					· Получателей: {report.recipients.length} · Будут пропущены (нет
+					email, дубль или стоп-лист): {report.skipped}
 					{report.dryRun &&
 						" · Кнопка «Тест» отправляет письмо выбранного шаблона только выбранному контакту."}
 				</CardDescription>
@@ -161,7 +164,9 @@ export function RecipientsReport({
 			<CardContent className="flex flex-col gap-4">
 				{report.recipients.length === 0 ? (
 					<p className="text-sm text-muted-foreground">
-						На выбранной стадии нет сделок с привязанными контактами.
+						{isList
+							? "В списке нет контактов."
+							: "На выбранной стадии нет сделок с привязанными контактами."}
 					</p>
 				) : (
 					<>
@@ -172,7 +177,11 @@ export function RecipientsReport({
 									setSearch(e.target.value);
 									setPage(0);
 								}}
-								placeholder="Поиск по контакту, сделке или email…"
+								placeholder={
+									isList
+										? "Поиск по имени или email…"
+										: "Поиск по контакту, сделке или email…"
+								}
 							/>
 							<Select
 								value={statusFilter}
@@ -239,8 +248,8 @@ export function RecipientsReport({
 												/>
 											</TableHead>
 										)}
-										<TableHead>Контакт</TableHead>
-										<TableHead>Сделка</TableHead>
+										<TableHead>{isList ? "Имя" : "Контакт"}</TableHead>
+										{!isList && <TableHead>Сделка</TableHead>}
 										<TableHead>Email</TableHead>
 										<TableHead>Статус</TableHead>
 										{report.dryRun && <TableHead />}
@@ -249,23 +258,25 @@ export function RecipientsReport({
 								<TableBody>
 									{rows.map((r) => {
 										const badge = STATUS_BADGE[r.status];
-										const test = testResults[r.contactId];
+										const test = testResults[r.key];
 										return (
-											<TableRow key={r.contactId}>
+											<TableRow key={r.key}>
 												{report.dryRun && (
 													<TableCell>
 														<Checkbox
-															checked={selectedIds.has(r.contactId)}
+															checked={selectedIds.has(r.key)}
 															disabled={r.status !== "pending"}
-															onCheckedChange={() => onToggle(r.contactId)}
-															aria-label={`Выбрать ${r.contactName}`}
+															onCheckedChange={() => onToggle(r.key)}
+															aria-label={`Выбрать ${r.contactName || r.email}`}
 														/>
 													</TableCell>
 												)}
-												<TableCell>{r.contactName}</TableCell>
-												<TableCell className="text-muted-foreground">
-													{r.dealTitle}
-												</TableCell>
+												<TableCell>{r.contactName || "—"}</TableCell>
+												{!isList && (
+													<TableCell className="text-muted-foreground">
+														{r.dealTitle}
+													</TableCell>
+												)}
 												<TableCell>{r.email ?? "—"}</TableCell>
 												<TableCell>
 													<div className="flex flex-col gap-0.5">
@@ -289,9 +300,7 @@ export function RecipientsReport({
 																	}
 																	onClick={() => setTestCandidate(r)}
 																>
-																	{testingId === r.contactId
-																		? "Отправка…"
-																		: "Тест"}
+																	{testingId === r.key ? "Отправка…" : "Тест"}
 																</Button>
 																{test &&
 																	(test.ok ? (
@@ -357,10 +366,12 @@ export function RecipientsReport({
 						<AlertDialogHeader>
 							<AlertDialogTitle>Отправить тестовое письмо?</AlertDialogTitle>
 							<AlertDialogDescription>
-								Письмо по выбранному шаблону получит один контакт «
-								{testCandidate?.contactName}» на адрес {testCandidate?.email}.
-								Это реальное письмо реальному человеку — остальные получатели
-								ничего не получат.
+								Письмо по выбранному шаблону получит один контакт{" "}
+								{testCandidate?.contactName
+									? `«${testCandidate.contactName}» `
+									: ""}
+								на адрес {testCandidate?.email}. Это реальное письмо реальному
+								человеку — остальные получатели ничего не получат.
 							</AlertDialogDescription>
 						</AlertDialogHeader>
 						<AlertDialogFooter>
