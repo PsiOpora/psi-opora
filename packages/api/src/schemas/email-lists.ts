@@ -50,10 +50,15 @@ export const importEmailListContactsSchema = z.object({
 	source: z.enum(["csv", "manual"]),
 	contacts: z
 		.array(
-			z.object({
-				email: z.string().max(320),
-				name: z.string().max(300).optional(),
-			}),
+			z
+				.object({
+					email: z.string().max(320).optional(),
+					phone: z.string().max(64).optional(),
+					name: z.string().max(300).optional(),
+				})
+				.refine((c) => Boolean(c.email?.trim() || c.phone?.trim()), {
+					message: "Нужен email или телефон",
+				}),
 		)
 		.min(1)
 		.max(EMAIL_IMPORT_BATCH_SIZE),

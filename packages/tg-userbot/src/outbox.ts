@@ -84,6 +84,26 @@ export async function pushOutboundMessage(
 	);
 }
 
+/**
+ * Убирает ещё не взятую воркером задачу из очереди. true — задача снята и
+ * точно не будет отправлена; false — воркер уже забрал её (отправка могла
+ * произойти). Нужна массовой рассылке: не дождавшись ответа воркера, она
+ * переходит к следующему каналу, только если сообщение гарантированно не уйдёт.
+ */
+export async function cancelOutboundMessage(
+	message: OutboundMessage,
+): Promise<boolean> {
+	const redis = createRedisClient();
+	// pushOutboundMessage кладёт JSON-строку, обёртка Redis кодирует её ещё
+	// раз — здесь тот же двойной encode, чтобы LREM нашёл точное значение.
+	const removed = await redis.eval(
+		"return redis.call('LREM', KEYS[1], 1, ARGV[1])",
+		[outboxKey(message.memberId, message.openLineId, message.connectorId)],
+		[JSON.stringify(message)],
+	);
+	return Number(removed) > 0;
+}
+
 /** Забирает все накопившиеся сообщения для конкретного номера (неблокирующе). */
 export async function drainOutboundMessages(
 	memberId: string,
@@ -123,6 +143,22 @@ export async function getSendResult(jobId: string): Promise<SendResult | null> {
 const SEND_RESULT_POLL_INTERVAL_MS = 300;
 const SEND_RESULT_TIMEOUT_MS = 6000;
 
+/** Поллинг результата задачи воркера; null — не дождались за timeoutMs. */
+export async function waitForSendResult(
+	jobId: string,
+	timeoutMs: number,
+): Promise<SendResult | null> {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		const result = await getSendResult(jobId);
+		if (result) return result;
+		await new Promise((resolve) =>
+			setTimeout(resolve, SEND_RESULT_POLL_INTERVAL_MS),
+		);
+	}
+	return null;
+}
+
 /**
  * Ставит сообщение в очередь воркера и коротким поллингом ждёт результат —
  * для стейтлес-вызывающих (API дашборда, провайдер сообщений CRM в
@@ -133,13 +169,5 @@ export async function sendOutboundMessageAndWait(
 	message: OutboundMessage,
 ): Promise<SendResult | null> {
 	await pushOutboundMessage(message);
-	const deadline = Date.now() + SEND_RESULT_TIMEOUT_MS;
-	while (Date.now() < deadline) {
-		const result = await getSendResult(message.jobId);
-		if (result) return result;
-		await new Promise((resolve) =>
-			setTimeout(resolve, SEND_RESULT_POLL_INTERVAL_MS),
-		);
-	}
-	return null;
+	return waitForSendResult(message.jobId, SEND_RESULT_TIMEOUT_MS);
 }

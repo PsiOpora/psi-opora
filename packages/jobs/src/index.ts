@@ -65,9 +65,14 @@ export {
 	enqueueCrmBackup,
 	enqueueEmailCampaign,
 	enqueueEmailEvents,
+	enqueueOutreach,
 } from "./hatchet/enqueue";
 export { hourlyDrips } from "./hatchet/hourly-drips";
 export { maxWebhookHealthcheck } from "./hatchet/max-webhook-healthcheck";
+export {
+	type DeliverOutreachPayload,
+	deliverOutreach,
+} from "./hatchet/outreach";
 export { scenarioReminders } from "./hatchet/scenario-reminders";
 export { stageConsentOutbox } from "./hatchet/stage-consent";
 export { hatchetTasks, startHatchetWorker } from "./hatchet/worker";

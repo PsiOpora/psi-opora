@@ -7,9 +7,10 @@ import {
 	deleteEmailListContacts,
 	getEmailList,
 	hasActiveEmailCampaignForList,
+	hasActiveOutreachForList,
 	listAllEmailListContacts,
-	listEmailLists,
 	listEmailListContactsPage,
+	listEmailLists,
 	listEmailSuppressionsPage,
 	removeEmailSuppression,
 	updateEmailList,
@@ -28,6 +29,7 @@ import {
 	saveEmailListSchema,
 	updateEmailListSchema,
 } from "../../schemas/email-lists";
+import { normalizePhone } from "../../schemas/phone";
 
 async function requireList(id: string) {
 	const list = await getEmailList(id);
@@ -40,7 +42,16 @@ async function requireList(id: string) {
 export interface ImportContactsResult {
 	inserted: number;
 	updated: number;
-	/** Строки с некорректным адресом — показываются пользователю после импорта. */
+	/** Повторы внутри пачки, склеенные в один контакт. */
+	duplicates: number;
+	/**
+	 * Строки, противоречащие списку: у контакта уже другой телефон/email или
+	 * строка связывает два контакта с несовместимыми данными.
+	 */
+	conflicts: number;
+	/** Контакты-дубли (телефон у одного, email у другого), слитые в один. */
+	merged: number;
+	/** Некорректные адреса/телефоны — показываются пользователю после импорта. */
 	invalid: string[];
 }
 
@@ -74,7 +85,10 @@ export const emailListsRouter = router({
 	remove: bitrixProcedure
 		.input(emailListIdSchema)
 		.handler(async ({ input }) => {
-			if (await hasActiveEmailCampaignForList(input.id)) {
+			if (
+				(await hasActiveEmailCampaignForList(input.id)) ||
+				(await hasActiveOutreachForList(input.id))
+			) {
 				throw new ORPCError("CONFLICT", {
 					message:
 						"По списку идёт рассылка — дождитесь её завершения перед удалением",
@@ -97,30 +111,39 @@ export const emailListsRouter = router({
 		),
 
 	/**
-	 * Добавляет пачку контактов (до EMAIL_IMPORT_BATCH_SIZE). Файл разбирается
-	 * в браузере, но адреса повторно нормализуются и проверяются здесь —
-	 * клиенту не доверяем.
+	 * Добавляет пачку контактов (до EMAIL_IMPORT_BATCH_SIZE) без дублей: по
+	 * телефону и email контакт в списке уникален, совпавшие строки дополняют
+	 * существующий контакт. Файл разбирается в браузере, но адреса и телефоны
+	 * повторно нормализуются и проверяются здесь — клиенту не доверяем.
 	 */
 	importContacts: bitrixProcedure
 		.input(importEmailListContactsSchema)
 		.handler(async ({ input }): Promise<ImportContactsResult> => {
 			await requireList(input.listId);
-			const valid: Array<{ email: string; name?: string }> = [];
+			const valid: Array<{ email?: string; phone?: string; name?: string }> =
+				[];
 			const invalid: string[] = [];
 			for (const contact of input.contacts) {
-				const email = normalizeEmail(contact.email);
-				if (isValidEmail(email)) {
-					valid.push({ email, name: contact.name?.trim() || undefined });
-				} else {
-					invalid.push(contact.email);
-				}
+				const rawEmail = contact.email?.trim() ?? "";
+				const rawPhone = contact.phone?.trim() ?? "";
+				const email = rawEmail ? normalizeEmail(rawEmail) : "";
+				const phone = rawPhone ? normalizePhone(rawPhone) : null;
+				const emailOk = Boolean(email) && isValidEmail(email);
+				if (rawEmail && !emailOk) invalid.push(rawEmail);
+				if (rawPhone && !phone) invalid.push(rawPhone);
+				if (!emailOk && !phone) continue;
+				valid.push({
+					...(emailOk ? { email } : {}),
+					...(phone ? { phone } : {}),
+					name: contact.name?.trim() || undefined,
+				});
 			}
-			const { inserted, updated } = await addEmailListContacts(
+			const result = await addEmailListContacts(
 				input.listId,
 				valid,
 				input.source,
 			);
-			return { inserted, updated, invalid };
+			return { ...result, invalid };
 		}),
 
 	removeContacts: bitrixProcedure
@@ -138,6 +161,7 @@ export const emailListsRouter = router({
 			const rows = await listAllEmailListContacts(input.id);
 			return rows.map((r) => ({
 				email: r.email,
+				phone: r.phone,
 				name: r.name,
 				createdAt: r.createdAt,
 				suppressionReason: r.suppressionReason,

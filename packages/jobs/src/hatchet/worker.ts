@@ -10,12 +10,14 @@ import { deliverEmailCampaign, pollEmailCampaigns } from "./email-campaign";
 import { ingestEmailEvents } from "./email-events";
 import { hourlyDrips } from "./hourly-drips";
 import { maxWebhookHealthcheck } from "./max-webhook-healthcheck";
+import { deliverOutreach } from "./outreach";
 import { scenarioReminders } from "./scenario-reminders";
 import { stageConsentOutbox } from "./stage-consent";
 
 export const hatchetTasks = [
 	deliverBroadcast,
 	deliverEmailCampaign,
+	deliverOutreach,
 	ingestEmailEvents,
 	crmBackup,
 	crmBackupSchedule,

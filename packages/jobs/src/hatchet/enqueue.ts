@@ -1,5 +1,5 @@
-import { getHatchetClient } from "./client";
 import { type DeliverBroadcastPayload, deliverBroadcast } from "./broadcast";
+import { getHatchetClient } from "./client";
 import { type CrmBackupPayload, crmBackup } from "./crm-backup";
 import {
 	type DeliverEmailCampaignPayload,
@@ -9,6 +9,7 @@ import {
 	type IngestEmailEventsPayload,
 	ingestEmailEvents,
 } from "./email-events";
+import { type DeliverOutreachPayload, deliverOutreach } from "./outreach";
 
 export interface EnqueuedRun {
 	id: string;
@@ -33,6 +34,12 @@ export function enqueueEmailCampaign(
 	return toEnqueuedRun(
 		getHatchetClient().runNoWait(deliverEmailCampaign, payload),
 	);
+}
+
+export function enqueueOutreach(
+	payload: DeliverOutreachPayload,
+): Promise<EnqueuedRun> {
+	return toEnqueuedRun(getHatchetClient().runNoWait(deliverOutreach, payload));
 }
 
 export function enqueueEmailEvents(

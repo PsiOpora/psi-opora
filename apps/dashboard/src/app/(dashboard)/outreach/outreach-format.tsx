@@ -1,0 +1,86 @@
+import { Badge } from "@/components/ui/badge";
+
+export const CHANNEL_LABELS: Record<string, string> = {
+	max: "MAX",
+	telegram: "Telegram",
+	whatsapp: "WhatsApp",
+	email: "Email",
+};
+
+export function OutreachStatusBadge({ status }: { status: string }) {
+	if (status === "done") return <Badge variant="default">Завершена</Badge>;
+	if (status === "error") return <Badge variant="destructive">Ошибка</Badge>;
+	if (status === "cancelled") return <Badge variant="outline">Отменена</Badge>;
+	if (status === "queued") return <Badge variant="secondary">В очереди</Badge>;
+	return <Badge variant="secondary">Отправляется</Badge>;
+}
+
+/** Итог по получателю: куда ушло или почему не ушло. */
+export function RecipientOutcomeBadge({
+	status,
+	channel,
+}: {
+	status: string;
+	channel: string | null;
+}) {
+	switch (status) {
+		case "sent":
+			return (
+				<Badge
+					variant="outline"
+					className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400"
+				>
+					{CHANNEL_LABELS[channel ?? ""] ?? channel}
+				</Badge>
+			);
+		case "email":
+			return (
+				<Badge
+					variant="outline"
+					className="border-sky-500/50 text-sky-700 dark:text-sky-400"
+				>
+					Email
+				</Badge>
+			);
+		case "email_pending":
+			return <Badge variant="secondary">Ждёт отправки email</Badge>;
+		case "pending":
+			return <Badge variant="secondary">В очереди</Badge>;
+		case "sending":
+			return <Badge variant="secondary">Отправляется…</Badge>;
+		case "failed":
+			return <Badge variant="destructive">Не доставлено</Badge>;
+		case "unknown":
+			return (
+				<Badge
+					variant="outline"
+					className="border-amber-500/50 text-amber-700 dark:text-amber-400"
+				>
+					Не подтверждено
+				</Badge>
+			);
+		case "skipped":
+			return <Badge variant="outline">Пропущен</Badge>;
+		default:
+			return <Badge variant="outline">{status}</Badge>;
+	}
+}
+
+/** «MAX ✗ → Telegram ✓» — цепочка попыток по каналам. */
+export function formatAttempts(
+	attempts: Array<{ channel: string; ok: boolean }>,
+): string {
+	return attempts
+		.map((a) => `${CHANNEL_LABELS[a.channel] ?? a.channel} ${a.ok ? "✓" : "✗"}`)
+		.join(" → ");
+}
+
+/** Оценка длительности: пауза × число сообщений в мессенджеры. */
+export function formatDuration(totalSec: number): string {
+	if (totalSec < 60) return `${Math.max(1, Math.round(totalSec))} с`;
+	const minutes = Math.round(totalSec / 60);
+	if (minutes < 60) return `~${minutes} мин`;
+	const hours = Math.floor(minutes / 60);
+	const rest = minutes % 60;
+	return rest ? `~${hours} ч ${rest} мин` : `~${hours} ч`;
+}

@@ -43,7 +43,6 @@ export {
 	handleEmailImageUpload,
 	parseEmailImageFileName,
 } from "./email-image-storage";
-export type { ImportContactsResult } from "./routers/email-lists";
 export {
 	type GuideUploadResult,
 	getGuidePdfStream,
@@ -67,6 +66,7 @@ export type {
 	EmailCampaignActionResult,
 	RecentEmailCampaignInfo,
 } from "./routers/email-broadcast";
+export type { ImportContactsResult } from "./routers/email-lists";
 export type {
 	CampaignTemplateFieldDef,
 	CampaignTemplateSummary,
@@ -91,6 +91,11 @@ export type {
 	QuickReplyItem,
 	SetClientPhoneResult,
 } from "./routers/messages";
+export type {
+	OutreachAccountOption,
+	OutreachOptions,
+	OutreachPreview,
+} from "./routers/outreach";
 export type { TelegramPersonalAccountView } from "./routers/telegram-personal";
 export type { WhatsappPersonalAccountView } from "./routers/whatsapp-personal";
 export type {

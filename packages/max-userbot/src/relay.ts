@@ -118,6 +118,14 @@ function dispatchPush(
 	}
 }
 
+/** ID собственного аккаунта из ответа LOGIN (profile.contact.id), по клиенту. */
+const selfUserIds = new WeakMap<MaxProtocolClient, string>();
+
+/** ID своего аккаунта MAX; null — LOGIN не вернул профиль. */
+export function getUserbotSelfId(client: MaxProtocolClient): string | null {
+	return selfUserIds.get(client) ?? null;
+}
+
 /**
  * Открывает постоянное соединение и реконнектится на сохранённой сессии.
  * `sessionJson` — то, что было сохранено в БД (расшифрованный `session` из
@@ -155,6 +163,11 @@ export async function createUserbotClient(
 				`MAX отклонил вход по сохранённой сессии: ${loginResponse.error}`,
 			);
 		}
+		// Ответ LOGIN несёт профиль своего аккаунта (так его читает PyMax:
+		// `self.me = login_response.profile`, id — profile.contact.id) — он
+		// нужен, чтобы вычислить ID личного чата при «написать первым».
+		const selfId = asId(asRecord(asRecord(loginResponse.profile)?.contact)?.id);
+		if (selfId) selfUserIds.set(client, selfId);
 	} catch (error) {
 		client.close();
 		throw error;
@@ -773,8 +786,8 @@ export interface MaxContact {
  * доступных разборах протокола НЕТ (CHAT_CREATE=63 в PronikFire/Max-API-Guide
  * помечен `~`, т.е. не подтверждён исходниками) — поэтому «написать первым»
  * для MAX (в отличие от Telegram) пока нельзя довести до конца через этот
- * пакет: нужен либо подтверждённый CHAT_CREATE, либо chatId уже существующего
- * диалога. Известное ограничение, см. README «Известные ограничения».
+ * пакет напрямую — ID личного чата вычисляется из пары userId, см.
+ * resolveDialogChatId ниже.
  */
 export async function resolveClientPhoneNumber(
 	client: MaxProtocolClient,
@@ -791,6 +804,34 @@ export async function resolveClientPhoneNumber(
 		);
 	}
 	return { userId, raw: contact };
+}
+
+/**
+ * ID личного чата двух пользователей MAX — XOR их userId. Сервер не создаёт
+ * такой чат отдельным запросом: он адресуется этим вычисленным ID сразу
+ * (так делает PyMax, `UsersService.get_chat_id`: `first ^ second`).
+ */
+export function dialogChatId(selfUserId: string, peerUserId: string): string {
+	return (BigInt(selfUserId) ^ BigInt(peerUserId)).toString();
+}
+
+/**
+ * «Написать первым» по телефону: CONTACT_INFO_BY_PHONE → userId контакта →
+ * ID личного чата (dialogChatId). Бросает, если номера нет в MAX или клиент
+ * не знает собственного userId.
+ */
+export async function resolveDialogChatId(
+	client: MaxProtocolClient,
+	phone: string,
+): Promise<string> {
+	const selfId = getUserbotSelfId(client);
+	if (!selfId) {
+		throw new Error(
+			"MAX не вернул профиль аккаунта при входе — ID личного чата не вычислить",
+		);
+	}
+	const contact = await resolveClientPhoneNumber(client, phone);
+	return dialogChatId(selfId, contact.userId);
 }
 
 // ============================================================================

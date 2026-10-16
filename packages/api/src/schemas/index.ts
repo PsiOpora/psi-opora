@@ -92,6 +92,17 @@ export {
 	sendClientMessageSchema,
 } from "./messages";
 export {
+	OUTREACH_DEFAULT_INTERVAL_SEC,
+	OUTREACH_MAX_INTERVAL_SEC,
+	OUTREACH_MIN_INTERVAL_SEC,
+	OUTREACH_RECIPIENT_FILTER_VALUES,
+	outreachIdSchema,
+	outreachPreviewSchema,
+	outreachRecipientsQuerySchema,
+	type SendOutreachInput,
+	sendOutreachSchema,
+} from "./outreach";
+export {
 	extractPhones,
 	formatPhone,
 	normalizePhone,
@@ -130,9 +141,9 @@ export {
 	startWhatsappLoginSchema,
 } from "./whatsapp-personal";
 export {
+	updateYandexMetrikaStageGoalSchema,
 	type YandexMetrikaSettingsInput,
 	type YandexMetrikaStageGoalInput,
-	updateYandexMetrikaStageGoalSchema,
 	yandexMetrikaSettingsSchema,
 	yandexMetrikaStageGoalIdSchema,
 	yandexMetrikaStageGoalSchema,

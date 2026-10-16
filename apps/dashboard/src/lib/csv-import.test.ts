@@ -77,6 +77,7 @@ describe("guessColumns", () => {
 		expect(guessColumns(rows)).toEqual({
 			hasHeader: true,
 			emailColumn: 2,
+			phoneColumn: 1,
 			nameColumn: 0,
 		});
 	});
@@ -86,7 +87,49 @@ describe("guessColumns", () => {
 		expect(guessColumns(rows)).toEqual({
 			hasHeader: false,
 			emailColumn: 1,
+			phoneColumn: null,
 			nameColumn: null,
+		});
+	});
+
+	test("только телефоны — колонка телефона по содержимому", () => {
+		const rows = parseCsv(
+			"Имя;Контакт\nИван;8 999 123-45-67\nПётр;+79990000002",
+			";",
+		);
+		expect(guessColumns(rows)).toEqual({
+			hasHeader: true,
+			emailColumn: null,
+			phoneColumn: 1,
+			nameColumn: 0,
+		});
+	});
+});
+
+describe("extractContacts с телефонами", () => {
+	test("нормализует телефон, отбрасывает полные повторы, частичные отдаёт серверу", () => {
+		const rows = [
+			["Иван", "8 (999) 123-45-67", "ivan@mail.ru"],
+			["Иван", "+7 999 123 45 67", "ivan@mail.ru"],
+			["Иван", "79991234567", "ivan2@mail.ru"],
+			["Без почты", "+79990000002", ""],
+			["Плохой", "123", ""],
+		];
+		expect(
+			extractContacts(rows, {
+				hasHeader: false,
+				emailColumn: 2,
+				phoneColumn: 1,
+				nameColumn: 0,
+			}),
+		).toEqual({
+			contacts: [
+				{ email: "ivan@mail.ru", phone: "+79991234567", name: "Иван" },
+				{ email: "ivan2@mail.ru", phone: "+79991234567", name: "Иван" },
+				{ phone: "+79990000002", name: "Без почты" },
+			],
+			invalid: ["123"],
+			duplicates: 1,
 		});
 	});
 });
@@ -115,6 +158,16 @@ describe("extractContacts", () => {
 });
 
 describe("extractContactsFromText", () => {
+	test("телефон и email в одной строке — один контакт", () => {
+		const result = extractContactsFromText(
+			"Анна Иванова; +7 999 123-45-67; anna@mail.ru\n8 900 000 00 01",
+		);
+		expect(result.contacts).toEqual([
+			{ email: "anna@mail.ru", phone: "+79991234567", name: "Анна Иванова" },
+			{ phone: "+79000000001" },
+		]);
+	});
+
 	test("разные форматы строк", () => {
 		const result = extractContactsFromText(
 			[

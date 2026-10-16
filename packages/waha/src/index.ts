@@ -504,6 +504,30 @@ export function wahaAckToStatus(payload: {
 	return null;
 }
 
+/**
+ * Есть ли у номера аккаунт WhatsApp (`GET /api/contacts/check-exists`).
+ * Без этой проверки sendText на номер без WhatsApp «успешно» уходит в
+ * никуда — массовая рассылка не узнала бы, что пора переходить к email.
+ * chatId — jid, который вернул WhatsApp (у части номеров он отличается от
+ * собранного из цифр, например у бразильских с девятой цифрой).
+ */
+export async function wahaCheckNumberExists(
+	session: string,
+	phone: string,
+): Promise<{ exists: boolean; chatId: string | null }> {
+	const params = new URLSearchParams({
+		phone: phone.replace(/\D/g, ""),
+		session,
+	});
+	const res = await wahaFetch<
+		{ numberExists?: boolean; chatId?: string | null } | undefined
+	>(`/api/contacts/check-exists?${params}`);
+	return {
+		exists: res?.numberExists === true,
+		chatId: res?.chatId ?? null,
+	};
+}
+
 /** "79991234567@c.us" → "+79991234567"; для не-личных jid (группы) — null. */
 export function phoneFromJid(jid: string): string | null {
 	const match = /^(\d{5,15})@c\.us$/.exec(jid);

@@ -19,6 +19,7 @@ export {
 export {
 	ackMaxOutboundMessage,
 	type ClaimedMaxOutboundMessage,
+	cancelMaxOutboundMessage,
 	claimMaxOutboundMessage,
 	getMaxSendResult,
 	type MaxOutboundMessage,
@@ -47,11 +48,14 @@ export { OPCODE } from "./protocol/opcodes";
 export {
 	createUserbotClient,
 	deleteUserbotMessage,
+	dialogChatId,
+	getUserbotSelfId,
 	type MaxContact,
 	type MaxIncomingMessage,
 	type MaxPresenceEvent,
 	type MaxTypingEvent,
 	type MaxUserbotHandlers,
 	resolveClientPhoneNumber,
+	resolveDialogChatId,
 	sendUserbotMessage,
 } from "./relay";
