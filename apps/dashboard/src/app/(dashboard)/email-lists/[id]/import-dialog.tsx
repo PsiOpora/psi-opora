@@ -69,6 +69,7 @@ interface ParsedFile {
 	rows: string[][];
 	hasHeader: boolean;
 	emailColumn: number | null;
+	phoneColumn: number | null;
 	nameColumn: number | null;
 }
 
@@ -81,6 +82,7 @@ type Stage =
 			updated: number;
 			invalid: string[];
 			duplicates: number;
+			conflicts: number;
 			failedBatches: number;
 	  };
 
@@ -157,10 +159,12 @@ export function ImportDialog({
 		if (mode === "text") {
 			return pasted.trim() ? extractContactsFromText(pasted) : null;
 		}
-		if (!file || file.emailColumn === null) return null;
+		if (!file || (file.emailColumn === null && file.phoneColumn === null))
+			return null;
 		return extractContacts(file.rows, {
 			hasHeader: file.hasHeader,
 			emailColumn: file.emailColumn,
+			phoneColumn: file.phoneColumn,
 			nameColumn: file.nameColumn,
 		});
 	}, [mode, pasted, file]);
@@ -185,6 +189,8 @@ export function ImportDialog({
 
 		let inserted = 0;
 		let updated = 0;
+		let duplicates = extraction.duplicates;
+		let conflicts = 0;
 		let failedBatches = 0;
 		const invalid = [...extraction.invalid];
 		setStage({ kind: "importing", done: 0, total: contacts.length });
@@ -200,6 +206,8 @@ export function ImportDialog({
 				});
 				inserted += result.inserted;
 				updated += result.updated;
+				duplicates += result.duplicates;
+				conflicts += result.conflicts;
 				invalid.push(...result.invalid);
 			} catch (err) {
 				failedBatches++;
@@ -217,7 +225,8 @@ export function ImportDialog({
 			inserted,
 			updated,
 			invalid,
-			duplicates: extraction.duplicates,
+			duplicates,
+			conflicts,
 			failedBatches,
 		});
 	};
@@ -243,9 +252,9 @@ export function ImportDialog({
 				<DialogHeader>
 					<DialogTitle>Импорт в «{listName}»</DialogTitle>
 					<DialogDescription>
-						Адреса, которые уже есть в списке, не задублируются — у них
-						обновится имя. Некорректные адреса и повторы внутри файла будут
-						пропущены.
+						Дублей не будет: контакт, чей телефон или email уже есть в списке,
+						дополнится новыми данными (имя, недостающий телефон или email).
+						Некорректные значения и повторы внутри файла пропускаются.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -283,11 +292,17 @@ export function ImportDialog({
 								{stage.updated.toLocaleString("ru-RU")}
 							</li>
 							{stage.duplicates > 0 && (
-								<li>Повторы внутри файла пропущены: {stage.duplicates}</li>
+								<li>Повторы внутри файла склеены: {stage.duplicates}</li>
+							)}
+							{stage.conflicts > 0 && (
+								<li>
+									Противоречат списку (телефон у одного контакта, email у
+									другого) — не изменены: {stage.conflicts}
+								</li>
 							)}
 							{stage.invalid.length > 0 && (
 								<li className="text-destructive">
-									Некорректных адресов пропущено: {stage.invalid.length}
+									Некорректных значений пропущено: {stage.invalid.length}
 								</li>
 							)}
 							{stage.failedBatches > 0 && (
@@ -304,7 +319,7 @@ export function ImportDialog({
 									size="sm"
 									onClick={() =>
 										downloadCsv(
-											"invalid-emails.csv",
+											"invalid-contacts.csv",
 											["Значение"],
 											stage.invalid.map((v) => [v]),
 										)
@@ -378,7 +393,7 @@ export function ImportDialog({
 
 								{file && (
 									<>
-										<div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+										<div className="grid grid-cols-1 gap-3 md:grid-cols-4">
 											<div className="flex flex-col gap-1.5">
 												<Label className="text-xs text-muted-foreground">
 													Колонка с email
@@ -386,17 +401,53 @@ export function ImportDialog({
 												<Select
 													value={
 														file.emailColumn === null
-															? ""
+															? NO_COLUMN
 															: String(file.emailColumn)
 													}
 													onValueChange={(v) =>
-														setFile({ ...file, emailColumn: Number(v) })
+														setFile({
+															...file,
+															emailColumn: v === NO_COLUMN ? null : Number(v),
+														})
 													}
 												>
 													<SelectTrigger className="w-full">
-														<SelectValue placeholder="Выберите колонку" />
+														<SelectValue />
 													</SelectTrigger>
 													<SelectContent>
+														<SelectItem value={NO_COLUMN}>Без email</SelectItem>
+														{columnIndexes.map((i) => (
+															<SelectItem key={i} value={String(i)}>
+																{columnLabel(file, i)}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+											<div className="flex flex-col gap-1.5">
+												<Label className="text-xs text-muted-foreground">
+													Колонка с телефоном
+												</Label>
+												<Select
+													value={
+														file.phoneColumn === null
+															? NO_COLUMN
+															: String(file.phoneColumn)
+													}
+													onValueChange={(v) =>
+														setFile({
+															...file,
+															phoneColumn: v === NO_COLUMN ? null : Number(v),
+														})
+													}
+												>
+													<SelectTrigger className="w-full">
+														<SelectValue />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value={NO_COLUMN}>
+															Без телефона
+														</SelectItem>
 														{columnIndexes.map((i) => (
 															<SelectItem key={i} value={String(i)}>
 																{columnLabel(file, i)}
@@ -484,12 +535,15 @@ export function ImportDialog({
 																	"whitespace-nowrap",
 																	i === file.emailColumn &&
 																		"bg-sky-50 text-sky-900 dark:bg-sky-950 dark:text-sky-100",
+																	i === file.phoneColumn &&
+																		"bg-violet-50 text-violet-900 dark:bg-violet-950 dark:text-violet-100",
 																	i === file.nameColumn &&
 																		"bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100",
 																)}
 															>
 																{columnLabel(file, i)}
 																{i === file.emailColumn && " · email"}
+																{i === file.phoneColumn && " · телефон"}
 																{i === file.nameColumn && " · имя"}
 															</TableHead>
 														))}
@@ -521,13 +575,14 @@ export function ImportDialog({
 									value={pasted}
 									onChange={(e) => setPasted(e.target.value)}
 									placeholder={
-										"ivan@mail.ru\nПётр Петров <petr@mail.ru>\nanna@mail.ru, Анна"
+										"ivan@mail.ru\nПётр Петров <petr@mail.ru>\nАнна; +7 999 123-45-67; anna@mail.ru\n8 900 000-00-01"
 									}
 									className="min-h-48 font-mono text-xs"
 								/>
 								<p className="text-xs text-muted-foreground">
-									По одному контакту в строке: адрес, «адрес, Имя» или «Имя
-									&lt;адрес&gt;». Можно вставить колонку прямо из таблицы.
+									По одному контакту в строке: email, телефон или оба сразу, имя
+									— любым оставшимся текстом («Имя; телефон; адрес», «Имя
+									&lt;адрес&gt;»). Можно вставить колонки прямо из таблицы.
 								</p>
 							</TabsContent>
 						</Tabs>
@@ -536,7 +591,7 @@ export function ImportDialog({
 							<div className="rounded-md bg-muted/50 p-3 text-sm">
 								К загрузке:{" "}
 								<b>{extraction.contacts.length.toLocaleString("ru-RU")}</b>{" "}
-								адресов
+								контактов
 								{extraction.duplicates > 0 &&
 									` · повторов в файле: ${extraction.duplicates}`}
 								{extraction.invalid.length > 0 && (

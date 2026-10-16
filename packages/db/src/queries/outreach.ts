@@ -1,0 +1,483 @@
+import {
+	and,
+	asc,
+	count,
+	desc,
+	eq,
+	ilike,
+	inArray,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
+import { db } from "../client";
+import { emailCampaignRecipients } from "../schema/email-campaign";
+import {
+	type OutreachAttempt,
+	type OutreachChannel,
+	outreachCampaigns,
+	outreachRecipients,
+} from "../schema/outreach";
+
+export type OutreachCampaign = typeof outreachCampaigns.$inferSelect;
+export type NewOutreachCampaign = typeof outreachCampaigns.$inferInsert;
+export type OutreachRecipient = typeof outreachRecipients.$inferSelect;
+export type NewOutreachRecipient = typeof outreachRecipients.$inferInsert;
+export type {
+	OutreachAccountRef,
+	OutreachAccounts,
+	OutreachAttempt,
+	OutreachChannel,
+} from "../schema/outreach";
+
+/**
+ * Статусы получателя:
+ * - pending — ждёт отправки;
+ * - sending — идёт попытка (если задачу прервали, становится unknown);
+ * - sent — ушло в мессенджер (channel);
+ * - email_pending — мессенджеры не сработали, ждёт email-фазы;
+ * - email — передано в email-кампанию (статус письма — в emailRecipientId);
+ * - failed — не удалось ни одним каналом;
+ * - skipped — не отправлялось (рассылку отменили);
+ * - unknown — воркер личного номера мог отправить, но не подтвердил.
+ */
+export type OutreachRecipientStatus =
+	| "pending"
+	| "sending"
+	| "sent"
+	| "email_pending"
+	| "email"
+	| "failed"
+	| "skipped"
+	| "unknown";
+
+export type OutreachCampaignStatus =
+	| "queued"
+	| "running"
+	| "done"
+	| "error"
+	| "cancelled";
+
+export async function createOutreachCampaign(
+	data: Omit<NewOutreachCampaign, "status" | "createdAt">,
+): Promise<void> {
+	if (!db) return;
+	await db.insert(outreachCampaigns).values({ ...data, status: "queued" });
+}
+
+export async function insertOutreachRecipients(
+	rows: NewOutreachRecipient[],
+): Promise<void> {
+	if (!db || rows.length === 0) return;
+	// Пачками — у Postgres лимит на число параметров в одном запросе.
+	for (let i = 0; i < rows.length; i += 1000) {
+		await db.insert(outreachRecipients).values(rows.slice(i, i + 1000));
+	}
+}
+
+export async function getOutreachCampaign(
+	id: string,
+): Promise<OutreachCampaign | null> {
+	if (!db) return null;
+	const [row] = await db
+		.select()
+		.from(outreachCampaigns)
+		.where(eq(outreachCampaigns.id, id))
+		.limit(1);
+	return row ?? null;
+}
+
+export async function markOutreachCampaignRunning(id: string): Promise<void> {
+	if (!db) return;
+	await db
+		.update(outreachCampaigns)
+		.set({
+			status: "running",
+			startedAt: sql`coalesce(${outreachCampaigns.startedAt}, now())`,
+		})
+		.where(
+			and(
+				eq(outreachCampaigns.id, id),
+				inArray(outreachCampaigns.status, ["queued", "running"]),
+			),
+		);
+}
+
+export async function finishOutreachCampaign(
+	id: string,
+	data: { status: "done" | "error"; error?: string | null },
+): Promise<void> {
+	if (!db) return;
+	await db
+		.update(outreachCampaigns)
+		.set({ ...data, finishedAt: new Date() })
+		// Отменённую рассылку задача не «завершает» обратно в done.
+		.where(
+			and(
+				eq(outreachCampaigns.id, id),
+				inArray(outreachCampaigns.status, ["queued", "running"]),
+			),
+		);
+}
+
+export async function setOutreachEmailCampaign(
+	id: string,
+	emailCampaignId: string,
+): Promise<void> {
+	if (!db) return;
+	await db
+		.update(outreachCampaigns)
+		.set({ emailCampaignId })
+		.where(eq(outreachCampaigns.id, id));
+}
+
+/**
+ * Отмена: незапущенные получатели помечаются skipped, задача увидит статус
+ * cancelled перед следующей отправкой и остановится. Возвращает false, если
+ * рассылка уже завершена.
+ */
+export async function cancelOutreachCampaign(id: string): Promise<boolean> {
+	if (!db) return false;
+	const rows = await db
+		.update(outreachCampaigns)
+		.set({ status: "cancelled", finishedAt: new Date() })
+		.where(
+			and(
+				eq(outreachCampaigns.id, id),
+				inArray(outreachCampaigns.status, ["queued", "running"]),
+			),
+		)
+		.returning({ id: outreachCampaigns.id });
+	if (rows.length === 0) return false;
+	await db
+		.update(outreachRecipients)
+		.set({
+			status: "skipped",
+			error: "Рассылка отменена",
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(outreachRecipients.campaignId, id),
+				inArray(outreachRecipients.status, ["pending", "email_pending"]),
+			),
+		);
+	return true;
+}
+
+/** Идёт ли по списку незавершённая рассылка — такой список удалять нельзя. */
+export async function hasActiveOutreachForList(
+	listId: string,
+): Promise<boolean> {
+	if (!db) return false;
+	const rows = await db
+		.select({ id: outreachCampaigns.id })
+		.from(outreachCampaigns)
+		.where(
+			and(
+				eq(outreachCampaigns.listId, listId),
+				inArray(outreachCampaigns.status, ["queued", "running"]),
+			),
+		)
+		.limit(1);
+	return rows.length > 0;
+}
+
+export async function listOutreachRecipientsByStatus(
+	campaignId: string,
+	status: OutreachRecipientStatus,
+	limit = 1000,
+): Promise<OutreachRecipient[]> {
+	if (!db) return [];
+	return db
+		.select()
+		.from(outreachRecipients)
+		.where(
+			and(
+				eq(outreachRecipients.campaignId, campaignId),
+				eq(outreachRecipients.status, status),
+			),
+		)
+		.orderBy(asc(outreachRecipients.id))
+		.limit(limit);
+}
+
+export async function updateOutreachRecipient(
+	id: string,
+	data: {
+		status: OutreachRecipientStatus;
+		channel?: OutreachChannel | null;
+		attempts?: OutreachAttempt[];
+		externalId?: string | null;
+		emailRecipientId?: string | null;
+		error?: string | null;
+		sentAt?: Date | null;
+	},
+): Promise<void> {
+	if (!db) return;
+	await db
+		.update(outreachRecipients)
+		.set({ ...data, updatedAt: new Date() })
+		.where(eq(outreachRecipients.id, id));
+}
+
+/**
+ * Получатели, на которых прервалась прошлая задача (рестарт воркера, таймаут):
+ * доставка не подтверждена, но и не исключена — повторно не шлём, чтобы не
+ * задублить, а честно показываем «статус неизвестен».
+ */
+export async function markInterruptedOutreachRecipients(
+	campaignId: string,
+): Promise<number> {
+	if (!db) return 0;
+	const rows = await db
+		.update(outreachRecipients)
+		.set({
+			status: "unknown",
+			error: "Отправка прервана — доставка не подтверждена",
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(outreachRecipients.campaignId, campaignId),
+				eq(outreachRecipients.status, "sending"),
+			),
+		)
+		.returning({ id: outreachRecipients.id });
+	return rows.length;
+}
+
+export interface OutreachStats {
+	total: number;
+	pending: number;
+	sentMax: number;
+	sentTelegram: number;
+	sentWhatsapp: number;
+	/** Переданы в email (включая ожидающих email-фазы). */
+	email: number;
+	failed: number;
+	skipped: number;
+	unknown: number;
+}
+
+const EMPTY_STATS: OutreachStats = {
+	total: 0,
+	pending: 0,
+	sentMax: 0,
+	sentTelegram: 0,
+	sentWhatsapp: 0,
+	email: 0,
+	failed: 0,
+	skipped: 0,
+	unknown: 0,
+};
+
+function toStats(
+	rows: Array<{ status: string; channel: string | null; total: number }>,
+): OutreachStats {
+	const stats = { ...EMPTY_STATS };
+	for (const row of rows) {
+		const n = Number(row.total);
+		stats.total += n;
+		switch (row.status) {
+			case "pending":
+			case "sending":
+				stats.pending += n;
+				break;
+			case "sent":
+				if (row.channel === "max") stats.sentMax += n;
+				else if (row.channel === "telegram") stats.sentTelegram += n;
+				else if (row.channel === "whatsapp") stats.sentWhatsapp += n;
+				break;
+			case "email":
+			case "email_pending":
+				stats.email += n;
+				break;
+			case "failed":
+				stats.failed += n;
+				break;
+			case "skipped":
+				stats.skipped += n;
+				break;
+			case "unknown":
+				stats.unknown += n;
+				break;
+		}
+	}
+	return stats;
+}
+
+export async function getOutreachStats(
+	campaignId: string,
+): Promise<OutreachStats> {
+	if (!db) return { ...EMPTY_STATS };
+	const rows = await db
+		.select({
+			status: outreachRecipients.status,
+			channel: outreachRecipients.channel,
+			total: count(),
+		})
+		.from(outreachRecipients)
+		.where(eq(outreachRecipients.campaignId, campaignId))
+		.groupBy(outreachRecipients.status, outreachRecipients.channel);
+	return toStats(rows);
+}
+
+export interface OutreachCampaignWithStats extends OutreachCampaign {
+	stats: OutreachStats;
+}
+
+export async function listOutreachCampaigns(
+	limit = 30,
+): Promise<OutreachCampaignWithStats[]> {
+	if (!db) return [];
+	const campaigns = await db
+		.select()
+		.from(outreachCampaigns)
+		.orderBy(desc(outreachCampaigns.createdAt))
+		.limit(limit);
+	if (campaigns.length === 0) return [];
+	const rows = await db
+		.select({
+			campaignId: outreachRecipients.campaignId,
+			status: outreachRecipients.status,
+			channel: outreachRecipients.channel,
+			total: count(),
+		})
+		.from(outreachRecipients)
+		.where(
+			inArray(
+				outreachRecipients.campaignId,
+				campaigns.map((c) => c.id),
+			),
+		)
+		.groupBy(
+			outreachRecipients.campaignId,
+			outreachRecipients.status,
+			outreachRecipients.channel,
+		);
+	return campaigns.map((campaign) => ({
+		...campaign,
+		stats: toStats(rows.filter((r) => r.campaignId === campaign.id)),
+	}));
+}
+
+export const OUTREACH_RECIPIENT_FILTERS = [
+	"all",
+	"max",
+	"telegram",
+	"whatsapp",
+	"email",
+	"failed",
+	"unknown",
+	"pending",
+	"skipped",
+] as const;
+export type OutreachRecipientFilter =
+	(typeof OUTREACH_RECIPIENT_FILTERS)[number];
+
+function filterCondition(filter: OutreachRecipientFilter): SQL | undefined {
+	const r = outreachRecipients;
+	switch (filter) {
+		case "all":
+			return undefined;
+		case "max":
+		case "telegram":
+		case "whatsapp":
+			return and(eq(r.status, "sent"), eq(r.channel, filter));
+		case "email":
+			return inArray(r.status, ["email", "email_pending"]);
+		case "pending":
+			return inArray(r.status, ["pending", "sending"]);
+		case "failed":
+		case "unknown":
+		case "skipped":
+			return eq(r.status, filter);
+	}
+}
+
+export interface OutreachRecipientRow extends OutreachRecipient {
+	/** Статус письма в связанной email-кампании (sent/delivered/opened/bounced…). */
+	emailStatus: string | null;
+	emailError: string | null;
+}
+
+function recipientsQuery(where: SQL | undefined) {
+	if (!db) throw new Error("База данных недоступна");
+	return db
+		.select({
+			recipient: outreachRecipients,
+			emailStatus: emailCampaignRecipients.status,
+			emailError: emailCampaignRecipients.error,
+		})
+		.from(outreachRecipients)
+		.leftJoin(
+			emailCampaignRecipients,
+			eq(emailCampaignRecipients.id, outreachRecipients.emailRecipientId),
+		)
+		.where(where);
+}
+
+function toRecipientRow(row: {
+	recipient: OutreachRecipient;
+	emailStatus: string | null;
+	emailError: string | null;
+}): OutreachRecipientRow {
+	return {
+		...row.recipient,
+		emailStatus: row.emailStatus ?? null,
+		emailError: row.emailError ?? null,
+	};
+}
+
+export async function listOutreachRecipientsPage(params: {
+	campaignId: string;
+	filter: OutreachRecipientFilter;
+	search?: string;
+	limit: number;
+	offset: number;
+}): Promise<{ rows: OutreachRecipientRow[]; total: number }> {
+	if (!db) return { rows: [], total: 0 };
+	const conditions: SQL[] = [
+		eq(outreachRecipients.campaignId, params.campaignId),
+	];
+	const condition = filterCondition(params.filter);
+	if (condition) conditions.push(condition);
+	const search = params.search?.trim();
+	if (search) {
+		const likePattern = (value: string) =>
+			`%${value.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+		const digits = search.replace(/\D/g, "");
+		const match = or(
+			ilike(outreachRecipients.name, likePattern(search)),
+			ilike(outreachRecipients.email, likePattern(search)),
+			...(digits.length >= 3
+				? [ilike(outreachRecipients.phone, likePattern(digits))]
+				: []),
+		);
+		if (match) conditions.push(match);
+	}
+	const where = and(...conditions);
+	const [rows, [totalRow]] = await Promise.all([
+		recipientsQuery(where)
+			.orderBy(desc(outreachRecipients.updatedAt), asc(outreachRecipients.id))
+			.limit(params.limit)
+			.offset(params.offset),
+		db.select({ total: count() }).from(outreachRecipients).where(where),
+	]);
+	return {
+		rows: rows.map(toRecipientRow),
+		total: Number(totalRow?.total ?? 0),
+	};
+}
+
+/** Все получатели рассылки — для выгрузки отчёта в CSV. */
+export async function listAllOutreachRecipients(
+	campaignId: string,
+): Promise<OutreachRecipientRow[]> {
+	if (!db) return [];
+	const rows = await recipientsQuery(
+		eq(outreachRecipients.campaignId, campaignId),
+	).orderBy(asc(outreachRecipients.id));
+	return rows.map(toRecipientRow);
+}

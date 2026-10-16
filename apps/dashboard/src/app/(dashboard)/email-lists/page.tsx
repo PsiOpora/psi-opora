@@ -85,9 +85,10 @@ function ListsTable() {
 				<CardContent className="flex flex-col items-center gap-3 py-10 text-center">
 					<p className="font-medium">Списков пока нет</p>
 					<p className="max-w-md text-sm text-muted-foreground">
-						Создайте список и загрузите в него адреса из CSV-файла (выгрузка из
-						Excel, Google Таблиц, другой CRM) — затем по нему можно запустить
-						email-рассылку на странице «Email-рассылка».
+						Создайте список и загрузите в него телефоны и адреса из CSV-файла
+						(выгрузка из Excel, Google Таблиц, другой CRM) — затем по нему можно
+						запустить рассылку в мессенджеры с личных номеров или
+						email-рассылку.
 					</p>
 					<ListFormDialog
 						trigger={
@@ -110,9 +111,8 @@ function ListsTable() {
 						<TableRow>
 							<TableHead>Название</TableHead>
 							<TableHead className="text-right">Контактов</TableHead>
-							<TableHead className="text-right">
-								Доступно для рассылки
-							</TableHead>
+							<TableHead className="text-right">С телефоном</TableHead>
+							<TableHead className="text-right">С email</TableHead>
 							<TableHead>Обновлён</TableHead>
 							<TableHead className="text-right">Действия</TableHead>
 						</TableRow>
@@ -137,9 +137,10 @@ function ListsTable() {
 									{list.contactsCount.toLocaleString("ru-RU")}
 								</TableCell>
 								<TableCell className="text-right tabular-nums">
-									{(list.contactsCount - list.suppressedCount).toLocaleString(
-										"ru-RU",
-									)}
+									{list.phoneCount.toLocaleString("ru-RU")}
+								</TableCell>
+								<TableCell className="text-right tabular-nums">
+									{list.emailCount.toLocaleString("ru-RU")}
 									{list.suppressedCount > 0 && (
 										<span className="ml-1 text-xs text-muted-foreground">
 											({list.suppressedCount} в стоп-листе)
@@ -173,8 +174,9 @@ export default function EmailListsPage() {
 				<div>
 					<h1 className="text-2xl font-semibold">Списки контактов</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
-						Собственные базы адресов для email-рассылок — импорт из CSV, ручное
-						добавление и общий стоп-лист отписавшихся.
+						Собственные базы контактов для рассылок в мессенджеры и по email —
+						импорт из CSV без дублей, ручное добавление и общий стоп-лист
+						отписавшихся.
 					</p>
 				</div>
 				<ListFormDialog

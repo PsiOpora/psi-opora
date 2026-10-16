@@ -162,6 +162,8 @@ export async function collectListRecipients(
 	listId: string,
 ): Promise<{ totalDeals: number; recipients: EmailRecipient[] }> {
 	const contacts = await listAllEmailListContacts(listId);
+	// В списке бывают контакты только с телефоном (для рассылки через
+	// мессенджеры) — в email-рассылке они видны как пропущенные.
 	const recipients: EmailRecipient[] = contacts.map((c) => ({
 		key: c.id,
 		contactId: null,
@@ -169,7 +171,8 @@ export async function collectListRecipients(
 		dealId: null,
 		dealTitle: null,
 		email: c.email,
-		status: "pending",
+		status: c.email ? "pending" : "skipped",
+		...(c.email ? {} : { error: NO_EMAIL_REASON }),
 	}));
 	return {
 		totalDeals: contacts.length,

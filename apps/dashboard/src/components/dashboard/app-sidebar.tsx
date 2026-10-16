@@ -12,6 +12,7 @@ import {
 	MailIcon,
 	MegaphoneIcon,
 	MessageSquareTextIcon,
+	MessagesSquareIcon,
 	PieChartIcon,
 	PlugIcon,
 	SendIcon,
@@ -66,6 +67,11 @@ const NAV_GROUPS = [
 		label: "Коммуникации",
 		items: [
 			{ href: "/broadcast", label: "Рассылка", icon: SendIcon },
+			{
+				href: "/outreach",
+				label: "Рассылка по списку",
+				icon: MessagesSquareIcon,
+			},
 			{ href: "/email-broadcast", label: "Email-рассылка", icon: MailIcon },
 			{ href: "/email-lists", label: "Списки контактов", icon: UsersIcon },
 			{

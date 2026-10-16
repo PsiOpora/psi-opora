@@ -15,6 +15,7 @@ import {
 	deleteUserbotMessage,
 	type MaxProtocolClient,
 	recoverMaxOutboundMessages,
+	resolveDialogChatId,
 	sendUserbotMessage,
 	setMaxSendResult,
 } from "@psi-opora/max-userbot";
@@ -132,15 +133,23 @@ async function runOutbox(
 
 		const { message, receipt } = claimed;
 		try {
+			// chatId — существующий диалог; phone — «написать первым» (рассылка
+			// по спискам): ID личного чата вычисляется по найденному контакту.
+			const chatId =
+				message.chatId ??
+				(message.phone
+					? await resolveDialogChatId(client, message.phone)
+					: undefined);
+			if (!chatId) throw new Error("В задаче нет ни chatId, ни phone");
 			if (message.action === "delete") {
 				if (!message.externalId) throw new Error("Не задан externalId");
-				await deleteUserbotMessage(client, message.chatId, message.externalId);
+				await deleteUserbotMessage(client, chatId, message.externalId);
 				await setMaxSendResult(message.jobId, { ok: true });
 			} else {
 				if (!message.text) throw new Error("Не задан текст сообщения");
 				const externalId = await sendUserbotMessage(
 					client,
-					message.chatId,
+					chatId,
 					message.text,
 				);
 				if (message.journalMessageId) {
@@ -150,7 +159,11 @@ async function runOutbox(
 						"sent",
 					);
 				}
-				await setMaxSendResult(message.jobId, { ok: true, externalId });
+				await setMaxSendResult(message.jobId, {
+					ok: true,
+					externalId,
+					chatId,
+				});
 			}
 		} catch (error) {
 			const errorMessage = (error as Error).message;

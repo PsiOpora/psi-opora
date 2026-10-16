@@ -6,7 +6,11 @@ export interface MaxOutboundMessage {
 	connectorId: string;
 	jobId: string;
 	action?: "send" | "delete";
-	chatId: string;
+	/** Чат существующего диалога. Если не задан — нужен phone: воркер найдёт
+	 * контакта по номеру и вычислит ID личного чата (resolveDialogChatId). */
+	chatId?: string;
+	/** Телефон в E.164 — «написать первым» (массовая рассылка по спискам). */
+	phone?: string;
 	text?: string;
 	externalId?: string;
 	journalMessageId?: string;
@@ -16,6 +20,8 @@ export interface MaxSendResult {
 	ok: boolean;
 	error?: string;
 	externalId?: string;
+	/** ID личного чата — для отправки по phone: под ним придут ответы клиента. */
+	chatId?: string;
 }
 
 function outboxKey(
@@ -103,6 +109,22 @@ export async function setMaxSendResult(
 	await redis.set(`max-userbot:send-result:${jobId}`, result, {
 		ex: SEND_RESULT_TTL_SECONDS,
 	});
+}
+
+/**
+ * Снимает ещё не взятую воркером задачу. true — гарантированно не будет
+ * отправлена; false — воркер уже забрал её в processing (могла уйти).
+ */
+export async function cancelMaxOutboundMessage(
+	message: MaxOutboundMessage,
+): Promise<boolean> {
+	const redis = createRedisClient();
+	const removed = await redis.eval(
+		"return redis.call('LREM', KEYS[1], 1, ARGV[1])",
+		[outboxKey(message)],
+		[message],
+	);
+	return Number(removed) > 0;
 }
 
 export async function getMaxSendResult(

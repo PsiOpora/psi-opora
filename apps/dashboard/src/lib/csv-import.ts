@@ -1,9 +1,14 @@
-import { isValidEmail, normalizeEmail } from "@psi-opora/api/schemas";
+import {
+	isValidEmail,
+	normalizeEmail,
+	normalizePhone,
+} from "@psi-opora/api/schemas";
 
 /**
- * Разбор файлов контактов для импорта в email-списки. Работает в браузере:
+ * Разбор файлов контактов для импорта в списки. Работает в браузере:
  * файл не уходит на сервер целиком, на сервер отправляются только
- * разобранные пары email/имя пачками (там они проверяются повторно).
+ * разобранные email/телефон/имя пачками (там они проверяются повторно и
+ * склеиваются с уже существующими контактами без дублей).
  */
 
 /**
@@ -118,83 +123,134 @@ export function parseCsv(text: string, delimiter: CsvDelimiter): string[][] {
 
 const EMAIL_HEADER_RE =
 	/^(e-?mail|email|почта|эл\.?\s*почта|электронная почта|адрес эл)/i;
+const PHONE_HEADER_RE =
+	/^(телефон|тел\.?|phone|mobile|моб|мобильный|номер|whatsapp|telegram|телеграм)/i;
 const NAME_HEADER_RE =
 	/^(имя|name|фио|full\s*name|first\s*name|контакт|клиент|получатель)/i;
 
 export interface ColumnGuess {
 	hasHeader: boolean;
 	emailColumn: number | null;
+	phoneColumn: number | null;
 	nameColumn: number | null;
 }
 
-/** Доля ячеек колонки (без первой строки), похожих на email. */
-function emailShare(rows: string[][], column: number): number {
+const isEmailCell = (cell: string) => isValidEmail(normalizeEmail(cell));
+const isPhoneCell = (cell: string) => normalizePhone(cell) !== null;
+
+/** Доля ячеек колонки (без первой строки), подходящих под проверку. */
+function share(
+	rows: string[][],
+	column: number,
+	matches: (cell: string) => boolean,
+): number {
 	const sample = rows.slice(1, 201);
 	if (sample.length === 0) return 0;
-	const hits = sample.filter((r) =>
-		isValidEmail(normalizeEmail(r[column] ?? "")),
-	).length;
-	return hits / sample.length;
+	return sample.filter((r) => matches(r[column] ?? "")).length / sample.length;
+}
+
+/** Колонка, где больше всего подходящих значений (с подсказкой по первой строке). */
+function bestColumn(
+	rows: string[][],
+	width: number,
+	matches: (cell: string) => boolean,
+	exclude: number | null,
+): number | null {
+	const first = rows[0] ?? [];
+	let best: number | null = null;
+	let bestShare = 0;
+	for (let i = 0; i < width; i++) {
+		if (i === exclude) continue;
+		const value = Math.max(
+			share(rows, i, matches),
+			matches(first[i] ?? "") ? 0.01 : 0,
+		);
+		if (value > bestShare) {
+			bestShare = value;
+			best = i;
+		}
+	}
+	return best;
 }
 
 /**
- * Угадывает колонки email и имени по заголовку, а email — ещё и по
- * содержимому (колонка, где больше всего адресов). Первая строка считается
- * заголовком, если в колонке email в ней не адрес.
+ * Угадывает колонки email, телефона и имени по заголовку, а email и
+ * телефон — ещё и по содержимому. Первая строка считается заголовком, если
+ * в найденной колонке email (или телефона, если email нет) — не адрес/номер.
  */
 export function guessColumns(rows: string[][]): ColumnGuess {
 	const first = rows[0] ?? [];
 	const width = Math.max(0, ...rows.slice(0, 50).map((r) => r.length));
+	const byHeader = (re: RegExp, exclude: Array<number | null>) => {
+		const index = first.findIndex(
+			(cell, i) => !exclude.includes(i) && re.test(cell.trim()),
+		);
+		return index < 0 ? null : index;
+	};
 
-	let emailColumn: number | null = null;
-	first.forEach((cell, i) => {
-		if (emailColumn === null && EMAIL_HEADER_RE.test(cell.trim()))
-			emailColumn = i;
-	});
-	if (emailColumn === null) {
-		let bestShare = 0;
-		for (let i = 0; i < width; i++) {
-			const share = Math.max(
-				emailShare(rows, i),
-				isValidEmail(normalizeEmail(first[i] ?? "")) ? 0.01 : 0,
-			);
-			if (share > bestShare) {
-				bestShare = share;
-				emailColumn = i;
-			}
-		}
-	}
+	const emailColumn =
+		byHeader(EMAIL_HEADER_RE, []) ?? bestColumn(rows, width, isEmailCell, null);
+	const phoneColumn =
+		byHeader(PHONE_HEADER_RE, [emailColumn]) ??
+		bestColumn(rows, width, isPhoneCell, emailColumn);
 
 	const hasHeader =
-		emailColumn !== null &&
-		!isValidEmail(normalizeEmail(first[emailColumn] ?? ""));
+		emailColumn !== null
+			? !isEmailCell(first[emailColumn] ?? "")
+			: phoneColumn !== null && !isPhoneCell(first[phoneColumn] ?? "");
 
-	let nameColumn: number | null = null;
-	if (hasHeader) {
-		first.forEach((cell, i) => {
-			if (
-				nameColumn === null &&
-				i !== emailColumn &&
-				NAME_HEADER_RE.test(cell.trim())
-			)
-				nameColumn = i;
-		});
-	}
+	const nameColumn = hasHeader
+		? byHeader(NAME_HEADER_RE, [emailColumn, phoneColumn])
+		: null;
 
-	return { hasHeader, emailColumn, nameColumn };
+	return { hasHeader, emailColumn, phoneColumn, nameColumn };
 }
 
 export interface ExtractedContact {
-	email: string;
+	email?: string;
+	phone?: string;
 	name?: string;
 }
 
 export interface ExtractionResult {
 	contacts: ExtractedContact[];
-	/** Исходные значения, которые не прошли проверку адреса. */
+	/** Исходные значения, которые не прошли проверку адреса/телефона. */
 	invalid: string[];
-	/** Сколько строк отброшено как повтор адреса внутри файла. */
+	/** Сколько строк отброшено как повтор внутри файла. */
 	duplicates: number;
+}
+
+/**
+ * Копит контакты без повторов внутри файла: строка — повтор, если все её
+ * email/телефон уже встречались. Частичные совпадения (тот же телефон с
+ * новым email) уходят на сервер — он склеит их с контактом без дубля.
+ */
+class ContactCollector {
+	private readonly emails = new Set<string>();
+	private readonly phones = new Set<string>();
+	readonly result: ExtractionResult = {
+		contacts: [],
+		invalid: [],
+		duplicates: 0,
+	};
+
+	add(contact: { email: string | null; phone: string | null; name: string }) {
+		const { email, phone, name } = contact;
+		if (!email && !phone) return;
+		const seen =
+			(!email || this.emails.has(email)) && (!phone || this.phones.has(phone));
+		if (seen) {
+			this.result.duplicates++;
+			return;
+		}
+		if (email) this.emails.add(email);
+		if (phone) this.phones.add(phone);
+		this.result.contacts.push({
+			...(email ? { email } : {}),
+			...(phone ? { phone } : {}),
+			...(name ? { name } : {}),
+		});
+	}
 }
 
 /** Собирает контакты из разобранной таблицы по выбранным колонкам. */
@@ -202,74 +258,87 @@ export function extractContacts(
 	rows: string[][],
 	options: {
 		hasHeader: boolean;
-		emailColumn: number;
+		emailColumn: number | null;
+		phoneColumn?: number | null;
 		nameColumn: number | null;
 	},
 ): ExtractionResult {
-	const seen = new Set<string>();
-	const result: ExtractionResult = { contacts: [], invalid: [], duplicates: 0 };
+	const collector = new ContactCollector();
+	const phoneColumn = options.phoneColumn ?? null;
 	for (const row of options.hasHeader ? rows.slice(1) : rows) {
-		const raw = row[options.emailColumn] ?? "";
-		const email = normalizeEmail(raw);
-		if (!email) continue;
-		if (!isValidEmail(email)) {
-			result.invalid.push(raw);
-			continue;
-		}
-		if (seen.has(email)) {
-			result.duplicates++;
-			continue;
-		}
-		seen.add(email);
+		const rawEmail =
+			options.emailColumn === null ? "" : (row[options.emailColumn] ?? "");
+		const rawPhone =
+			phoneColumn === null ? "" : (row[phoneColumn] ?? "").trim();
+		const email = normalizeEmail(rawEmail);
+		const emailOk = Boolean(email) && isValidEmail(email);
+		const phone = rawPhone ? normalizePhone(rawPhone) : null;
+		if (email && !emailOk) collector.result.invalid.push(rawEmail);
+		if (rawPhone && !phone) collector.result.invalid.push(rawPhone);
 		const name =
 			options.nameColumn === null ? "" : (row[options.nameColumn] ?? "").trim();
-		result.contacts.push(name ? { email, name } : { email });
+		collector.add({ email: emailOk ? email : null, phone, name });
 	}
-	return result;
+	return collector.result;
 }
 
 const EMAIL_TOKEN_RE = /[^\s<>,;:"'()[\]]+@[^\s<>,;:"'()[\]]+/g;
+/** Цифры с телефонными разделителями — как PHONE_IN_TEXT в api/schemas/phone.ts. */
+const PHONE_TOKEN_RE = /\+?\d[\d\s().-]{8,}\d/g;
 
 /**
  * Разбор вставленного текста: по одному контакту в строке в любом из
- * видов «email», «email, Имя», «Имя <email>», «Имя;email», либо просто
- * адреса через запятую/пробел. Всё, кроме адреса, в строке — имя.
+ * видов «email», «email, Имя», «Имя <email>», «Имя; телефон; email», либо
+ * просто адреса/телефоны через запятую. Всё, кроме адреса и телефона, — имя.
  */
 export function extractContactsFromText(text: string): ExtractionResult {
-	const seen = new Set<string>();
-	const result: ExtractionResult = { contacts: [], invalid: [], duplicates: 0 };
+	const collector = new ContactCollector();
 	for (const line of text.split(/\r?\n/)) {
-		const tokens = line.match(EMAIL_TOKEN_RE) ?? [];
-		if (tokens.length === 0) {
-			if (line.includes("@")) result.invalid.push(line.trim());
+		const emailTokens = line.match(EMAIL_TOKEN_RE) ?? [];
+		// Цифры внутри адреса (ivan.79991234567@mail.ru) — не телефон.
+		const withoutEmails = emailTokens.reduce(
+			(rest, token) => rest.replace(token, " "),
+			line,
+		);
+		const phoneTokens = withoutEmails.match(PHONE_TOKEN_RE) ?? [];
+		if (emailTokens.length === 0 && phoneTokens.length === 0) {
+			if (line.includes("@")) collector.result.invalid.push(line.trim());
 			continue;
 		}
-		// Одна строка — один контакт с именем; несколько адресов — без имён.
-		const name =
-			tokens.length === 1
-				? line
-						.replace(tokens[0] as string, "")
-						.replace(/[<>,;:"'()[\]\t]+/g, " ")
-						.replace(/\s+/g, " ")
-						.trim()
-				: "";
-		for (const token of tokens) {
-			const email = normalizeEmail(token.replace(/^mailto:/i, ""));
-			if (!isValidEmail(email)) {
-				result.invalid.push(token);
-				continue;
-			}
-			if (seen.has(email)) {
-				result.duplicates++;
-				continue;
-			}
-			seen.add(email);
-			result.contacts.push(name ? { email, name } : { email });
-		}
-	}
-	return result;
-}
 
+		const emails: string[] = [];
+		for (const token of emailTokens) {
+			const email = normalizeEmail(token.replace(/^mailto:/i, ""));
+			if (isValidEmail(email)) emails.push(email);
+			else collector.result.invalid.push(token);
+		}
+		const phones: string[] = [];
+		for (const token of phoneTokens) {
+			const phone = normalizePhone(token);
+			if (phone) phones.push(phone);
+			else collector.result.invalid.push(token.trim());
+		}
+
+		// Один адрес и/или один телефон — один контакт с именем; несколько
+		// адресов или телефонов в строке — по контакту на каждый, без имён.
+		if (emailTokens.length <= 1 && phoneTokens.length <= 1) {
+			const name = phoneTokens
+				.reduce((rest, token) => rest.replace(token, " "), withoutEmails)
+				.replace(/[<>,;:"'()[\]\t]+/g, " ")
+				.replace(/\s+/g, " ")
+				.trim();
+			collector.add({
+				email: emails[0] ?? null,
+				phone: phones[0] ?? null,
+				name,
+			});
+			continue;
+		}
+		for (const email of emails) collector.add({ email, phone: null, name: "" });
+		for (const phone of phones) collector.add({ email: null, phone, name: "" });
+	}
+	return collector.result;
+}
 /** Экранирует значение для CSV-выгрузки (и от формульных инъекций Excel). */
 export function toCsvCell(value: unknown): string {
 	let text = value === null || value === undefined ? "" : String(value);

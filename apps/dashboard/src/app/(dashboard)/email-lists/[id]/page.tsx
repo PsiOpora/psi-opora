@@ -1,7 +1,14 @@
 "use client";
 
+import { formatPhone } from "@psi-opora/api/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DownloadIcon, PencilIcon, SendIcon, UserPlusIcon } from "lucide-react";
+import {
+	DownloadIcon,
+	MailIcon,
+	MessagesSquareIcon,
+	PencilIcon,
+	UserPlusIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -71,21 +78,29 @@ function AddContactDialog({ listId }: { listId: string }) {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const [email, setEmail] = useState("");
+	const [phone, setPhone] = useState("");
 	const [name, setName] = useState("");
 	const mutation = useMutation(
 		orpc.emailLists.importContacts.mutationOptions({
 			onSuccess: (result) => {
 				if (result.invalid.length > 0) {
-					toast.error("Некорректный email");
+					toast.error(`Некорректное значение: ${result.invalid.join(", ")}`);
+					return;
+				}
+				if (result.conflicts > 0) {
+					toast.error(
+						"Телефон и email уже записаны у разных контактов списка — контакт не изменён",
+					);
 					return;
 				}
 				toast.success(
 					result.inserted > 0
 						? "Контакт добавлен"
-						: "Контакт уже был в списке — имя обновлено",
+						: "Контакт уже был в списке — данные дополнены",
 				);
 				queryClient.invalidateQueries({ queryKey: orpc.emailLists.key() });
 				setEmail("");
+				setPhone("");
 				setName("");
 				setOpen(false);
 			},
@@ -104,7 +119,8 @@ function AddContactDialog({ listId }: { listId: string }) {
 				<DialogHeader>
 					<DialogTitle>Новый контакт</DialogTitle>
 					<DialogDescription>
-						Добавляйте только адреса людей, согласившихся получать рассылку.
+						Добавляйте только людей, согласившихся получать рассылку. Нужен
+						телефон (для мессенджеров), email или оба.
 					</DialogDescription>
 				</DialogHeader>
 				<form
@@ -114,19 +130,34 @@ function AddContactDialog({ listId }: { listId: string }) {
 						mutation.mutate({
 							listId,
 							source: "manual",
-							contacts: [{ email, name: name.trim() || undefined }],
+							contacts: [
+								{
+									email: email.trim() || undefined,
+									phone: phone.trim() || undefined,
+									name: name.trim() || undefined,
+								},
+							],
 						});
 					}}
 				>
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="contact-phone">Телефон</Label>
+						<Input
+							id="contact-phone"
+							type="tel"
+							value={phone}
+							onChange={(e) => setPhone(e.target.value)}
+							placeholder="+7 999 123-45-67"
+							autoFocus
+						/>
+					</div>
 					<div className="flex flex-col gap-1.5">
 						<Label htmlFor="contact-email">Email</Label>
 						<Input
 							id="contact-email"
 							type="email"
-							required
 							value={email}
 							onChange={(e) => setEmail(e.target.value)}
-							autoFocus
 						/>
 					</div>
 					<div className="flex flex-col gap-1.5">
@@ -135,13 +166,13 @@ function AddContactDialog({ listId }: { listId: string }) {
 							id="contact-name"
 							value={name}
 							onChange={(e) => setName(e.target.value)}
-							placeholder="Подставляется в письмо вместо {{name}}"
+							placeholder="Подставляется в сообщение вместо {{name}}"
 						/>
 					</div>
 					<DialogFooter>
 						<Button
 							type="submit"
-							disabled={!email.trim() || mutation.isPending}
+							disabled={(!email.trim() && !phone.trim()) || mutation.isPending}
 						>
 							Добавить
 						</Button>
@@ -212,9 +243,10 @@ export default function EmailListPage() {
 			const rows = await orpcClient.emailLists.exportContacts({ id });
 			downloadCsv(
 				`${list.name.replace(/[^\p{L}\p{N}_-]+/gu, "_")}.csv`,
-				["Email", "Имя", "Добавлен", "Стоп-лист"],
+				["Email", "Телефон", "Имя", "Добавлен", "Стоп-лист"],
 				rows.map((r) => [
-					r.email,
+					r.email ?? "",
+					r.phone ?? "",
 					r.name ?? "",
 					formatDateTime(r.createdAt),
 					r.suppressionReason
@@ -241,7 +273,7 @@ export default function EmailListPage() {
 	const pageIds = rows.map((r) => r.id);
 	const allOnPageSelected =
 		pageIds.length > 0 && pageIds.every((rowId) => selected.has(rowId));
-	const activeCount = list.contactsCount - list.suppressedCount;
+	const activeEmailCount = list.emailCount - list.suppressedCount;
 
 	return (
 		<div className="flex w-full flex-col gap-6">
@@ -275,10 +307,11 @@ export default function EmailListPage() {
 							</p>
 						)}
 						<p className="mt-1 text-sm text-muted-foreground">
-							Контактов: {list.contactsCount.toLocaleString("ru-RU")} · доступно
-							для рассылки: {activeCount.toLocaleString("ru-RU")}
+							Контактов: {list.contactsCount.toLocaleString("ru-RU")} · с
+							телефоном: {list.phoneCount.toLocaleString("ru-RU")} · с email:{" "}
+							{list.emailCount.toLocaleString("ru-RU")}
 							{list.suppressedCount > 0 &&
-								` · в стоп-листе: ${list.suppressedCount.toLocaleString("ru-RU")}`}
+								` · email в стоп-листе: ${list.suppressedCount.toLocaleString("ru-RU")}`}
 						</p>
 					</div>
 					<div className="flex flex-wrap gap-2">
@@ -292,10 +325,16 @@ export default function EmailListPage() {
 							<DownloadIcon />
 							Экспорт CSV
 						</Button>
-						<Button asChild variant="outline" disabled={activeCount === 0}>
+						<Button asChild variant="outline" disabled={activeEmailCount <= 0}>
 							<Link href={`/email-broadcast?listId=${list.id}`}>
-								<SendIcon />
-								Создать рассылку
+								<MailIcon />
+								Email-рассылка
+							</Link>
+						</Button>
+						<Button asChild disabled={list.contactsCount === 0}>
+							<Link href={`/outreach?listId=${list.id}`}>
+								<MessagesSquareIcon />
+								Рассылка в мессенджеры
 							</Link>
 						</Button>
 					</div>
@@ -306,7 +345,8 @@ export default function EmailListPage() {
 				<CardHeader>
 					<CardTitle>Контакты</CardTitle>
 					<CardDescription>
-						Контакты из стоп-листа остаются в списке, но рассылка им не уйдёт.
+						Один человек — один контакт: телефон и email уникальны в списке.
+						Email из стоп-листа остаётся в списке, но письма на него не уходят.
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
@@ -318,7 +358,7 @@ export default function EmailListPage() {
 									setSearch(e.target.value);
 									setPage(0);
 								}}
-								placeholder="Поиск по email или имени"
+								placeholder="Поиск по имени, телефону или email"
 								className="md:w-72"
 							/>
 							<Select
@@ -401,8 +441,9 @@ export default function EmailListPage() {
 											aria-label="Выбрать все на странице"
 										/>
 									</TableHead>
-									<TableHead>Email</TableHead>
 									<TableHead>Имя</TableHead>
+									<TableHead>Телефон</TableHead>
+									<TableHead>Email</TableHead>
 									<TableHead>Статус</TableHead>
 									<TableHead>Источник</TableHead>
 									<TableHead>Добавлен</TableHead>
@@ -422,13 +463,20 @@ export default function EmailListPage() {
 														return next;
 													})
 												}
-												aria-label={`Выбрать ${row.email}`}
+												aria-label={`Выбрать ${row.name ?? row.phone ?? row.email}`}
 											/>
 										</TableCell>
-										<TableCell className="font-medium">{row.email}</TableCell>
-										<TableCell>{row.name ?? "—"}</TableCell>
+										<TableCell className="font-medium">
+											{row.name ?? "—"}
+										</TableCell>
+										<TableCell className="whitespace-nowrap">
+											{row.phone ? formatPhone(row.phone) : "—"}
+										</TableCell>
+										<TableCell>{row.email ?? "—"}</TableCell>
 										<TableCell>
-											{row.suppressionReason ? (
+											{!row.email ? (
+												<Badge variant="secondary">Только телефон</Badge>
+											) : row.suppressionReason ? (
 												<Badge
 													variant="outline"
 													className="text-muted-foreground"

@@ -9,18 +9,21 @@ import {
 	isNotNull,
 	isNull,
 	or,
-	sql,
 } from "drizzle-orm";
 import { db } from "../client";
 import { emailCampaigns } from "../schema/email-campaign";
 import { emailListContacts, emailLists } from "../schema/email-lists";
 import { emailSuppressions } from "../schema/email-suppressions";
+import { type MergeContactInput, planContactMerge } from "./contact-merge";
 
 export type EmailList = typeof emailLists.$inferSelect;
 export type EmailListContact = typeof emailListContacts.$inferSelect;
 
 export interface EmailListSummary extends EmailList {
 	contactsCount: number;
+	/** Контакты с email и с телефоном (у одного контакта может быть и то, и другое). */
+	emailCount: number;
+	phoneCount: number;
 	/** Контакты из глобального стоп-листа — им рассылка уйти не может. */
 	suppressedCount: number;
 }
@@ -40,6 +43,8 @@ export async function listEmailLists(): Promise<EmailListSummary[]> {
 		.select({
 			list: emailLists,
 			contactsCount: count(emailListContacts.id),
+			emailCount: count(emailListContacts.email),
+			phoneCount: count(emailListContacts.phone),
 			suppressedCount: count(emailSuppressions.email),
 		})
 		.from(emailLists)
@@ -53,6 +58,8 @@ export async function listEmailLists(): Promise<EmailListSummary[]> {
 	return rows.map((r) => ({
 		...r.list,
 		contactsCount: Number(r.contactsCount),
+		emailCount: Number(r.emailCount),
+		phoneCount: Number(r.phoneCount),
 		suppressedCount: Number(r.suppressedCount),
 	}));
 }
@@ -70,6 +77,8 @@ export async function getEmailList(
 	const [counts] = await db
 		.select({
 			contactsCount: count(emailListContacts.id),
+			emailCount: count(emailListContacts.email),
+			phoneCount: count(emailListContacts.phone),
 			suppressedCount: count(emailSuppressions.email),
 		})
 		.from(emailListContacts)
@@ -81,6 +90,8 @@ export async function getEmailList(
 	return {
 		...list,
 		contactsCount: Number(counts?.contactsCount ?? 0),
+		emailCount: Number(counts?.emailCount ?? 0),
+		phoneCount: Number(counts?.phoneCount ?? 0),
 		suppressedCount: Number(counts?.suppressedCount ?? 0),
 	};
 }
@@ -151,9 +162,13 @@ export async function listEmailListContactsPage(params: {
 	const search = params.search?.trim();
 	if (search) {
 		const pattern = likePattern(search);
+		const phoneDigits = search.replace(/\D/g, "");
 		const match = or(
 			ilike(emailListContacts.email, pattern),
 			ilike(emailListContacts.name, pattern),
+			...(phoneDigits.length >= 3
+				? [ilike(emailListContacts.phone, likePattern(phoneDigits))]
+				: []),
 		);
 		if (match) conditions.push(match);
 	}
@@ -175,7 +190,7 @@ export async function listEmailListContactsPage(params: {
 				eq(emailSuppressions.email, emailListContacts.email),
 			)
 			.where(where)
-			.orderBy(desc(emailListContacts.createdAt), asc(emailListContacts.email))
+			.orderBy(desc(emailListContacts.createdAt), asc(emailListContacts.id))
 			.limit(params.limit)
 			.offset(params.offset),
 		db
@@ -213,58 +228,111 @@ export async function listAllEmailListContacts(
 			eq(emailSuppressions.email, emailListContacts.email),
 		)
 		.where(eq(emailListContacts.listId, listId))
-		.orderBy(asc(emailListContacts.email));
+		.orderBy(asc(emailListContacts.createdAt), asc(emailListContacts.id));
 	return rows.map((r) => ({
 		...r.contact,
 		suppressionReason: r.suppressionReason ?? null,
 	}));
 }
 
+export interface AddListContactsResult {
+	inserted: number;
+	updated: number;
+	/** Строки, склеенные с другой строкой этого же импорта. */
+	duplicates: number;
+	/** Строки, противоречащие списку (см. ContactMergePlan.conflicts). */
+	conflicts: number;
+}
+
 /**
- * Добавляет контакты в список (email уже нормализован и провалидирован).
- * Существующий в списке адрес не дублируется; имя обновляется, только если
- * в новой строке оно задано — повторный импорт без колонки имени не затирает
+ * Добавляет контакты в список без дублей (email/телефон уже нормализованы и
+ * провалидированы). Совпадение с существующим контактом по телефону или
+ * email дополняет его — см. planContactMerge. Имя обновляется, только если
+ * в новой строке оно задано: повторный импорт без колонки имени не затирает
  * ранее загруженные имена.
  */
 export async function addEmailListContacts(
 	listId: string,
-	contacts: Array<{ email: string; name?: string | null }>,
+	contacts: MergeContactInput[],
 	source: "csv" | "manual",
-): Promise<{ inserted: number; updated: number }> {
-	if (!db || contacts.length === 0) return { inserted: 0, updated: 0 };
-	// Postgres не даёт ON CONFLICT DO UPDATE задеть одну строку дважды за
-	// запрос — повторы адреса внутри пачки схлопываем заранее.
-	const unique = new Map<string, { email: string; name?: string | null }>();
-	for (const c of contacts) {
-		const prev = unique.get(c.email);
-		unique.set(c.email, { email: c.email, name: c.name || prev?.name });
-	}
-	const rows = await db
-		.insert(emailListContacts)
-		.values(
-			[...unique.values()].map((c) => ({
-				id: crypto.randomUUID(),
-				listId,
-				email: c.email,
-				name: c.name?.trim() || null,
-				source,
-			})),
-		)
-		.onConflictDoUpdate({
-			target: [emailListContacts.listId, emailListContacts.email],
-			set: {
-				name: sql`coalesce(excluded.name, ${emailListContacts.name})`,
-			},
+): Promise<AddListContactsResult> {
+	const empty = { inserted: 0, updated: 0, duplicates: 0, conflicts: 0 };
+	if (!db || contacts.length === 0) return empty;
+
+	const emails = [
+		...new Set(contacts.map((c) => c.email).filter((v): v is string => !!v)),
+	];
+	const phones = [
+		...new Set(contacts.map((c) => c.phone).filter((v): v is string => !!v)),
+	];
+	const matchers = [
+		...(emails.length ? [inArray(emailListContacts.email, emails)] : []),
+		...(phones.length ? [inArray(emailListContacts.phone, phones)] : []),
+	];
+	if (matchers.length === 0) return empty;
+
+	const existing = await db
+		.select({
+			id: emailListContacts.id,
+			email: emailListContacts.email,
+			phone: emailListContacts.phone,
+			name: emailListContacts.name,
 		})
-		// xmax = 0 только у только что вставленной строки — так отличаем
-		// вставку от обновления существующего контакта в одном запросе.
-		.returning({ inserted: sql<boolean>`(xmax = 0)` });
-	const inserted = rows.filter((r) => r.inserted).length;
+		.from(emailListContacts)
+		.where(and(eq(emailListContacts.listId, listId), or(...matchers)));
+
+	const plan = planContactMerge(existing, contacts);
+
+	let inserted = 0;
+	if (plan.inserts.length > 0) {
+		// onConflictDoNothing — защита от гонки двух параллельных импортов в
+		// один список: уникальные индексы (list_id, email/phone) не пустят дубль.
+		const rows = await db
+			.insert(emailListContacts)
+			.values(
+				plan.inserts.map((c) => ({
+					id: crypto.randomUUID(),
+					listId,
+					email: c.email,
+					phone: c.phone,
+					name: c.name,
+					source,
+				})),
+			)
+			.onConflictDoNothing()
+			.returning({ id: emailListContacts.id });
+		inserted = rows.length;
+	}
+
+	let updated = 0;
+	for (const contact of plan.updates) {
+		try {
+			await db
+				.update(emailListContacts)
+				.set({
+					email: contact.email,
+					phone: contact.phone,
+					name: contact.name,
+				})
+				.where(eq(emailListContacts.id, contact.id));
+			updated++;
+		} catch {
+			// Параллельный импорт успел занять этот телефон/email другим
+			// контактом — уникальный индекс не дал создать дубль, пропускаем.
+			plan.conflicts++;
+		}
+	}
+
 	await db
 		.update(emailLists)
 		.set({ updatedAt: new Date() })
 		.where(eq(emailLists.id, listId));
-	return { inserted, updated: rows.length - inserted };
+	return {
+		inserted,
+		updated,
+		duplicates: plan.duplicatesInBatch + (plan.inserts.length - inserted),
+		conflicts: plan.conflicts,
+	};
 }
 
 export async function deleteEmailListContacts(
