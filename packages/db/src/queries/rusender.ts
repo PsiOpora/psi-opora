@@ -9,6 +9,18 @@ export async function getRusenderSettings(): Promise<RusenderSettings | null> {
 	return rows[0] ?? null;
 }
 
+/** Секрет пути вебхука статусов — создаётся по кнопке в /settings/email. */
+export async function setRusenderWebhookSecret(secret: string): Promise<void> {
+	if (!db) return;
+	await db
+		.insert(rusenderSettings)
+		.values({ id: "singleton", webhookSecret: secret })
+		.onConflictDoUpdate({
+			target: rusenderSettings.id,
+			set: { webhookSecret: secret, updatedAt: new Date() },
+		});
+}
+
 export async function upsertRusenderSettings(data: {
 	apiKey?: string | null;
 	keyId?: string | null;

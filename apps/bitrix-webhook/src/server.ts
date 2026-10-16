@@ -16,7 +16,9 @@ import { env } from "@psi-opora/config";
 import {
 	assignConversationIfUnassigned,
 	getMaxPersonalAccountByConnector,
+	getRusenderSettings,
 	getTelegramPersonalAccountByConnector,
+	getUnisenderSettings,
 	getWhatsappPersonalAccountByConnector,
 	getWhatsappPersonalAccountBySession,
 	insertBotMessage,
@@ -29,6 +31,7 @@ import {
 	upsertBotUserPresence,
 } from "@psi-opora/db/queries";
 import {
+	enqueueEmailEvents,
 	handleConsultationDealUpdate,
 	handleDiagnosticDealUpdate,
 	handleStageConsentTrigger,
@@ -50,6 +53,7 @@ import {
 	wahaSessionHealth,
 } from "@psi-opora/waha";
 import { Hono } from "hono";
+import { createEmailEventsHandlers } from "./email-events-webhook";
 import { uploadWahaMedia } from "./media-storage";
 import {
 	forwardWhatsappAckToMessageSender,
@@ -973,6 +977,13 @@ async function ensureCrmEventSubscription(
 	}
 }
 
+const emailEvents = createEmailEventsHandlers({
+	getRusenderWebhookSecret: async () =>
+		(await getRusenderSettings())?.webhookSecret,
+	getUnisenderApiKey: async () => (await getUnisenderSettings())?.apiKey,
+	enqueue: (events) => enqueueEmailEvents({ events }),
+});
+
 const app = new Hono();
 
 app.get("/", (c) =>
@@ -1000,6 +1011,15 @@ app.post("/api/consultation-reminder-deal-update", (c) =>
 
 app.get("/api/deal-sync-upsert", (c) => c.json({ status: "ok" }));
 app.post("/api/deal-sync-upsert", (c) => handleDealSyncUpsert(c.req.raw));
+
+// Статусы писем email-рассылок. GET у Unisender — проверка URL при setHook.
+app.post("/api/email-events/rusender/:secret", (c) =>
+	emailEvents.rusender(c.req.raw, c.req.param("secret")),
+);
+app.get("/api/email-events/unisender", (c) => c.json({ status: "ok" }));
+app.post("/api/email-events/unisender", (c) =>
+	emailEvents.unisender(c.req.raw),
+);
 
 app.get("/api/deal-sync-delete", (c) => c.json({ status: "ok" }));
 app.post("/api/deal-sync-delete", (c) => handleDealSyncDelete(c.req.raw));

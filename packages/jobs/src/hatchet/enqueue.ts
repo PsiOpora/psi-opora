@@ -5,6 +5,10 @@ import {
 	type DeliverEmailCampaignPayload,
 	deliverEmailCampaign,
 } from "./email-campaign";
+import {
+	type IngestEmailEventsPayload,
+	ingestEmailEvents,
+} from "./email-events";
 
 export interface EnqueuedRun {
 	id: string;
@@ -28,6 +32,14 @@ export function enqueueEmailCampaign(
 ): Promise<EnqueuedRun> {
 	return toEnqueuedRun(
 		getHatchetClient().runNoWait(deliverEmailCampaign, payload),
+	);
+}
+
+export function enqueueEmailEvents(
+	payload: IngestEmailEventsPayload,
+): Promise<EnqueuedRun> {
+	return toEnqueuedRun(
+		getHatchetClient().runNoWait(ingestEmailEvents, payload),
 	);
 }
 

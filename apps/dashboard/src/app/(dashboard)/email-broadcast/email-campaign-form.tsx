@@ -1,9 +1,14 @@
 "use client";
 
-import type { EmailTemplate } from "@psi-opora/db/queries";
+import type {
+	EmailRecipientsReport,
+	RecentEmailCampaignInfo,
+} from "@psi-opora/api";
+import type { EmailListSummary, EmailTemplate } from "@psi-opora/db/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -23,12 +28,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import type {
-	EmailRecipientsReport,
-	RecentEmailCampaignInfo,
-} from "@psi-opora/api";
-import { orpcClient } from "@/lib/orpc/client";
-import { emailCampaignsListKey } from "./history";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { orpc, orpcClient } from "@/lib/orpc/client";
 import { RecipientsReport } from "./recipients-report";
 import { SendConfirmation } from "./send-confirmation";
 
@@ -40,22 +41,34 @@ export interface StageOption {
 	categoryName: string;
 }
 
+type Audience = "list" | "crm_stage";
+
 export function EmailCampaignForm({
 	stages,
+	lists,
 	templates,
 	senderConfigured,
+	initialListId,
 }: {
 	stages: StageOption[];
+	lists: EmailListSummary[];
 	templates: EmailTemplate[];
 	senderConfigured: boolean;
+	initialListId?: string;
 }) {
 	const queryClient = useQueryClient();
+	const [audience, setAudience] = useState<Audience>(
+		initialListId || stages.length === 0 ? "list" : "crm_stage",
+	);
 	const [stageId, setStageId] = useState("");
+	const [listId, setListId] = useState(initialListId ?? "");
 	const [templateId, setTemplateId] = useState("");
 	const [subject, setSubject] = useState("");
 	const subjectTouchedRef = useRef(false);
 	const [previewBody, setPreviewBody] = useState<string | null>(null);
 	const [previewLoading, setPreviewLoading] = useState(false);
+	const [testEmail, setTestEmail] = useState("");
+	const [testSending, setTestSending] = useState(false);
 	const [report, setReport] = useState<EmailRecipientsReport | null>(null);
 	const [recentCampaign, setRecentCampaign] =
 		useState<RecentEmailCampaignInfo | null>(null);
@@ -63,9 +76,7 @@ export function EmailCampaignForm({
 	const [reportKey, setReportKey] = useState(0);
 	const [confirming, setConfirming] = useState(false);
 	const [ackChecked, setAckChecked] = useState(false);
-	const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(
-		new Set(),
-	);
+	const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 	const [queued, setQueued] = useState<{
 		campaignId: string;
 		count: number;
@@ -75,15 +86,23 @@ export function EmailCampaignForm({
 
 	const categories = new Map<string, StageOption[]>();
 	for (const stage of stages) {
-		const list = categories.get(stage.categoryName) ?? [];
-		list.push(stage);
-		categories.set(stage.categoryName, list);
+		const group = categories.get(stage.categoryName) ?? [];
+		group.push(stage);
+		categories.set(stage.categoryName, group);
 	}
 
 	const selectedStage = stages.find((s) => s.stageId === stageId);
-	const stageLabel = selectedStage
-		? `${selectedStage.categoryName} — ${selectedStage.stageName}`
-		: stageId;
+	const selectedList = lists.find((l) => l.id === listId);
+	const audienceLabel =
+		audience === "list"
+			? selectedList
+				? `Список «${selectedList.name}»`
+				: listId
+			: selectedStage
+				? `${selectedStage.categoryName} — ${selectedStage.stageName}`
+				: stageId;
+	const audienceChosen =
+		audience === "list" ? Boolean(listId) : Boolean(stageId);
 	const selectedTemplate = templates.find((t) => t.id === templateId);
 
 	useEffect(() => {
@@ -110,34 +129,38 @@ export function EmailCampaignForm({
 	}, [templateId]);
 
 	const trimmedSubject = subject.trim();
-	const currentSig = JSON.stringify([stageId, templateId, trimmedSubject]);
+	const currentSig = JSON.stringify([
+		audience,
+		audience === "list" ? listId : stageId,
+		templateId,
+		trimmedSubject,
+	]);
 	const previewFresh = report?.dryRun && previewSig === currentSig;
 	const pendingRecipients = report
 		? report.recipients.filter((r) => r.status === "pending")
 		: [];
 	const sendableCount =
-		selectedContactIds.size > 0
-			? pendingRecipients.filter((r) => selectedContactIds.has(r.contactId))
-					.length
+		selectedKeys.size > 0
+			? pendingRecipients.filter((r) => selectedKeys.has(r.key)).length
 			: pendingRecipients.length;
 	const canSend =
 		previewFresh && sendableCount > 0 && trimmedSubject.length > 0;
 
-	const toggleContact = (contactId: string) => {
-		setSelectedContactIds((prev) => {
+	const toggleKey = (key: string) => {
+		setSelectedKeys((prev) => {
 			const next = new Set(prev);
-			if (next.has(contactId)) next.delete(contactId);
-			else next.add(contactId);
+			if (next.has(key)) next.delete(key);
+			else next.add(key);
 			return next;
 		});
 	};
 
-	const toggleManyContacts = (contactIds: string[], checked: boolean) => {
-		setSelectedContactIds((prev) => {
+	const toggleManyKeys = (keys: string[], checked: boolean) => {
+		setSelectedKeys((prev) => {
 			const next = new Set(prev);
-			for (const id of contactIds) {
-				if (checked) next.add(id);
-				else next.delete(id);
+			for (const key of keys) {
+				if (checked) next.add(key);
+				else next.delete(key);
 			}
 			return next;
 		});
@@ -145,8 +168,10 @@ export function EmailCampaignForm({
 
 	const sendHint = !senderConfigured
 		? "Не задан email отправителя — настройте на странице /settings/email."
-		: !stageId
-			? "Выберите стадию сделки."
+		: !audienceChosen
+			? audience === "list"
+				? "Выберите список контактов."
+				: "Выберите стадию сделки."
 			: !templateId
 				? "Выберите шаблон письма."
 				: !trimmedSubject
@@ -156,19 +181,32 @@ export function EmailCampaignForm({
 							? "Параметры изменились после предпросмотра — нажмите «Показать получателей» ещё раз."
 							: "Отправка откроется после предпросмотра: нажмите «Показать получателей» и проверьте список."
 						: sendableCount === 0
-							? "Среди получателей нет ни одного с email."
+							? "Среди получателей нет ни одного, кому можно отправить письмо."
 							: null;
+
+	const audienceInput = () =>
+		audience === "list"
+			? { audience, listId }
+			: { audience, stageId, stageName: audienceLabel };
+
+	const resetPreview = () => {
+		setReport(null);
+		setPreviewSig(null);
+		setRecentCampaign(null);
+		setSelectedKeys(new Set());
+		setConfirming(false);
+		setAckChecked(false);
+	};
 
 	const runPreview = () => {
 		setConfirming(false);
 		setAckChecked(false);
 		setQueued(null);
-		setSelectedContactIds(new Set());
+		setSelectedKeys(new Set());
 		startTransition(async () => {
 			setError(null);
 			const result = await orpcClient.emailBroadcast.send({
-				stageId,
-				stageName: stageLabel,
+				...audienceInput(),
 				templateId,
 				templateName: selectedTemplate?.title,
 				subject,
@@ -196,15 +234,13 @@ export function EmailCampaignForm({
 		startTransition(async () => {
 			setError(null);
 			const result = await orpcClient.emailBroadcast.send({
-				stageId,
-				stageName: stageLabel,
+				...audienceInput(),
 				templateId,
 				templateName: selectedTemplate?.title,
 				subject,
 				dryRun: false,
 				expectedRecipients,
-				selectedContactIds:
-					selectedContactIds.size > 0 ? [...selectedContactIds] : undefined,
+				selectedKeys: selectedKeys.size > 0 ? [...selectedKeys] : undefined,
 			});
 			if (result.error) {
 				setError(result.error);
@@ -215,9 +251,33 @@ export function EmailCampaignForm({
 				});
 				setReport(null);
 				setPreviewSig(null);
-				queryClient.invalidateQueries({ queryKey: emailCampaignsListKey });
+				queryClient.invalidateQueries({ queryKey: orpc.emailCampaigns.key() });
 			}
 		});
+	};
+
+	const sendTestToAddress = async () => {
+		if (!templateId || !trimmedSubject || !testEmail.trim()) return;
+		setTestSending(true);
+		const toastId = toast.loading("Отправляем тестовое письмо…");
+		try {
+			const result = await orpcClient.emailBroadcast.sendTest({
+				email: testEmail,
+				templateId,
+				subject,
+			});
+			if (result.ok)
+				toast.success(`Тест отправлен на ${testEmail}`, { id: toastId });
+			else toast.error(result.error ?? "Ошибка теста", { id: toastId });
+		} catch (err) {
+			// Сетевой сбой или истёкшая сессия Битрикс24 (UNAUTHORIZED).
+			toast.error(
+				`Не удалось отправить тест: ${(err as Error).message || "ошибка сети"}`,
+				{ id: toastId },
+			);
+		} finally {
+			setTestSending(false);
+		}
 	};
 
 	return (
@@ -226,35 +286,86 @@ export function EmailCampaignForm({
 				<CardHeader>
 					<CardTitle>Параметры рассылки</CardTitle>
 					<CardDescription>
-						Письмо получит контакт каждой сделки на выбранной стадии — один раз,
-						даже если сделок у контакта несколько. Отправка возможна только
-						после предпросмотра списка получателей.
+						Каждый адрес получит письмо один раз. Адреса из стоп-листа
+						(отписавшиеся, несуществующие, пожаловавшиеся) исключаются
+						автоматически. Отправка возможна только после предпросмотра
+						получателей.
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
+					<Tabs
+						value={audience}
+						onValueChange={(value) => {
+							setAudience(value as Audience);
+							resetPreview();
+						}}
+					>
+						<TabsList>
+							<TabsTrigger value="list">Список контактов</TabsTrigger>
+							<TabsTrigger value="crm_stage">Стадия сделок CRM</TabsTrigger>
+						</TabsList>
+					</Tabs>
+
 					<div className="grid grid-cols-1 items-end gap-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto]">
-						<div className="flex flex-col gap-1.5">
-							<Label className="text-xs text-muted-foreground">
-								Стадия сделки
-							</Label>
-							<Select value={stageId} onValueChange={setStageId}>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Выберите стадию" />
-								</SelectTrigger>
-								<SelectContent>
-									{[...categories.entries()].map(([categoryName, list]) => (
-										<SelectGroup key={categoryName}>
-											<SelectLabel>{categoryName}</SelectLabel>
-											{list.map((stage) => (
-												<SelectItem key={stage.stageId} value={stage.stageId}>
-													{stage.stageName}
+						{audience === "list" ? (
+							<div className="flex flex-col gap-1.5">
+								<Label className="text-xs text-muted-foreground">
+									Список контактов
+								</Label>
+								{lists.length === 0 ? (
+									<p className="text-sm text-muted-foreground">
+										Списков ещё нет —{" "}
+										<Link
+											href="/email-lists"
+											className="underline underline-offset-2"
+										>
+											создайте и загрузите CSV
+										</Link>
+										.
+									</p>
+								) : (
+									<Select value={listId} onValueChange={setListId}>
+										<SelectTrigger className="w-full">
+											<SelectValue placeholder="Выберите список" />
+										</SelectTrigger>
+										<SelectContent>
+											{lists.map((l) => (
+												<SelectItem key={l.id} value={l.id}>
+													{l.name} ·{" "}
+													{(l.contactsCount - l.suppressedCount).toLocaleString(
+														"ru-RU",
+													)}{" "}
+													адресов
 												</SelectItem>
 											))}
-										</SelectGroup>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
+										</SelectContent>
+									</Select>
+								)}
+							</div>
+						) : (
+							<div className="flex flex-col gap-1.5">
+								<Label className="text-xs text-muted-foreground">
+									Стадия сделки
+								</Label>
+								<Select value={stageId} onValueChange={setStageId}>
+									<SelectTrigger className="w-full">
+										<SelectValue placeholder="Выберите стадию" />
+									</SelectTrigger>
+									<SelectContent>
+										{[...categories.entries()].map(([categoryName, group]) => (
+											<SelectGroup key={categoryName}>
+												<SelectLabel>{categoryName}</SelectLabel>
+												{group.map((stage) => (
+													<SelectItem key={stage.stageId} value={stage.stageId}>
+														{stage.stageName}
+													</SelectItem>
+												))}
+											</SelectGroup>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
 						<div className="flex flex-col gap-1.5">
 							<Label className="text-xs text-muted-foreground">
 								Шаблон письма
@@ -275,7 +386,7 @@ export function EmailCampaignForm({
 						<div className="flex flex-wrap items-center gap-2">
 							<Button
 								variant="outline"
-								disabled={!stageId || !templateId || isPending}
+								disabled={!audienceChosen || !templateId || isPending}
 								onClick={runPreview}
 							>
 								{isPending ? "Загрузка…" : "Показать получателей"}
@@ -290,28 +401,66 @@ export function EmailCampaignForm({
 					</div>
 
 					<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-						<div className="flex flex-col gap-1.5">
-							<Label
-								htmlFor="subject"
-								className="text-xs text-muted-foreground"
-							>
-								Тема письма
-							</Label>
-							<Input
-								id="subject"
-								value={subject}
-								onChange={(e) => {
-									setSubject(e.target.value);
-									subjectTouchedRef.current = true;
-								}}
-								placeholder="Тема письма подтянется из шаблона — можно изменить"
-							/>
+						<div className="flex flex-col gap-4">
+							<div className="flex flex-col gap-1.5">
+								<Label
+									htmlFor="subject"
+									className="text-xs text-muted-foreground"
+								>
+									Тема письма
+								</Label>
+								<Input
+									id="subject"
+									value={subject}
+									onChange={(e) => {
+										setSubject(e.target.value);
+										subjectTouchedRef.current = true;
+									}}
+									placeholder="Тема письма подтянется из шаблона — можно изменить"
+								/>
+							</div>
+							<div className="flex flex-col gap-1.5">
+								<Label
+									htmlFor="test-email"
+									className="text-xs text-muted-foreground"
+								>
+									Тестовое письмо себе — проверьте вид в почтовом клиенте перед
+									рассылкой
+								</Label>
+								<form
+									className="flex gap-2"
+									onSubmit={(e) => {
+										e.preventDefault();
+										void sendTestToAddress();
+									}}
+								>
+									<Input
+										id="test-email"
+										type="email"
+										value={testEmail}
+										onChange={(e) => setTestEmail(e.target.value)}
+										placeholder="you@example.com"
+									/>
+									<Button
+										type="submit"
+										variant="outline"
+										disabled={
+											!templateId ||
+											!trimmedSubject ||
+											!testEmail.trim() ||
+											testSending
+										}
+									>
+										{testSending ? "Отправка…" : "Отправить тест"}
+									</Button>
+								</form>
+							</div>
 						</div>
 						<div className="flex flex-col gap-1.5">
 							<Label className="text-xs text-muted-foreground">
-								Как увидит клиент (превью шаблона)
+								Как увидит получатель (превью шаблона)
 							</Label>
-							<div className="rounded-md border overflow-hidden bg-white h-64">
+							<div className="h-72 overflow-hidden rounded-md border bg-white">
 								{previewLoading ? (
 									<p className="p-3 text-sm text-muted-foreground">
 										Загрузка превью…
@@ -349,15 +498,15 @@ export function EmailCampaignForm({
 					<CardHeader>
 						<CardTitle>Рассылка запущена</CardTitle>
 						<CardDescription>
-							Импорт {queued.count} получателей в Unisender и запуск кампании
-							выполняются в фоне — страницу можно закрыть. Статус появится на
-							странице рассылки.
+							{queued.count.toLocaleString("ru-RU")} писем отправляются в фоне —
+							страницу можно закрыть. Статусы доставки, открытия и клики
+							появятся на странице рассылки по мере поступления.
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<Button asChild variant="outline">
 							<Link href={`/email-broadcast/${queued.campaignId}`}>
-								Открыть статус рассылки
+								Открыть статистику рассылки
 							</Link>
 						</Button>
 					</CardContent>
@@ -366,11 +515,12 @@ export function EmailCampaignForm({
 
 			{confirming && previewFresh && report && (
 				<SendConfirmation
-					stageLabel={stageLabel}
+					audienceKind={audience}
+					audienceLabel={audienceLabel}
 					templateLabel={selectedTemplate?.title ?? templateId}
 					subject={trimmedSubject}
 					sendableCount={sendableCount}
-					hasManualSelection={selectedContactIds.size > 0}
+					hasManualSelection={selectedKeys.size > 0}
 					skippedCount={report.skipped}
 					recentCampaign={recentCampaign}
 					ackChecked={ackChecked}
@@ -390,9 +540,9 @@ export function EmailCampaignForm({
 					report={report}
 					subject={trimmedSubject}
 					templateId={templateId}
-					selectedIds={selectedContactIds}
-					onToggle={toggleContact}
-					onToggleMany={toggleManyContacts}
+					selectedIds={selectedKeys}
+					onToggle={toggleKey}
+					onToggleMany={toggleManyKeys}
 				/>
 			)}
 		</div>

@@ -8,7 +8,7 @@ import UpdateEmail from "./update";
 export interface CampaignTemplateFieldDef {
 	key: string;
 	label: string;
-	type: "text" | "textarea" | "url";
+	type: "text" | "textarea" | "url" | "image";
 	placeholder?: string;
 }
 
@@ -25,15 +25,28 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplateDef[] = [
 	{
 		key: "simple",
 		label: "Простое объявление",
-		description: "Заголовок, текст и необязательная кнопка — на любой случай.",
+		description:
+			"Заголовок, текст, необязательные картинка и кнопка — на любой случай.",
 		fields: [
 			{ key: "heading", label: "Заголовок", type: "text" },
+			{
+				key: "imageUrl",
+				label: "Картинка (необязательно)",
+				type: "image",
+			},
+			{
+				key: "imageLink",
+				label: "Ссылка при клике на картинку (необязательно)",
+				type: "url",
+			},
 			{ key: "body", label: "Текст письма", type: "textarea" },
 			{ key: "buttonText", label: "Текст кнопки", type: "text" },
 			{ key: "buttonUrl", label: "Ссылка кнопки", type: "url" },
 		],
 		defaultValues: {
 			heading: "Заголовок письма",
+			imageUrl: "",
+			imageLink: "",
 			body: "Текст письма. Здесь можно рассказать получателю главное.",
 			buttonText: "Подробнее",
 			buttonUrl: "https://example.com",
@@ -49,7 +62,12 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplateDef[] = [
 			{ key: "heading", label: "Заголовок", type: "text" },
 			{
 				key: "imageUrl",
-				label: "Ссылка на картинку (необязательно)",
+				label: "Картинка",
+				type: "image",
+			},
+			{
+				key: "imageLink",
+				label: "Ссылка при клике на картинку (необязательно)",
 				type: "url",
 			},
 			{ key: "body", label: "Текст письма", type: "textarea" },
@@ -59,6 +77,7 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplateDef[] = [
 		defaultValues: {
 			heading: "Специальное предложение",
 			imageUrl: "",
+			imageLink: "",
 			body: "Расскажите о вашем предложении подробнее.",
 			buttonText: "Узнать больше",
 			buttonUrl: "https://example.com",
@@ -71,6 +90,16 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplateDef[] = [
 		description: "Вводный текст плюс выделенный блок с главным событием.",
 		fields: [
 			{ key: "heading", label: "Заголовок", type: "text" },
+			{
+				key: "imageUrl",
+				label: "Картинка (необязательно)",
+				type: "image",
+			},
+			{
+				key: "imageLink",
+				label: "Ссылка при клике на картинку (необязательно)",
+				type: "url",
+			},
 			{ key: "intro", label: "Вводный текст", type: "textarea" },
 			{ key: "highlightTitle", label: "Заголовок блока", type: "text" },
 			{ key: "highlightBody", label: "Текст блока", type: "textarea" },
@@ -79,6 +108,8 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplateDef[] = [
 		],
 		defaultValues: {
 			heading: "Новости и обновления",
+			imageUrl: "",
+			imageLink: "",
 			intro: "Коротко о том, что нового.",
 			highlightTitle: "Главное событие",
 			highlightBody: "Опишите здесь самое важное.",

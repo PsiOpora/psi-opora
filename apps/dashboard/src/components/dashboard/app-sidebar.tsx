@@ -19,6 +19,7 @@ import {
 	SlidersHorizontalIcon,
 	TagsIcon,
 	TargetIcon,
+	UsersIcon,
 	WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -66,6 +67,7 @@ const NAV_GROUPS = [
 		items: [
 			{ href: "/broadcast", label: "Рассылка", icon: SendIcon },
 			{ href: "/email-broadcast", label: "Email-рассылка", icon: MailIcon },
+			{ href: "/email-lists", label: "Списки контактов", icon: UsersIcon },
 			{
 				href: "/email-templates",
 				label: "Шаблоны писем",

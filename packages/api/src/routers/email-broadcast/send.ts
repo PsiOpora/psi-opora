@@ -1,15 +1,20 @@
 import {
 	createEmailCampaign,
 	finishEmailCampaign,
+	getEmailList,
+	getLastEmailCampaignForList,
 	getLastEmailCampaignForStage,
 	insertEmailCampaignRecipients,
 } from "@psi-opora/db/queries";
 import { enqueueEmailCampaign } from "@psi-opora/jobs";
-import { bitrixProcedure } from "../../orpc";
 import {
 	buildEmailReport,
 	collectEmailRecipients,
+	collectListRecipients,
+	type EmailRecipient,
 } from "../../email-campaign-collect";
+import { bitrixProcedure } from "../../orpc";
+import { publicOriginFromHeaders } from "../../public-origin";
 import { sendEmailCampaignSchema } from "../../schemas/broadcast";
 import { getActiveEmailSender } from "./active-sender";
 import type { EmailCampaignActionResult } from "./types";
@@ -17,11 +22,7 @@ import type { EmailCampaignActionResult } from "./types";
 export const send = bitrixProcedure
 	.input(sendEmailCampaignSchema)
 	.handler(async ({ input, context }): Promise<EmailCampaignActionResult> => {
-		const api = await context.getBitrixApi();
-		if (!api) return { error: "Bitrix24 не подключён" };
-		if (!input.stageId) return { error: "Не выбрана стадия" };
 		if (!input.templateId) return { error: "Не выбран шаблон" };
-
 		const subject = input.subject.trim();
 		if (!subject) return { error: "Не задана тема письма" };
 
@@ -29,17 +30,35 @@ export const send = bitrixProcedure
 		if ("error" in sender) return { error: sender.error };
 
 		try {
-			const { totalDeals, recipients } = await collectEmailRecipients(
-				api,
-				input.stageId,
-			);
+			let collected: { totalDeals: number; recipients: EmailRecipient[] };
+			let audienceLabel: { stageName?: string; listName?: string } = {};
+			if (input.audience === "list") {
+				if (!input.listId) return { error: "Не выбран список контактов" };
+				const list = await getEmailList(input.listId);
+				if (!list) return { error: "Список контактов не найден" };
+				collected = await collectListRecipients(list.id);
+				audienceLabel = { listName: list.name };
+			} else {
+				if (!input.stageId) return { error: "Не выбрана стадия" };
+				const api = await context.getBitrixApi();
+				if (!api) return { error: "Bitrix24 не подключён" };
+				collected = await collectEmailRecipients(api, input.stageId);
+				audienceLabel = { stageName: input.stageName };
+			}
+			const { totalDeals, recipients } = collected;
 
 			if (input.dryRun) {
-				const recent = await getLastEmailCampaignForStage(input.stageId).catch(
-					() => null,
-				);
+				const recent = await (input.audience === "list"
+					? getLastEmailCampaignForList(input.listId as string)
+					: getLastEmailCampaignForStage(input.stageId as string)
+				).catch(() => null);
 				return {
-					report: buildEmailReport(totalDeals, recipients, true),
+					report: buildEmailReport(
+						input.audience,
+						totalDeals,
+						recipients,
+						true,
+					),
 					recentCampaign: recent
 						? {
 								startedAt: recent.startedAt,
@@ -61,11 +80,11 @@ export const send = bitrixProcedure
 				};
 			}
 
-			const selectedIds = input.selectedContactIds?.length
-				? new Set(input.selectedContactIds)
+			const selectedKeys = input.selectedKeys?.length
+				? new Set(input.selectedKeys)
 				: null;
-			const targetRecipients = selectedIds
-				? recipients.filter((r) => selectedIds.has(r.contactId))
+			const targetRecipients = selectedKeys
+				? recipients.filter((r) => selectedKeys.has(r.key))
 				: recipients;
 
 			const pendingCount = targetRecipients.filter(
@@ -78,22 +97,27 @@ export const send = bitrixProcedure
 			const campaignId = crypto.randomUUID();
 			await createEmailCampaign({
 				id: campaignId,
-				stageId: input.stageId,
-				stageName: input.stageName,
+				audience: input.audience,
+				stageId: input.audience === "crm_stage" ? input.stageId : null,
+				stageName: audienceLabel.stageName ?? null,
+				listId: input.audience === "list" ? input.listId : null,
+				listName: audienceLabel.listName ?? null,
 				templateId: input.templateId,
 				templateName: input.templateName,
 				subject,
 				senderEmail: sender.senderEmail,
 				senderName: sender.senderName,
 				provider: sender.provider,
+				publicBaseUrl: publicOriginFromHeaders(context.headers),
 				totalDeals,
+				recipientsCount: pendingCount,
 			});
 			await insertEmailCampaignRecipients(
 				targetRecipients.map((r) => ({
 					id: crypto.randomUUID(),
 					campaignId,
 					contactId: r.contactId,
-					contactName: r.contactName,
+					contactName: r.contactName || null,
 					dealId: r.dealId,
 					dealTitle: r.dealTitle,
 					email: r.email,

@@ -7,5 +7,10 @@ export const rusenderSettings = pgTable("rusender_settings", {
 	keyId: text("key_id"),
 	senderEmail: text("sender_email"),
 	senderName: text("sender_name"),
+	/**
+	 * Секрет в пути URL вебхука статусов писем: у вебхуков Rusender нет
+	 * подписи, поэтому подлинность запроса подтверждает только этот секрет.
+	 */
+	webhookSecret: text("webhook_secret"),
 	updatedAt: timestamp("updated_at").defaultNow(),
 });

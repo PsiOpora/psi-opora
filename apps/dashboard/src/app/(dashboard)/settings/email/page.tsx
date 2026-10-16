@@ -7,6 +7,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { DeliveryWebhooksCard } from "./delivery-webhooks-card";
 import { ProviderSwitch } from "./provider-switch";
 import { ResendSettingsForm } from "./resend-settings-form";
 import { RusenderSettingsForm } from "./rusender-settings-form";
@@ -20,12 +21,15 @@ export default function EmailSettingsPage() {
 				<div>
 					<h1 className="text-2xl font-semibold">Настройки email</h1>
 					<p className="text-sm text-muted-foreground mt-1">
-						Провайдер, API-ключ и адрес отправителя для email-рассылки по
-						стадиям сделок (раздел «Email-рассылка») и транзакционных писем.
+						Провайдер, API-ключ и адрес отправителя для email-рассылок (раздел
+						«Email-рассылка») и транзакционных писем, а также вебхуки статусов
+						доставки.
 					</p>
 				</div>
 				<ProviderSwitch />
 			</div>
+
+			<DeliveryWebhooksCard />
 
 			<Card>
 				<CardHeader>

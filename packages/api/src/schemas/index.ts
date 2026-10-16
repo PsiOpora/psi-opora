@@ -45,6 +45,26 @@ export {
 } from "./broadcast";
 export { type AddCostInput, addCostSchema } from "./costs";
 export {
+	addEmailSuppressionSchema,
+	EMAIL_IMPORT_BATCH_SIZE,
+	EMAIL_RECIPIENT_FILTER_VALUES,
+	emailCampaignIdSchema,
+	emailCampaignRecipientsQuerySchema,
+	emailListContactsQuerySchema,
+	emailListIdSchema,
+	emailRecipientIdSchema,
+	emailSuppressionsQuerySchema,
+	type ImportEmailListContactsInput,
+	importEmailListContactsSchema,
+	isValidEmail,
+	normalizeEmail,
+	removeEmailListContactsSchema,
+	removeEmailSuppressionSchema,
+	type SaveEmailListInput,
+	saveEmailListSchema,
+	updateEmailListSchema,
+} from "./email-lists";
+export {
 	type DisconnectMaxPersonalInput,
 	disconnectMaxPersonalSchema,
 	type StartMaxLoginInput,

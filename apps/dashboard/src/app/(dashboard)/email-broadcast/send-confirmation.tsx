@@ -21,7 +21,8 @@ function formatDateTime(date: Date | null): string {
 }
 
 export function SendConfirmation({
-	stageLabel,
+	audienceKind,
+	audienceLabel,
 	templateLabel,
 	subject,
 	sendableCount,
@@ -34,7 +35,8 @@ export function SendConfirmation({
 	onCancel,
 	isPending,
 }: {
-	stageLabel: string;
+	audienceKind: "list" | "crm_stage";
+	audienceLabel: string;
 	templateLabel: string;
 	subject: string;
 	sendableCount: number;
@@ -58,7 +60,10 @@ export function SendConfirmation({
 			<CardContent className="flex flex-col gap-3">
 				<div className="text-sm">
 					<p>
-						<span className="text-muted-foreground">Стадия:</span> {stageLabel}
+						<span className="text-muted-foreground">
+							{audienceKind === "list" ? "Аудитория:" : "Стадия:"}
+						</span>{" "}
+						{audienceLabel}
 					</p>
 					<p>
 						<span className="text-muted-foreground">Шаблон:</span>{" "}
@@ -69,21 +74,21 @@ export function SendConfirmation({
 					</p>
 					<p>
 						<span className="text-muted-foreground">Получат письмо:</span>{" "}
-						{sendableCount} контактов
+						{sendableCount.toLocaleString("ru-RU")} адресов
 						{hasManualSelection
 							? " (отмечены вручную, остальные пропущены)"
 							: ""}
 						{skippedCount > 0 &&
-							` (ещё ${skippedCount} будут пропущены — нет email или отписаны)`}
+							` (ещё ${skippedCount} будут пропущены — нет email, дубль или стоп-лист)`}
 					</p>
 				</div>
 
 				{recentCampaign && (
 					<WarningBox>
-						По этой стадии уже была email-рассылка{" "}
-						{formatDateTime(recentCampaign.startedAt)} (получателей:{" "}
-						{recentCampaign.recipientsCount ?? "—"}). Убедитесь, что не
-						отправляете то же самое повторно.
+						{audienceKind === "list" ? "По этому списку" : "По этой стадии"} уже
+						была email-рассылка {formatDateTime(recentCampaign.startedAt)}{" "}
+						(получателей: {recentCampaign.recipientsCount ?? "—"}). Убедитесь,
+						что не отправляете то же самое повторно.
 					</WarningBox>
 				)}
 				{sendableCount > LARGE_AUDIENCE_THRESHOLD && (
@@ -102,7 +107,7 @@ export function SendConfirmation({
 					/>
 					<span>
 						Я проверил(а) список получателей, тему и шаблон письма. Понимаю, что
-						письмо уйдёт реальным клиентам через Unisender.
+						письмо уйдёт реальным людям, отменить отправку будет нельзя.
 					</span>
 				</label>
 

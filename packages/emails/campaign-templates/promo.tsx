@@ -5,7 +5,6 @@ import {
 	Head,
 	Heading,
 	Html,
-	Img,
 	Preview,
 	Section,
 	Tailwind,
@@ -13,10 +12,12 @@ import {
 } from "@react-email/components";
 
 import { emailTailwindConfig } from "../tailwind";
+import { CampaignFooter, CampaignImage } from "./parts";
 
 export default function PromoEmail({
 	heading = "",
 	imageUrl = "",
+	imageLink = "",
 	body = "",
 	buttonText = "",
 	buttonUrl = "",
@@ -31,13 +32,7 @@ export default function PromoEmail({
 			<Tailwind config={emailTailwindConfig}>
 				<Body className="mx-auto my-auto bg-white font-sans">
 					<Container className="mx-auto my-[40px] w-[465px] rounded border border-solid border-[#eaeaea] p-[20px]">
-						{imageUrl && (
-							<Img
-								src={imageUrl}
-								alt={heading}
-								className="mx-auto my-0 w-full rounded object-cover"
-							/>
-						)}
+						<CampaignImage src={imageUrl} alt={heading} href={imageLink} />
 						<Heading className="mx-0 my-[30px] p-0 text-center text-[24px] font-normal text-black">
 							{heading}
 						</Heading>
@@ -59,6 +54,7 @@ export default function PromoEmail({
 								</Button>
 							</Section>
 						)}
+						<CampaignFooter />
 					</Container>
 				</Body>
 			</Tailwind>

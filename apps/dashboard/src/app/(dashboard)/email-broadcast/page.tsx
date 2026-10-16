@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { NotConnected } from "@/components/dashboard/not-connected";
 import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { useBitrixData } from "@/hooks/use-bitrix-data";
@@ -23,10 +24,15 @@ export default function EmailBroadcastPage() {
 }
 
 function EmailBroadcastPageContent() {
+	const searchParams = useSearchParams();
+	const initialListId = searchParams.get("listId") ?? undefined;
 	const { data, isLoading, isError } = useBitrixData([
 		"stageNames",
 		"categoryNames",
 	]);
+	const { data: lists = [], isLoading: listsLoading } = useQuery(
+		orpc.emailLists.list.queryOptions(),
+	);
 	const { data: templates = [], isLoading: templatesLoading } = useQuery(
 		orpc.emailTemplates.list.queryOptions(),
 	);
@@ -41,6 +47,7 @@ function EmailBroadcastPageContent() {
 	if (
 		isLoading ||
 		templatesLoading ||
+		listsLoading ||
 		providerLoading ||
 		unisenderSettingsLoading ||
 		rusenderSettingsLoading
@@ -54,10 +61,11 @@ function EmailBroadcastPageContent() {
 			</p>
 		);
 	}
-	if (!data?.connected) return <NotConnected />;
+	// Без Bitrix24 рассылка по собственным спискам всё равно доступна.
+	if (!data?.connected && lists.length === 0) return <NotConnected />;
 
-	const stages = data.stageNames ?? new Map();
-	const categories = data.categoryNames ?? new Map();
+	const stages = data?.stageNames ?? new Map();
+	const categories = data?.categoryNames ?? new Map();
 
 	const options: StageOption[] = [...stages.entries()]
 		.map(([stageId, info]) => {
@@ -90,7 +98,11 @@ function EmailBroadcastPageContent() {
 			<div>
 				<h1 className="text-2xl font-semibold">Email-рассылка</h1>
 				<p className="text-sm text-muted-foreground mt-1">
-					Письмо по собственному шаблону контактам сделок выбранной стадии.
+					Письмо по собственному шаблону — адресам из{" "}
+					<Link href="/email-lists" className="underline underline-offset-2">
+						списка контактов
+					</Link>{" "}
+					или контактам сделок выбранной стадии CRM.
 				</p>
 			</div>
 
@@ -108,6 +120,8 @@ function EmailBroadcastPageContent() {
 			) : (
 				<EmailCampaignForm
 					stages={options}
+					lists={lists}
+					initialListId={initialListId}
 					templates={templates}
 					senderConfigured={senderConfigured}
 				/>
