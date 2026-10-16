@@ -1,5 +1,5 @@
 import { bitrixPortalKey } from "@psi-opora/config";
-import { upsertBitrixCrmLink } from "@psi-opora/db/queries";
+import { getBitrixCrmLink, upsertBitrixCrmLink } from "@psi-opora/db/queries";
 import { bitrixPost, getBotId, getEnv, getWebhookBase } from "./client";
 import {
 	buildContactFields,
@@ -7,7 +7,7 @@ import {
 	findExistingContactId,
 } from "./contact";
 import { buildDealFields, linkBitrixTrace } from "./deal";
-import { resolveOpenLineDialog } from "./openline";
+import { type OpenLineDialog, resolveOpenLineDialog } from "./openline";
 import type { ContactData, DealData } from "./types";
 
 /**
@@ -16,13 +16,19 @@ import type { ContactData, DealData } from "./types";
  * завершения соответствующего сценария.
  */
 export async function createBitrixContact(data: ContactData): Promise<number> {
+	return (await ensureBitrixContact(data)).contactId;
+}
+
+async function ensureBitrixContact(
+	data: ContactData,
+): Promise<{ contactId: number; dialog: OpenLineDialog | null }> {
 	const messenger = data.messenger ?? "telegram";
 	const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
 	if (!webhookUrl) {
 		console.warn(
 			`[bitrix] BITRIX_WEBHOOK_URL не задан для ${messenger}, пропускаем`,
 		);
-		return 0;
+		return { contactId: 0, dialog: null };
 	}
 
 	// Автосоздание сделки трекером Открытой линии отключено в настройках
@@ -134,25 +140,70 @@ export async function createBitrixContact(data: ContactData): Promise<number> {
 		}
 	}
 
-	return contactId;
+	return { contactId, dialog };
+}
+
+/**
+ * Сделка, которую трекер Открытой линии уже завёл по этому диалогу (у
+ * повторных клиентов он создаёт её на первое сообщение, в «Неразобранном»),
+ * если её ещё можно занять вместо создания дубля: она открыта и не была
+ * нашей сделкой раньше (иначе это повторная заявка — ей нужна новая сделка).
+ */
+async function findAdoptableTrackerDeal(
+	data: DealData,
+	dialog: OpenLineDialog | null,
+): Promise<number | null> {
+	const trackerDealId = dialog?.dealId;
+	if (!trackerDealId) return null;
+	const messenger = data.messenger ?? "telegram";
+	try {
+		if (data.telegramUserId) {
+			const link = await getBitrixCrmLink(
+				messenger,
+				String(data.telegramUserId),
+			);
+			if (link?.dealId === String(trackerDealId)) return null;
+		}
+		const deal = await bitrixPost<{ CLOSED?: string } | null>(
+			"crm.deal.get",
+			{ id: trackerDealId },
+			messenger,
+		);
+		return deal && deal.CLOSED !== "Y" ? trackerDealId : null;
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(
+			`[bitrix] не удалось проверить сделку трекера ${trackerDealId}: ${message}`,
+		);
+		return null;
+	}
 }
 
 export async function createBitrixDeal(
 	data: DealData,
 ): Promise<{ contactId: number; dealId: number }> {
 	const messenger = data.messenger ?? "telegram";
-	const contactId = await createBitrixContact(data);
+	const { contactId, dialog } = await ensureBitrixContact(data);
 	if (!contactId) return { contactId: 0, dealId: 0 };
 
-	const dealId = await bitrixPost<number>(
-		"crm.deal.add",
-		{
-			fields: await buildDealFields(data, contactId),
-		},
-		messenger,
-	);
+	const fields = await buildDealFields(data, contactId);
+	const trackerDealId = await findAdoptableTrackerDeal(data, dialog);
+	let dealId: number;
+	if (trackerDealId) {
+		// Дополняем сделку трекера и переносим в нужную воронку/стадию, а не
+		// заводим вторую. Ответственного не трогаем — его уже назначила линия.
+		const { ASSIGNED_BY_ID: _assignedBy, ...adoptFields } = fields;
+		await bitrixPost(
+			"crm.deal.update",
+			{ id: trackerDealId, fields: adoptFields },
+			messenger,
+		);
+		dealId = trackerDealId;
+	} else {
+		dealId = await bitrixPost<number>("crm.deal.add", { fields }, messenger);
+	}
 	console.log(
-		`[bitrix] сделка создана id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
+		`[bitrix] сделка ${trackerDealId ? "трекера использована" : "создана"} id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
 	);
 
 	if (data.telegramUserId) {
