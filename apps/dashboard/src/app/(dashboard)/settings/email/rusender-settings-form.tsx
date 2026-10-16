@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
 	Form,
 	FormControl,
+	FormDescription,
 	FormField,
 	FormItem,
 	FormLabel,
@@ -28,7 +29,9 @@ type RusenderSettings = RouterOutputs["email"]["getRusenderSettings"];
 
 function toFormValues(settings: RusenderSettings): RusenderSettingsInput {
 	return {
-		apiKey: settings?.apiKey ?? "",
+		// Сохранённый ключ на клиент не приходит (только маска): поле всегда
+		// пустое, а пустое значение при сохранении ключ не меняет.
+		apiKey: "",
 		keyId: settings?.keyId ?? "",
 		senderEmail: settings?.senderEmail ?? "",
 		senderName: settings?.senderName ?? "",
@@ -54,7 +57,7 @@ export function RusenderSettingsForm() {
 		orpc.email.upsertRusenderSettings.mutationOptions({
 			onSuccess: () => {
 				toast.success("Настройки Rusender сохранены");
-				form.reset(form.getValues());
+				form.reset({ ...form.getValues(), apiKey: "" });
 				queryClient.invalidateQueries({
 					queryKey: orpc.email.getRusenderSettings.key(),
 				});
@@ -87,7 +90,9 @@ export function RusenderSettingsForm() {
 										<div className="relative">
 											<Input
 												type={showApiKey ? "text" : "password"}
-												placeholder="rs_ck_v1_••••••••"
+												placeholder={
+													settings?.apiKeyMask ?? "rs_ck_v1_••••••••"
+												}
 												className="font-mono text-sm pr-10"
 												{...field}
 											/>
@@ -105,6 +110,11 @@ export function RusenderSettingsForm() {
 											</button>
 										</div>
 									</FormControl>
+									{settings?.apiKeyMask && (
+										<FormDescription className="text-xs">
+											Ключ сохранён. Оставьте поле пустым, чтобы не менять его.
+										</FormDescription>
+									)}
 									<FormMessage />
 								</FormItem>
 							)}

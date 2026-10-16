@@ -5,7 +5,7 @@ import {
 	insertEmailCampaignRecipients,
 } from "@psi-opora/db/queries";
 import { enqueueEmailCampaign } from "@psi-opora/jobs";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import {
 	buildEmailReport,
 	collectEmailRecipients,
@@ -14,7 +14,7 @@ import { sendEmailCampaignSchema } from "../../schemas/broadcast";
 import { getActiveEmailSender } from "./active-sender";
 import type { EmailCampaignActionResult } from "./types";
 
-export const send = publicProcedure
+export const send = bitrixProcedure
 	.input(sendEmailCampaignSchema)
 	.handler(async ({ input, context }): Promise<EmailCampaignActionResult> => {
 		const api = await context.getBitrixApi();

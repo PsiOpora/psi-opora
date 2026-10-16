@@ -1,11 +1,11 @@
 import { getEmailTemplate, renderEmailTemplate } from "@psi-opora/db/queries";
 import { renderCampaignTemplate } from "@psi-opora/emails";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { sendTestEmailSchema } from "../../schemas/broadcast";
 import { getActiveEmailSender } from "./active-sender";
 
 /** Тестовая отправка письма шаблона на один адрес — минуя список/кампанию провайдера. */
-export const sendTest = publicProcedure
+export const sendTest = bitrixProcedure
 	.input(sendTestEmailSchema)
 	.handler(async ({ input }) => {
 		const template = await getEmailTemplate(input.templateId);

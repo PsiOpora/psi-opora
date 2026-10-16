@@ -1,9 +1,9 @@
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { widgetRecipientSchema } from "../../schemas/broadcast";
 import { loadHistory, resolveContact } from "./helpers";
 import type { WidgetRecipient } from "./types";
 
-export const loadRecipient = publicProcedure
+export const loadRecipient = bitrixProcedure
 	.input(widgetRecipientSchema)
 	.handler(
 		async ({

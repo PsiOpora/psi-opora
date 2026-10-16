@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { logger } from "@psi-opora/config";
 import { getBotConnector } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import type { BotConnectorView } from "./types";
 
 async function toView(
@@ -19,7 +19,7 @@ async function toView(
 }
 
 /** Статус обоих ботов — для карточек в настройках. */
-export const status = publicProcedure.handler(
+export const status = bitrixProcedure.handler(
 	async (): Promise<{
 		telegram: BotConnectorView | null;
 		max: BotConnectorView | null;

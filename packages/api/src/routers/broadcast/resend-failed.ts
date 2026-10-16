@@ -5,14 +5,14 @@ import {
 	markBroadcastRunning,
 } from "@psi-opora/db/queries";
 import { enqueueBroadcast } from "@psi-opora/jobs";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { resendFailedSchema } from "../../schemas/broadcast";
 
 /**
  * Досылка сообщения получателям рассылки, у которых была ошибка отправки:
  * ставит фоновую задачу Hatchet. Успешные и пропущенные не трогаются.
  */
-export const resendFailed = publicProcedure
+export const resendFailed = bitrixProcedure
 	.input(resendFailedSchema)
 	.handler(async ({ input }) => {
 		const broadcast = await getBroadcast(input.broadcastId);

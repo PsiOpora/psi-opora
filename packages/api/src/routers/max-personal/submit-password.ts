@@ -1,5 +1,5 @@
 import { callMaxLoginWorker, encryptSecret } from "@psi-opora/max-userbot";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { submitMaxPasswordSchema } from "../../schemas/max-personal";
 import {
 	deletePendingMaxLogin,
@@ -8,7 +8,7 @@ import {
 	maskPhone,
 } from "./helpers";
 
-export const submitPassword = publicProcedure
+export const submitPassword = bitrixProcedure
 	.input(submitMaxPasswordSchema)
 	.handler(
 		async ({

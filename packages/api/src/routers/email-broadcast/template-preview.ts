@@ -1,9 +1,9 @@
 import { getEmailTemplate, renderEmailTemplate } from "@psi-opora/db/queries";
 import { renderCampaignTemplate } from "@psi-opora/emails";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { templatePreviewSchema } from "../../schemas/broadcast";
 
-export const templatePreview = publicProcedure
+export const templatePreview = bitrixProcedure
 	.input(templatePreviewSchema)
 	.handler(async ({ input }) => {
 		const template = await getEmailTemplate(input.templateId);

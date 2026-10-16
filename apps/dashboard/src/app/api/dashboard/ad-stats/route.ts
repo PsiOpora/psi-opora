@@ -4,7 +4,7 @@ import {
 	fetchAdStats,
 	getCachedAdStats,
 } from "@psi-opora/api";
-import { orpc } from "@/lib/orpc/server";
+import { getAdCredentials } from "@psi-opora/db/queries";
 import { getRedisOrNull } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function GET() {
 
 	if (!data) {
 		try {
-			const creds = await orpc.ads.getCredentials().catch(() => null);
+			const creds = await getAdCredentials().catch(() => null);
 			data = await fetchAdStats(redis, creds);
 		} catch {
 			loadError = true;

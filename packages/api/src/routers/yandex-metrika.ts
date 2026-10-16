@@ -6,7 +6,7 @@ import {
 	updateYandexMetrikaStageGoal,
 	upsertYandexMetrikaSettings,
 } from "@psi-opora/db/queries";
-import { publicProcedure, router } from "../orpc";
+import { bitrixProcedure, router } from "../orpc";
 import {
 	updateYandexMetrikaStageGoalSchema,
 	yandexMetrikaSettingsSchema,
@@ -38,11 +38,11 @@ function toStageGoalRow(
 }
 
 export const yandexMetrikaRouter = router({
-	getSettings: publicProcedure.handler(async () => {
+	getSettings: bitrixProcedure.handler(async () => {
 		return getYandexMetrikaSettings();
 	}),
 
-	upsertSettings: publicProcedure
+	upsertSettings: bitrixProcedure
 		.input(yandexMetrikaSettingsSchema)
 		.handler(async ({ input }) => {
 			await upsertYandexMetrikaSettings(input);
@@ -50,11 +50,11 @@ export const yandexMetrikaRouter = router({
 		}),
 
 	/** Цели, привязанные к стадиям воронки, с числом отправленных конверсий. */
-	listStageGoals: publicProcedure.handler(async () => {
+	listStageGoals: bitrixProcedure.handler(async () => {
 		return listYandexMetrikaStageGoals();
 	}),
 
-	createStageGoal: publicProcedure
+	createStageGoal: bitrixProcedure
 		.input(yandexMetrikaStageGoalSchema)
 		.handler(async ({ input }) => {
 			try {
@@ -73,7 +73,7 @@ export const yandexMetrikaRouter = router({
 			return { ok: true };
 		}),
 
-	updateStageGoal: publicProcedure
+	updateStageGoal: bitrixProcedure
 		.input(updateYandexMetrikaStageGoalSchema)
 		.handler(async ({ input }) => {
 			try {
@@ -89,7 +89,7 @@ export const yandexMetrikaRouter = router({
 			return { ok: true };
 		}),
 
-	removeStageGoal: publicProcedure
+	removeStageGoal: bitrixProcedure
 		.input(yandexMetrikaStageGoalIdSchema)
 		.handler(async ({ input }) => {
 			await deleteYandexMetrikaStageGoal(input.id);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchAdStats } from "@psi-opora/api";
 import { env } from "@psi-opora/config";
 import { getRedisOrNull } from "@/lib/redis";
-import { orpc } from "@/lib/orpc/server";
+import { getAdCredentials } from "@psi-opora/db/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
 	try {
 		const redis = getRedisOrNull();
-		const creds = await orpc.ads.getCredentials().catch(() => null);
+		const creds = await getAdCredentials().catch(() => null);
 		const result = await fetchAdStats(redis, creds);
 		return NextResponse.json({
 			ok: true,

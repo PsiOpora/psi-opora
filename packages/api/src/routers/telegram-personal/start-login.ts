@@ -1,5 +1,5 @@
 import { sendLoginCode } from "@psi-opora/tg-userbot";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { startTelegramLoginSchema } from "../../schemas/telegram-personal";
 import { savePendingTelegramLogin } from "./helpers";
 
@@ -9,7 +9,7 @@ import { savePendingTelegramLogin } from "./helpers";
  * код через mtcute и сохраняет промежуточное состояние в Redis — сырые
  * данные сессии на фронт не уходят, только `loginId`.
  */
-export const startLogin = publicProcedure
+export const startLogin = bitrixProcedure
 	.input(startTelegramLoginSchema)
 	.handler(
 		async ({

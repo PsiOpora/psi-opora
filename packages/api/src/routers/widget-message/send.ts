@@ -1,7 +1,7 @@
 import { resolveBitrixPortalKey } from "@psi-opora/bitrix-client";
 import { insertBotMessage } from "@psi-opora/db/queries";
 import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import {
 	MESSAGE_MAX_LENGTH,
 	sendWidgetMessageSchema,
@@ -29,7 +29,7 @@ function needsLineMatch(messenger: string): boolean {
  * CRM (resolveContact), иначе вызывающий мог бы подставить произвольные
  * значения и отправить сообщение кому угодно, минуя привязку к контакту.
  */
-export const send = publicProcedure
+export const send = bitrixProcedure
 	.input(sendWidgetMessageSchema)
 	.handler(
 		async ({ input, context }): Promise<{ ok?: true; error?: string }> => {

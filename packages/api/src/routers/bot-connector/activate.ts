@@ -5,7 +5,7 @@ import {
 	upsertBotConnector,
 } from "@psi-opora/db/queries";
 import { setMessengerWebhook } from "@psi-opora/jobs";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { activateBotConnectorSchema } from "../../schemas/bot-connector";
 import { connectorId } from "./helpers";
 
@@ -17,7 +17,7 @@ import { connectorId } from "./helpers";
  * 3) автоматически настраиваем вебхук бота на наш деплой (setMessengerWebhook) —
  * раньше это был ручной скрипт (set-webhook.ts).
  */
-export const activate = publicProcedure
+export const activate = bitrixProcedure
 	.input(activateBotConnectorSchema)
 	.handler(
 		async ({

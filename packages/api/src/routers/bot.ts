@@ -20,7 +20,7 @@ import {
 } from "@psi-opora/db/queries";
 import { resolveMessengerBotUsername } from "@psi-opora/jobs";
 import { deleteGuidePdf } from "../guide-storage";
-import { publicProcedure, router } from "../orpc";
+import { bitrixProcedure, router } from "../orpc";
 import {
 	detectBotUsernameSchema,
 	guideIdSchema,
@@ -40,11 +40,11 @@ function normalizeUsername(value: string | undefined): string {
 }
 
 export const botRouter = router({
-	getTexts: publicProcedure.handler(async () => {
+	getTexts: bitrixProcedure.handler(async () => {
 		return getBotTextsRecord();
 	}),
 
-	saveTexts: publicProcedure
+	saveTexts: bitrixProcedure
 		.input(saveBotTextsSchema)
 		.handler(async ({ input }) => {
 			const entries: Record<string, string> = {};
@@ -63,7 +63,7 @@ export const botRouter = router({
 	 * в схеме нет — значения лежат в bot_texts рядом с GUIDE_FILE_* (см.
 	 * TG_BOT_USERNAME_KEY в packages/bot-core/src/scenario/texts.ts).
 	 */
-	getBotUsernames: publicProcedure.handler(async () => {
+	getBotUsernames: bitrixProcedure.handler(async () => {
 		const record = await getBotTextsRecord();
 		return {
 			telegram: normalizeUsername(record[TG_BOT_USERNAME_KEY]),
@@ -71,7 +71,7 @@ export const botRouter = router({
 		};
 	}),
 
-	saveBotUsernames: publicProcedure
+	saveBotUsernames: bitrixProcedure
 		.input(saveBotUsernamesSchema)
 		.handler(async ({ input }) => {
 			const entries: Record<string, string> = {};
@@ -91,7 +91,7 @@ export const botRouter = router({
 	 * Спрашивает username у самого мессенджера по токену из bot_connectors
 	 * и запоминает его — чтобы заказчику не приходилось вводить руками.
 	 */
-	detectBotUsername: publicProcedure
+	detectBotUsername: bitrixProcedure
 		.input(detectBotUsernameSchema)
 		.handler(async ({ input }) => {
 			const username = await resolveMessengerBotUsername(input.messenger);
@@ -99,12 +99,12 @@ export const botRouter = router({
 			return { username };
 		}),
 
-	listGuides: publicProcedure.handler(async () => {
+	listGuides: bitrixProcedure.handler(async () => {
 		return listBotGuides();
 	}),
 
 	/** Делает гайд из библиотеки активным — именно его бот шлёт в ветке лид-магнита. */
-	setActiveGuide: publicProcedure
+	setActiveGuide: bitrixProcedure
 		.input(guideIdSchema)
 		.handler(async ({ input }) => {
 			const guide = await getBotGuide(input.id);
@@ -125,7 +125,7 @@ export const botRouter = router({
 	 * а не выбранную в библиотеке запись со своим заголовком (иначе на
 	 * проверку уходил не тот файл, что реально видит клиент).
 	 */
-	sendTestGuide: publicProcedure
+	sendTestGuide: bitrixProcedure
 		.input(sendTestGuideSchema)
 		.handler(async ({ input }) => {
 			if (!env.EMAIL_SANDBOX_ENABLED && !env.UNISENDER_API_KEY) {
@@ -146,7 +146,7 @@ export const botRouter = router({
 		}),
 
 	/** Удаляет гайд из библиотеки; если он был активным — бот перестаёт слать файл. */
-	deleteGuide: publicProcedure
+	deleteGuide: bitrixProcedure
 		.input(guideIdSchema)
 		.handler(async ({ input }) => {
 			const guide = await getBotGuide(input.id);

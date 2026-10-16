@@ -1,6 +1,6 @@
 import { logger } from "@psi-opora/config";
 import { getBotConnector, removeBotConnector } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { deactivateBotConnectorSchema } from "../../schemas/bot-connector";
 
 /**
@@ -8,7 +8,7 @@ import { deactivateBotConnectorSchema } from "../../schemas/bot-connector";
  * бот должен продолжать отвечать на входящие независимо от того, дублируется
  * ли переписка в Открытую линию.
  */
-export const deactivate = publicProcedure
+export const deactivate = bitrixProcedure
 	.input(deactivateBotConnectorSchema)
 	.handler(
 		async ({ input, context }): Promise<{ ok?: true; error?: string }> => {

@@ -11,7 +11,7 @@ import {
 	type CampaignTemplateDef,
 	renderCampaignTemplate,
 } from "@psi-opora/emails";
-import { publicProcedure, router } from "../../orpc";
+import { bitrixProcedure, router } from "../../orpc";
 import {
 	emailTemplateIdSchema,
 	renderTemplatePreviewSchema,
@@ -22,24 +22,24 @@ export type CampaignTemplateSummary = Omit<CampaignTemplateDef, "component">;
 export type { CampaignTemplateFieldDef } from "@psi-opora/emails";
 
 export const emailTemplatesRouter = router({
-	list: publicProcedure.handler(async () => {
+	list: bitrixProcedure.handler(async () => {
 		return listEmailTemplates();
 	}),
 
-	get: publicProcedure
+	get: bitrixProcedure
 		.input(emailTemplateIdSchema)
 		.handler(async ({ input }) => {
 			return getEmailTemplate(input.id);
 		}),
 
-	save: publicProcedure
+	save: bitrixProcedure
 		.input(saveEmailTemplateSchema)
 		.handler(async ({ input }) => {
 			const template = await saveEmailTemplate(input);
 			return { template };
 		}),
 
-	remove: publicProcedure
+	remove: bitrixProcedure
 		.input(emailTemplateIdSchema)
 		.handler(async ({ input }) => {
 			const inUse = await hasActiveEmailCampaignForTemplate(input.id);
@@ -54,14 +54,14 @@ export const emailTemplatesRouter = router({
 		}),
 
 	/** Готовые шаблоны (галерея выбора) — без React-компонента, только метаданные полей. */
-	listDefs: publicProcedure.handler(
+	listDefs: bitrixProcedure.handler(
 		async (): Promise<CampaignTemplateSummary[]> => {
 			return CAMPAIGN_TEMPLATES.map(({ component, ...def }) => def);
 		},
 	),
 
 	/** Превью каждого готового шаблона на примерных значениях — для миниатюр в галерее. */
-	previewDefaults: publicProcedure.handler(async () => {
+	previewDefaults: bitrixProcedure.handler(async () => {
 		return Promise.all(
 			CAMPAIGN_TEMPLATES.map(async (def) => ({
 				key: def.key,
@@ -71,7 +71,7 @@ export const emailTemplatesRouter = router({
 	}),
 
 	/** Живое превью в редакторе — без подстановки {{name}}/{{email}}, они остаются видны как есть. */
-	renderPreview: publicProcedure
+	renderPreview: bitrixProcedure
 		.input(renderTemplatePreviewSchema)
 		.handler(async ({ input }) => {
 			const html = await renderCampaignTemplate(

@@ -5,7 +5,7 @@ import {
 	wahaRequestPairingCode,
 	waSessionName,
 } from "@psi-opora/waha";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { startWhatsappLoginSchema } from "../../schemas/whatsapp-personal";
 import { sessionWebhook } from "./helpers";
 
@@ -21,7 +21,7 @@ const SESSION_READY_DELAY_MS = 1000;
  * а виджет опрашивает pollStatus до статуса WORKING — промежуточного
  * состояния в Redis нет, им владеет сама WAHA (имя сессии детерминировано).
  */
-export const startLogin = publicProcedure
+export const startLogin = bitrixProcedure
 	.input(startWhatsappLoginSchema)
 	.handler(
 		async ({
