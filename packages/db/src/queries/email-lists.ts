@@ -9,6 +9,7 @@ import {
 	isNotNull,
 	isNull,
 	or,
+	sql,
 } from "drizzle-orm";
 import { db } from "../client";
 import { emailCampaigns } from "../schema/email-campaign";
@@ -242,6 +243,8 @@ export interface AddListContactsResult {
 	duplicates: number;
 	/** Строки, противоречащие списку (см. ContactMergePlan.conflicts). */
 	conflicts: number;
+	/** Существующие контакты-дубли, слитые с другим контактом списка. */
+	merged: number;
 }
 
 /**
@@ -256,7 +259,13 @@ export async function addEmailListContacts(
 	contacts: MergeContactInput[],
 	source: "csv" | "manual",
 ): Promise<AddListContactsResult> {
-	const empty = { inserted: 0, updated: 0, duplicates: 0, conflicts: 0 };
+	const empty = {
+		inserted: 0,
+		updated: 0,
+		duplicates: 0,
+		conflicts: 0,
+		merged: 0,
+	};
 	if (!db || contacts.length === 0) return empty;
 
 	const emails = [
@@ -304,6 +313,41 @@ export async function addEmailListContacts(
 		inserted = rows.length;
 	}
 
+	// Склейка двух существующих контактов — одним SQL-запросом: транзакций на
+	// драйвере neon-http нет, а удалить поглощённый контакт и записать его
+	// email/телефон в оставшийся нужно атомарно (иначе уникальный индекс не
+	// даст обновить, а при сбое между шагами потерялись бы данные). EXISTS по
+	// CTE заставляет DELETE выполниться раньше UPDATE.
+	let merged = 0;
+	for (const merge of plan.merges) {
+		const { keep, absorbedIds } = merge;
+		try {
+			await db.execute(sql`
+				with removed as (
+					delete from email_list_contacts
+					where list_id = ${listId}
+						and id in (${sql.join(
+							absorbedIds.map((id) => sql`${id}`),
+							sql`, `,
+						)})
+						and exists (
+							select 1 from email_list_contacts
+							where id = ${keep.id} and list_id = ${listId}
+						)
+					returning id
+				)
+				update email_list_contacts
+				set email = ${keep.email}, phone = ${keep.phone}, name = ${keep.name}
+				where id = ${keep.id} and exists (select 1 from removed)
+			`);
+			merged += absorbedIds.length;
+		} catch {
+			// Параллельный импорт занял телефон/email третьим контактом —
+			// запрос откатился целиком, оба контакта остались как были.
+			plan.conflicts++;
+		}
+	}
+
 	let updated = 0;
 	for (const contact of plan.updates) {
 		try {
@@ -332,6 +376,7 @@ export async function addEmailListContacts(
 		updated,
 		duplicates: plan.duplicatesInBatch + (plan.inserts.length - inserted),
 		conflicts: plan.conflicts,
+		merged,
 	};
 }
 

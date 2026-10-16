@@ -4,6 +4,7 @@ import {
 } from "@hatchet-dev/typescript-sdk/v1";
 import { sleep } from "../messenger";
 import {
+	ChannelBreaker,
 	jitteredDelayMs,
 	type MessengerChannel,
 	type OutreachSender,
@@ -74,6 +75,12 @@ export const deliverOutreach = CreateTaskWorkflow({
 		if (!campaign) {
 			throw new Error(`Рассылка ${payload.campaignId} не найдена`);
 		}
+		if (campaign.status === "cancelled") {
+			// Отменили до запуска или между перезапусками — письма тем, кому
+			// мессенджеры уже не дошли, всё равно уходят.
+			const emailed = await startEmailFallback(campaign.id);
+			return { cancelled: true, emailed };
+		}
 		if (campaign.status !== "queued" && campaign.status !== "running") {
 			return { skipped: campaign.status };
 		}
@@ -91,10 +98,17 @@ export const deliverOutreach = CreateTaskWorkflow({
 		if (accounts.whatsapp)
 			senders.push(createWhatsappSender({ memberId, ...accounts.whatsapp }));
 		const emailEnabled = Boolean(campaign.emailTemplateId);
-		const disabled = new Set<MessengerChannel>();
+		const breaker = new ChannelBreaker();
 
 		const isCancelled = async () =>
 			(await getOutreachCampaign(campaign.id))?.status === "cancelled";
+		// Email-фазу пробуем один раз за запуск: если она сама упала, повтор
+		// из catch создал бы ещё одну пустую email-кампанию.
+		let emailPhaseStarted = false;
+		const runEmailPhase = () => {
+			emailPhaseStarted = true;
+			return startEmailFallback(campaign.id);
+		};
 
 		try {
 			let processed = 0;
@@ -111,7 +125,10 @@ export const deliverOutreach = CreateTaskWorkflow({
 						await getHatchetClient().runNoWait(deliverOutreach, payload);
 						return { processed, continued: true };
 					}
-					if (await isCancelled()) return { processed, cancelled: true };
+					if (await isCancelled()) {
+						const emailed = await runEmailPhase();
+						return { processed, cancelled: true, emailed };
+					}
 
 					await updateOutreachRecipient(recipient.id, { status: "sending" });
 					const text = personalizeMessage(campaign.message, recipient.name);
@@ -120,7 +137,7 @@ export const deliverOutreach = CreateTaskWorkflow({
 						email: recipient.email,
 						text,
 						senders,
-						disabled,
+						breaker,
 						emailEnabled,
 					});
 
@@ -172,15 +189,21 @@ export const deliverOutreach = CreateTaskWorkflow({
 				}
 			}
 
-			if (await isCancelled()) return { processed, cancelled: true };
-			const emailed = emailEnabled ? await startEmailFallback(campaign.id) : 0;
-
+			const emailed = await runEmailPhase();
 			await finishOutreachCampaign(campaign.id, { status: "done" });
 			return { processed, emailed };
 		} catch (err) {
+			// Рассылка упала посреди списка — тем, кому мессенджеры уже не дошли,
+			// письма всё равно отправляем: иначе они не получат ничего.
+			let emailError = "";
+			if (!emailPhaseStarted) {
+				await runEmailPhase().catch((fallbackErr: unknown) => {
+					emailError = `; письма тоже не отправлены: ${(fallbackErr as Error).message}`;
+				});
+			}
 			await finishOutreachCampaign(campaign.id, {
 				status: "error",
-				error: (err as Error).message,
+				error: `${(err as Error).message}${emailError}`,
 			});
 			throw err;
 		}
@@ -192,6 +215,8 @@ export const deliverOutreach = CreateTaskWorkflow({
  * тема — из настроек рассылки). Получатель рассылки связывается со строкой
  * email-кампании — по ней в отчёте виден статус письма (доставлено, открыто,
  * отписался), а ссылка отписки в письме работает как в обычной рассылке.
+ * Вызывается при завершении, отмене и падении рассылки; без email-шаблона
+ * (email выключен) ничего не делает.
  */
 async function startEmailFallback(campaignId: string): Promise<number> {
 	const {
@@ -200,6 +225,7 @@ async function startEmailFallback(campaignId: string): Promise<number> {
 		getOutreachCampaign,
 		insertEmailCampaignRecipients,
 		listOutreachRecipientsByStatus,
+		revertOutreachEmailHandoff,
 		setOutreachEmailCampaign,
 		updateOutreachRecipient,
 	} = await import("@psi-opora/db/queries");
@@ -265,18 +291,18 @@ async function startEmailFallback(campaignId: string): Promise<number> {
 			sentAt: new Date(),
 		});
 	}
-	await setOutreachEmailCampaign(campaignId, emailCampaignId);
 
 	try {
 		await getHatchetClient().runNoWait(deliverEmailCampaign, {
 			campaignId: emailCampaignId,
 		});
 	} catch (err) {
-		await finishEmailCampaign(emailCampaignId, {
-			status: "error",
-			error: `Не удалось запустить фоновую задачу: ${(err as Error).message}`,
-		});
+		const error = `Не удалось запустить отправку писем: ${(err as Error).message}`;
+		await finishEmailCampaign(emailCampaignId, { status: "error", error });
+		// Письма не ушли — получатели снова ждут email, а не числятся отправленными.
+		await revertOutreachEmailHandoff(campaignId, emailCampaignId, error);
 		throw err;
 	}
+	await setOutreachEmailCampaign(campaignId, emailCampaignId);
 	return rows.length;
 }

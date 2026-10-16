@@ -132,8 +132,10 @@ export async function setOutreachEmailCampaign(
 }
 
 /**
- * Отмена: незапущенные получатели помечаются skipped, задача увидит статус
- * cancelled перед следующей отправкой и остановится. Возвращает false, если
+ * Отмена: ещё не обработанные получатели помечаются skipped, задача увидит
+ * статус cancelled перед следующей отправкой и остановится. Тем, кому
+ * мессенджеры уже не дошли (email_pending), задача всё равно отправит письмо —
+ * каскад для них уже решил, что канал — email. Возвращает false, если
  * рассылка уже завершена.
  */
 export async function cancelOutreachCampaign(id: string): Promise<boolean> {
@@ -159,10 +161,46 @@ export async function cancelOutreachCampaign(id: string): Promise<boolean> {
 		.where(
 			and(
 				eq(outreachRecipients.campaignId, id),
-				inArray(outreachRecipients.status, ["pending", "email_pending"]),
+				eq(outreachRecipients.status, "pending"),
 			),
 		);
 	return true;
+}
+
+/**
+ * Откат передачи в email, если задачу отправки писем не удалось поставить:
+ * получатели снова ждут email-фазы (а не числятся «передано в email»), а
+ * причина видна в отчёте.
+ */
+export async function revertOutreachEmailHandoff(
+	campaignId: string,
+	emailCampaignId: string,
+	error: string,
+): Promise<void> {
+	if (!db) return;
+	await db
+		.update(outreachRecipients)
+		.set({
+			status: "email_pending",
+			channel: null,
+			emailRecipientId: null,
+			sentAt: null,
+			error,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(outreachRecipients.campaignId, campaignId),
+				eq(outreachRecipients.status, "email"),
+				inArray(
+					outreachRecipients.emailRecipientId,
+					db
+						.select({ id: emailCampaignRecipients.id })
+						.from(emailCampaignRecipients)
+						.where(eq(emailCampaignRecipients.campaignId, emailCampaignId)),
+				),
+			),
+		);
 }
 
 /** Идёт ли по списку незавершённая рассылка — такой список удалять нельзя. */
@@ -253,7 +291,7 @@ export interface OutreachStats {
 	sentMax: number;
 	sentTelegram: number;
 	sentWhatsapp: number;
-	/** Переданы в email (включая ожидающих email-фазы). */
+	/** Переданы в email-кампанию. */
 	email: number;
 	failed: number;
 	skipped: number;
@@ -282,6 +320,7 @@ function toStats(
 		switch (row.status) {
 			case "pending":
 			case "sending":
+			case "email_pending":
 				stats.pending += n;
 				break;
 			case "sent":
@@ -290,7 +329,6 @@ function toStats(
 				else if (row.channel === "whatsapp") stats.sentWhatsapp += n;
 				break;
 			case "email":
-			case "email_pending":
 				stats.email += n;
 				break;
 			case "failed":
@@ -386,9 +424,9 @@ function filterCondition(filter: OutreachRecipientFilter): SQL | undefined {
 		case "whatsapp":
 			return and(eq(r.status, "sent"), eq(r.channel, filter));
 		case "email":
-			return inArray(r.status, ["email", "email_pending"]);
+			return eq(r.status, "email");
 		case "pending":
-			return inArray(r.status, ["pending", "sending"]);
+			return inArray(r.status, ["pending", "sending", "email_pending"]);
 		case "failed":
 		case "unknown":
 		case "skipped":

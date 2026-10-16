@@ -273,8 +273,9 @@ export default function OutreachReportPage() {
 									<AlertDialogHeader>
 										<AlertDialogTitle>Отменить рассылку?</AlertDialogTitle>
 										<AlertDialogDescription>
-											Оставшимся в очереди сообщение не уйдёт. Уже отправленные
-											сообщения не отзываются.
+											Оставшимся в очереди сообщение не уйдёт. Тем, кому
+											мессенджеры уже не дошли, письмо всё равно отправится. Уже
+											отправленные сообщения не отзываются.
 										</AlertDialogDescription>
 									</AlertDialogHeader>
 									<AlertDialogFooter>

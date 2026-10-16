@@ -72,15 +72,16 @@ export function classifyTelegramError(error: string): SendOutcome {
 		/не найден в Telegram|PHONE_NOT_OCCUPIED|USERNAME_NOT_OCCUPIED/i.test(error)
 	)
 		return { kind: "not_found", error };
-	if (TELEGRAM_DOWN_RE.test(error)) return { kind: "channel_down", error };
+	if (TELEGRAM_DOWN_RE.test(error))
+		return { kind: "channel_down", error, fatal: true };
 	return { kind: "failed", error };
 }
 
 export function classifyMaxError(error: string): SendOutcome {
 	if (/не нашёл контакт|not.?found/i.test(error))
 		return { kind: "not_found", error };
-	if (/не вернул профиль|flood|too many|limit/i.test(error))
-		return { kind: "channel_down", error };
+	if (/не вернул профиль|flood|too many requests|rate.?limit/i.test(error))
+		return { kind: "channel_down", error, fatal: true };
 	return { kind: "failed", error };
 }
 
@@ -180,6 +181,7 @@ export function createWhatsappSender(
 			if (row?.status !== "connected") {
 				return {
 					kind: "channel_down",
+					fatal: true,
 					error: row
 						? `Личный WhatsApp ${row.phone} недоступен (${row.status})`
 						: "Личный номер WhatsApp отключён",

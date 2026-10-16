@@ -89,14 +89,16 @@ function AddContactDialog({ listId }: { listId: string }) {
 				}
 				if (result.conflicts > 0) {
 					toast.error(
-						"Телефон и email уже записаны у разных контактов списка — контакт не изменён",
+						"У контакта в списке уже другой телефон или email — контакт не изменён",
 					);
 					return;
 				}
 				toast.success(
 					result.inserted > 0
 						? "Контакт добавлен"
-						: "Контакт уже был в списке — данные дополнены",
+						: result.merged > 0
+							? "Два контакта списка оказались одним человеком — склеены"
+							: "Контакт уже был в списке — данные дополнены",
 				);
 				queryClient.invalidateQueries({ queryKey: orpc.emailLists.key() });
 				setEmail("");

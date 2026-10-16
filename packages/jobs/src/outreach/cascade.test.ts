@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	ChannelBreaker,
 	jitteredDelayMs,
 	type MessengerChannel,
 	type OutreachSender,
@@ -44,7 +45,7 @@ describe("runCascade", () => {
 				),
 				sender("telegram", { kind: "sent", userId: "tg" }, calls),
 			],
-			disabled: new Set(),
+			breaker: new ChannelBreaker(),
 		});
 		expect(result).toMatchObject({
 			status: "sent",
@@ -62,7 +63,7 @@ describe("runCascade", () => {
 				sender("telegram", { kind: "sent", userId: "42" }),
 				sender("whatsapp", { kind: "sent", userId: "wa" }),
 			],
-			disabled: new Set(),
+			breaker: new ChannelBreaker(),
 		});
 		expect(result.status).toBe("sent");
 		expect(result.status === "sent" && result.channel).toBe("telegram");
@@ -87,7 +88,7 @@ describe("runCascade", () => {
 					throw new Error("c");
 				}),
 			],
-			disabled: new Set(),
+			breaker: new ChannelBreaker(),
 		});
 		expect(result.status).toBe("email_pending");
 		expect(result.attempts.map((a) => a.error)).toEqual(["a", "b", "c"]);
@@ -101,14 +102,37 @@ describe("runCascade", () => {
 				sender("max", { kind: "unknown", error: "не подтвердил" }, calls),
 				sender("telegram", { kind: "sent", userId: "42" }, calls),
 			],
-			disabled: new Set(),
+			breaker: new ChannelBreaker(),
 		});
 		expect(result.status).toBe("unknown");
 		expect(calls).toEqual(["max"]);
 	});
 
-	test("упавший канал выключается до конца запуска", async () => {
-		const disabled = new Set<MessengerChannel>();
+	test("разовый сбой канала не выключает его — приоритет сохраняется", async () => {
+		const breaker = new ChannelBreaker();
+		const calls: string[] = [];
+		let maxDown = true;
+		const senders: OutreachSender[] = [
+			{
+				channel: "max",
+				send: async () => {
+					calls.push("max");
+					return maxDown
+						? { kind: "channel_down", error: "воркер не ответил" }
+						: { kind: "sent", userId: "chat" };
+				},
+			},
+			sender("telegram", { kind: "sent", userId: "42" }, calls),
+		];
+		await runCascade({ ...base, senders, breaker });
+		maxDown = false;
+		const result = await runCascade({ ...base, senders, breaker });
+		expect(result.status === "sent" && result.channel).toBe("max");
+		expect(calls).toEqual(["max", "telegram", "max"]);
+	});
+
+	test("несколько сбоев подряд выключают канал до конца запуска", async () => {
+		const breaker = new ChannelBreaker(2);
 		const calls: string[] = [];
 		const senders = [
 			sender(
@@ -118,8 +142,23 @@ describe("runCascade", () => {
 			),
 			sender("telegram", { kind: "sent", userId: "42" }, calls),
 		];
-		await runCascade({ ...base, senders, disabled });
-		await runCascade({ ...base, senders, disabled });
+		for (let i = 0; i < 3; i++) await runCascade({ ...base, senders, breaker });
+		expect(calls).toEqual(["max", "telegram", "max", "telegram", "telegram"]);
+	});
+
+	test("фатальный сбой (флуд-бан) выключает канал сразу", async () => {
+		const breaker = new ChannelBreaker();
+		const calls: string[] = [];
+		const senders = [
+			sender(
+				"max",
+				{ kind: "channel_down", error: "FLOOD", fatal: true },
+				calls,
+			),
+			sender("telegram", { kind: "sent", userId: "42" }, calls),
+		];
+		await runCascade({ ...base, senders, breaker });
+		await runCascade({ ...base, senders, breaker });
 		expect(calls).toEqual(["max", "telegram", "telegram"]);
 	});
 
@@ -129,7 +168,7 @@ describe("runCascade", () => {
 			...base,
 			phone: null,
 			senders: [sender("max", { kind: "sent", userId: "x" }, calls)],
-			disabled: new Set(),
+			breaker: new ChannelBreaker(),
 		});
 		expect(result.status).toBe("email_pending");
 		expect(calls).toEqual([]);
@@ -140,7 +179,7 @@ describe("runCascade", () => {
 			...base,
 			emailEnabled: false,
 			senders: [sender("max", { kind: "not_found", error: "нет в MAX" })],
-			disabled: new Set(),
+			breaker: new ChannelBreaker(),
 		});
 		expect(result.status).toBe("failed");
 		expect(result.status === "failed" && result.error).toContain("нет в MAX");

@@ -83,6 +83,7 @@ type Stage =
 			invalid: string[];
 			duplicates: number;
 			conflicts: number;
+			merged: number;
 			failedBatches: number;
 	  };
 
@@ -191,6 +192,7 @@ export function ImportDialog({
 		let updated = 0;
 		let duplicates = extraction.duplicates;
 		let conflicts = 0;
+		let merged = 0;
 		let failedBatches = 0;
 		const invalid = [...extraction.invalid];
 		setStage({ kind: "importing", done: 0, total: contacts.length });
@@ -208,6 +210,7 @@ export function ImportDialog({
 				updated += result.updated;
 				duplicates += result.duplicates;
 				conflicts += result.conflicts;
+				merged += result.merged;
 				invalid.push(...result.invalid);
 			} catch (err) {
 				failedBatches++;
@@ -227,6 +230,7 @@ export function ImportDialog({
 			invalid,
 			duplicates,
 			conflicts,
+			merged,
 			failedBatches,
 		});
 	};
@@ -294,10 +298,16 @@ export function ImportDialog({
 							{stage.duplicates > 0 && (
 								<li>Повторы внутри файла склеены: {stage.duplicates}</li>
 							)}
+							{stage.merged > 0 && (
+								<li>
+									Дубли в списке склеены (телефон был у одного контакта, email у
+									другого): {stage.merged}
+								</li>
+							)}
 							{stage.conflicts > 0 && (
 								<li>
-									Противоречат списку (телефон у одного контакта, email у
-									другого) — не изменены: {stage.conflicts}
+									Противоречат списку (у контакта уже другой телефон или email)
+									— не изменены: {stage.conflicts}
 								</li>
 							)}
 							{stage.invalid.length > 0 && (
