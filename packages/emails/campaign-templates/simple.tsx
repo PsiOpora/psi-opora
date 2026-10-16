@@ -12,9 +12,12 @@ import {
 } from "@react-email/components";
 
 import { emailTailwindConfig } from "../tailwind";
+import { CampaignFooter, CampaignImage } from "./parts";
 
 export default function SimpleAnnouncementEmail({
 	heading = "",
+	imageUrl = "",
+	imageLink = "",
 	body = "",
 	buttonText = "",
 	buttonUrl = "",
@@ -32,6 +35,7 @@ export default function SimpleAnnouncementEmail({
 						<Heading className="mx-0 my-[30px] p-0 text-center text-[24px] font-normal text-black">
 							{heading}
 						</Heading>
+						<CampaignImage src={imageUrl} alt={heading} href={imageLink} />
 						{paragraphs.map((paragraph) => (
 							<Text
 								key={paragraph}
@@ -50,6 +54,7 @@ export default function SimpleAnnouncementEmail({
 								</Button>
 							</Section>
 						)}
+						<CampaignFooter />
 					</Container>
 				</Body>
 			</Tailwind>

@@ -12,9 +12,12 @@ import {
 } from "@react-email/components";
 
 import { emailTailwindConfig } from "../tailwind";
+import { CampaignFooter, CampaignImage } from "./parts";
 
 export default function UpdateEmail({
 	heading = "",
+	imageUrl = "",
+	imageLink = "",
 	intro = "",
 	highlightTitle = "",
 	highlightBody = "",
@@ -35,6 +38,7 @@ export default function UpdateEmail({
 						<Heading className="mx-0 my-[30px] p-0 text-center text-[24px] font-normal text-black">
 							{heading}
 						</Heading>
+						<CampaignImage src={imageUrl} alt={heading} href={imageLink} />
 						{introParagraphs.map((paragraph) => (
 							<Text
 								key={paragraph}
@@ -70,6 +74,7 @@ export default function UpdateEmail({
 								</Button>
 							</Section>
 						)}
+						<CampaignFooter />
 					</Container>
 				</Body>
 			</Tailwind>

@@ -7,6 +7,7 @@ import { crmBackup, crmBackupSchedule } from "./crm-backup";
 import { dealStageHistorySync } from "./deal-stage-history-sync";
 import { dealsSync } from "./deals-sync";
 import { deliverEmailCampaign, pollEmailCampaigns } from "./email-campaign";
+import { ingestEmailEvents } from "./email-events";
 import { hourlyDrips } from "./hourly-drips";
 import { maxWebhookHealthcheck } from "./max-webhook-healthcheck";
 import { scenarioReminders } from "./scenario-reminders";
@@ -15,6 +16,7 @@ import { stageConsentOutbox } from "./stage-consent";
 export const hatchetTasks = [
 	deliverBroadcast,
 	deliverEmailCampaign,
+	ingestEmailEvents,
 	crmBackup,
 	crmBackupSchedule,
 	dealsSync,

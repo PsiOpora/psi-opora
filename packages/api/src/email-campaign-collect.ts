@@ -1,16 +1,19 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
+import {
+	getEmailSuppressions,
+	listAllEmailListContacts,
+} from "@psi-opora/db/queries";
+import {
+	type EmailRecipient,
+	finalizeEmailRecipients,
+} from "./email-recipients-finalize";
+import { normalizeEmail } from "./schemas/email-lists";
 
-export interface EmailRecipient {
-	contactId: string;
-	contactName: string;
-	dealId: string;
-	dealTitle: string;
-	email: string | null;
-	status: "pending" | "skipped";
-	error?: string;
-}
+export type { EmailRecipient } from "./email-recipients-finalize";
 
 export interface EmailRecipientsReport {
+	audience: "crm_stage" | "list";
+	/** Сделок на стадии (CRM) или контактов в списке. */
 	totalDeals: number;
 	recipients: EmailRecipient[];
 	skipped: number;
@@ -61,11 +64,24 @@ function findEmail(contact: RawContact): string | null {
 	return null;
 }
 
+async function withSuppressions(
+	recipients: EmailRecipient[],
+): Promise<EmailRecipient[]> {
+	const emails = recipients
+		.filter((r) => r.status === "pending" && r.email)
+		.map((r) => normalizeEmail(r.email as string));
+	return finalizeEmailRecipients(
+		recipients,
+		await getEmailSuppressions(emails),
+	);
+}
+
 /**
  * Собирает получателей email-рассылки по сделкам выбранной стадии: у каждой
  * сделки берётся привязанный контакт и его email (поле EMAIL, crm_multifield).
  * Контакт получает не больше одного письма, даже если сделок несколько.
- * Сделки/контакты, отмеченные полями «Отписалась»/«Отписалась2», исключаются.
+ * Сделки/контакты, отмеченные полями «Отписалась»/«Отписалась2», и адреса из
+ * стоп-листа исключаются.
  */
 export async function collectEmailRecipients(
 	api: BitrixApi,
@@ -108,13 +124,17 @@ export async function collectEmailRecipients(
 		const contactName =
 			[contact.NAME, contact.LAST_NAME].filter(Boolean).join(" ") ||
 			`Контакт #${contact.ID}`;
+		const base = {
+			key: contact.ID,
+			contactId: contact.ID,
+			contactName,
+			dealId: deal.ID,
+			dealTitle: deal.TITLE,
+		};
 
 		if (unsubscribedContactIds.has(deal.CONTACT_ID)) {
 			recipients.push({
-				contactId: contact.ID,
-				contactName,
-				dealId: deal.ID,
-				dealTitle: deal.TITLE,
+				...base,
 				email: null,
 				status: "skipped",
 				error: UNSUBSCRIBED_REASON,
@@ -124,25 +144,47 @@ export async function collectEmailRecipients(
 
 		const email = findEmail(contact);
 		recipients.push({
-			contactId: contact.ID,
-			contactName,
-			dealId: deal.ID,
-			dealTitle: deal.TITLE,
+			...base,
 			email,
 			status: email ? "pending" : "skipped",
 			...(email ? {} : { error: NO_EMAIL_REASON }),
 		});
 	}
 
-	return { totalDeals: deals.length, recipients };
+	return {
+		totalDeals: deals.length,
+		recipients: await withSuppressions(recipients),
+	};
+}
+
+/** Получатели рассылки по собственному списку контактов (/email-lists). */
+export async function collectListRecipients(
+	listId: string,
+): Promise<{ totalDeals: number; recipients: EmailRecipient[] }> {
+	const contacts = await listAllEmailListContacts(listId);
+	const recipients: EmailRecipient[] = contacts.map((c) => ({
+		key: c.id,
+		contactId: null,
+		contactName: c.name ?? "",
+		dealId: null,
+		dealTitle: null,
+		email: c.email,
+		status: "pending",
+	}));
+	return {
+		totalDeals: contacts.length,
+		recipients: await withSuppressions(recipients),
+	};
 }
 
 export function buildEmailReport(
+	audience: "crm_stage" | "list",
 	totalDeals: number,
 	recipients: EmailRecipient[],
 	dryRun: boolean,
 ): EmailRecipientsReport {
 	return {
+		audience,
 		totalDeals,
 		recipients,
 		skipped: recipients.filter((r) => r.status === "skipped").length,

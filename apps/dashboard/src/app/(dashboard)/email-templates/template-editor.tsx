@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { orpc } from "@/lib/orpc/client";
+import { ImageField } from "./image-field";
 
 export function TemplateEditor({
 	templateDef,
@@ -101,7 +102,8 @@ export function TemplateEditor({
 						Заполните поля ниже — вёрстку и HTML писать не нужно. Доступны
 						переменные <code className="text-xs">{"{{name}}"}</code> (имя
 						контакта) и <code className="text-xs">{"{{email}}"}</code> (email
-						получателя) — подставляются автоматически при отправке.
+						получателя) — подставляются автоматически при отправке. Ссылка
+						«Отписаться» добавляется в конец письма автоматически.
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
@@ -172,7 +174,13 @@ export function TemplateEditor({
 											</div>
 										)}
 									</div>
-									{fieldDef.type === "textarea" ? (
+									{fieldDef.type === "image" ? (
+										<ImageField
+											id={`field-${fieldDef.key}`}
+											value={fields[fieldDef.key] ?? ""}
+											onChange={(url) => setField(fieldDef.key, url)}
+										/>
+									) : fieldDef.type === "textarea" ? (
 										<Textarea
 											id={`field-${fieldDef.key}`}
 											ref={(el) => {

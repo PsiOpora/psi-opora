@@ -54,14 +54,21 @@ export const sendTestEmailSchema = z.object({
 export type SendTestEmailInput = z.infer<typeof sendTestEmailSchema>;
 
 export const sendEmailCampaignSchema = z.object({
-	stageId: z.string(),
+	/** Кому: контактам сделок стадии CRM или собственному списку адресов. */
+	audience: z.enum(["crm_stage", "list"]).default("crm_stage"),
+	stageId: z.string().optional(),
 	stageName: z.string().optional(),
+	listId: z.string().optional(),
 	templateId: z.string(),
 	templateName: z.string().optional(),
 	subject: z.string(),
 	dryRun: z.boolean(),
 	expectedRecipients: z.number().optional(),
-	selectedContactIds: z.array(z.string()).optional(),
+	/**
+	 * Ключи получателей (EmailRecipient.key), отмеченных в предпросмотре.
+	 * Пусто — письмо уходит всем подходящим получателям.
+	 */
+	selectedKeys: z.array(z.string()).optional(),
 });
 export type SendEmailCampaignInput = z.infer<typeof sendEmailCampaignSchema>;
 

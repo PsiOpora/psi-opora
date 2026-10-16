@@ -57,6 +57,12 @@ export interface CampaignCommonStatsResult {
 	spam?: number;
 }
 
+export interface UnisenderHook {
+	hook_url: string;
+	status?: string;
+	events?: Record<string, string>;
+}
+
 /** Пары ["email", "name@example.com"] и т.п. — построчные данные для importContacts. */
 export type ImportContactRow = string[];
 
@@ -94,6 +100,16 @@ export interface UnisenderClient {
 		body: string;
 		listId?: number;
 	}): Promise<{ email: string }>;
+	/**
+	 * Подписка на вебхуки событий (setHook). Unisender перед сохранением
+	 * проверяет URL пустым GET-запросом — обработчик должен ответить 200.
+	 */
+	setHook(params: {
+		hookUrl: string;
+		/** Например { email_status: "ok_delivered,ok_read", unsubscribe: "*" }. */
+		events: Record<string, string>;
+	}): Promise<unknown>;
+	listHooks(): Promise<UnisenderHook[]>;
 }
 
 function toBody(apiKey: string, params: UnisenderParams): URLSearchParams {
@@ -186,6 +202,24 @@ export function createUnisenderClient(apiKey: string): UnisenderClient {
 			return call<CampaignCommonStatsResult>("getCampaignCommonStats", {
 				campaign_id: campaignId,
 			});
+		},
+
+		setHook({ hookUrl, events }) {
+			const params: UnisenderParams = {
+				hook_url: hookUrl,
+				event_format: "json_post",
+				single_event: 0,
+				max_parallel: 5,
+				status: "active",
+			};
+			for (const [event, value] of Object.entries(events)) {
+				params[`events[${event}]`] = value;
+			}
+			return call<unknown>("setHook", params);
+		},
+
+		listHooks() {
+			return call<UnisenderHook[]>("listHooks");
 		},
 
 		sendEmail({ email, senderName, senderEmail, subject, body, listId }) {

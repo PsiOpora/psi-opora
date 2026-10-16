@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { EmailCampaign } from "@psi-opora/db/queries";
 import Link from "next/link";
+import { formatDateTime, formatRate } from "@/components/email/email-format";
 import { Badge } from "@/components/ui/badge";
 import {
 	Card,
@@ -19,35 +19,34 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { orpc } from "@/lib/orpc/client";
 
-export const emailCampaignsListKey = ["dashboard-email-campaigns"];
-
-export function formatDateTime(date: Date | string | null): string {
-	if (!date) return "—";
-	return new Intl.DateTimeFormat("ru-RU", {
-		dateStyle: "short",
-		timeStyle: "short",
-	}).format(new Date(date));
+export function CampaignStatusBadge({ status }: { status: string }) {
+	if (status === "done") return <Badge variant="default">Завершена</Badge>;
+	if (status === "error") return <Badge variant="destructive">Ошибка</Badge>;
+	if (status === "queued") return <Badge variant="secondary">В очереди</Badge>;
+	return <Badge variant="secondary">Отправляется</Badge>;
 }
 
 export function EmailCampaignHistory() {
-	const { data: campaigns = [], isLoading } = useQuery({
-		queryKey: emailCampaignsListKey,
-		queryFn: async () => {
-			const res = await fetch("/api/dashboard/email-campaigns");
-			if (!res.ok) throw new Error("Не удалось загрузить историю рассылок");
-			const json = (await res.json()) as { campaigns: EmailCampaign[] };
-			return json.campaigns;
-		},
-	});
+	const { data: campaigns = [], isLoading } = useQuery(
+		orpc.emailCampaigns.list.queryOptions({
+			refetchInterval: (query) =>
+				query.state.data?.some(
+					(c) => c.status === "queued" || c.status === "running",
+				)
+					? 10_000
+					: false,
+		}),
+	);
 
 	return (
 		<Card>
 			<CardHeader>
 				<CardTitle>История email-рассылок</CardTitle>
 				<CardDescription>
-					Последние кампании; нажмите на строку, чтобы посмотреть получателей и
-					статистику Unisender.
+					Доля открытий и переходов считается от доставленных писем. Нажмите на
+					рассылку, чтобы увидеть статус каждого получателя.
 				</CardDescription>
 			</CardHeader>
 			<CardContent>
@@ -55,18 +54,19 @@ export function EmailCampaignHistory() {
 					<p className="text-sm text-muted-foreground">Загрузка…</p>
 				) : campaigns.length === 0 ? (
 					<p className="text-sm text-muted-foreground">
-						Рассылок ещё не было. История появится после первой отправки
-						(требуется подключённая база данных).
+						Рассылок ещё не было. История появится после первой отправки.
 					</p>
 				) : (
 					<Table>
 						<TableHeader>
 							<TableRow>
 								<TableHead>Дата</TableHead>
-								<TableHead>Стадия</TableHead>
+								<TableHead>Аудитория</TableHead>
 								<TableHead>Тема</TableHead>
-								<TableHead className="text-right">Получателей</TableHead>
 								<TableHead className="text-right">Отправлено</TableHead>
+								<TableHead className="text-right">Доставлено</TableHead>
+								<TableHead className="text-right">Открыли</TableHead>
+								<TableHead className="text-right">Перешли</TableHead>
 								<TableHead>Статус</TableHead>
 							</TableRow>
 						</TableHeader>
@@ -81,24 +81,28 @@ export function EmailCampaignHistory() {
 											{formatDateTime(c.startedAt)}
 										</Link>
 									</TableCell>
-									<TableCell>{c.stageName ?? c.stageId}</TableCell>
+									<TableCell className="max-w-56 truncate">
+										{c.audience === "list"
+											? `Список: ${c.listName ?? "удалён"}`
+											: (c.stageName ?? c.stageId)}
+									</TableCell>
 									<TableCell className="max-w-64 truncate text-muted-foreground">
 										{c.subject}
 									</TableCell>
-									<TableCell className="text-right">
-										{c.recipientsCount ?? "—"}
+									<TableCell className="text-right tabular-nums">
+										{c.stats.sent.toLocaleString("ru-RU")}
 									</TableCell>
-									<TableCell className="text-right">
-										{c.sentCount ?? "—"}
+									<TableCell className="text-right tabular-nums">
+										{c.stats.delivered.toLocaleString("ru-RU")}
+									</TableCell>
+									<TableCell className="text-right tabular-nums">
+										{formatRate(c.stats.opened, c.stats.delivered)}
+									</TableCell>
+									<TableCell className="text-right tabular-nums">
+										{formatRate(c.stats.clicked, c.stats.delivered)}
 									</TableCell>
 									<TableCell>
-										{c.status === "done" ? (
-											<Badge variant="default">Завершена</Badge>
-										) : c.status === "error" ? (
-											<Badge variant="destructive">Ошибка</Badge>
-										) : (
-											<Badge variant="secondary">Выполняется</Badge>
-										)}
+										<CampaignStatusBadge status={c.status} />
 									</TableCell>
 								</TableRow>
 							))}
