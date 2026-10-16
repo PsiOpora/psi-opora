@@ -137,11 +137,17 @@ export async function createBitrixContact(data: ContactData): Promise<number> {
 	return contactId;
 }
 
+/**
+ * @param existingContactId контакт, уже созданный/дополненный отдельным
+ *   вызовом createBitrixContact (телефон к этому моменту уже в CRM) —
+ *   повторно контакт не создаём.
+ */
 export async function createBitrixDeal(
 	data: DealData,
+	existingContactId?: number,
 ): Promise<{ contactId: number; dealId: number }> {
 	const messenger = data.messenger ?? "telegram";
-	const contactId = await createBitrixContact(data);
+	const contactId = existingContactId || (await createBitrixContact(data));
 	if (!contactId) return { contactId: 0, dealId: 0 };
 
 	const dealId = await bitrixPost<number>(
