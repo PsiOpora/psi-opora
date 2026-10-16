@@ -37,4 +37,5 @@ export {
 	setDealConsentTimestamp,
 } from "./sources";
 export { createBitrixTask } from "./tasks";
+export { appendPhoneToTrackerDeal } from "./tracker-phone";
 export type { BitrixApiLike, ContactData, DealData } from "./types";

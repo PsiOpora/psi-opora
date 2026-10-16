@@ -3,18 +3,19 @@ import { bitrixPost, getEnv, getSourceId, getSourceName } from "./client";
 
 /**
  * Добавляет комментарий в таймлайн сделки (например, ответ на вопрос
- * о рассылке). Ошибки не пробрасываются — комментарий не критичен.
+ * о рассылке). Возвращает true только при подтверждённой записи.
+ * Ошибки не пробрасываются.
  */
 export async function appendDealComment(
 	messenger: string,
 	dealId: number,
 	comment: string,
-): Promise<void> {
+): Promise<boolean> {
 	const webhookUrl = getEnv(messenger, "BITRIX_WEBHOOK_URL");
-	if (!webhookUrl || !dealId) return;
+	if (!webhookUrl || !dealId) return false;
 
 	try {
-		await bitrixPost(
+		const commentId = await bitrixPost<number>(
 			"crm.timeline.comment.add",
 			{
 				fields: {
@@ -25,11 +26,13 @@ export async function appendDealComment(
 			},
 			messenger,
 		);
+		return commentId > 0;
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);
 		console.error(
 			`[bitrix] не удалось добавить комментарий к сделке ${dealId}: ${message}`,
 		);
+		return false;
 	}
 }
 
