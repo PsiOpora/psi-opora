@@ -33,6 +33,15 @@ export const emailEvents = pgTable(
 		details: text("details"),
 		payload: jsonb("payload"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
+		/**
+		 * Когда обработчик взял событие в работу. Транзакций нет (драйвер
+		 * neon-http), поэтому запись в журнал и применение к получателю — разные
+		 * шаги: событие без applied_at с «протухшим» захватом повтор задачи
+		 * обработает заново, а не отбросит как дубликат.
+		 */
+		claimedAt: timestamp("claimed_at").defaultNow().notNull(),
+		/** Когда событие применено к получателю и стоп-листу. */
+		appliedAt: timestamp("applied_at"),
 	},
 	(table) => [
 		uniqueIndex("email_events_provider_external_idx").on(

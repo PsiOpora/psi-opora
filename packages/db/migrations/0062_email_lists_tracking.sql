@@ -9,7 +9,9 @@ CREATE TABLE "email_events" (
 	"occurred_at" timestamp NOT NULL,
 	"details" text,
 	"payload" jsonb,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"claimed_at" timestamp DEFAULT now() NOT NULL,
+	"applied_at" timestamp
 );
 --> statement-breakpoint
 CREATE TABLE "email_list_contacts" (

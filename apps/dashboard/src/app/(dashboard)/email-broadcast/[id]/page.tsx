@@ -407,7 +407,19 @@ export default function EmailCampaignDetailsPage() {
 											onClick={() => setOpenRecipient(r.id)}
 										>
 											<TableCell className="font-medium">
-												{r.email ?? "—"}
+												{/* Кнопка — чтобы хронологию можно было открыть с клавиатуры;
+												    щелчок по остальной строке делает то же самое мышью. */}
+												<button
+													type="button"
+													className="text-left underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+													aria-label={`Хронология письма для ${r.email ?? "получателя"}`}
+													onClick={(e) => {
+														e.stopPropagation();
+														setOpenRecipient(r.id);
+													}}
+												>
+													{r.email ?? "—"}
+												</button>
 											</TableCell>
 											<TableCell className="text-muted-foreground">
 												{r.contactName ?? "—"}

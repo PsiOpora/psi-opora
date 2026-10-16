@@ -4,6 +4,7 @@ import {
 	createEmailEventsHandlers,
 	mapUnisenderStatus,
 	parseRusenderEvents,
+	parseUnisenderEvents,
 	verifyUnisenderAuth,
 } from "../src/email-events-webhook";
 
@@ -190,6 +191,34 @@ describe("handleUnisenderEmailWebhook", () => {
 		);
 		expect(res.status).toBe(403);
 		expect(enqueued).toHaveLength(0);
+	});
+});
+
+describe("parseUnisenderEvents", () => {
+	const click = (url?: string) => ({
+		event_name: "email_status",
+		event_time: "2026-10-14 10:00:00",
+		event_data: {
+			email: "ivan@mail.ru",
+			campaign_id: 1,
+			status: "ok_link_visited",
+			...(url ? { url } : {}),
+		},
+	});
+	const parse = (events: ReturnType<typeof click>[]) =>
+		parseUnisenderEvents({ auth: "", events_by_user: [{ events }] });
+
+	test("клики по разным ссылкам в одну секунду — разные события", () => {
+		const [a, b] = parse([
+			click("https://a.example"),
+			click("https://b.example"),
+		]);
+		expect(a?.externalId).not.toBe(b?.externalId);
+	});
+
+	test("без URL идентификатор детерминирован (повтор вебхука — дубль)", () => {
+		const [a, b] = parse([click(), click()]);
+		expect(a?.externalId).toBe(b?.externalId);
 	});
 });
 

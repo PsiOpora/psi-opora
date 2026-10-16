@@ -260,15 +260,24 @@ export function EmailCampaignForm({
 		if (!templateId || !trimmedSubject || !testEmail.trim()) return;
 		setTestSending(true);
 		const toastId = toast.loading("Отправляем тестовое письмо…");
-		const result = await orpcClient.emailBroadcast.sendTest({
-			email: testEmail,
-			templateId,
-			subject,
-		});
-		setTestSending(false);
-		if (result.ok)
-			toast.success(`Тест отправлен на ${testEmail}`, { id: toastId });
-		else toast.error(result.error ?? "Ошибка теста", { id: toastId });
+		try {
+			const result = await orpcClient.emailBroadcast.sendTest({
+				email: testEmail,
+				templateId,
+				subject,
+			});
+			if (result.ok)
+				toast.success(`Тест отправлен на ${testEmail}`, { id: toastId });
+			else toast.error(result.error ?? "Ошибка теста", { id: toastId });
+		} catch (err) {
+			// Сетевой сбой или истёкшая сессия Битрикс24 (UNAUTHORIZED).
+			toast.error(
+				`Не удалось отправить тест: ${(err as Error).message || "ошибка сети"}`,
+				{ id: toastId },
+			);
+		} finally {
+			setTestSending(false);
+		}
 	};
 
 	return (

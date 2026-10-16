@@ -56,9 +56,13 @@ function CopyField({ value }: { value: string }) {
  */
 export function DeliveryWebhooksCard() {
 	const queryClient = useQueryClient();
-	const { data: status, isLoading } = useQuery(
-		orpc.email.webhooks.status.queryOptions(),
-	);
+	const {
+		data: status,
+		isLoading,
+		isError,
+		error,
+		refetch,
+	} = useQuery(orpc.email.webhooks.status.queryOptions());
 	const invalidate = () =>
 		queryClient.invalidateQueries({ queryKey: orpc.email.webhooks.key() });
 
@@ -97,7 +101,17 @@ export function DeliveryWebhooksCard() {
 			<CardContent className="flex flex-col gap-6">
 				{isLoading ? (
 					<p className="text-sm text-muted-foreground">Загрузка…</p>
-				) : !status?.appUrlConfigured ? (
+				) : isError || !status ? (
+					<div className="flex flex-col items-start gap-2">
+						<p className="text-sm text-destructive">
+							Не удалось загрузить состояние вебхуков
+							{error?.message ? `: ${error.message}` : "."}
+						</p>
+						<Button variant="outline" size="sm" onClick={() => refetch()}>
+							Повторить
+						</Button>
+					</div>
+				) : !status.appUrlConfigured ? (
 					<p className="text-sm text-destructive">
 						Не задан NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL — не известен адрес
 						сервера, принимающего вебхуки (apps/bitrix-webhook).

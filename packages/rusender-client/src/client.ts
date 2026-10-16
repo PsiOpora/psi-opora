@@ -34,6 +34,12 @@ export interface RusenderClient {
 		senderEmail: string;
 		subject: string;
 		body: string;
+		/**
+		 * Ключ идемпотентности Rusender. При повторе запроса с тем же ключом
+		 * письмо не уйдёт второй раз — передавайте стабильный ключ, если
+		 * повторяете отправку после сетевого сбоя. По умолчанию — случайный.
+		 */
+		idempotencyKey?: string;
 	}): Promise<RusenderSendResult>;
 }
 
@@ -46,7 +52,11 @@ export function createRusenderClient(
 	apiKey: string,
 	keyId: string,
 ): RusenderClient {
-	async function send(path: string, mail: Record<string, unknown>) {
+	async function send(
+		path: string,
+		mail: Record<string, unknown>,
+		idempotencyKey: string = crypto.randomUUID(),
+	) {
 		const res = await fetch(`${API_BASE}/external-mails/${path}/${keyId}`, {
 			method: "POST",
 			headers: {
@@ -54,7 +64,7 @@ export function createRusenderClient(
 				Authorization: `Bearer ${apiKey}`,
 			},
 			body: JSON.stringify({
-				idempotencyKey: crypto.randomUUID(),
+				idempotencyKey,
 				mail,
 			}),
 		});
@@ -72,13 +82,24 @@ export function createRusenderClient(
 	}
 
 	return {
-		sendEmail({ email, senderName, senderEmail, subject, body }) {
-			return send("send", {
-				to: { email },
-				from: { email: senderEmail, name: senderName || undefined },
-				subject,
-				html: body,
-			});
+		sendEmail({
+			email,
+			senderName,
+			senderEmail,
+			subject,
+			body,
+			idempotencyKey,
+		}) {
+			return send(
+				"send",
+				{
+					to: { email },
+					from: { email: senderEmail, name: senderName || undefined },
+					subject,
+					html: body,
+				},
+				idempotencyKey,
+			);
 		},
 	};
 }

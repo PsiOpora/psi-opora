@@ -158,24 +158,21 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 						email: r.email,
 						unsubscribeUrl: unsubscribeUrl(campaign.publicBaseUrl, r.id),
 					});
+					// Один ключ идемпотентности на получателя для всех попыток (и для
+					// перезапуска задачи): сетевой сбой или 5xx не доказывают, что Rusender
+					// письмо не принял, а с тем же ключом второе письмо не уйдёт.
+					let result: { uuid: string } | null = null;
 					let lastError: unknown = null;
 					for (let attempt = 1; attempt <= RUSENDER_SEND_ATTEMPTS; attempt++) {
 						try {
-							const result = await rusenderClient.sendEmail({
+							result = await rusenderClient.sendEmail({
 								email: r.email,
 								senderName: campaign.senderName ?? settings.senderName ?? "",
 								senderEmail: campaign.senderEmail,
 								subject: campaign.subject,
 								body,
+								idempotencyKey: r.id,
 							});
-							await updateEmailCampaignRecipient(r.id, {
-								status: "sent",
-								error: null,
-								providerMessageId: result.uuid,
-								sentAt: new Date(),
-							});
-							sentNow++;
-							lastError = null;
 							break;
 						} catch (err) {
 							lastError = err;
@@ -187,10 +184,20 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 							await sleep(1000 * 3 ** (attempt - 1));
 						}
 					}
-					if (lastError) {
+					// Запись в БД — вне цикла повторов: её сбой не должен приводить к
+					// повторной отправке уже принятого письма.
+					if (result) {
+						await updateEmailCampaignRecipient(r.id, {
+							status: "sent",
+							error: null,
+							providerMessageId: result.uuid,
+							sentAt: new Date(),
+						});
+						sentNow++;
+					} else {
 						await updateEmailCampaignRecipient(r.id, {
 							status: "error",
-							error: (lastError as Error).message,
+							error: (lastError as Error | null)?.message ?? "Ошибка отправки",
 						});
 					}
 					await sleep(SEND_INTERVAL_MS);

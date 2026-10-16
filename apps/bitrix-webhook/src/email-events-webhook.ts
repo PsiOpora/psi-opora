@@ -198,6 +198,18 @@ export function verifyUnisenderAuth(
 	return safeEqual(expected, auth.toLowerCase());
 }
 
+/**
+ * URL ссылки из события клика. В документации Unisender поле не описано,
+ * поэтому берём распространённые имена и только строковые значения.
+ */
+function unisenderLinkUrl(data: Record<string, unknown>): string | null {
+	for (const key of ["url", "link", "link_url"]) {
+		const value = data[key];
+		if (typeof value === "string" && value.trim()) return value.trim();
+	}
+	return null;
+}
+
 /** "YYYY-MM-DD hh:mm:ss" в UTC → Date. */
 function parseUnisenderTime(value: string): Date | null {
 	const date = new Date(`${value.trim().replace(" ", "T")}Z`);
@@ -212,6 +224,9 @@ export function parseUnisenderEvents(
 		for (const event of [...(group.events ?? []), ...(group.Events ?? [])]) {
 			const data = event.event_data;
 			const email = normalizeEmail(data.email);
+			// Без campaign_id (письма метода sendEmail, а не кампании) получателя
+			// не найти: событие ляжет в журнал несопоставленным, но отписка или
+			// bounce всё равно добавят адрес в стоп-лист.
 			const campaignId =
 				data.campaign_id === undefined ? "" : String(data.campaign_id);
 			const occurredAt = parseUnisenderTime(event.event_time);
@@ -227,6 +242,9 @@ export function parseUnisenderEvents(
 
 			// У Unisender нет ID события — строим его из содержимого, чтобы
 			// повторная доставка того же уведомления не задвоила счётчики.
+			// Время у Unisender с точностью до секунды: URL ссылки (если провайдер
+			// его передал) различает клики по разным ссылкам в одну секунду.
+			const linkUrl = unisenderLinkUrl(data);
 			const externalId = createHash("sha256")
 				.update(
 					[
@@ -235,6 +253,7 @@ export function parseUnisenderEvents(
 						email,
 						data.status ?? "",
 						event.event_time,
+						...(linkUrl ? [linkUrl] : []),
 					].join("|"),
 				)
 				.digest("hex");

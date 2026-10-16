@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull, lt } from "drizzle-orm";
 import { db } from "../client";
 import {
 	emailCampaignRecipients,
@@ -123,14 +123,81 @@ async function applyToRecipient(
 		if (updated.length > 0) return;
 		row = await findRecipient({ recipientId: row.id });
 	}
-	console.error(
-		`[email-events] не удалось применить событие ${event.type} к получателю ${initial.id}: конкурентные обновления`,
+	// row === null — получатель удалён (например, вместе с кампанией): применять
+	// не к чему. Иначе попытки исчерпаны гонкой — бросаем, чтобы событие
+	// осталось неприменённым и обработалось при повторе задачи.
+	if (row) {
+		throw new Error(
+			`[email-events] не удалось применить событие ${event.type} к получателю ${initial.id}: конкурентные обновления`,
+		);
+	}
+}
+
+/**
+ * Захват «протухает» через это время: если обработчик упал, не успев ни
+ * применить событие, ни снять захват, повтор подхватит событие позже.
+ */
+const STALE_CLAIM_MS = 5 * 60_000;
+
+/**
+ * Берёт событие в работу. true — событие новое, либо ранее записано, но
+ * не применено и его захват снят или протух (повтор после сбоя);
+ * false — событие уже применено или его прямо сейчас обрабатывает другой
+ * вызов (параллельная повторная доставка вебхука).
+ */
+async function claimEvent(
+	event: IncomingEmailEvent,
+	recipient: RecipientRow | null,
+	email: string | null,
+): Promise<boolean> {
+	if (!db) return false;
+	const inserted = await db
+		.insert(emailEvents)
+		.values({
+			id: crypto.randomUUID(),
+			provider: event.provider,
+			externalId: event.externalId,
+			campaignId: recipient?.campaignId ?? null,
+			recipientId: recipient?.id ?? null,
+			email,
+			type: event.type,
+			occurredAt: event.occurredAt,
+			details: event.details ?? null,
+			payload: event.payload ?? null,
+			claimedAt: new Date(),
+		})
+		.onConflictDoNothing({
+			target: [emailEvents.provider, emailEvents.externalId],
+		})
+		.returning({ id: emailEvents.id });
+	if (inserted.length > 0) return true;
+
+	const reclaimed = await db
+		.update(emailEvents)
+		.set({ claimedAt: new Date() })
+		.where(
+			and(
+				eq(emailEvents.provider, event.provider),
+				eq(emailEvents.externalId, event.externalId),
+				isNull(emailEvents.appliedAt),
+				lt(emailEvents.claimedAt, new Date(Date.now() - STALE_CLAIM_MS)),
+			),
+		)
+		.returning({ id: emailEvents.id });
+	return reclaimed.length > 0;
+}
+
+function eventKey(event: IncomingEmailEvent) {
+	return and(
+		eq(emailEvents.provider, event.provider),
+		eq(emailEvents.externalId, event.externalId),
 	);
 }
 
 /**
  * Записывает события доставки в журнал и обновляет статусы получателей.
- * Повторно доставленное событие (тот же provider + externalId) пропускается.
+ * Уже применённое событие (тот же provider + externalId) пропускается; если
+ * применение упало — функция бросает ошибку, а повтор доведёт событие до конца.
  * Отписка, жалоба и hard bounce добавляют адрес в глобальный стоп-лист —
  * даже если получатель не найден (например, письмо из старой рассылки).
  */
@@ -146,45 +213,39 @@ export async function recordEmailEvents(
 			?.trim()
 			.toLowerCase();
 
-		const inserted = await db
-			.insert(emailEvents)
-			.values({
-				id: crypto.randomUUID(),
-				provider: event.provider,
-				externalId: event.externalId,
-				campaignId: recipient?.campaignId ?? null,
-				recipientId: recipient?.id ?? null,
-				email: email ?? null,
-				type: event.type,
-				occurredAt: event.occurredAt,
-				details: event.details ?? null,
-				payload: event.payload ?? null,
-			})
-			.onConflictDoNothing({
-				target: [emailEvents.provider, emailEvents.externalId],
-			})
-			.returning({ id: emailEvents.id });
-		if (inserted.length === 0) {
+		if (!(await claimEvent(event, recipient, email ?? null))) {
 			stats.duplicates++;
 			continue;
 		}
 
-		const suppressReason = SUPPRESSING_EVENTS[event.type];
-		if (suppressReason && email) {
-			await addEmailSuppression({
-				email,
-				reason: suppressReason,
-				campaignId: recipient?.campaignId ?? null,
-				details: event.details ?? null,
-			});
+		try {
+			const suppressReason = SUPPRESSING_EVENTS[event.type];
+			if (suppressReason && email) {
+				await addEmailSuppression({
+					email,
+					reason: suppressReason,
+					campaignId: recipient?.campaignId ?? null,
+					details: event.details ?? null,
+				});
+			}
+			if (recipient) await applyToRecipient(recipient, event);
+		} catch (err) {
+			// Снимаем захват, чтобы повтор задачи Hatchet подхватил событие сразу,
+			// а не через STALE_CLAIM_MS. Ошибку пробрасываем — задача повторится.
+			await db
+				.update(emailEvents)
+				.set({ claimedAt: new Date(0) })
+				.where(and(eventKey(event), isNull(emailEvents.appliedAt)))
+				.catch(() => undefined);
+			throw err;
 		}
 
-		if (!recipient) {
-			stats.unmatched++;
-			continue;
-		}
-		await applyToRecipient(recipient, event);
-		stats.applied++;
+		await db
+			.update(emailEvents)
+			.set({ appliedAt: new Date() })
+			.where(eventKey(event));
+		if (recipient) stats.applied++;
+		else stats.unmatched++;
 	}
 
 	return stats;
