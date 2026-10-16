@@ -12,10 +12,13 @@ mock.module("@psi-opora/config", () => ({
 	bitrixPortalKey: () => "portal",
 }));
 
-let trackerDeal: { CLOSED: string } | null = null;
+let trackerDeal: { CLOSED: string; COMMENTS?: string } | null = null;
+let updateFails = false;
 const bitrixPost = mock((method: string) => {
 	if (method === "crm.deal.get") return Promise.resolve(trackerDeal);
 	if (method === "crm.deal.add") return Promise.resolve(777);
+	if (method === "crm.deal.update" && updateFails)
+		return Promise.reject(new Error("UPDATE_FAILED"));
 	return Promise.resolve(true);
 });
 mock.module("./client", () => ({
@@ -67,7 +70,8 @@ describe("createBitrixDeal", () => {
 	beforeEach(() => {
 		bitrixPost.mockClear();
 		crmLink = null;
-		trackerDeal = { CLOSED: "N" };
+		trackerDeal = { CLOSED: "N", COMMENTS: "" };
+		updateFails = false;
 		dealIdOnDialog = null;
 	});
 
@@ -106,5 +110,36 @@ describe("createBitrixDeal", () => {
 		trackerDeal = { CLOSED: "Y" };
 		const res = await createBitrixDeal(data);
 		expect(res.dealId).toBe(777);
+	});
+
+	test("сделка трекера уже с нашей строкой «Бот:» — создаёт новую", async () => {
+		dealIdOnDialog = 6104;
+		trackerDeal = { CLOSED: "N", COMMENTS: "Бот: max-bot" };
+		const res = await createBitrixDeal(data);
+		expect(res.dealId).toBe(777);
+		expect(calls("crm.deal.update")).toHaveLength(0);
+	});
+
+	test("непонятный ответ crm.deal.get — не занимает сделку", async () => {
+		dealIdOnDialog = 6104;
+		trackerDeal = { COMMENTS: "" } as never;
+		const res = await createBitrixDeal(data);
+		expect(res.dealId).toBe(777);
+	});
+
+	test("crm.deal.update упал — заявка не теряется, создаётся новая сделка", async () => {
+		dealIdOnDialog = 6104;
+		updateFails = true;
+		const res = await createBitrixDeal(data);
+		expect(res.dealId).toBe(777);
+		expect(calls("crm.deal.add")).toHaveLength(1);
+	});
+
+	test("сценарий без своей воронки не занимает сделку трекера", async () => {
+		dealIdOnDialog = 6104;
+		const { categoryId: _c, stageId: _s, ...consult } = data;
+		const res = await createBitrixDeal({ ...consult, flow: "consult" });
+		expect(res.dealId).toBe(777);
+		expect(calls("crm.deal.update")).toHaveLength(0);
 	});
 });
