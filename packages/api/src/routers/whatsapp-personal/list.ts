@@ -3,7 +3,7 @@ import {
 	setWhatsappPersonalAccountStateBySession,
 } from "@psi-opora/db/queries";
 import { wahaGetSession, wahaSessionHealth } from "@psi-opora/waha";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import type { WhatsappPersonalAccountView } from "./types";
 
 function maskPhone(phone: string): string {
@@ -12,7 +12,7 @@ function maskPhone(phone: string): string {
 }
 
 /** Список личных номеров WhatsApp, подключённых на этом портале (для карточки в настройках). */
-export const list = publicProcedure.handler(
+export const list = bitrixProcedure.handler(
 	async ({ context }): Promise<{ accounts: WhatsappPersonalAccountView[] }> => {
 		if (!context.memberId) return { accounts: [] };
 

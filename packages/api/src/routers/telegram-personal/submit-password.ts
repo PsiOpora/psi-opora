@@ -1,5 +1,5 @@
 import { confirmLoginPassword } from "@psi-opora/tg-userbot";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { submitTelegramPasswordSchema } from "../../schemas/telegram-personal";
 import {
 	deletePendingTelegramLogin,
@@ -7,7 +7,7 @@ import {
 	getPendingTelegramLogin,
 } from "./helpers";
 
-export const submitPassword = publicProcedure
+export const submitPassword = bitrixProcedure
 	.input(submitTelegramPasswordSchema)
 	.handler(
 		async ({

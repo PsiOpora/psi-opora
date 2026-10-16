@@ -1,5 +1,5 @@
 import { listTelegramPersonalAccounts } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import type { TelegramPersonalAccountView } from "./types";
 
 function maskPhone(phone: string): string {
@@ -8,7 +8,7 @@ function maskPhone(phone: string): string {
 }
 
 /** Список личных номеров Telegram, подключённых на этом портале (для карточки в настройках). */
-export const list = publicProcedure.handler(
+export const list = bitrixProcedure.handler(
 	async ({ context }): Promise<{ accounts: TelegramPersonalAccountView[] }> => {
 		if (!context.memberId) return { accounts: [] };
 

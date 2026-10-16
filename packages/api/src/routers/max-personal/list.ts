@@ -1,11 +1,11 @@
 import { listMaxPersonalAccounts } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import type { MaxPersonalAccountView } from "./types";
 
 const maskPhone = (phone: string) =>
 	phone.length <= 6 ? phone : `${phone.slice(0, 4)}···${phone.slice(-2)}`;
 
-export const list = publicProcedure.handler(
+export const list = bitrixProcedure.handler(
 	async ({ context }): Promise<{ accounts: MaxPersonalAccountView[] }> => {
 		if (!context.memberId) return { accounts: [] };
 		const rows = await listMaxPersonalAccounts(context.memberId);

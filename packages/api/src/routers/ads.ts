@@ -11,25 +11,25 @@ import {
 	upsertAdDailyStats,
 } from "@psi-opora/db/queries";
 import { z } from "zod";
-import { adminProcedure, publicProcedure, router } from "../orpc";
+import { adminProcedure, bitrixProcedure, router } from "../orpc";
 import {
 	adCampaignIdOverrideSchema,
 	adCredentialsSchema,
 } from "../schemas/ads";
 
 export const adsRouter = router({
-	getCredentials: publicProcedure.handler(async () => {
+	getCredentials: bitrixProcedure.handler(async () => {
 		return getAdCredentials();
 	}),
 
-	upsertCredentials: publicProcedure
+	upsertCredentials: bitrixProcedure
 		.input(adCredentialsSchema)
 		.handler(async ({ input }) => {
 			await upsertAdCredentials(input);
 			return { ok: true };
 		}),
 
-	stats: publicProcedure
+	stats: bitrixProcedure
 		.input(
 			z.object({
 				dateFrom: z.string().optional(),
@@ -54,7 +54,7 @@ export const adsRouter = router({
 			return { summary, rows };
 		}),
 
-	refreshStats: publicProcedure.handler(async () => {
+	refreshStats: bitrixProcedure.handler(async () => {
 		const [redis, creds] = await Promise.all([
 			Promise.resolve(getRedisOrNull()),
 			getAdCredentials().catch(() => null),
@@ -67,7 +67,7 @@ export const adsRouter = router({
 		return { ok: true };
 	}),
 
-	upsertStats: publicProcedure
+	upsertStats: bitrixProcedure
 		.input(
 			z.object({
 				rows: z.array(
@@ -89,7 +89,7 @@ export const adsRouter = router({
 			return { ok: true };
 		}),
 
-	campaignIdOverrides: publicProcedure.handler(async () => {
+	campaignIdOverrides: bitrixProcedure.handler(async () => {
 		return getAdCampaignIdOverrides();
 	}),
 

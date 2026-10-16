@@ -1,10 +1,10 @@
 import { insertBotMessage } from "@psi-opora/db/queries";
 import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { sendTestMessageSchema } from "../../schemas/broadcast";
 
 /** Тестовая отправка текущего текста одному получателю из предпросмотра. */
-export const sendTest = publicProcedure
+export const sendTest = bitrixProcedure
 	.input(sendTestMessageSchema)
 	.handler(async ({ input }) => {
 		const message = input.message.trim();

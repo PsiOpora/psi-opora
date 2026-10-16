@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
 	Form,
 	FormControl,
+	FormDescription,
 	FormField,
 	FormItem,
 	FormLabel,
@@ -28,7 +29,9 @@ type ResendSettings = RouterOutputs["email"]["getResendSettings"];
 
 function toFormValues(settings: ResendSettings): ResendSettingsInput {
 	return {
-		apiKey: settings?.apiKey ?? "",
+		// Сохранённый ключ на клиент не приходит (только маска): поле всегда
+		// пустое, а пустое значение при сохранении ключ не меняет.
+		apiKey: "",
 		senderEmail: settings?.senderEmail ?? "",
 		senderName: settings?.senderName ?? "",
 	};
@@ -53,7 +56,7 @@ export function ResendSettingsForm() {
 		orpc.email.upsertResendSettings.mutationOptions({
 			onSuccess: () => {
 				toast.success("Настройки Resend сохранены");
-				form.reset(form.getValues());
+				form.reset({ ...form.getValues(), apiKey: "" });
 				queryClient.invalidateQueries({
 					queryKey: orpc.email.getResendSettings.key(),
 				});
@@ -85,7 +88,7 @@ export function ResendSettingsForm() {
 									<div className="relative">
 										<Input
 											type={showApiKey ? "text" : "password"}
-											placeholder="re_••••••••"
+											placeholder={settings?.apiKeyMask ?? "re_••••••••"}
 											className="font-mono text-sm pr-10"
 											{...field}
 										/>
@@ -103,6 +106,11 @@ export function ResendSettingsForm() {
 										</button>
 									</div>
 								</FormControl>
+								{settings?.apiKeyMask && (
+									<FormDescription className="text-xs">
+										Ключ сохранён. Оставьте поле пустым, чтобы не менять его.
+									</FormDescription>
+								)}
 								<FormMessage />
 							</FormItem>
 						)}

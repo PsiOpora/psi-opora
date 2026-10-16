@@ -7,7 +7,7 @@ import {
 	upsertBackupCredentials,
 } from "@psi-opora/db/queries";
 import { enqueueCrmBackup, executeCrmBackup } from "@psi-opora/jobs";
-import { publicProcedure, router } from "../orpc";
+import { bitrixProcedure, router } from "../orpc";
 import { backupCredentialsSchema } from "../schemas/backup";
 
 export interface RunBackupResult {
@@ -17,22 +17,22 @@ export interface RunBackupResult {
 }
 
 export const backupRouter = router({
-	getCredentials: publicProcedure.handler(async () => {
+	getCredentials: bitrixProcedure.handler(async () => {
 		return getBackupCredentials();
 	}),
 
-	upsertCredentials: publicProcedure
+	upsertCredentials: bitrixProcedure
 		.input(backupCredentialsSchema)
 		.handler(async ({ input }) => {
 			await upsertBackupCredentials(input);
 			return { ok: true };
 		}),
 
-	listRuns: publicProcedure.handler(async () => {
+	listRuns: bitrixProcedure.handler(async () => {
 		return listBackupRuns();
 	}),
 
-	runNow: publicProcedure.handler(
+	runNow: bitrixProcedure.handler(
 		async ({ context }): Promise<RunBackupResult> => {
 			const runId = crypto.randomUUID();
 			await createBackupRun(runId);

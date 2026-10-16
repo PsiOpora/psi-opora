@@ -1,5 +1,5 @@
 import { listBotMessagesSince } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { widgetPollSchema } from "../../schemas/broadcast";
 import { resolveContact } from "./helpers";
 import type { WidgetHistoryItem } from "./types";
@@ -10,7 +10,7 @@ import type { WidgetHistoryItem } from "./types";
  * пересчитываются из актуальных данных CRM (resolveContact), иначе можно
  * было бы подставить чужие messenger/userId и читать чужую переписку.
  */
-export const poll = publicProcedure
+export const poll = bitrixProcedure
 	.input(widgetPollSchema)
 	.handler(
 		async ({

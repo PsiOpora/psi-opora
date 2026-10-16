@@ -2,10 +2,10 @@ import {
 	getMaxPersonalAccountByConnector,
 	removeMaxPersonalAccount,
 } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { disconnectMaxPersonalSchema } from "../../schemas/max-personal";
 
-export const disconnect = publicProcedure
+export const disconnect = bitrixProcedure
 	.input(disconnectMaxPersonalSchema)
 	.handler(
 		async ({ input, context }): Promise<{ ok?: true; error?: string }> => {

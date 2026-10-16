@@ -4,7 +4,7 @@ import {
 	wahaSessionPhoneMatches,
 	waSessionName,
 } from "@psi-opora/waha";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { pollWhatsappStatusSchema } from "../../schemas/whatsapp-personal";
 import { finalizeConnectedLogin } from "./helpers";
 
@@ -14,7 +14,7 @@ import { finalizeConnectedLogin } from "./helpers";
  * и активируем коннектор на линии (см. finalizeConnectedLogin). Повторные
  * вызовы после подключения безвредны: upsert идемпотентен.
  */
-export const pollStatus = publicProcedure
+export const pollStatus = bitrixProcedure
 	.input(pollWhatsappStatusSchema)
 	.handler(
 		async ({

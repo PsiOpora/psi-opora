@@ -3,10 +3,10 @@ import {
 	removeWhatsappPersonalAccount,
 } from "@psi-opora/db/queries";
 import { wahaDeleteSession } from "@psi-opora/waha";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { disconnectWhatsappPersonalSchema } from "../../schemas/whatsapp-personal";
 
-export const disconnect = publicProcedure
+export const disconnect = bitrixProcedure
 	.input(disconnectWhatsappPersonalSchema)
 	.handler(
 		async ({ input, context }): Promise<{ ok?: true; error?: string }> => {

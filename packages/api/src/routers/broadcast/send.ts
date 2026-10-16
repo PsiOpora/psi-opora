@@ -5,7 +5,7 @@ import {
 	insertBroadcastRecipients,
 } from "@psi-opora/db/queries";
 import { enqueueBroadcast } from "@psi-opora/jobs";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { buildReport, collectRecipients } from "../../broadcast-send";
 import {
 	MESSAGE_MAX_LENGTH,
@@ -13,7 +13,7 @@ import {
 } from "../../schemas/broadcast";
 import type { BroadcastActionResult } from "./types";
 
-export const send = publicProcedure
+export const send = bitrixProcedure
 	.input(sendBroadcastSchema)
 	.handler(async ({ input, context }): Promise<BroadcastActionResult> => {
 		const api = await context.getBitrixApi();

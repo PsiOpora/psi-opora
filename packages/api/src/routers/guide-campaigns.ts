@@ -6,7 +6,7 @@ import {
 	listGuideViewers,
 	updateBotGuideCampaign,
 } from "@psi-opora/db/queries";
-import { publicProcedure, router } from "../orpc";
+import { bitrixProcedure, router } from "../orpc";
 import {
 	createGuideCampaignSchema,
 	guideCampaignIdSchema,
@@ -21,7 +21,7 @@ function isDuplicateKeywordError(err: unknown): boolean {
 
 export const guideCampaignsRouter = router({
 	/** Кампании гайдов по кодовому слову (см. bot_guide_campaigns), для /settings/bot. */
-	list: publicProcedure.handler(async () => {
+	list: bitrixProcedure.handler(async () => {
 		return listBotGuideCampaigns();
 	}),
 
@@ -30,7 +30,7 @@ export const guideCampaignsRouter = router({
 	 * (bot_guide_deliveries) — показываются в строке кампании, чтобы по
 	 * кодовому слову было видно не только настройки, но и результат.
 	 */
-	stats: publicProcedure.handler(async () => {
+	stats: bitrixProcedure.handler(async () => {
 		return listGuideCampaignStats();
 	}),
 
@@ -39,7 +39,7 @@ export const guideCampaignsRouter = router({
 	 * из снимка выдачи, чтобы из дашборда было видно не только «сколько», но и
 	 * «кто именно» дошёл до файла.
 	 */
-	viewers: publicProcedure
+	viewers: bitrixProcedure
 		.input(guideViewersSchema)
 		.handler(async ({ input }) => {
 			return listGuideViewers({
@@ -48,7 +48,7 @@ export const guideCampaignsRouter = router({
 			});
 		}),
 
-	create: publicProcedure
+	create: bitrixProcedure
 		.input(createGuideCampaignSchema)
 		.handler(async ({ input }) => {
 			try {
@@ -80,7 +80,7 @@ export const guideCampaignsRouter = router({
 			return { ok: true };
 		}),
 
-	update: publicProcedure
+	update: bitrixProcedure
 		.input(updateGuideCampaignSchema)
 		.handler(async ({ input }) => {
 			const { id, guideId, welcomeMessage, ...patch } = input;
@@ -103,7 +103,7 @@ export const guideCampaignsRouter = router({
 			return { ok: true };
 		}),
 
-	remove: publicProcedure
+	remove: bitrixProcedure
 		.input(guideCampaignIdSchema)
 		.handler(async ({ input }) => {
 			await deleteBotGuideCampaign(input.id);

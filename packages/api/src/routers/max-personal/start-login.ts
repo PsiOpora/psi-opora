@@ -1,9 +1,9 @@
 import { callMaxLoginWorker } from "@psi-opora/max-userbot";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { startMaxLoginSchema } from "../../schemas/max-personal";
 import { maskPhone, savePendingMaxLogin } from "./helpers";
 
-export const startLogin = publicProcedure
+export const startLogin = bitrixProcedure
 	.input(startMaxLoginSchema)
 	.handler(
 		async ({

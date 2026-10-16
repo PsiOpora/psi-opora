@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { ORPCError } from "@orpc/server";
 import { env } from "@psi-opora/config";
 import { createUnisenderClient } from "@psi-opora/unisender-client";
-import { bitrixProcedure, publicProcedure, router } from "../orpc";
+import { bitrixProcedure, router } from "../orpc";
 import {
 	emailProviderSchema,
 	rusenderSettingsSchema,
@@ -23,6 +23,27 @@ import {
 	upsertSmtpBzSettings,
 	upsertUnisenderSettings,
 } from "@psi-opora/db/queries";
+
+/** Короче этого хвост ключа не показываем — он раскрыл бы заметную часть секрета. */
+const MIN_MASKABLE_LENGTH = 12;
+
+/**
+ * Маска API-ключа для UI: «••••» + последние 4 символа (или только «••••»
+ * для коротких ключей); `null` — ключ не задан. Сам ключ на клиент не уходит.
+ */
+export function maskSecret(value: string | null | undefined): string | null {
+	if (!value) return null;
+	return value.length < MIN_MASKABLE_LENGTH ? "••••" : `••••${value.slice(-4)}`;
+}
+
+/** Заменяет `apiKey` на `apiKeyMask` в настройках провайдера перед отдачей на клиент. */
+function maskApiKey<T extends { apiKey: string | null }>(
+	settings: T | null,
+): (Omit<T, "apiKey"> & { apiKeyMask: string | null }) | null {
+	if (!settings) return null;
+	const { apiKey, ...rest } = settings;
+	return { ...rest, apiKeyMask: maskSecret(apiKey) };
+}
 
 /** События Unisender, нужные для статистики по каждому получателю. */
 const UNISENDER_HOOK_EVENTS = {
@@ -127,59 +148,59 @@ const webhooksRouter = router({
 export const emailRouter = router({
 	webhooks: webhooksRouter,
 
-	getSettings: publicProcedure.handler(async () => {
-		return getUnisenderSettings();
+	getSettings: bitrixProcedure.handler(async () => {
+		return maskApiKey(await getUnisenderSettings());
 	}),
 
-	upsertSettings: publicProcedure
+	upsertSettings: bitrixProcedure
 		.input(unisenderSettingsSchema)
 		.handler(async ({ input }) => {
 			await upsertUnisenderSettings(input);
 			return { ok: true };
 		}),
 
-	getRusenderSettings: publicProcedure.handler(async () => {
+	getRusenderSettings: bitrixProcedure.handler(async () => {
 		const settings = await getRusenderSettings();
 		if (!settings) return null;
 		// Секрет вебхука наружу не отдаём: он — единственная защита вебхука.
 		const { webhookSecret: _secret, ...rest } = settings;
-		return rest;
+		return maskApiKey(rest);
 	}),
 
-	upsertRusenderSettings: publicProcedure
+	upsertRusenderSettings: bitrixProcedure
 		.input(rusenderSettingsSchema)
 		.handler(async ({ input }) => {
 			await upsertRusenderSettings(input);
 			return { ok: true };
 		}),
 
-	getSmtpBzSettings: publicProcedure.handler(async () => {
-		return getSmtpBzSettings();
+	getSmtpBzSettings: bitrixProcedure.handler(async () => {
+		return maskApiKey(await getSmtpBzSettings());
 	}),
 
-	upsertSmtpBzSettings: publicProcedure
+	upsertSmtpBzSettings: bitrixProcedure
 		.input(smtpBzSettingsSchema)
 		.handler(async ({ input }) => {
 			await upsertSmtpBzSettings(input);
 			return { ok: true };
 		}),
 
-	getResendSettings: publicProcedure.handler(async () => {
-		return getResendSettings();
+	getResendSettings: bitrixProcedure.handler(async () => {
+		return maskApiKey(await getResendSettings());
 	}),
 
-	upsertResendSettings: publicProcedure
+	upsertResendSettings: bitrixProcedure
 		.input(resendSettingsSchema)
 		.handler(async ({ input }) => {
 			await upsertResendSettings(input);
 			return { ok: true };
 		}),
 
-	getProvider: publicProcedure.handler(async () => {
+	getProvider: bitrixProcedure.handler(async () => {
 		return { provider: await getEmailProvider() };
 	}),
 
-	setProvider: publicProcedure
+	setProvider: bitrixProcedure
 		.input(emailProviderSchema)
 		.handler(async ({ input }) => {
 			await setEmailProvider(input.provider);

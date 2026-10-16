@@ -1,4 +1,4 @@
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { generateConnectorId } from "./helpers";
 
 /**
@@ -8,7 +8,7 @@ import { generateConnectorId } from "./helpers";
  * приложения из браузера) и просит администратора добавить канал на
  * нужной линии в Контакт-центре.
  */
-export const registerSlot = publicProcedure.handler(
+export const registerSlot = bitrixProcedure.handler(
 	async ({ context }): Promise<{ connectorId?: string; error?: string }> => {
 		if (!context.memberId) {
 			return { error: "Нет активной сессии Битрикс24 — обновите страницу" };

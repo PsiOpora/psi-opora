@@ -2,10 +2,10 @@ import {
 	getTelegramPersonalAccountByConnector,
 	removeTelegramPersonalAccount,
 } from "@psi-opora/db/queries";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { disconnectTelegramPersonalSchema } from "../../schemas/telegram-personal";
 
-export const disconnect = publicProcedure
+export const disconnect = bitrixProcedure
 	.input(disconnectTelegramPersonalSchema)
 	.handler(
 		async ({ input, context }): Promise<{ ok?: true; error?: string }> => {

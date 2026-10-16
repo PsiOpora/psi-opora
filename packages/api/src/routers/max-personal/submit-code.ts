@@ -1,5 +1,5 @@
 import { callMaxLoginWorker } from "@psi-opora/max-userbot";
-import { publicProcedure } from "../../orpc";
+import { bitrixProcedure } from "../../orpc";
 import { submitMaxCodeSchema } from "../../schemas/max-personal";
 import {
 	deletePendingMaxLogin,
@@ -9,7 +9,7 @@ import {
 	savePendingMaxLogin,
 } from "./helpers";
 
-export const submitCode = publicProcedure.input(submitMaxCodeSchema).handler(
+export const submitCode = bitrixProcedure.input(submitMaxCodeSchema).handler(
 	async ({
 		input,
 		context,
