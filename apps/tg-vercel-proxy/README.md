@@ -42,16 +42,17 @@ k3s напрямую, на время переезда с РФ-хостинга.
 
 ### Исходящие запросы к Bot API
 
-В корневом `.env` (перечень переменных см. в [`.env.example`](../../.env.example)):
+Исходящие запросы к Bot API ходят не через этот Vercel-прокси, а через
+HTTP-прокси 3proxy. В корневом `.env` (перечень переменных см. в
+[`.env.example`](../../.env.example)):
 
 ```bash
-TG_API_PROXY_ENABLED=true
-TG_API_PROXY_URL=https://tg-vercel-proxy.vercel.app
-TG_API_PROXY_SECRET=<то же значение, что PROXY_SECRET на Vercel>
+TG_3PROXY_ENABLED=true
+TG_3PROXY_URL=http://user:pass@proxy.example.com:3128
 ```
 
-Выключается обратно — `TG_API_PROXY_ENABLED=false` (или удалить переменную),
-без передеплоя кода бота. Логика подстановки — в
+Выключается обратно — `TG_3PROXY_ENABLED=false` (или удалить переменную),
+без передеплоя кода бота. Логика — в
 `packages/bot-core/src/utils/telegram-proxy.ts`.
 
 ### Входящие вебхуки
