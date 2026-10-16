@@ -10,7 +10,11 @@ import {
 import type { OpenLineDialog } from "./openline";
 
 const upsertBitrixCrmLink = mock(() => Promise.resolve());
-mock.module("@psi-opora/db/queries", () => ({ upsertBitrixCrmLink }));
+const getBitrixCrmLink = mock(() => Promise.resolve(null));
+mock.module("@psi-opora/db/queries", () => ({
+	getBitrixCrmLink,
+	upsertBitrixCrmLink,
+}));
 
 let dialog: OpenLineDialog | null = null;
 mock.module("./openline", () => ({
