@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
-let dialog: { dealId: number | null } | null = null;
+let dialog: { dealId: number | null; contactId?: number | null } | null = null;
 let dialogError: Error | null = null;
 const resolveOpenLineDialog = mock(
 	(_messenger: string, _userId: number, _chatId: number) =>
@@ -8,7 +8,12 @@ const resolveOpenLineDialog = mock(
 );
 
 const appendDealComment = mock(
-	(_messenger: string, _dealId: number, _comment: string) => Promise.resolve(),
+	(_messenger: string, _dealId: number, _comment: string) =>
+		Promise.resolve(true),
+);
+const updateContactPhone = mock(
+	(_messenger: string, _contactId: number, _phone: string) =>
+		Promise.resolve(true),
 );
 
 // Зависимости передаём явно, а не через mock.module: тот глобален для всего
@@ -16,6 +21,7 @@ const appendDealComment = mock(
 const deps = {
 	resolveDialog: resolveOpenLineDialog as never,
 	appendComment: appendDealComment as never,
+	updateContactPhone,
 };
 
 const { appendPhoneToDealComment } = await import("./phone-fallback");
@@ -23,7 +29,10 @@ const { appendPhoneToDealComment } = await import("./phone-fallback");
 describe("appendPhoneToDealComment", () => {
 	beforeEach(() => {
 		resolveOpenLineDialog.mockClear();
-		appendDealComment.mockClear();
+		updateContactPhone.mockReset();
+		updateContactPhone.mockResolvedValue(true);
+		appendDealComment.mockReset();
+		appendDealComment.mockResolvedValue(true);
 		dialog = null;
 		dialogError = null;
 	});
@@ -69,7 +78,7 @@ describe("appendPhoneToDealComment", () => {
 		expect(resolveOpenLineDialog).toHaveBeenCalledWith("max", 77, 77);
 	});
 
-	test("у трекера нет сделки — ничего не пишет", async () => {
+	test("у трекера нет сделки и контакта — возвращает неудачу", async () => {
 		dialog = { dealId: null };
 
 		const ok = await appendPhoneToDealComment(
@@ -84,6 +93,61 @@ describe("appendPhoneToDealComment", () => {
 		expect(ok).toBe(false);
 		expect(appendDealComment).not.toHaveBeenCalled();
 	});
+
+	test("без сделки трекера сохраняет телефон в связанный контакт", async () => {
+		dialog = { dealId: null, contactId: 501 };
+
+		const ok = await appendPhoneToDealComment(
+			{ messenger: "max", userId: 1, phone: "9109084657" },
+			deps,
+		);
+
+		expect(ok).toBe(true);
+		expect(updateContactPhone).toHaveBeenCalledWith("max", 501, "9109084657");
+		expect(appendDealComment).not.toHaveBeenCalled();
+	});
+
+	test.each(["false", "error"])(
+		"сбой записи в контакт (%s) возвращает false",
+		async (failure) => {
+			dialog = { dealId: null, contactId: 501 };
+			if (failure === "error") {
+				updateContactPhone.mockRejectedValueOnce(
+					new Error("crm.contact.update"),
+				);
+			} else {
+				updateContactPhone.mockResolvedValueOnce(false);
+			}
+
+			expect(
+				await appendPhoneToDealComment(
+					{ messenger: "max", userId: 1, phone: "9109084657" },
+					deps,
+				),
+			).toBe(false);
+		},
+	);
+
+	test.each(["false", "error"])(
+		"сбой комментария (%s) возвращает false",
+		async (failure) => {
+			dialog = { dealId: 6104 };
+			if (failure === "error") {
+				appendDealComment.mockRejectedValueOnce(
+					new Error("crm.timeline.comment.add"),
+				);
+			} else {
+				appendDealComment.mockResolvedValueOnce(false);
+			}
+
+			expect(
+				await appendPhoneToDealComment(
+					{ messenger: "max", userId: 1, phone: "9109084657" },
+					deps,
+				),
+			).toBe(false);
+		},
+	);
 
 	test("диалога нет — ничего не пишет", async () => {
 		const ok = await appendPhoneToDealComment(

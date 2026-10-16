@@ -4,10 +4,10 @@ import type { appendDealComment } from "./sources";
 /**
  * Запасной путь, если бот не смог завести заявку: телефон, который клиент
  * оставил в сценарии, дописывается комментарием в сделку трекера Открытой
- * линии (она уже есть по этому чату) — оператор увидит номер в таймлайне и
- * не потеряет клиента. Ошибки не пробрасываются: это уже обработка сбоя.
+ * линии, а если сделки нет — в телефон связанного контакта.
+ * Ошибки не пробрасываются: это уже обработка сбоя.
  *
- * @returns true, если комментарий отправлен в найденную сделку
+ * @returns true, если запись телефона в CRM подтверждена
  */
 export async function appendPhoneToDealComment(
 	params: {
@@ -19,6 +19,11 @@ export async function appendPhoneToDealComment(
 	deps: {
 		resolveDialog: typeof resolveOpenLineDialog;
 		appendComment: typeof appendDealComment;
+		updateContactPhone: (
+			messenger: string,
+			contactId: number,
+			phone: string,
+		) => Promise<boolean>;
 	},
 ): Promise<boolean> {
 	const { messenger, userId, chatId, phone } = params;
@@ -29,18 +34,19 @@ export async function appendPhoneToDealComment(
 			userId,
 			chatId ?? userId,
 		);
-		if (!dialog?.dealId) return false;
-		await deps.appendComment(
+		if (!dialog?.dealId) {
+			return dialog?.contactId
+				? await deps.updateContactPhone(messenger, dialog.contactId, phone)
+				: false;
+		}
+		return await deps.appendComment(
 			messenger,
 			dialog.dealId,
 			`⚠️ Бот не смог сохранить заявку в CRM. Телефон клиента: ${phone}`,
 		);
-		return true;
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);
-		console.error(
-			`[bitrix] не удалось записать телефон в сделку трекера: ${message}`,
-		);
+		console.error(`[bitrix] не удалось записать телефон в CRM: ${message}`);
 		return false;
 	}
 }

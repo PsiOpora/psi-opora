@@ -3,22 +3,24 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 const calls: string[] = [];
 
 const getBotUserProfile = mock(() => Promise.resolve(null));
+let attributionError: Error | null = null;
+const listAdTouchesForClient = mock((_params: unknown) => {
+	calls.push("attribution");
+	return attributionError
+		? Promise.reject(attributionError)
+		: Promise.resolve([]);
+});
 mock.module("@psi-opora/db/queries", () => ({
 	getBotUserProfile,
+	listAdTouchesForClient,
+	insertDealTouches: () => Promise.resolve(),
 	getYandexMetrikaSettings: () => Promise.resolve(null),
 	saveYandexMetrikaDealVisitor: () => Promise.resolve(),
 }));
 
-let attributionError: Error | null = null;
-const resolveDealAttribution = mock(() => {
-	calls.push("attribution");
-	return attributionError
-		? Promise.reject(attributionError)
-		: Promise.resolve(null);
-});
-mock.module("./attribution/deal-attribution", () => ({
-	resolveDealAttribution,
-	recordDealAttribution: () => Promise.resolve(),
+mock.module("./attribution/ad-directory", () => ({
+	loadAdEntityNames: () => Promise.resolve(new Map()),
+	entityKey: (kind: string, id: string) => `${kind}:${id}`,
 }));
 
 let contactError: Error | null = null;
@@ -55,6 +57,7 @@ const params = {
 	userId: 49043323,
 	chatId: 49043323,
 	flow: "book_preorder" as const,
+	ymClientId: "1234567890",
 };
 
 describe("submitConsultationDeal", () => {
@@ -63,6 +66,7 @@ describe("submitConsultationDeal", () => {
 		createBitrixContact.mockClear();
 		createBitrixDeal.mockClear();
 		appendPhoneToTrackerDeal.mockClear();
+		listAdTouchesForClient.mockClear();
 		contactError = null;
 		dealError = null;
 		attributionError = null;
@@ -83,20 +87,21 @@ describe("submitConsultationDeal", () => {
 		expect(appendPhoneToTrackerDeal).not.toHaveBeenCalled();
 	});
 
-	test("сбой атрибуции: контакт с телефоном уже сохранён, номер уходит в сделку трекера", async () => {
+	test("сбой БД внутри атрибуции: контакт сохранён, создание сделки продолжается", async () => {
 		attributionError = new Error("db упала");
 
 		const dealId = await submitConsultationDeal(params);
 
-		expect(dealId).toBeNull();
+		expect(dealId).toBe(77);
 		expect(createBitrixContact).toHaveBeenCalledTimes(1);
-		expect(createBitrixDeal).not.toHaveBeenCalled();
-		expect(appendPhoneToTrackerDeal).toHaveBeenCalledWith({
-			messenger: "max",
-			userId: 49043323,
-			chatId: 49043323,
-			phone: "9109084657",
-		});
+		expect(listAdTouchesForClient).toHaveBeenCalledTimes(1);
+		expect(calls).toEqual(["contact", "attribution", "deal"]);
+		expect(createBitrixDeal).toHaveBeenCalledTimes(1);
+		expect(createBitrixDeal.mock.calls[0]?.[1]).toBe(501);
+		expect(createBitrixDeal.mock.calls[0]?.[0]).not.toHaveProperty(
+			"attribution",
+		);
+		expect(appendPhoneToTrackerDeal).not.toHaveBeenCalled();
 	});
 
 	test("сбой создания сделки — номер уходит комментарием в сделку трекера", async () => {
