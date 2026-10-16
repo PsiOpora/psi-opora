@@ -14,6 +14,7 @@ import {
 	resolveDealAttribution,
 } from "./attribution/deal-attribution";
 import {
+	appendPhoneToTrackerDeal,
 	type ContactData,
 	createBitrixContact,
 	createBitrixDeal,
@@ -137,6 +138,37 @@ export async function submitConsultationDeal(
 			}
 		}
 
+		// Контакт с телефоном сохраняем отдельным шагом до всего остального
+		// (атрибуция, создание сделки): сбой любого из них не должен оставить
+		// карточку клиента без номера. При ошибке createBitrixDeal ниже сам
+		// повторит создание контакта.
+		const contactData: DealData = {
+			name,
+			phone,
+			consentGranted: true,
+			...(consentAt ? { consentAt } : {}),
+			...(email ? { email } : {}),
+			campaign,
+			source,
+			telegramUserId: userId,
+			messenger,
+			...(chatId !== undefined ? { chatId } : {}),
+			...(username ? { username } : {}),
+			...(languageCode ? { languageCode } : {}),
+			...(isPremium !== undefined ? { isPremium } : {}),
+			...(bio ? { bio } : {}),
+			...(ymClientId ? { ymClientId } : {}),
+		};
+		let contactId = 0;
+		try {
+			contactId = await createBitrixContact(contactData);
+		} catch (err: unknown) {
+			const message = err instanceof Error ? err.message : String(err);
+			console.error(
+				`[bitrix] не удалось сохранить контакт до создания сделки (${messenger}): ${message}`,
+			);
+		}
+
 		// Касания с рекламой по ClientID/yclid (ad_touches) — вместо одной метки
 		// из ссылки; null, если сайт касаний не присылал.
 		const attribution = await resolveDealAttribution({
@@ -147,31 +179,20 @@ export async function submitConsultationDeal(
 		});
 
 		const dealData: DealData = {
-			name,
-			phone,
-			consentGranted: true,
-			...(consentAt ? { consentAt } : {}),
-			...(email ? { email } : {}),
-			campaign,
-			source,
-			telegramUserId: userId,
-			messenger,
+			...contactData,
 			...(comment ? { comment } : {}),
 			...(flow ? { flow } : {}),
 			...(audience ? { audience } : {}),
 			...(issue ? { issue } : {}),
-			...(chatId !== undefined ? { chatId } : {}),
-			...(username ? { username } : {}),
-			...(languageCode ? { languageCode } : {}),
-			...(isPremium !== undefined ? { isPremium } : {}),
-			...(bio ? { bio } : {}),
-			...(ymClientId ? { ymClientId } : {}),
 			...(categoryId !== undefined ? { categoryId } : {}),
 			...(stageId ? { stageId } : {}),
 			...(attribution ? { attribution } : {}),
 		};
 
-		const { dealId } = await createBitrixDeal(dealData);
+		const { dealId } = await createBitrixDeal(dealData, contactId || undefined);
+		if (!dealId) {
+			await appendPhoneToTrackerDeal({ messenger, userId, chatId, phone });
+		}
 		if (dealId && attribution) {
 			await recordDealAttribution({ messenger, dealId, attribution });
 		}
@@ -210,6 +231,8 @@ export async function submitConsultationDeal(
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);
 		console.error(`[bitrix] ошибка создания сделки (${messenger}): ${message}`);
+		// Заявку завести не удалось — номер клиента не должен потеряться.
+		await appendPhoneToTrackerDeal({ messenger, userId, chatId, phone });
 		return null;
 	}
 }

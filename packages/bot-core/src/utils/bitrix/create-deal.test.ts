@@ -1,110 +1,172 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	spyOn,
+	test,
+} from "bun:test";
+import type { OpenLineDialog } from "./openline";
 
-let crmLink: { contactId: string; dealId: string | null } | null = null;
-const getBitrixCrmLink = mock(() => Promise.resolve(crmLink));
 const upsertBitrixCrmLink = mock(() => Promise.resolve());
+const getBitrixCrmLink = mock(() => Promise.resolve(null));
 mock.module("@psi-opora/db/queries", () => ({
 	getBitrixCrmLink,
 	upsertBitrixCrmLink,
-	getYandexMetrikaSettings: () => Promise.resolve(null),
-}));
-mock.module("@psi-opora/config", () => ({
-	bitrixPortalKey: () => "portal",
 }));
 
-let trackerDeal: { CLOSED: string } | null = null;
-const bitrixPost = mock((method: string) => {
-	if (method === "crm.deal.get") return Promise.resolve(trackerDeal);
-	if (method === "crm.deal.add") return Promise.resolve(777);
-	return Promise.resolve(true);
-});
-mock.module("./client", () => ({
-	bitrixPost,
-	getBotId: () => "bot",
-	getEnv: () => "https://example.bitrix24.ru/rest/1/x/",
-	getSourceId: () => "SRC",
-	getWebhookBase: () => "https://example.bitrix24.ru/rest/1/x/",
-}));
-
-mock.module("./contact", () => ({
-	DEFAULT_ASSIGNED_BY_ID: 1,
-	buildContactFields: () => ({}),
-	buildMessengerLinkFields: () => null,
-	findExistingContactId: () => Promise.resolve(null),
-}));
-
-let dealIdOnDialog: number | null = null;
+let dialog: OpenLineDialog | null = null;
 mock.module("./openline", () => ({
-	resolveOpenLineDialog: () =>
-		Promise.resolve({
-			chatId: 1,
-			imol: "imol",
-			contactId: 55,
-			dealId: dealIdOnDialog,
-			leadId: null,
-		}),
+	resolveOpenLineDialog: () => Promise.resolve(dialog),
+}));
+mock.module("./deal", () => ({
+	buildDealFields: (_data: unknown, contactId: number) => ({
+		CONTACT_ID: contactId,
+	}),
+	linkBitrixTrace: () => Promise.resolve(),
 }));
 
-const { createBitrixDeal } = await import("./create-deal");
+const { createBitrixContact, createBitrixDeal } = await import("./create-deal");
+const { appendPhoneToTrackerDeal } = await import("./tracker-phone");
 
 const data = {
 	name: "Клиент",
-	phone: "+79990000000",
-	consentGranted: true,
+	phone: "9109084657",
+	email: "client@example.test",
 	messenger: "max",
-	telegramUserId: 100,
-	chatId: 100,
-	flow: "book_preorder" as const,
-	categoryId: 8,
-	stageId: "C8:NEW",
+	telegramUserId: 123,
+	chatId: 123,
 };
+const originalWebhook = process.env.MAX_BITRIX_WEBHOOK_URL;
+const originalSource = process.env.MAX_BITRIX_SOURCE_ID;
+let fetchMock: ReturnType<typeof spyOn<typeof globalThis, "fetch">>;
+let updates: Array<boolean | Error>;
 
-function calls(method: string) {
-	return bitrixPost.mock.calls.filter((c) => c[0] === method);
-}
-
-describe("createBitrixDeal", () => {
+describe("createBitrixContact / createBitrixDeal: подтверждение телефона", () => {
 	beforeEach(() => {
-		bitrixPost.mockClear();
-		crmLink = null;
-		trackerDeal = { CLOSED: "N" };
-		dealIdOnDialog = null;
-	});
-
-	test("сделки трекера нет — создаёт новую", async () => {
-		const res = await createBitrixDeal(data);
-		expect(res.dealId).toBe(777);
-		expect(calls("crm.deal.add")).toHaveLength(1);
-		expect(calls("crm.deal.update")).toHaveLength(0);
-	});
-
-	test("трекер уже создал сделку — переносит её в воронку, без дубля", async () => {
-		dealIdOnDialog = 6104;
-		const res = await createBitrixDeal(data);
-		expect(res.dealId).toBe(6104);
-		expect(calls("crm.deal.add")).toHaveLength(0);
-		const update = calls("crm.deal.update")[0]?.[1] as {
-			id: number;
-			fields: Record<string, unknown>;
+		dialog = {
+			chatId: 10,
+			imol: "imol|bot|1|123|10",
+			contactId: 501,
+			dealId: null,
+			leadId: null,
 		};
-		expect(update.id).toBe(6104);
-		expect(update.fields.CATEGORY_ID).toBe(8);
-		expect(update.fields.STAGE_ID).toBe("C8:NEW");
-		expect(update.fields).not.toHaveProperty("ASSIGNED_BY_ID");
+		updates = [true];
+		upsertBitrixCrmLink.mockClear();
+		process.env.MAX_BITRIX_WEBHOOK_URL =
+			"https://bitrix.example.test/rest/1/test";
+		process.env.MAX_BITRIX_SOURCE_ID = "TEST";
+		fetchMock = spyOn(globalThis, "fetch").mockImplementation(
+			Object.assign(
+				async (input: RequestInfo | URL, init?: RequestInit) => {
+					const method = String(input).split("/").at(-1)?.replace(".json", "");
+					if (method === "crm.contact.update") {
+						const result = updates.shift();
+						return result instanceof Error
+							? Response.json({
+									error: "UPDATE_FAILED",
+									error_description: result.message,
+								})
+							: Response.json({ result });
+					}
+					if (method === "crm.duplicate.findbycomm") {
+						const body = JSON.parse(String(init?.body));
+						return Response.json({
+							result: body.type === "EMAIL" ? { CONTACT: [501] } : {},
+						});
+					}
+					if (method === "crm.deal.add") return Response.json({ result: 77 });
+					throw new Error(`Неожиданный запрос: ${method}`);
+				},
+				{ preconnect: globalThis.fetch.preconnect },
+			),
+		);
 	});
 
-	test("сделка диалога уже была нашей — новая заявка получает новую сделку", async () => {
-		dealIdOnDialog = 6104;
-		crmLink = { contactId: "55", dealId: "6104" };
-		const res = await createBitrixDeal(data);
-		expect(res.dealId).toBe(777);
-		expect(calls("crm.deal.update")).toHaveLength(0);
+	afterEach(() => {
+		fetchMock.mockRestore();
+		if (originalWebhook === undefined)
+			delete process.env.MAX_BITRIX_WEBHOOK_URL;
+		else process.env.MAX_BITRIX_WEBHOOK_URL = originalWebhook;
+		if (originalSource === undefined) delete process.env.MAX_BITRIX_SOURCE_ID;
+		else process.env.MAX_BITRIX_SOURCE_ID = originalSource;
 	});
 
-	test("сделка трекера закрыта — создаёт новую", async () => {
-		dealIdOnDialog = 6104;
-		trackerDeal = { CLOSED: "Y" };
-		const res = await createBitrixDeal(data);
-		expect(res.dealId).toBe(777);
+	test.each([false, new Error("crm.contact.update")])(
+		"не возвращает ID контакта после отказа обновления (%s)",
+		async (result) => {
+			updates = [result];
+			await expect(createBitrixContact(data)).rejects.toThrow();
+			expect(upsertBitrixCrmLink).not.toHaveBeenCalled();
+		},
+	);
+
+	test("повторяет запись телефона до создания сделки после первого сбоя", async () => {
+		updates = [new Error("temporary"), true];
+		await expect(createBitrixContact(data)).rejects.toThrow();
+
+		expect(await createBitrixDeal(data)).toEqual({
+			contactId: 501,
+			dealId: 77,
+		});
+		expect(
+			fetchMock.mock.calls.map(([url]) => String(url).split("/").at(-1)),
+		).toEqual([
+			"crm.contact.update.json",
+			"crm.contact.update.json",
+			"crm.deal.add.json",
+		]);
+		for (const [, init] of fetchMock.mock.calls.slice(0, 2)) {
+			expect(JSON.parse(String(init?.body))).toMatchObject({
+				id: 501,
+				fields: { PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }] },
+			});
+		}
 	});
+
+	test("повторный отказ обновления останавливает создание сделки", async () => {
+		updates = [new Error("temporary"), false];
+		await expect(createBitrixContact(data)).rejects.toThrow();
+		await expect(createBitrixDeal(data)).rejects.toThrow();
+		expect(fetchMock.mock.calls).toHaveLength(2);
+	});
+
+	test("контакт, найденный по email, получает телефон до возврата ID", async () => {
+		dialog = null;
+		expect(await createBitrixContact(data)).toBe(501);
+		const [, init] = fetchMock.mock.calls.at(-1) ?? [];
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			id: 501,
+			fields: { PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }] },
+		});
+	});
+
+	test("отказ записи телефона в контакт, найденный по email, останавливает сделку", async () => {
+		dialog = null;
+		updates = [false];
+		await expect(createBitrixDeal(data)).rejects.toThrow();
+		expect(fetchMock.mock.calls).toHaveLength(3);
+	});
+
+	test.each([true, false])(
+		"резервный путь без сделки записывает телефон контакту и возвращает %s",
+		async (result) => {
+			updates = [result];
+			expect(
+				await appendPhoneToTrackerDeal({
+					messenger: "max",
+					userId: 123,
+					phone: data.phone,
+				}),
+			).toBe(result);
+			expect(fetchMock.mock.calls).toHaveLength(1);
+			const [url, init] = fetchMock.mock.calls[0] ?? [];
+			expect(String(url)).toEndWith("/crm.contact.update.json");
+			expect(JSON.parse(String(init?.body))).toEqual({
+				id: 501,
+				fields: { PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }] },
+			});
+		},
+	);
 });

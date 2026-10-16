@@ -52,18 +52,13 @@ async function ensureBitrixContact(
 		console.log(
 			`[bitrix] используем контакт Открытой линии id=${contactId} (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
 		);
-		try {
-			await bitrixPost(
-				"crm.contact.update",
-				{ id: contactId, fields: buildContactFields(data, null) },
-				messenger,
-			);
-		} catch (err: unknown) {
-			const message = err instanceof Error ? err.message : String(err);
-			console.error(
-				`[bitrix] не удалось обновить контакт Открытой линии ${contactId}: ${message}`,
-			);
-		}
+		const updated = await bitrixPost<boolean>(
+			"crm.contact.update",
+			{ id: contactId, fields: buildContactFields(data, null) },
+			messenger,
+		);
+		if (updated !== true)
+			throw new Error(`Не удалось обновить контакт ${contactId}`);
 	} else {
 		contactId = await findExistingContactId(data);
 		if (contactId) {
@@ -71,19 +66,22 @@ async function ensureBitrixContact(
 				`[bitrix] используем существующий контакт id=${contactId} вместо создания нового (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
 			);
 			const messengerLink = buildMessengerLinkFields(data, dialog?.imol);
-			if (messengerLink) {
-				try {
-					await bitrixPost(
-						"crm.contact.update",
-						{ id: contactId, fields: messengerLink },
-						messenger,
-					);
-				} catch (err: unknown) {
-					const message = err instanceof Error ? err.message : String(err);
-					console.error(
-						`[bitrix] не удалось привязать мессенджер к контакту ${contactId}: ${message}`,
-					);
-				}
+			if (messengerLink || data.phone) {
+				const updated = await bitrixPost<boolean>(
+					"crm.contact.update",
+					{
+						id: contactId,
+						fields: {
+							...messengerLink,
+							...(data.phone
+								? { PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }] }
+								: {}),
+						},
+					},
+					messenger,
+				);
+				if (updated !== true)
+					throw new Error(`Не удалось обновить контакт ${contactId}`);
 			}
 		} else {
 			contactId = await bitrixPost<number>(
@@ -179,11 +177,29 @@ async function findAdoptableTrackerDeal(
 	}
 }
 
+/**
+ * @param existingContactId контакт, уже созданный/дополненный отдельным
+ *   вызовом createBitrixContact (телефон к этому моменту уже в CRM) —
+ *   повторно контакт не создаём.
+ */
 export async function createBitrixDeal(
 	data: DealData,
+	existingContactId?: number,
 ): Promise<{ contactId: number; dealId: number }> {
 	const messenger = data.messenger ?? "telegram";
-	const { contactId, dialog } = await ensureBitrixContact(data);
+	const { contactId, dialog } = existingContactId
+		? {
+				contactId: existingContactId,
+				dialog:
+					data.chatId && data.telegramUserId
+						? await resolveOpenLineDialog(
+								messenger,
+								data.telegramUserId,
+								data.chatId,
+							)
+						: null,
+			}
+		: await ensureBitrixContact(data);
 	if (!contactId) return { contactId: 0, dealId: 0 };
 
 	const fields = await buildDealFields(data, contactId);
