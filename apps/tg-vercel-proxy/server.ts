@@ -76,10 +76,9 @@ app.post("/webhook", async (c) => {
 });
 
 /**
- * Reverse-прокси к api.telegram.org для apps/tg-bot (см. TG_API_PROXY_* в
- * packages/config/src/env.ts и packages/bot-core/src/utils/telegram-proxy.ts) —
- * на время переезда с РФ-хостинга, пока прямые запросы к Telegram с k3s
- * ненадёжны. Требует общий секрет (PROXY_SECRET), если он задан в env
+ * Reverse-прокси к api.telegram.org — на время переезда с РФ-хостинга, пока
+ * прямые запросы к Telegram с k3s ненадёжны. Исходящие запросы tg-bot теперь
+ * идут через 3proxy (TG_3PROXY_*), этот прокси остаётся для вебхуков. Требует общий секрет (PROXY_SECRET), если он задан в env
  * деплоя — без него любой, кто узнает URL, мог бы дёргать Telegram от имени
  * бота, если это вдруг попадёт в чужие руки.
  */

@@ -70,7 +70,7 @@ export const log = (msg: string) => {
 	console.log(`${new Date().toISOString()} ${msg}`);
 };
 
-// Вычисляются один раз при загрузке модуля — TG_API_PROXY_* не меняются на
+// Вычисляются один раз при загрузке модуля — TG_3PROXY_* не меняются на
 // лету, только через переменные окружения и передеплой (см. utils/telegram-proxy).
 const telegramApiRoot = resolveTelegramApiRoot();
 const telegramFetch = createTelegramFetch();
@@ -304,14 +304,14 @@ export async function sendTelegramScenarioMessage(
 interface TelegramFileUrls {
 	/**
 	 * Прямой (временный) URL api.telegram.org — для пересылки вложения в
-	 * Открытую линию (message.files в imconnector.send.messages): Bitrix24 не
-	 * может ходить через наш прокси (нет x-proxy-secret заголовка).
+	 * Открытую линию (message.files в imconnector.send.messages): Bitrix24
+	 * скачивает его сам и через наш 3proxy ходить не может.
 	 */
 	bitrixUrl: string;
 	/**
-	 * URL для скачивания самим ботом — через прокси, если он включён: прямые
-	 * запросы к Telegram из k3s ненадёжны, и скачивание по bitrixUrl висело
-	 * до TCP-таймаута (минуты).
+	 * URL для скачивания самим ботом (через telegramFetch, а значит через
+	 * 3proxy, если он включён): прямые запросы к Telegram из k3s ненадёжны, и
+	 * скачивание висело до TCP-таймаута (минуты).
 	 */
 	downloadUrl: string;
 }
