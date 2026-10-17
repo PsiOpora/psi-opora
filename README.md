@@ -206,6 +206,9 @@ line/connector ID и никакого ручного запуска скрипт
    docker compose up -d --build max-userbot-worker
    ```
 
+Пошаговая инструкция для администратора портала —
+[docs/connect-personal-max-whatsapp.md](docs/connect-personal-max-whatsapp.md).
+
 Протокол MAX не документирован официально и может измениться без обратной
 совместимости. «Написать первым» по телефону используется только рассылкой по
 списку (см. «Рассылка по списку контактов»): контакт ищется по номеру
@@ -254,6 +257,9 @@ userId — так делает PyMax (`get_chat_id`), отдельного `CHAT
 3. В дашборде → «Каналы ботов» → «WhatsApp — личный номер» → «Зарегистрировать канал».
 4. В Bitrix24: Контакт-центр → линия → каналы → «WhatsApp (личный номер)» →
    ввести телефон → ввести pairing code на телефоне.
+
+Пошаговая инструкция для администратора портала —
+[docs/connect-personal-max-whatsapp.md](docs/connect-personal-max-whatsapp.md).
 
 ⚠️ Как и у всех неофициальных интеграций WhatsApp (Baileys/whatsmeow,
 Wazzup и т.п.), есть риск блокировки номера со стороны WhatsApp — не
