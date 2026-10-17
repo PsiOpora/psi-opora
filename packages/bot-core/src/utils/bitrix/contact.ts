@@ -53,6 +53,21 @@ function buildProfileComment(data: ContactData): string | undefined {
 // владельца вебхука, которым сейчас является техническая учётка Максима.
 export const DEFAULT_ASSIGNED_BY_ID = 18;
 
+/** Поля согласия на ПДн — пишутся и в свой контакт, и в контакт Wazzup. */
+export function buildConsentFields(data: ContactData) {
+	return {
+		// Сценарий бота всегда передаёт consentGranted=true после экрана
+		// согласия. Контакт, созданный из произвольного входящего телефона/email,
+		// не получает этот флаг автоматически.
+		...(data.consentGranted ? { UF_CRM_CONTACT_1779910236669: 1 } : {}),
+		// Дата/время согласия на ПДн — фиксируется автоматически в момент нажатия
+		// кнопки в боте, без ручного редактирования оператором.
+		...(data.consentGranted && data.consentAt
+			? { UF_CRM_CONTACT_CONSENT_PDN_DT: data.consentAt }
+			: {}),
+	};
+}
+
 export function buildContactFields(data: ContactData, imol?: string | null) {
 	const messenger = data.messenger ?? "telegram";
 	const profileComment = buildProfileComment(data);
@@ -69,15 +84,7 @@ export function buildContactFields(data: ContactData, imol?: string | null) {
 		SOURCE_DESCRIPTION: [data.source, data.campaign]
 			.filter(Boolean)
 			.join(" / "),
-		// Сценарий бота всегда передаёт consentGranted=true после экрана
-		// согласия. Контакт, созданный из произвольного входящего телефона/email,
-		// не получает этот флаг автоматически.
-		...(data.consentGranted ? { UF_CRM_CONTACT_1779910236669: 1 } : {}),
-		// Дата/время согласия на ПДн — фиксируется автоматически в момент нажатия
-		// кнопки в боте, без ручного редактирования оператором.
-		...(data.consentGranted && data.consentAt
-			? { UF_CRM_CONTACT_CONSENT_PDN_DT: data.consentAt }
-			: {}),
+		...buildConsentFields(data),
 		...(profileComment ? { COMMENTS: profileComment } : {}),
 		...(buildMessengerLinkFields(data, imol) ?? {}),
 	};
