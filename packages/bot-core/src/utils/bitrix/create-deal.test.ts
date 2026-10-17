@@ -76,6 +76,7 @@ describe("createBitrixContact / createBitrixDeal: подтверждение т�
 							result: body.type === "EMAIL" ? { CONTACT: [501] } : {},
 						});
 					}
+					if (method === "crm.contact.list") return Response.json({ result: [] });
 					if (method === "crm.deal.add") return Response.json({ result: 77 });
 					throw new Error(`Неожиданный запрос: ${method}`);
 				},
@@ -146,7 +147,8 @@ describe("createBitrixContact / createBitrixDeal: подтверждение т�
 		dialog = null;
 		updates = [false];
 		await expect(createBitrixDeal(data)).rejects.toThrow();
-		expect(fetchMock.mock.calls).toHaveLength(3);
+		// crm.contact.list (карточки Wazzup нет) → findbycomm ×2 → update
+		expect(fetchMock.mock.calls).toHaveLength(4);
 	});
 
 	test.each([true, false])(
