@@ -294,6 +294,56 @@ describe("adoptWazzupDeal", () => {
 });
 
 describe("createBitrixDeal с карточкой Wazzup", () => {
+	test.each([8250, 8216])(
+		"использует сделку Wazzup только для переданного контакта %s",
+		async (existingContactId) => {
+			contactRows = [
+				{ ID: "8216", UF_CRM_MAXID_WZ: "17509641" },
+				{ ID: "8250", UF_CRM_MAXID_WZ: "17509641" },
+			];
+			dealRows = [
+				{
+					ID: "6124",
+					CONTACT_ID: "8250",
+					CATEGORY_ID: "0",
+					STAGE_ID: "NEW",
+					SOURCE_ID: WZ_SOURCE,
+				},
+			];
+			const matches = existingContactId === 8250;
+			expect(await createBitrixDeal(data, existingContactId)).toEqual({
+				contactId: existingContactId,
+				dealId: matches ? 6124 : 777,
+			});
+			expect(calls("crm.deal.update")).toHaveLength(matches ? 1 : 0);
+			expect(calls("crm.deal.add")).toHaveLength(matches ? 0 : 1);
+			if (!matches)
+				expect(body("crm.deal.add").fields.CONTACT_IDS).toEqual([
+					existingContactId,
+				]);
+		},
+	);
+
+	test("без telegramUserId не ищет Wazzup и создаёт сделку на переданный контакт", async () => {
+		const { telegramUserId: _userId, ...withoutUserId } = data;
+		expect(await createBitrixDeal(withoutUserId, 8216)).toEqual({
+			contactId: 8216,
+			dealId: 777,
+		});
+		expect(calls("crm.contact.list")).toHaveLength(0);
+		expect(calls("crm.deal.list")).toHaveLength(0);
+		expect(body("crm.deal.add").fields.CONTACT_IDS).toEqual([8216]);
+	});
+
+	test("без найденного клиента Wazzup создаёт сделку на переданный контакт", async () => {
+		expect(await createBitrixDeal(data, 8216)).toEqual({
+			contactId: 8216,
+			dealId: 777,
+		});
+		expect(calls("crm.deal.update")).toHaveLength(0);
+		expect(body("crm.deal.add").fields.CONTACT_IDS).toEqual([8216]);
+	});
+
 	test("пишет телефон и почту в контакт Wazzup и заявку в его сделку, своих не заводит", async () => {
 		contactRows = [{ ID: "8250", UF_CRM_MAXID_WZ: "17509641" }];
 		dealRows = [

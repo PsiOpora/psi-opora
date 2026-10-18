@@ -77,9 +77,7 @@ async function ensureBitrixContact(data: ContactData): Promise<{
 		// Карточка, которую Wazzup завёл на первое сообщение клиента, — в ней
 		// работают менеджеры, поэтому данные из бота пишем туда, а не в свою.
 		contactId = wazzup.contactId;
-		console.log(
-			`[bitrix] используем контакт Wazzup id=${contactId} (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
-		);
+		console.log(`[bitrix] используем контакт Wazzup id=${contactId}`);
 		await updateWazzupContact(messenger, contactId, data, dialog?.imol);
 	} else {
 		contactId = await findExistingContactId(data);
@@ -256,7 +254,10 @@ export async function createBitrixDeal(
 							)
 						: null,
 				wazzup: data.telegramUserId
-					? await findWazzupClient(messenger, data.telegramUserId)
+					? await findWazzupClient(messenger, data.telegramUserId).then(
+							(client) =>
+								client?.contactId === existingContactId ? client : null,
+						)
 					: null,
 			}
 		: await ensureBitrixContact(data);
@@ -277,7 +278,7 @@ export async function createBitrixDeal(
 		adoptedDealId ??
 		(await bitrixPost<number>("crm.deal.add", { fields }, messenger));
 	console.log(
-		`[bitrix] сделка ${trackerAdoptedId ? "трекера использована" : adoptedDealId ? "Wazzup использована" : "создана"} id=${dealId} contact=${contactId} name=${data.name} phone=${data.phone}${data.email ? ` email=${data.email}` : ""}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
+		`[bitrix] сделка ${trackerAdoptedId ? "трекера использована" : adoptedDealId ? "Wazzup использована" : "создана"} id=${dealId} contact=${contactId}${data.source ? ` source=${data.source}` : ""}${data.campaign ? ` campaign=${data.campaign}` : ""} bot=${getBotId(messenger)}`,
 	);
 
 	if (data.telegramUserId) {
