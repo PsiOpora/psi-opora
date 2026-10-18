@@ -31,6 +31,7 @@ mock.module("./client", () => ({
 
 mock.module("./contact", () => ({
 	DEFAULT_ASSIGNED_BY_ID: 1,
+	buildConsentFields: () => ({}),
 	buildContactFields: () => ({}),
 	buildMessengerLinkFields: () => null,
 	findExistingContactId: () => Promise.resolve(null),
