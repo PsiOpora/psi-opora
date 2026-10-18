@@ -12,7 +12,7 @@ export type Messenger = "telegram" | "max";
 
 // Как и apps/tg-bot (packages/bot-core/src/bot.ts) — вычисляются один раз
 // при загрузке модуля, чтобы ответы операторов из apps/clients/apps/dashboard
-// тоже уходили через TG_API_PROXY_* (Vercel), когда он включён, а не мимо.
+// тоже уходили через TG_3PROXY_* (3proxy), когда он включён, а не мимо.
 const telegramApiRoot = resolveTelegramApiRoot();
 const telegramFetch = createTelegramFetch();
 

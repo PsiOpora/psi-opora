@@ -49,22 +49,17 @@ export const env = createEnv({
 		MAX_WEBHOOK_URL: z.string().optional(),
 		TG_WEBHOOK_URL: z.string().optional(),
 
-		// Прокси для Bot API Telegram (apps/tg-vercel-proxy, Vercel Edge Function) —
-		// на время переезда с РФ-хостинга, пока прямые запросы к api.telegram.org
-		// с k3s ненадёжны. Тоггл отдельно от URL, чтобы выключить проксирование
-		// без передеплоя (просто убрать переменную/поставить false).
-		TG_API_PROXY_ENABLED: z
+		// HTTP-прокси 3proxy для запросов к Bot API Telegram — пока прямые запросы
+		// к api.telegram.org с k3s ненадёжны. Тоггл отдельно от URL, чтобы выключить
+		// проксирование без передеплоя (просто убрать переменную/поставить false).
+		TG_3PROXY_ENABLED: z
 			.string()
 			.optional()
 			.default("false")
 			.transform((val) => val === "true"),
-		// Базовый URL задеплоенного apps/tg-vercel-proxy, например
-		// https://tg-proxy.vercel.app — без хвостового слэша.
-		TG_API_PROXY_URL: z.string().min(1).optional(),
-		// Общий секрет с прокси (заголовок X-Proxy-Secret) — без него прокси,
-		// будучи публичным Vercel-URL, стал бы открытым релеем к Telegram для
-		// любого, кто узнает адрес.
-		TG_API_PROXY_SECRET: z.string().min(1).optional(),
+		// URL HTTP-прокси 3proxy с учётными данными, например
+		// http://user:pass@proxy.example.com:3128 (SOCKS не поддерживается).
+		TG_3PROXY_URL: z.url({ protocol: /^http$/ }).optional(),
 		// Секрет входящего вебхука Telegram (secret_token в setWebhook, сверяется
 		// с заголовком X-Telegram-Bot-Api-Secret-Token) — то же значение должно
 		// быть задано в env деплоя apps/tg-vercel-proxy как TG_WEBHOOK_SECRET.
@@ -118,7 +113,7 @@ export const env = createEnv({
 		// Прокси для MTProto-соединений mtcute (личные номера Telegram) — сервер
 		// сейчас расположен в РФ, и прямые подключения к DC Telegram оттуда
 		// ненадёжны/блокируются, прокси нужен всегда, а не только для кода
-		// подтверждения (в отличие от TG_API_PROXY_* выше, который проксирует
+		// подтверждения (в отличие от TG_3PROXY_* выше, который проксирует
 		// только HTTPS Bot API). Формат — то, что понимает mtcute
 		// `proxyTransportFromUrl`: socks5://user:pass@host:port,
 		// http(s)://user:pass@host:port или https://t.me/proxy?server=...&secret=...
@@ -186,6 +181,17 @@ export const env = createEnv({
 		NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL: z.string().optional(),
 	},
 	clientPrefix: "NEXT_PUBLIC_",
+	createFinalSchema: (shape) =>
+		z
+			.object(shape)
+			.refine(
+				(config) =>
+					!config.TG_3PROXY_ENABLED || config.TG_3PROXY_URL !== undefined,
+				{
+					path: ["TG_3PROXY_URL"],
+					message: "TG_3PROXY_URL is required when TG_3PROXY_ENABLED=true",
+				},
+			),
 	runtimeEnv: {
 		NODE_ENV: process.env.NODE_ENV,
 		VERCEL_ENV: process.env.VERCEL_ENV,
@@ -211,9 +217,8 @@ export const env = createEnv({
 		AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
 		MAX_WEBHOOK_URL: process.env.MAX_WEBHOOK_URL,
 		TG_WEBHOOK_URL: process.env.TG_WEBHOOK_URL,
-		TG_API_PROXY_ENABLED: process.env.TG_API_PROXY_ENABLED,
-		TG_API_PROXY_URL: process.env.TG_API_PROXY_URL,
-		TG_API_PROXY_SECRET: process.env.TG_API_PROXY_SECRET,
+		TG_3PROXY_ENABLED: process.env.TG_3PROXY_ENABLED,
+		TG_3PROXY_URL: process.env.TG_3PROXY_URL,
 		TG_WEBHOOK_SECRET: process.env.TG_WEBHOOK_SECRET,
 		REDIS_URL: process.env.REDIS_URL,
 		REDIS_HOST: process.env.REDIS_HOST,
