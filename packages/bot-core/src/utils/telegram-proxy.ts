@@ -22,5 +22,8 @@ export function createTelegramFetch(): typeof fetch {
 	const proxy = env.TG_3PROXY_ENABLED ? env.TG_3PROXY_URL : undefined;
 	if (!proxy) return fetch;
 	return ((input, init) =>
-		fetch(input, { ...init, proxy } as RequestInit)) as typeof fetch;
+		fetch(input, {
+			...init,
+			proxy: { url: proxy, respectNoProxy: false },
+		} as RequestInit)) as typeof fetch;
 }

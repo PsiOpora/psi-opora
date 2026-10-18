@@ -59,7 +59,7 @@ export const env = createEnv({
 			.transform((val) => val === "true"),
 		// URL HTTP-прокси 3proxy с учётными данными, например
 		// http://user:pass@proxy.example.com:3128 (SOCKS не поддерживается).
-		TG_3PROXY_URL: z.string().min(1).optional(),
+		TG_3PROXY_URL: z.url({ protocol: /^http$/ }).optional(),
 		// Секрет входящего вебхука Telegram (secret_token в setWebhook, сверяется
 		// с заголовком X-Telegram-Bot-Api-Secret-Token) — то же значение должно
 		// быть задано в env деплоя apps/tg-vercel-proxy как TG_WEBHOOK_SECRET.
@@ -181,6 +181,17 @@ export const env = createEnv({
 		NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL: z.string().optional(),
 	},
 	clientPrefix: "NEXT_PUBLIC_",
+	createFinalSchema: (shape) =>
+		z
+			.object(shape)
+			.refine(
+				(config) =>
+					!config.TG_3PROXY_ENABLED || config.TG_3PROXY_URL !== undefined,
+				{
+					path: ["TG_3PROXY_URL"],
+					message: "TG_3PROXY_URL is required when TG_3PROXY_ENABLED=true",
+				},
+			),
 	runtimeEnv: {
 		NODE_ENV: process.env.NODE_ENV,
 		VERCEL_ENV: process.env.VERCEL_ENV,
