@@ -110,6 +110,7 @@ export {
 	samePhone,
 	setClientPhoneSchema,
 } from "./phone";
+export { type PostboxSettingsInput, postboxSettingsSchema } from "./postbox";
 export { type ResendSettingsInput, resendSettingsSchema } from "./resend";
 export {
 	type EmailProviderInput,

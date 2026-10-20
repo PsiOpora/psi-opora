@@ -28,6 +28,7 @@ export * from "./email-suppressions";
 export * from "./email-templates";
 export * from "./max-personal";
 export * from "./outreach";
+export * from "./postbox";
 export * from "./quick-replies";
 export * from "./resend";
 export * from "./rusender";

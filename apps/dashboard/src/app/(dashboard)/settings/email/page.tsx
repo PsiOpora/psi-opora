@@ -8,6 +8,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { DeliveryWebhooksCard } from "./delivery-webhooks-card";
+import { PostboxSettingsForm } from "./postbox-settings-form";
 import { ProviderSwitch } from "./provider-switch";
 import { ResendSettingsForm } from "./resend-settings-form";
 import { RusenderSettingsForm } from "./rusender-settings-form";
@@ -47,7 +48,8 @@ export default function EmailSettingsPage() {
 						. Провайдер по умолчанию. Адрес отправителя должен принадлежать
 						подтверждённому в Rusender домену — иначе письма отклоняются. Если
 						письмо не удаётся отправить через Rusender, платформа автоматически
-						пробует резервные провайдеры ниже — сначала SMTP.BZ, затем Resend.
+						пробует резервные провайдеры ниже — сначала SMTP.BZ, затем Resend,
+						затем Yandex Postbox.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -96,6 +98,31 @@ export default function EmailSettingsPage() {
 				</CardHeader>
 				<CardContent>
 					<ResendSettingsForm />
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Yandex Postbox (резервный)</CardTitle>
+					<CardDescription>
+						Статический ключ доступа сервисного аккаунта с ролью{" "}
+						<code>postbox.sender</code> — в консоли{" "}
+						<a
+							href="https://yandex.cloud/ru/docs/postbox/quickstart"
+							target="_blank"
+							rel="noreferrer"
+							className="underline underline-offset-2"
+						>
+							Yandex Cloud
+						</a>
+						. Адрес отправителя должен быть подтверждён в Postbox. Запросы
+						подписываются по AWS Signature V4 (регион ru-central1). Используется
+						автоматически, если отправка не удалась ни через Rusender, ни через
+						SMTP.BZ, ни через Resend.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<PostboxSettingsForm />
 				</CardContent>
 			</Card>
 

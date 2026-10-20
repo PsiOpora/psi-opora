@@ -9,15 +9,18 @@ import {
 } from "../schemas/rusender";
 import { unisenderSettingsSchema } from "../schemas/unisender";
 import { smtpBzSettingsSchema } from "../schemas/smtp-bz";
+import { postboxSettingsSchema } from "../schemas/postbox";
 import { resendSettingsSchema } from "../schemas/resend";
 import {
 	getEmailProvider,
+	getPostboxSettings,
 	getResendSettings,
 	getRusenderSettings,
 	getSmtpBzSettings,
 	getUnisenderSettings,
 	setEmailProvider,
 	setRusenderWebhookSecret,
+	upsertPostboxSettings,
 	upsertResendSettings,
 	upsertRusenderSettings,
 	upsertSmtpBzSettings,
@@ -193,6 +196,17 @@ export const emailRouter = router({
 		.input(resendSettingsSchema)
 		.handler(async ({ input }) => {
 			await upsertResendSettings(input);
+			return { ok: true };
+		}),
+
+	getPostboxSettings: bitrixProcedure.handler(async () => {
+		return maskApiKey(await getPostboxSettings());
+	}),
+
+	upsertPostboxSettings: bitrixProcedure
+		.input(postboxSettingsSchema)
+		.handler(async ({ input }) => {
+			await upsertPostboxSettings(input);
 			return { ok: true };
 		}),
 

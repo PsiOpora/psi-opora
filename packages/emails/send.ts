@@ -1,3 +1,4 @@
+import { createHash, createHmac } from "node:crypto";
 import { render } from "@react-email/components";
 import nodemailer from "nodemailer";
 import type Mail from "nodemailer/lib/mailer";
@@ -5,6 +6,7 @@ import type { ReactNode } from "react";
 
 import {
 	getEmailProvider,
+	getPostboxSettings,
 	getResendSettings,
 	getRusenderSettings,
 	getSmtpBzSettings,
@@ -18,6 +20,10 @@ const UNISENDER_API_URL =
 const RUSENDER_API_BASE = "https://api.rusender.ru/api/v1";
 const SMTP_BZ_API_URL = "https://api.smtp.bz/v1/messages";
 const RESEND_API_URL = "https://api.resend.com/emails";
+const POSTBOX_HOST = "postbox.cloud.yandex.net";
+const POSTBOX_SEND_PATH = "/v2/email/outbound-emails";
+const POSTBOX_REGION = "ru-central1";
+const POSTBOX_SERVICE = "ses";
 
 export interface EmailAttachment {
 	filename: string;
@@ -238,10 +244,128 @@ async function sendViaResend(params: {
 	}
 }
 
+function hmacSha256(key: string | Buffer, data: string): Buffer {
+	return createHmac("sha256", key).update(data, "utf8").digest();
+}
+
+function sha256Hex(data: string): string {
+	return createHash("sha256").update(data, "utf8").digest("hex");
+}
+
+/**
+ * Подпись AWS Signature V4 для POST-запроса с JSON-телом к Postbox
+ * (без query-параметров). Подписываются content-type, host и x-amz-date.
+ */
+function signPostboxRequest(params: {
+	keyId: string;
+	secret: string;
+	path: string;
+	body: string;
+	amzDate: string;
+}): string {
+	const dateStamp = params.amzDate.slice(0, 8);
+	const signedHeaders = "content-type;host;x-amz-date";
+	const canonicalRequest = [
+		"POST",
+		params.path,
+		"",
+		`content-type:application/json\nhost:${POSTBOX_HOST}\nx-amz-date:${params.amzDate}\n`,
+		signedHeaders,
+		sha256Hex(params.body),
+	].join("\n");
+	const scope = `${dateStamp}/${POSTBOX_REGION}/${POSTBOX_SERVICE}/aws4_request`;
+	const stringToSign = [
+		"AWS4-HMAC-SHA256",
+		params.amzDate,
+		scope,
+		sha256Hex(canonicalRequest),
+	].join("\n");
+	let key = hmacSha256(`AWS4${params.secret}`, dateStamp);
+	for (const part of [POSTBOX_REGION, POSTBOX_SERVICE, "aws4_request"]) {
+		key = hmacSha256(key, part);
+	}
+	const signature = createHmac("sha256", key)
+		.update(stringToSign, "utf8")
+		.digest("hex");
+	return `AWS4-HMAC-SHA256 Credential=${params.keyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+}
+
+/** Имя отправителя с не-ASCII символами кодируем как RFC 2047 encoded-word. */
+function formatPostboxFrom(email: string, name?: string): string {
+	if (!name) return email;
+	const isAscii = [...name].every((char) => char >= " " && char <= "~");
+	if (isAscii) return `"${name.replace(/["\\]/g, "\\$&")}" <${email}>`;
+	const encoded = Buffer.from(name, "utf8").toString("base64");
+	return `=?UTF-8?B?${encoded}?= <${email}>`;
+}
+
+async function sendViaPostbox(params: {
+	to: string[];
+	from: string;
+	subject: string;
+	html: string;
+	attachments?: EmailAttachment[];
+}) {
+	const settings = await getPostboxSettings().catch(() => null);
+	if (!settings?.apiKey || !settings.keyId) {
+		throw new Error(
+			"Yandex Postbox is not configured. Add a static access key ID and secret in /settings/email for emails to work.",
+		);
+	}
+	const { email: fromEmail, name: fromName } = parseFrom(params.from);
+	const senderEmail = settings.senderEmail ?? fromEmail;
+	const senderName = settings.senderName ?? fromName;
+	const body = JSON.stringify({
+		FromEmailAddress: formatPostboxFrom(senderEmail, senderName),
+		Destination: { ToAddresses: params.to },
+		Content: {
+			Simple: {
+				Subject: { Data: params.subject, Charset: "UTF-8" },
+				Body: { Html: { Data: params.html, Charset: "UTF-8" } },
+				Attachments: params.attachments?.length
+					? params.attachments.map((attachment) => ({
+							FileName: attachment.filename,
+							RawContent: attachment.content.toString("base64"),
+						}))
+					: undefined,
+			},
+		},
+	});
+	const amzDate = new Date().toISOString().replace(/[-:]|\.\d{3}/g, "");
+	const response = await fetch(`https://${POSTBOX_HOST}${POSTBOX_SEND_PATH}`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Accept: "application/json",
+			"X-Amz-Date": amzDate,
+			Authorization: signPostboxRequest({
+				keyId: settings.keyId,
+				secret: settings.apiKey,
+				path: POSTBOX_SEND_PATH,
+				body,
+				amzDate,
+			}),
+		},
+		body,
+	});
+	const result = (await response.json().catch(() => ({}))) as {
+		MessageId?: string;
+		Code?: string;
+		message?: string;
+	};
+	if (!response.ok || !result.MessageId) {
+		throw new Error(
+			[result.Code, result.message].filter(Boolean).join(": ") ||
+				`Yandex Postbox request failed (${response.status})`,
+		);
+	}
+}
+
 /**
  * У Rusender/Unisender это основной выбранный в /settings/email провайдер.
  * Если основной — Rusender и отправка через него не удалась (сбой, письмо
- * не ушло), пробуем по очереди резервные провайдеры: SMTP.BZ, затем Resend.
+ * не ушло), пробуем по очереди резервные провайдеры: SMTP.BZ, Resend, затем
+ * Yandex Postbox.
  * Unisender резервных провайдеров не имеет — как отдельный основной
  * провайдер он не участвует в этой цепочке.
  */
@@ -262,6 +386,7 @@ async function sendViaProvider(params: {
 		{ name: "Rusender", send: sendViaRusender },
 		{ name: "SMTP.BZ", send: sendViaSmtpBz },
 		{ name: "Resend", send: sendViaResend },
+		{ name: "Yandex Postbox", send: sendViaPostbox },
 	];
 
 	const errors: string[] = [];
