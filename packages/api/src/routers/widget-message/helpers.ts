@@ -433,7 +433,7 @@ export async function resolveContact(
 					channels.push({
 						messenger: "max-personal",
 						userId: phone,
-						historyUserIds: chatIds,
+						historyUserIds: chatIds.filter((chatId) => chatId !== phone),
 						lineId: account.openLineId,
 						connectorId: account.connectorId,
 						label: `MAX (личный, ${maskPhone(account.phone)})`,
