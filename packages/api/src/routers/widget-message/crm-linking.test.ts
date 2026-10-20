@@ -49,4 +49,24 @@ describe("persistWidgetCrmLinks", () => {
 
 		expect(upsert).toHaveBeenCalledTimes(1);
 	});
+
+	test("для MAX сохраняет телефон и ID личного чата", async () => {
+		const upsert = mock(() => Promise.resolve());
+
+		await persistWidgetCrmLinks(
+			{
+				portalKey: "portal.test",
+				messenger: "max-personal",
+				userId: "79870948576",
+				canonicalMaxChatId: "-71234567890",
+				contactId: "7604",
+			},
+			upsert,
+		);
+
+		expect(upsert.mock.calls.map(([entry]) => entry.userId)).toEqual([
+			"79870948576",
+			"-71234567890",
+		]);
+	});
 });

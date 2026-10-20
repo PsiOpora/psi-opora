@@ -7,6 +7,7 @@ export const MESSENGER_LABELS: Record<WidgetMessenger, string> = {
 	max: "MAX",
 	"telegram-personal": "Telegram (личный)",
 	"whatsapp-personal": "WhatsApp",
+	"max-personal": "MAX (личный)",
 };
 
 export function messengerLabel(messenger: string): string {

@@ -6,13 +6,16 @@ export interface WidgetCrmLink {
 	userId: string;
 	contactId: string;
 	canonicalTelegramUserId?: string;
+	/** ID личного чата MAX, который воркер вычислил по телефону. */
+	canonicalMaxChatId?: string;
 }
 
 type UpsertCrmLink = typeof upsertBitrixCrmLink;
 
 /**
  * Сохраняет исходный адрес канала (телефон/username/ID) и, если воркер
- * Telegram Personal смог его определить, канонический Telegram user ID.
+ * Telegram/MAX Personal смог его определить, канонический Telegram user ID /
+ * ID личного чата MAX.
  */
 export async function persistWidgetCrmLinks(
 	link: WidgetCrmLink,
@@ -22,6 +25,9 @@ export async function persistWidgetCrmLinks(
 		link.userId,
 		...(link.messenger === "telegram-personal" && link.canonicalTelegramUserId
 			? [link.canonicalTelegramUserId]
+			: []),
+		...(link.messenger === "max-personal" && link.canonicalMaxChatId
+			? [link.canonicalMaxChatId]
 			: []),
 	]);
 	await Promise.all(

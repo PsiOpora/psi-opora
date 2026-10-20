@@ -9,6 +9,7 @@ import {
 import { persistWidgetCrmLinks } from "./crm-linking";
 import {
 	resolveContact,
+	sendViaMaxPersonal,
 	sendViaPersonalNumber,
 	sendViaWhatsappPersonal,
 } from "./helpers";
@@ -17,7 +18,11 @@ import {
  * личными номерами — канал однозначно определяется только парой
  * (messenger, lineId). */
 function needsLineMatch(messenger: string): boolean {
-	return messenger === "telegram-personal" || messenger === "whatsapp-personal";
+	return (
+		messenger === "telegram-personal" ||
+		messenger === "whatsapp-personal" ||
+		messenger === "max-personal"
+	);
 }
 
 /**
@@ -71,6 +76,7 @@ export const send = bitrixProcedure
 
 			let externalId: string | undefined;
 			let canonicalTelegramUserId: string | undefined;
+			let canonicalMaxChatId: string | undefined;
 
 			if (channel.messenger === "telegram-personal") {
 				if (!context.memberId || !channel.lineId || !channel.connectorId) {
@@ -101,6 +107,20 @@ export const send = bitrixProcedure
 					text,
 				});
 				if (result.error) return result;
+				externalId = result.externalId;
+			} else if (channel.messenger === "max-personal") {
+				if (!context.memberId || !channel.lineId || !channel.connectorId) {
+					return { error: "Нет активной сессии Битрикс24 — обновите страницу" };
+				}
+				const result = await sendViaMaxPersonal({
+					memberId: context.memberId,
+					openLineId: channel.lineId,
+					connectorId: channel.connectorId,
+					phone: channel.userId,
+					text,
+				});
+				if (result.error) return { error: result.error };
+				canonicalMaxChatId = result.chatId;
 				externalId = result.externalId;
 			} else {
 				try {
@@ -135,6 +155,7 @@ export const send = bitrixProcedure
 					userId: channel.userId,
 					contactId: contact.contactId,
 					canonicalTelegramUserId,
+					canonicalMaxChatId,
 				});
 			} catch (err) {
 				console.error(
@@ -146,12 +167,14 @@ export const send = bitrixProcedure
 			try {
 				await insertBotMessage({
 					messenger: channel.messenger,
-					userId: channel.userId,
+					// Диалог MAX в журнале живёт под chatId (под ним же пишет входящие
+					// воркер), а не под телефоном, по которому отправили.
+					userId: canonicalMaxChatId ?? channel.userId,
 					direction: "out",
 					source: "widget",
 					text,
 					externalId,
-					externalChatId: canonicalTelegramUserId,
+					externalChatId: canonicalMaxChatId ?? canonicalTelegramUserId,
 					connectorId: channel.connectorId,
 				});
 			} catch (err) {

@@ -40,13 +40,20 @@ export const poll = bitrixProcedure
 
 				const perChannel = await Promise.all(
 					contact.channels.map(async (channel) => {
-						const rows = await listBotMessagesSince(
-							channel.messenger,
-							channel.userId,
-							since,
-							undefined,
-							channel.connectorId,
-						).catch(() => []);
+						const userIds = [channel.userId, ...(channel.historyUserIds ?? [])];
+						const rows = (
+							await Promise.all(
+								userIds.map((userId) =>
+									listBotMessagesSince(
+										channel.messenger,
+										userId,
+										since,
+										undefined,
+										channel.connectorId,
+									).catch(() => []),
+								),
+							)
+						).flat();
 						return rows.map((row) => ({
 							id: row.id,
 							messenger: channel.messenger,
