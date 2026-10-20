@@ -9,13 +9,14 @@ export const LARGE_AUDIENCE_THRESHOLD = 300;
 const messengerSchema = z.enum(["telegram", "max"]);
 const broadcastChannelSchema = z.enum(["auto", "telegram", "max"]);
 /** Шире messengerSchema — только для виджета «Мессенджер» в CRM, где
- * дополнительно доступны личные номера Telegram (packages/tg-userbot) и
- * WhatsApp (packages/waha). */
+ * дополнительно доступны личные номера Telegram (packages/tg-userbot),
+ * WhatsApp (packages/waha) и MAX (packages/max-userbot). */
 const widgetMessengerSchema = z.enum([
 	"telegram",
 	"max",
 	"telegram-personal",
 	"whatsapp-personal",
+	"max-personal",
 ]);
 
 export const sendTestMessageSchema = z.object({
@@ -91,7 +92,7 @@ export const sendWidgetMessageSchema = z.object({
 	entity: widgetEntitySchema,
 	entityId: z.string(),
 	messenger: widgetMessengerSchema,
-	/** Только для messenger="telegram-personal"/"whatsapp-personal" — на
+	/** Только для личных номеров (telegram/whatsapp/max-personal) — на
 	 * портале может быть несколько подключённых номеров, каждый на своей линии. */
 	lineId: z.string().optional(),
 	/** Уточняет конкретный номер, если на выбранной линии их несколько

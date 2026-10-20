@@ -1,12 +1,20 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
+import { resolveBitrixPortalKey } from "@psi-opora/bitrix-client";
 import {
 	getWhatsappPersonalAccountByConnector,
+	listBitrixCrmLinksByContactIds,
 	listBotMessages,
+	listMaxPersonalAccounts,
 	listTelegramPersonalAccounts,
 	listWhatsappPersonalAccounts,
 	setWhatsappPersonalAccountStateBySession,
 	upsertBotUserPresence,
 } from "@psi-opora/db/queries";
+import {
+	cancelMaxOutboundMessage,
+	getMaxSendResult,
+	pushMaxOutboundMessage,
+} from "@psi-opora/max-userbot";
 import { sendOutboundMessageAndWait } from "@psi-opora/tg-userbot";
 import {
 	jidFromPhone,
@@ -147,6 +155,62 @@ export async function sendViaWhatsappPersonal(params: {
 	}
 }
 
+/** Резолв номера в воркере бывает медленным, поэтому ждём дольше, чем при отправке по chatId. */
+const MAX_PERSONAL_REPLY_TIMEOUT_MS = 30_000;
+
+/**
+ * Личный номер MAX — задача уходит в очередь always-on воркера
+ * (apps/max-userbot-worker). Адресуем по телефону: воркер находит контакт и
+ * вычисляет ID личного чата, поэтому можно «написать первым». Возвращает
+ * chatId — под ним в журнале лягут ответы клиента.
+ */
+export async function sendViaMaxPersonal(params: {
+	memberId: string;
+	openLineId: string;
+	connectorId: string;
+	phone: string;
+	text: string;
+}): Promise<{
+	ok?: true;
+	error?: string;
+	externalId?: string;
+	chatId?: string;
+}> {
+	const jobId = crypto.randomUUID();
+	const message = {
+		memberId: params.memberId,
+		openLineId: params.openLineId,
+		connectorId: params.connectorId,
+		jobId,
+		phone: params.phone,
+		text: params.text,
+	};
+	await pushMaxOutboundMessage(message);
+
+	// Резолв номера в воркере бывает медленным — ждём дольше, чем при отправке
+	// по готовому chatId, а не дождавшись снимаем задачу, чтобы не получить дубль.
+	const deadline = Date.now() + MAX_PERSONAL_REPLY_TIMEOUT_MS;
+	while (Date.now() < deadline) {
+		const result = await getMaxSendResult(jobId);
+		if (result) {
+			return result.ok
+				? { ok: true, externalId: result.externalId, chatId: result.chatId }
+				: { error: `Не отправлено: ${result.error ?? "неизвестная ошибка"}` };
+		}
+		await new Promise((resolve) => setTimeout(resolve, 300));
+	}
+	if (await cancelMaxOutboundMessage(message)) {
+		return {
+			error:
+				"Не удалось дождаться ответа от воркера личного номера MAX — проверьте, что apps/max-userbot-worker запущен",
+		};
+	}
+	return {
+		error:
+			"Воркер MAX взял сообщение, но не подтвердил отправку — проверьте диалог, прежде чем отправлять повторно",
+	};
+}
+
 export const HISTORY_LIMIT = 30;
 
 export async function loadHistory(
@@ -154,12 +218,19 @@ export async function loadHistory(
 ): Promise<WidgetHistoryItem[]> {
 	const perChannel = await Promise.all(
 		channels.map(async (channel) => {
-			const rows = await listBotMessages(
-				channel.messenger,
-				channel.userId,
-				HISTORY_LIMIT,
-				channel.connectorId,
-			).catch(() => []);
+			const userIds = [channel.userId, ...(channel.historyUserIds ?? [])];
+			const rows = (
+				await Promise.all(
+					userIds.map((userId) =>
+						listBotMessages(
+							channel.messenger,
+							userId,
+							HISTORY_LIMIT,
+							channel.connectorId,
+						).catch(() => []),
+					),
+				)
+			).flat();
 			return rows.map((row) => ({
 				id: row.id,
 				messenger: channel.messenger,
@@ -188,6 +259,22 @@ export interface ResolvedContact {
 function maskPhone(phone: string): string {
 	if (phone.length <= 6) return phone;
 	return `${phone.slice(0, 4)}···${phone.slice(-2)}`;
+}
+
+/** ID личных чатов MAX, уже привязанных к контакту (см. persistWidgetCrmLinks). */
+async function listMaxPersonalChatIds(
+	memberId: string,
+	contactId: string,
+): Promise<string[]> {
+	try {
+		const portalKey = await resolveBitrixPortalKey(memberId);
+		const links = await listBitrixCrmLinksByContactIds(portalKey, [contactId]);
+		return links
+			.filter((link) => link.messenger === "max-personal")
+			.map((link) => link.userId);
+	} catch {
+		return [];
+	}
 }
 
 interface PersonalTarget {
@@ -235,6 +322,8 @@ function resolvePersonalTarget(
  *    только по телефону: у WhatsApp нет публичных username или устойчивых
  *    числовых ID, которые можно было бы резолвить без предыдущей переписки,
  *    поэтому без телефона в карточке контакта канал не показываем.
+ * 4. Личные номера MAX (packages/max-userbot) — тоже по телефону: воркер
+ *    находит контакт в MAX и вычисляет ID личного чата (resolveDialogChatId).
  *
  * Используется и для отображения виджета, и для отправки — так отправка
  * никогда не доверяет messenger/userId, присланным из браузера напрямую,
@@ -330,6 +419,26 @@ export async function resolveContact(
 					connectorId: account.connectorId,
 					label: `WhatsApp (личный, ${maskPhone(account.phone)})`,
 				});
+			}
+
+			// MAX личный — как WhatsApp, только по телефону: воркер сам находит
+			// контакт в MAX. Известные ID личных чатов (из CRM-связей, которые
+			// пишет send) нужны лишь для истории переписки.
+			const maxAccounts = (
+				await listMaxPersonalAccounts(memberId).catch(() => [])
+			).filter((a) => a.status === "connected");
+			if (maxAccounts.length) {
+				const chatIds = await listMaxPersonalChatIds(memberId, contactId);
+				for (const account of maxAccounts) {
+					channels.push({
+						messenger: "max-personal",
+						userId: phone,
+						historyUserIds: chatIds,
+						lineId: account.openLineId,
+						connectorId: account.connectorId,
+						label: `MAX (личный, ${maskPhone(account.phone)})`,
+					});
+				}
 			}
 		}
 	}

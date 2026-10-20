@@ -116,6 +116,7 @@ export function MessengerIcon({
 		case "whatsapp-personal":
 			return <WhatsAppBadge className={className} />;
 		case "max":
+		case "max-personal":
 			return <MaxBadge className={className} />;
 		default:
 			return null;
