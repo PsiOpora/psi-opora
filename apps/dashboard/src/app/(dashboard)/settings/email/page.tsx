@@ -34,6 +34,32 @@ export default function EmailSettingsPage() {
 
 			<Card>
 				<CardHeader>
+					<CardTitle>Yandex Postbox</CardTitle>
+					<CardDescription>
+						Статический ключ доступа сервисного аккаунта с ролью{" "}
+						<code>postbox.sender</code> — в консоли{" "}
+						<a
+							href="https://yandex.cloud/ru/docs/postbox/quickstart"
+							target="_blank"
+							rel="noreferrer"
+							className="underline underline-offset-2"
+						>
+							Yandex Cloud
+						</a>
+						. Адрес отправителя должен быть подтверждён в Postbox. Запросы
+						подписываются по AWS Signature V4 (регион ru-central1). Если
+						провайдер выбран основным, а письмо не удаётся отправить, платформа
+						автоматически пробует Rusender, затем SMTP.BZ и Resend. Для рассылок
+						статусы доставки и открытий у Postbox не отслеживаются.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<PostboxSettingsForm />
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
 					<CardTitle>Rusender</CardTitle>
 					<CardDescription>
 						API-ключ и key ID — в личном кабинете Rusender:{" "}
@@ -45,11 +71,12 @@ export default function EmailSettingsPage() {
 						>
 							Интеграции → API
 						</a>
-						. Провайдер по умолчанию. Адрес отправителя должен принадлежать
-						подтверждённому в Rusender домену — иначе письма отклоняются. Если
-						письмо не удаётся отправить через Rusender, платформа автоматически
-						пробует резервные провайдеры ниже — сначала SMTP.BZ, затем Resend,
-						затем Yandex Postbox.
+						. Провайдер по умолчанию, пока в переключателе не выбран другой.
+						Адрес отправителя должен принадлежать подтверждённому в Rusender
+						домену — иначе письма отклоняются. Если письмо не удаётся отправить
+						через основного провайдера, платформа автоматически пробует
+						остальные: при Rusender — SMTP.BZ, Resend, затем Yandex Postbox; при
+						Postbox — Rusender, SMTP.BZ, Resend.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -70,8 +97,8 @@ export default function EmailSettingsPage() {
 						>
 							SMTP.BZ
 						</a>
-						. Используется автоматически, если отправка через Rusender не
-						удалась.
+						. Используется автоматически, если отправка через основного
+						провайдера не удалась.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -93,36 +120,11 @@ export default function EmailSettingsPage() {
 							Resend
 						</a>
 						. Используется автоматически, если отправка не удалась ни через
-						Rusender, ни через SMTP.BZ.
+						основного, ни через предыдущих резервных провайдеров.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
 					<ResendSettingsForm />
-				</CardContent>
-			</Card>
-
-			<Card>
-				<CardHeader>
-					<CardTitle>Yandex Postbox (резервный)</CardTitle>
-					<CardDescription>
-						Статический ключ доступа сервисного аккаунта с ролью{" "}
-						<code>postbox.sender</code> — в консоли{" "}
-						<a
-							href="https://yandex.cloud/ru/docs/postbox/quickstart"
-							target="_blank"
-							rel="noreferrer"
-							className="underline underline-offset-2"
-						>
-							Yandex Cloud
-						</a>
-						. Адрес отправителя должен быть подтверждён в Postbox. Запросы
-						подписываются по AWS Signature V4 (регион ru-central1). Используется
-						автоматически, если отправка не удалась ни через Rusender, ни через
-						SMTP.BZ, ни через Resend.
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<PostboxSettingsForm />
 				</CardContent>
 			</Card>
 

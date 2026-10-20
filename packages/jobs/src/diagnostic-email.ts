@@ -1,5 +1,6 @@
 import {
 	getEmailProvider,
+	getPostboxSettings,
 	getRusenderSettings,
 	getUnisenderSettings,
 } from "@psi-opora/db/queries";
@@ -66,6 +67,28 @@ export async function sendDiagnosticEmail(params: {
 			body,
 		});
 		return;
+	}
+
+	if (provider === "postbox") {
+		const postbox = await getPostboxSettings();
+		if (postbox?.apiKey && postbox.keyId && postbox.senderEmail) {
+			try {
+				const { sendPostboxEmail } = await import("@psi-opora/emails");
+				const senderName = postbox.senderName?.trim() || DEFAULT_SENDER_NAME;
+				await sendPostboxEmail({
+					to: [params.to],
+					from: `${senderName} <${postbox.senderEmail}>`,
+					subject: params.subject,
+					html: body,
+				});
+				return;
+			} catch (error) {
+				// Основной провайдер недоступен — письмо уходит через Rusender.
+				console.warn(
+					`Diagnostic email via Yandex Postbox failed, falling back to Rusender. ${(error as Error).message}`,
+				);
+			}
+		}
 	}
 
 	const settings = await getRusenderSettings();

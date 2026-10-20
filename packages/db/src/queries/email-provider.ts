@@ -1,7 +1,7 @@
 import { db } from "../client";
 import { emailProviderSettings } from "../schema/email-provider";
 
-export type EmailProvider = "rusender" | "unisender";
+export type EmailProvider = "rusender" | "unisender" | "postbox";
 
 const DEFAULT_PROVIDER: EmailProvider = "rusender";
 
@@ -10,7 +10,9 @@ export async function getEmailProvider(): Promise<EmailProvider> {
 	if (!db) return DEFAULT_PROVIDER;
 	const rows = await db.select().from(emailProviderSettings).limit(1);
 	const provider = rows[0]?.provider;
-	return provider === "unisender" ? "unisender" : DEFAULT_PROVIDER;
+	return provider === "unisender" || provider === "postbox"
+		? provider
+		: DEFAULT_PROVIDER;
 }
 
 export async function setEmailProvider(provider: EmailProvider): Promise<void> {

@@ -39,7 +39,7 @@ export async function createEmailCampaign(data: {
 	subject: string;
 	senderEmail: string;
 	senderName?: string;
-	provider: "unisender" | "rusender";
+	provider: "unisender" | "rusender" | "postbox";
 	publicBaseUrl?: string | null;
 	totalDeals?: number;
 	recipientsCount?: number;

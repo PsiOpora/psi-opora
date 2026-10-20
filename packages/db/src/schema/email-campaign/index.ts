@@ -16,7 +16,7 @@ export const emailCampaigns = pgTable("email_campaigns", {
 	subject: text("subject").notNull(),
 	senderEmail: text("sender_email").notNull(),
 	senderName: text("sender_name"),
-	provider: text("provider").notNull().default("unisender"), // unisender | rusender
+	provider: text("provider").notNull().default("unisender"), // unisender | rusender | postbox
 	/**
 	 * Публичный адрес дашборда на момент запуска — из него строятся ссылки
 	 * отписки в письмах (фоновая задача не знает, на каком домене открыт дашборд).

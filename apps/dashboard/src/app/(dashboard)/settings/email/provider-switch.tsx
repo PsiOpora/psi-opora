@@ -15,6 +15,7 @@ import { orpc } from "@/lib/orpc/client";
 const PROVIDER_LABELS: Record<EmailProviderInput["provider"], string> = {
 	rusender: "Rusender",
 	unisender: "Unisender",
+	postbox: "Yandex Postbox",
 };
 
 export function ProviderSwitch() {
@@ -46,7 +47,7 @@ export function ProviderSwitch() {
 					mutation.mutate({ provider: value as EmailProviderInput["provider"] })
 				}
 			>
-				<SelectTrigger className="w-40">
+				<SelectTrigger className="w-48">
 					<SelectValue />
 				</SelectTrigger>
 				<SelectContent>

@@ -43,6 +43,9 @@ function EmailBroadcastPageContent() {
 		useQuery(orpc.email.getSettings.queryOptions());
 	const { data: rusenderSettings, isLoading: rusenderSettingsLoading } =
 		useQuery(orpc.email.getRusenderSettings.queryOptions());
+	const { data: postboxSettings, isLoading: postboxSettingsLoading } = useQuery(
+		orpc.email.getPostboxSettings.queryOptions(),
+	);
 
 	if (
 		isLoading ||
@@ -50,7 +53,8 @@ function EmailBroadcastPageContent() {
 		listsLoading ||
 		providerLoading ||
 		unisenderSettingsLoading ||
-		rusenderSettingsLoading
+		rusenderSettingsLoading ||
+		postboxSettingsLoading
 	) {
 		return <p className="text-sm text-muted-foreground">Загрузка…</p>;
 	}
@@ -87,11 +91,12 @@ function EmailBroadcastPageContent() {
 				}) || a.sort - b.sort,
 		);
 
-	const senderConfigured = Boolean(
-		providerData?.provider === "rusender"
-			? rusenderSettings?.senderEmail
-			: unisenderSettings?.senderEmail,
-	);
+	const activeSettings = {
+		rusender: rusenderSettings,
+		postbox: postboxSettings,
+		unisender: unisenderSettings,
+	}[providerData?.provider ?? "rusender"];
+	const senderConfigured = Boolean(activeSettings?.senderEmail);
 
 	return (
 		<div className="flex w-full flex-col gap-6">

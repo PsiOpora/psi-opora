@@ -11,7 +11,7 @@ export const rusenderSettingsSchema = z.object({
 export type RusenderSettingsInput = z.infer<typeof rusenderSettingsSchema>;
 
 export const emailProviderSchema = z.object({
-	provider: z.enum(["rusender", "unisender"]),
+	provider: z.enum(["rusender", "unisender", "postbox"]),
 });
 
 export type EmailProviderInput = z.infer<typeof emailProviderSchema>;
