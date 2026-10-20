@@ -1,9 +1,4 @@
 import { createHash, createHmac } from "node:crypto";
-import { render } from "@react-email/components";
-import nodemailer from "nodemailer";
-import type Mail from "nodemailer/lib/mailer";
-import type { ReactNode } from "react";
-
 import {
 	getEmailProvider,
 	getPostboxSettings,
@@ -12,6 +7,10 @@ import {
 	getSmtpBzSettings,
 	getUnisenderSettings,
 } from "@psi-opora/db/queries";
+import { render } from "@react-email/components";
+import nodemailer from "nodemailer";
+import type Mail from "nodemailer/lib/mailer";
+import type { ReactNode } from "react";
 
 import { env } from "./env";
 
@@ -299,13 +298,29 @@ function formatPostboxFrom(email: string, name?: string): string {
 	return `=?UTF-8?B?${encoded}?= <${email}>`;
 }
 
-async function sendViaPostbox(params: {
+/** Ошибка Postbox; `retryable` — временный сбой (429/5xx), повтор допустим. */
+class PostboxError extends Error {
+	constructor(
+		message: string,
+		readonly retryable: boolean,
+	) {
+		super(message);
+		this.name = "PostboxError";
+	}
+}
+
+/**
+ * Отправка одного письма через Yandex Postbox (AWS-совместимый REST API).
+ * Возвращает MessageId. Используется и цепочкой фолбэка, и рассылками
+ * (поштучно, с сохранением MessageId у получателя).
+ */
+export async function sendPostboxEmail(params: {
 	to: string[];
 	from: string;
 	subject: string;
 	html: string;
 	attachments?: EmailAttachment[];
-}) {
+}): Promise<{ messageId: string }> {
 	const settings = await getPostboxSettings().catch(() => null);
 	if (!settings?.apiKey || !settings.keyId) {
 		throw new Error(
@@ -354,20 +369,25 @@ async function sendViaPostbox(params: {
 		message?: string;
 	};
 	if (!response.ok || !result.MessageId) {
-		throw new Error(
+		throw new PostboxError(
 			[result.Code, result.message].filter(Boolean).join(": ") ||
 				`Yandex Postbox request failed (${response.status})`,
+			response.status === 429 || response.status >= 500,
 		);
 	}
+	return { messageId: result.MessageId };
+}
+
+async function sendViaPostbox(params: Parameters<typeof sendPostboxEmail>[0]) {
+	await sendPostboxEmail(params);
 }
 
 /**
- * У Rusender/Unisender это основной выбранный в /settings/email провайдер.
- * Если основной — Rusender и отправка через него не удалась (сбой, письмо
- * не ушло), пробуем по очереди резервные провайдеры: SMTP.BZ, Resend, затем
- * Yandex Postbox.
- * Unisender резервных провайдеров не имеет — как отдельный основной
- * провайдер он не участвует в этой цепочке.
+ * Основной провайдер выбирается в /settings/email. Если отправка через него
+ * не удалась (сбой, письмо не ушло), пробуем по очереди остальные:
+ * Postbox основной → Rusender, SMTP.BZ, Resend; Rusender основной → SMTP.BZ,
+ * Resend, Postbox. Unisender резервных провайдеров не имеет — как отдельный
+ * основной провайдер он не участвует в этой цепочке.
  */
 async function sendViaProvider(params: {
 	to: string[];
@@ -386,8 +406,10 @@ async function sendViaProvider(params: {
 		{ name: "Rusender", send: sendViaRusender },
 		{ name: "SMTP.BZ", send: sendViaSmtpBz },
 		{ name: "Resend", send: sendViaResend },
-		{ name: "Yandex Postbox", send: sendViaPostbox },
 	];
+	const postbox = { name: "Yandex Postbox", send: sendViaPostbox };
+	if (provider === "postbox") chain.unshift(postbox);
+	else chain.push(postbox);
 
 	const errors: string[] = [];
 	for (const { name, send } of chain) {

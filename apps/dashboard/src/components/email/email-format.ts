@@ -72,5 +72,6 @@ export const SUPPRESSION_REASON_LABELS: Record<string, string> = {
 export const PROVIDER_LABELS: Record<string, string> = {
 	rusender: "Rusender",
 	unisender: "Unisender",
+	postbox: "Yandex Postbox",
 	internal: "Страница отписки",
 };

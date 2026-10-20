@@ -58,7 +58,7 @@ export const outreachCampaigns = pgTable("outreach_campaigns", {
 	emailSubject: text("email_subject"),
 	emailSenderEmail: text("email_sender_email"),
 	emailSenderName: text("email_sender_name"),
-	emailProvider: text("email_provider"), // unisender | rusender
+	emailProvider: text("email_provider"), // unisender | rusender | postbox
 	publicBaseUrl: text("public_base_url"),
 	/** Email-кампания, созданная для тех, до кого не дошло ни одно сообщение. */
 	emailCampaignId: text("email_campaign_id").references(

@@ -32,10 +32,22 @@ function isRetryableSendError(err: unknown): boolean {
 	return err instanceof TypeError;
 }
 
+/** Только ошибки, явно помеченные `retryable` (429/5xx): без ключа идемпотентности сетевой сбой повторять нельзя. */
+function isExplicitlyRetryable(err: unknown): boolean {
+	return Boolean(
+		err &&
+			typeof err === "object" &&
+			"retryable" in err &&
+			(err as { retryable: unknown }).retryable,
+	);
+}
+
 /**
  * Фоновая задача: отправляет кампанию через провайдера, выбранного при запуске.
  * Rusender — поштучно, с персональной ссылкой отписки и сохранением uuid
- * письма для сопоставления вебхуков доставки/открытий. Unisender — через
+ * письма для сопоставления вебхуков доставки/открытий. Yandex Postbox — так
+ * же поштучно, но без вебхуков статусов (сохраняется только MessageId).
+ * Unisender — через
  * одноразовый список и кампанию; статусы по получателям присылает его
  * вебхук (см. apps/bitrix-webhook), агрегаты — pollEmailCampaigns.
  *
@@ -66,6 +78,7 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 			getEmailCampaignFunnel,
 			getEmailSuppressions,
 			getEmailTemplate,
+			getPostboxSettings,
 			getRusenderSettings,
 			getUnisenderSettings,
 			listEmailCampaignRecipients,
@@ -128,25 +141,73 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 			return sendable;
 		};
 
-		if (campaign.provider === "rusender") {
-			// У Rusender нет API списков/кампаний — только поштучная отправка,
-			// поэтому рассылка выполняется циклом индивидуальных запросов, а не
-			// через createList/createCampaign, как у Unisender ниже.
-			const { createRusenderClient } = await import(
-				"@psi-opora/rusender-client"
-			);
+		if (campaign.provider === "rusender" || campaign.provider === "postbox") {
+			// У Rusender и Postbox нет API списков/кампаний — только поштучная
+			// отправка, поэтому рассылка выполняется циклом индивидуальных
+			// запросов, а не через createList/createCampaign, как у Unisender ниже.
+			const providerLabel =
+				campaign.provider === "postbox" ? "Yandex Postbox" : "Rusender";
 			try {
-				const settings = await getRusenderSettings();
-				if (!settings?.apiKey || !settings.keyId) {
-					throw new Error(
-						"Rusender не настроен — укажите API-ключ и key ID на странице /settings/email",
+				let defaultSenderName = "";
+				let sendOne: (params: {
+					email: string;
+					subject: string;
+					body: string;
+					senderName: string;
+					idempotencyKey: string;
+				}) => Promise<string>;
+
+				if (campaign.provider === "postbox") {
+					const settings = await getPostboxSettings();
+					if (!settings?.apiKey || !settings.keyId) {
+						throw new Error(
+							"Yandex Postbox не настроен — укажите ключ доступа на странице /settings/email",
+						);
+					}
+					defaultSenderName = settings.senderName ?? "";
+					const { sendPostboxEmail } = await import("@psi-opora/emails");
+					sendOne = async (p) => {
+						// У Postbox нет ключа идемпотентности — повтор после сетевого
+						// сбоя теоретически может задвоить письмо, поэтому повторяем
+						// только явно временные ошибки (429/5xx), см. isRetryableSendError.
+						const { messageId } = await sendPostboxEmail({
+							to: [p.email],
+							from: p.senderName
+								? `${p.senderName} <${campaign.senderEmail}>`
+								: campaign.senderEmail,
+							subject: p.subject,
+							html: p.body,
+						});
+						return messageId;
+					};
+				} else {
+					const settings = await getRusenderSettings();
+					if (!settings?.apiKey || !settings.keyId) {
+						throw new Error(
+							"Rusender не настроен — укажите API-ключ и key ID на странице /settings/email",
+						);
+					}
+					defaultSenderName = settings.senderName ?? "";
+					const { createRusenderClient } = await import(
+						"@psi-opora/rusender-client"
 					);
+					const rusenderClient = createRusenderClient(
+						settings.apiKey,
+						settings.keyId,
+					);
+					sendOne = async (p) =>
+						(
+							await rusenderClient.sendEmail({
+								email: p.email,
+								senderName: p.senderName,
+								senderEmail: campaign.senderEmail,
+								subject: p.subject,
+								body: p.body,
+								idempotencyKey: p.idempotencyKey,
+							})
+						).uuid;
 				}
 				const html = await loadHtml();
-				const rusenderClient = createRusenderClient(
-					settings.apiKey,
-					settings.keyId,
-				);
 
 				await markEmailCampaignRunning(campaign.id);
 				const recipients = await loadPendingRecipients();
@@ -161,14 +222,13 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 					// Один ключ идемпотентности на получателя для всех попыток (и для
 					// перезапуска задачи): сетевой сбой или 5xx не доказывают, что Rusender
 					// письмо не принял, а с тем же ключом второе письмо не уйдёт.
-					let result: { uuid: string } | null = null;
+					let messageId: string | null = null;
 					let lastError: unknown = null;
 					for (let attempt = 1; attempt <= RUSENDER_SEND_ATTEMPTS; attempt++) {
 						try {
-							result = await rusenderClient.sendEmail({
+							messageId = await sendOne({
 								email: r.email,
-								senderName: campaign.senderName ?? settings.senderName ?? "",
-								senderEmail: campaign.senderEmail,
+								senderName: campaign.senderName ?? defaultSenderName,
 								subject: campaign.subject,
 								body,
 								idempotencyKey: r.id,
@@ -176,21 +236,21 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 							break;
 						} catch (err) {
 							lastError = err;
-							if (
-								attempt === RUSENDER_SEND_ATTEMPTS ||
-								!isRetryableSendError(err)
-							)
-								break;
+							const retryable =
+								campaign.provider === "postbox"
+									? isExplicitlyRetryable(err)
+									: isRetryableSendError(err);
+							if (attempt === RUSENDER_SEND_ATTEMPTS || !retryable) break;
 							await sleep(1000 * 3 ** (attempt - 1));
 						}
 					}
 					// Запись в БД — вне цикла повторов: её сбой не должен приводить к
 					// повторной отправке уже принятого письма.
-					if (result) {
+					if (messageId) {
 						await updateEmailCampaignRecipient(r.id, {
 							status: "sent",
 							error: null,
-							providerMessageId: result.uuid,
+							providerMessageId: messageId,
 							sentAt: new Date(),
 						});
 						sentNow++;
@@ -205,7 +265,9 @@ export const deliverEmailCampaign = CreateTaskWorkflow({
 
 				const funnel = await getEmailCampaignFunnel(campaign.id);
 				if (funnel.sent === 0 && recipients.length > 0) {
-					throw new Error("Ни одно письмо не удалось отправить через Rusender");
+					throw new Error(
+						`Ни одно письмо не удалось отправить через ${providerLabel}`,
+					);
 				}
 
 				await finishEmailCampaign(campaign.id, {

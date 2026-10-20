@@ -264,7 +264,11 @@ async function startEmailFallback(campaignId: string): Promise<number> {
 		subject: campaign.emailSubject,
 		senderEmail: campaign.emailSenderEmail,
 		senderName: campaign.emailSenderName ?? undefined,
-		provider: campaign.emailProvider === "unisender" ? "unisender" : "rusender",
+		provider:
+			campaign.emailProvider === "unisender" ||
+			campaign.emailProvider === "postbox"
+				? campaign.emailProvider
+				: "rusender",
 		publicBaseUrl: campaign.publicBaseUrl,
 		totalDeals: pending.length,
 		recipientsCount: pending.length,
