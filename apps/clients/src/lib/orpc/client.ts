@@ -5,6 +5,7 @@ import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { AppRouter } from "@psi-opora/api";
+import { fetchWithSessionRenewal } from "@/lib/bitrix-session";
 
 /**
  * Браузерный oRPC-клиент поверх `/api/orpc` + утилиты TanStack Query
@@ -21,6 +22,8 @@ import type { AppRouter } from "@psi-opora/api";
 export const orpcClient = createORPCClient<RouterClient<AppRouter>>(
 	new RPCLink({
 		url: () => `${window.location.origin}/api/orpc`,
+		// Истёкшая cookie сессии → продлеваем через фрейм и повторяем запрос.
+		fetch: (request, init) => fetchWithSessionRenewal(request, init),
 	}),
 );
 
