@@ -137,6 +137,11 @@ describe("classifyBotError", () => {
 		["Bad Request: chat not found", "not_found"],
 		["error.dialog.suspended", "not_found"],
 		["The operation timed out.", "unknown"],
+		["read ECONNRESET", "unknown"],
+		["connect ETIMEDOUT", "unknown"],
+		["socket hang up", "unknown"],
+		["connect ECONNREFUSED", "channel_down"],
+		["getaddrinfo ENOTFOUND", "channel_down"],
 		[
 			"Telegram: лимит запросов (429) не снялся после 3 попыток",
 			"channel_down",
@@ -148,6 +153,36 @@ describe("classifyBotError", () => {
 });
 
 describe("каскад с ботами", () => {
+	test.each(["read ECONNRESET", "connect ETIMEDOUT", "socket hang up"])(
+		"%s останавливает каскад без перехода к следующему боту, номеру или email",
+		async (error) => {
+			const calls: string[] = [];
+			const result = await runCascade({
+				phone: PHONE,
+				email: "client@example.test",
+				text: "Привет",
+				senders: [
+					{
+						channel: "max_bot",
+						send: async () => classifyBotError(error),
+					},
+					...(["telegram_bot", "max"] as const).map((channel) => ({
+						channel,
+						send: async (): Promise<SendOutcome> => {
+							calls.push(channel);
+							return { kind: "sent", userId: "1" };
+						},
+					})),
+				],
+				breaker: new ChannelBreaker(),
+				emailEnabled: true,
+			});
+			expect(result.status).toBe("unknown");
+			expect(result.attempts).toHaveLength(1);
+			expect(calls).toEqual([]);
+		},
+	);
+
 	test("не писал ботам — уходит с личного номера", async () => {
 		const personal = {
 			channel: "max" as const,

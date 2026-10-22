@@ -24,7 +24,8 @@ export function classifyBotError(
 		)
 	)
 		return { kind: "not_found", error };
-	if (/time(d)? ?out|aborted/i.test(error)) return { kind: "unknown", error };
+	if (/time(d)? ?out|aborted|ECONNRESET|socket hang up/i.test(error))
+		return { kind: "unknown", error };
 	if (/лимит запросов|ECONNREFUSED|ENOTFOUND|Unable to connect/i.test(error))
 		return { kind: "channel_down", error };
 	return { kind: "failed", error };

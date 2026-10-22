@@ -51,8 +51,11 @@ import { cn } from "@/lib/utils";
 import {
 	CHANNEL_LABELS,
 	formatAttempts,
+	MessageEngagement,
+	messageStatusLabel,
 	OutreachStatusBadge,
 	RecipientOutcomeBadge,
+	senderLabel,
 } from "../outreach-format";
 import { DeliverySummary } from "./delivery-summary";
 
@@ -157,6 +160,7 @@ export default function OutreachReportPage() {
 	);
 
 	const exportReport = async () => {
+		if (!campaign) return;
 		setExporting(true);
 		try {
 			const rows = await orpcClient.outreach.exportRecipients({ id });
@@ -168,6 +172,9 @@ export default function OutreachReportPage() {
 					"Email",
 					"Итог",
 					"Канал",
+					"Отправитель",
+					"Статус в мессенджере",
+					"Ответил",
 					"Статус письма",
 					"Попытки",
 					"Ошибка",
@@ -179,6 +186,9 @@ export default function OutreachReportPage() {
 					r.email ?? "",
 					OUTCOME_LABELS[r.status] ?? r.status,
 					r.channel ? (CHANNEL_LABELS[r.channel] ?? r.channel) : "",
+					senderLabel(r, campaign) ?? "",
+					messageStatusLabel(r) ?? "",
+					r.repliedAt ? formatDateTime(r.repliedAt) : "",
 					r.emailStatus
 						? (RECIPIENT_STATUS[r.emailStatus]?.label ?? r.emailStatus)
 						: "",
@@ -206,7 +216,9 @@ export default function OutreachReportPage() {
 		return <p className="text-sm text-destructive">Рассылка не найдена.</p>;
 	}
 
-	const { stats } = campaign;
+	const { stats, engagement } = campaign;
+	const percent = (part: number, whole: number) =>
+		whole > 0 ? `${Math.round((part / whole) * 100)}%` : "—";
 	const selectFilter = (next: Filter) => {
 		setFilter((prev) => (prev === next ? "all" : next));
 		setPage(0);
@@ -358,12 +370,40 @@ export default function OutreachReportPage() {
 				/>
 			</div>
 
+			{engagement.sent > 0 && (
+				<div className="flex flex-col gap-2">
+					<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:max-w-2xl">
+						<StatTile
+							label="Прочитали"
+							value={engagement.read}
+							hint={`${percent(engagement.read, engagement.readTracked)} из ${engagement.readTracked.toLocaleString("ru-RU")}, где мессенджер сообщает о прочтении`}
+							active={filter === "read"}
+							onClick={() => selectFilter("read")}
+						/>
+						<StatTile
+							label="Ответили"
+							value={engagement.replied}
+							hint={`${percent(engagement.replied, engagement.sent)} от отправленных в мессенджеры`}
+							active={filter === "replied"}
+							onClick={() => selectFilter("replied")}
+						/>
+					</div>
+					<p className="text-xs text-muted-foreground">
+						О прочтении сообщают WhatsApp и личный Telegram, личный MAX — по
+						непроверенному разбору протокола. Боты MAX и Telegram о прочтении не
+						сообщают. «Ответил» — клиент написал в этот диалог после рассылки,
+						по любому каналу, включая ботов.
+					</p>
+				</div>
+			)}
+
 			<Card>
 				<CardHeader>
 					<CardTitle>Кому что ушло</CardTitle>
 					<CardDescription>
-						Цепочка попыток показывает, через какие каналы пробовали и где
-						сообщение дошло. Наведите на попытку, чтобы увидеть ошибку.
+						С какого номера ушло, дошло ли и прочитано ли сообщение, ответил ли
+						клиент. Цепочка попыток показывает, через какие каналы пробовали —
+						наведите, чтобы увидеть ошибку.
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
@@ -388,6 +428,7 @@ export default function OutreachReportPage() {
 									<TableHead>Телефон</TableHead>
 									<TableHead>Email</TableHead>
 									<TableHead>Итог</TableHead>
+									<TableHead>Отправитель</TableHead>
 									<TableHead>Попытки</TableHead>
 									<TableHead>Когда</TableHead>
 								</TableRow>
@@ -408,6 +449,7 @@ export default function OutreachReportPage() {
 													status={r.status}
 													channel={r.channel}
 												/>
+												<MessageEngagement recipient={r} />
 												{r.emailStatus && (
 													<Badge
 														variant={
@@ -430,6 +472,9 @@ export default function OutreachReportPage() {
 													</span>
 												)}
 											</div>
+										</TableCell>
+										<TableCell className="whitespace-nowrap text-sm">
+											{senderLabel(r, campaign) ?? "—"}
 										</TableCell>
 										<TableCell
 											className="text-xs text-muted-foreground"

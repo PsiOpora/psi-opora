@@ -276,11 +276,16 @@ export const deliverOutreach = CreateTaskWorkflow({
 					}
 
 					if (result.status === "sent") {
+						// ID записи журнала — заранее: по нему отчёт берёт статус
+						// доставки/прочтения и ищет ответ клиента. Не записался журнал —
+						// у получателя просто не будет этих данных.
+						const journalMessageId = crypto.randomUUID();
 						await updateOutreachRecipient(recipient.id, {
 							status: "sent",
 							channel: result.channel,
 							attempts: result.attempts,
 							externalId: result.externalId ?? null,
+							journalMessageId,
 							error: null,
 							sentAt: new Date(),
 						});
@@ -289,6 +294,7 @@ export const deliverOutreach = CreateTaskWorkflow({
 							? null
 							: accounts[result.channel];
 						await insertBotMessage({
+							id: journalMessageId,
 							messenger: JOURNAL_MESSENGER[result.channel],
 							userId: result.userId,
 							direction: "out",

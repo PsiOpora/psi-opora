@@ -95,6 +95,7 @@ import {
 	listClientsWithLastMessage as _listClientsWithLastMessage,
 	markBotMessageDeleted as _markBotMessageDeleted,
 	markBotMessageGuideEmailSent as _markBotMessageGuideEmailSent,
+	markOutgoingBotMessagesRead as _markOutgoingBotMessagesRead,
 	setBotMessageBitrixExternalId as _setBotMessageBitrixExternalId,
 	updateBotMessageExternalResult as _updateBotMessageExternalResult,
 	updateBotMessageStatus as _updateBotMessageStatus,
@@ -302,6 +303,12 @@ export async function setBotMessageBitrixExternalId(
 
 export async function markBotMessageGuideEmailSent(id: string): Promise<void> {
 	return _markBotMessageGuideEmailSent(db, id);
+}
+
+export async function markOutgoingBotMessagesRead(
+	params: Parameters<typeof _markOutgoingBotMessagesRead>[1],
+): Promise<number> {
+	return _markOutgoingBotMessagesRead(db, params);
 }
 
 export async function updateBotMessageStatus(

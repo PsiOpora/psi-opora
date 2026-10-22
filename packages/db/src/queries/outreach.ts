@@ -13,6 +13,7 @@ import {
 import { db } from "../client";
 import { bookPreorderOrders } from "../schema/book-preorder-orders";
 import { botGuideDeliveries } from "../schema/bot-guide-deliveries";
+import { botMessages } from "../schema/bot-messages";
 import { emailCampaignRecipients } from "../schema/email-campaign";
 import {
 	type OutreachAttempt,
@@ -256,6 +257,7 @@ export async function updateOutreachRecipient(
 		channel?: OutreachChannel | null;
 		attempts?: OutreachAttempt[];
 		externalId?: string | null;
+		journalMessageId?: string | null;
 		emailRecipientId?: string | null;
 		error?: string | null;
 		sentAt?: Date | null;
@@ -416,6 +418,8 @@ export async function listOutreachCampaigns(
 
 export const OUTREACH_RECIPIENT_FILTERS = [
 	"all",
+	"read",
+	"replied",
 	"bots",
 	"max",
 	"telegram",
@@ -434,6 +438,10 @@ function filterCondition(filter: OutreachRecipientFilter): SQL | undefined {
 	switch (filter) {
 		case "all":
 			return undefined;
+		case "read":
+			return sql`exists (select 1 from bot_messages j where j.id = ${outreachRecipients.journalMessageId} and j.status = 'read')`;
+		case "replied":
+			return sql`exists (select 1 from bot_messages j where j.id = ${outreachRecipients.journalMessageId} and exists (select 1 from bot_messages reply where ${sql.raw(replyMatch("j"))}))`;
 		case "bots":
 			return and(
 				eq(r.status, "sent"),
@@ -454,11 +462,47 @@ function filterCondition(filter: OutreachRecipientFilter): SQL | undefined {
 	}
 }
 
+/**
+ * Мессенджеры, которые сообщают о прочтении исходящих: WhatsApp (ack WAHA),
+ * личный Telegram (MTProto updateReadHistoryOutbox), личный MAX (NOTIF_MARK,
+ * разбор не проверен вживую). Боты Telegram/MAX о прочтении не сообщают —
+ * у них в отчёте «о прочтении не сообщает», а не «не прочитано».
+ */
+export const READ_TRACKED_MESSENGERS = [
+	"whatsapp-personal",
+	"telegram-personal",
+	"max-personal",
+] as const;
+
+/**
+ * Условие «reply — ответ клиента на сообщение журнала j»: входящее в том же
+ * диалоге (с того же личного номера) позже рассылки. Диалог личного
+ * Telegram, начатый по телефону, может лежать под каноническим ID
+ * (external_chat_id) — сверяем оба.
+ */
+function replyMatch(j: string): string {
+	return `reply.messenger = ${j}.messenger
+		and reply.user_id in (${j}.user_id, coalesce(${j}.external_chat_id, ${j}.user_id))
+		and reply.direction = 'in'
+		and reply.deleted_at is null
+		and reply.created_at > ${j}.created_at
+		and (${j}.connector_id is null or reply.connector_id is null or reply.connector_id = ${j}.connector_id)`;
+}
+
 export interface OutreachRecipientRow extends OutreachRecipient {
 	/** Статус письма в связанной email-кампании (sent/delivered/opened/bounced…). */
 	emailStatus: string | null;
 	emailError: string | null;
+	/** Статус сообщения в мессенджере из журнала: sent | delivered | read | failed. */
+	messageStatus: string | null;
+	/** Сообщает ли этот мессенджер о прочтении (иначе «нет данных», а не «не прочитано»). */
+	readTracked: boolean;
+	/** Когда клиент впервые написал в этот диалог после рассылки. */
+	repliedAt: Date | null;
 }
+
+const toDateOrNull = (value: unknown): Date | null =>
+	value === null || value === undefined ? null : new Date(value as string);
 
 function recipientsQuery(where: SQL | undefined) {
 	if (!db) throw new Error("База данных недоступна");
@@ -467,11 +511,21 @@ function recipientsQuery(where: SQL | undefined) {
 			recipient: outreachRecipients,
 			emailStatus: emailCampaignRecipients.status,
 			emailError: emailCampaignRecipients.error,
+			messageStatus: botMessages.status,
+			messenger: botMessages.messenger,
+			repliedAt:
+				sql<Date | null>`(select min(reply.created_at) from bot_messages reply where ${sql.raw(replyMatch("bot_messages"))})`.mapWith(
+					toDateOrNull,
+				),
 		})
 		.from(outreachRecipients)
 		.leftJoin(
 			emailCampaignRecipients,
 			eq(emailCampaignRecipients.id, outreachRecipients.emailRecipientId),
+		)
+		.leftJoin(
+			botMessages,
+			eq(botMessages.id, outreachRecipients.journalMessageId),
 		)
 		.where(where);
 }
@@ -480,12 +534,62 @@ function toRecipientRow(row: {
 	recipient: OutreachRecipient;
 	emailStatus: string | null;
 	emailError: string | null;
+	messageStatus: string | null;
+	messenger: string | null;
+	repliedAt: Date | null;
 }): OutreachRecipientRow {
 	return {
 		...row.recipient,
 		emailStatus: row.emailStatus ?? null,
 		emailError: row.emailError ?? null,
+		messageStatus: row.messageStatus ?? null,
+		readTracked: READ_TRACKED_MESSENGERS.some((m) => m === row.messenger),
+		repliedAt: row.repliedAt ?? null,
 	};
+}
+
+/** Отклик на рассылку: сколько доставлено, прочитано и сколько ответили. */
+export interface OutreachEngagement {
+	/** Ушло в мессенджер (по любому каналу). */
+	sent: number;
+	/** Ушло в мессенджер, который сообщает о прочтении, — база для «прочитали». */
+	readTracked: number;
+	delivered: number;
+	read: number;
+	replied: number;
+}
+
+export async function getOutreachEngagement(
+	campaignId: string,
+): Promise<OutreachEngagement> {
+	const empty = { sent: 0, readTracked: 0, delivered: 0, read: 0, replied: 0 };
+	if (!db) return empty;
+	const tracked = sql.raw(
+		READ_TRACKED_MESSENGERS.map((m) => `'${m}'`).join(", "),
+	);
+	const [row] = await db
+		.select({
+			sent: sql<number>`count(*) filter (where ${outreachRecipients.status} = 'sent')::int`,
+			readTracked: sql<number>`count(*) filter (where ${outreachRecipients.status} = 'sent' and ${botMessages.messenger} in (${tracked}))::int`,
+			delivered: sql<number>`count(*) filter (where ${botMessages.status} in ('delivered', 'read'))::int`,
+			read: sql<number>`count(*) filter (where ${botMessages.status} = 'read')::int`,
+			replied: sql<number>`count(*) filter (where exists (select 1 from bot_messages reply where ${sql.raw(replyMatch("bot_messages"))}))::int`,
+		})
+		.from(outreachRecipients)
+		.leftJoin(
+			botMessages,
+			eq(botMessages.id, outreachRecipients.journalMessageId),
+		)
+		.where(eq(outreachRecipients.campaignId, campaignId));
+	return row
+		? {
+				sent: Number(row.sent),
+				readTracked: Number(row.readTracked),
+				delivered: Number(row.delivered),
+				read: Number(row.read),
+				replied: Number(row.replied),
+			}
+		: empty;
 }
 
 export async function listOutreachRecipientsPage(params: {
@@ -549,7 +653,8 @@ export interface BotDialogRef {
 /**
  * Диалоги с ботами, в которых клиент сам оставил этот телефон в сценарии
  * (выдача материала, предзаказ книги). Номера там записаны как ввёл клиент
- * («8 999…», «+7999…»), поэтому сравниваем по последним 10 цифрам.
+ * («8 999…», «+7999…»), поэтому сравниваем полные нормализованные номера,
+ * сохраняя международный префикс.
  */
 export async function listBotDialogsByScenarioPhone(
 	phone: string,
@@ -557,10 +662,26 @@ export async function listBotDialogsByScenarioPhone(
 	if (!db) return [];
 	const digits = phone.replace(/\D/g, "");
 	if (digits.length < 10) return [];
-	const tail = digits.slice(-10);
+	// Одна нормализация для входа и обеих колонок: явный «+» сохраняет код
+	// страны, российские местные номера дополняются кодом 7.
+	const canonical = (
+		value:
+			| string
+			| typeof botGuideDeliveries.phone
+			| typeof bookPreorderOrders.phone,
+	) => {
+		const digits = sql`regexp_replace(${value}, '[^0-9]', '', 'g')`;
+		return sql`case
+			when position('+' in ${value}) = 0 and ${digits} ~ '^[3-9][0-9]{9}$'
+				then '7' || ${digits}
+			when position('+' in ${value}) = 0 and ${digits} ~ '^8[0-9]{10}$'
+				then '7' || substring(${digits} from 2)
+			else ${digits}
+		end`;
+	};
 	const matches = (
 		column: typeof botGuideDeliveries.phone | typeof bookPreorderOrders.phone,
-	) => sql`right(regexp_replace(${column}, '[^0-9]', '', 'g'), 10) = ${tail}`;
+	) => sql`${canonical(column)} = ${canonical(phone)}`;
 	const bots = ["telegram", "max"];
 	const [guides, preorders] = await Promise.all([
 		db
