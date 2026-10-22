@@ -7,12 +7,47 @@ export const CHANNEL_LABELS: Record<string, string> = {
 	email: "Email",
 };
 
-export function OutreachStatusBadge({ status }: { status: string }) {
+export function OutreachStatusBadge({
+	status,
+	resumeAt,
+}: {
+	status: string;
+	/** Рассылка ждёт (окно отправки, лимит, перерыв) до этого времени. */
+	resumeAt?: Date | null;
+}) {
 	if (status === "done") return <Badge variant="default">Завершена</Badge>;
 	if (status === "error") return <Badge variant="destructive">Ошибка</Badge>;
 	if (status === "cancelled") return <Badge variant="outline">Отменена</Badge>;
 	if (status === "queued") return <Badge variant="secondary">В очереди</Badge>;
+	if (resumeAt && new Date(resumeAt) > new Date()) {
+		return (
+			<Badge
+				variant="outline"
+				className="border-amber-500/50 text-amber-700 dark:text-amber-400"
+			>
+				Пауза до {formatResumeAt(resumeAt)}
+			</Badge>
+		);
+	}
 	return <Badge variant="secondary">Отправляется</Badge>;
+}
+
+/** «14:30» сегодня, иначе «пт, 24 окт., 10:00» — по Москве. */
+export function formatResumeAt(value: Date | string): string {
+	const date = new Date(value);
+	const sameDay =
+		new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Moscow" }).format(
+			date,
+		) ===
+		new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Moscow" }).format(
+			new Date(),
+		);
+	return new Intl.DateTimeFormat("ru-RU", {
+		timeZone: "Europe/Moscow",
+		...(sameDay ? {} : { weekday: "short", day: "numeric", month: "short" }),
+		hour: "2-digit",
+		minute: "2-digit",
+	}).format(date);
 }
 
 /** Итог по получателю: куда ушло или почему не ушло. */
@@ -66,12 +101,15 @@ export function RecipientOutcomeBadge({
 	}
 }
 
-/** «MAX ✗ → Telegram ✓» — цепочка попыток по каналам. */
+/** «MAX ✗ → Telegram ✓» — цепочка попыток по каналам; «⏸» — пропущен из-за лимита. */
 export function formatAttempts(
-	attempts: Array<{ channel: string; ok: boolean }>,
+	attempts: Array<{ channel: string; ok: boolean; skipped?: boolean }>,
 ): string {
 	return attempts
-		.map((a) => `${CHANNEL_LABELS[a.channel] ?? a.channel} ${a.ok ? "✓" : "✗"}`)
+		.map(
+			(a) =>
+				`${CHANNEL_LABELS[a.channel] ?? a.channel} ${a.ok ? "✓" : a.skipped ? "⏸" : "✗"}`,
+		)
 		.join(" → ");
 }
 

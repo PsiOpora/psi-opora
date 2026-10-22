@@ -54,6 +54,7 @@ import {
 	OutreachStatusBadge,
 	RecipientOutcomeBadge,
 } from "../outreach-format";
+import { DeliverySummary } from "./delivery-summary";
 
 const PAGE_SIZE = 50;
 type Filter = (typeof OUTREACH_RECIPIENT_FILTER_VALUES)[number];
@@ -210,15 +211,6 @@ export default function OutreachReportPage() {
 		setFilter((prev) => (prev === next ? "all" : next));
 		setPage(0);
 	};
-	const accounts = [
-		campaign.accounts.max && `MAX ${formatPhone(campaign.accounts.max.phone)}`,
-		campaign.accounts.telegram &&
-			`Telegram ${formatPhone(campaign.accounts.telegram.phone)}`,
-		campaign.accounts.whatsapp &&
-			`WhatsApp ${formatPhone(campaign.accounts.whatsapp.phone)}`,
-		campaign.emailTemplateId &&
-			`Email «${campaign.emailSubject ?? campaign.emailTemplateName ?? ""}»`,
-	].filter(Boolean);
 	const rows = recipients?.rows ?? [];
 
 	return (
@@ -234,14 +226,17 @@ export default function OutreachReportPage() {
 					<div>
 						<h1 className="flex items-center gap-3 text-2xl font-semibold">
 							Рассылка по списку «{campaign.listName ?? "удалён"}»
-							<OutreachStatusBadge status={campaign.status} />
+							<OutreachStatusBadge
+								status={campaign.status}
+								resumeAt={campaign.resumeAt}
+							/>
 						</h1>
 						<p className="mt-1 text-sm text-muted-foreground">
 							Создана {formatDateTime(campaign.createdAt)}
 							{campaign.finishedAt &&
-								` · завершена ${formatDateTime(campaign.finishedAt)}`}{" "}
-							· каналы: {accounts.join(" → ")} · пауза {campaign.intervalSec} с
+								` · завершена ${formatDateTime(campaign.finishedAt)}`}
 						</p>
+						<DeliverySummary campaign={campaign} />
 						{campaign.error && (
 							<p className="mt-1 text-sm text-destructive">{campaign.error}</p>
 						)}

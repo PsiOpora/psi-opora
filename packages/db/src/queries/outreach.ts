@@ -94,6 +94,8 @@ export async function markOutreachCampaignRunning(id: string): Promise<void> {
 		.set({
 			status: "running",
 			startedAt: sql`coalesce(${outreachCampaigns.startedAt}, now())`,
+			resumeAt: null,
+			pauseReason: null,
 		})
 		.where(
 			and(
@@ -110,7 +112,7 @@ export async function finishOutreachCampaign(
 	if (!db) return;
 	await db
 		.update(outreachCampaigns)
-		.set({ ...data, finishedAt: new Date() })
+		.set({ ...data, finishedAt: new Date(), resumeAt: null, pauseReason: null })
 		// Отменённую рассылку задача не «завершает» обратно в done.
 		.where(
 			and(
@@ -142,7 +144,12 @@ export async function cancelOutreachCampaign(id: string): Promise<boolean> {
 	if (!db) return false;
 	const rows = await db
 		.update(outreachCampaigns)
-		.set({ status: "cancelled", finishedAt: new Date() })
+		.set({
+			status: "cancelled",
+			finishedAt: new Date(),
+			resumeAt: null,
+			pauseReason: null,
+		})
 		.where(
 			and(
 				eq(outreachCampaigns.id, id),

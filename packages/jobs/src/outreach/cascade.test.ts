@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
 	ChannelBreaker,
-	jitteredDelayMs,
 	type MessengerChannel,
 	type OutreachSender,
 	personalizeMessage,
@@ -199,9 +198,73 @@ describe("personalizeMessage", () => {
 	});
 });
 
-describe("jitteredDelayMs", () => {
-	test("в пределах ±25%", () => {
-		expect(jitteredDelayMs(20, () => 0)).toBe(15_000);
-		expect(jitteredDelayMs(20, () => 1)).toBe(25_000);
+describe("runCascade: шлюз темпа и продолжение", () => {
+	test("skip пропускает канал и пишет причину в попытки", async () => {
+		const calls: string[] = [];
+		const result = await runCascade({
+			...base,
+			senders: [
+				sender("max", { kind: "sent", userId: "m" }, calls),
+				sender("telegram", { kind: "sent", userId: "tg" }, calls),
+			],
+			breaker: new ChannelBreaker(),
+			gate: async (channel) =>
+				channel === "max"
+					? { kind: "skip", reason: "лимит MAX" }
+					: { kind: "go" },
+		});
+		expect(calls).toEqual(["telegram"]);
+		expect(result.status === "sent" && result.channel).toBe("telegram");
+		expect(result.attempts[0]).toMatchObject({
+			channel: "max",
+			ok: false,
+			skipped: true,
+			error: "лимит MAX",
+		});
+	});
+
+	test("stop прерывает каскад, не трогая канал", async () => {
+		const calls: string[] = [];
+		const result = await runCascade({
+			...base,
+			senders: [
+				sender("max", { kind: "not_found", error: "нет в MAX" }, calls),
+				sender("telegram", { kind: "sent", userId: "tg" }, calls),
+			],
+			breaker: new ChannelBreaker(),
+			gate: async (channel) =>
+				channel === "telegram" ? { kind: "stop" } : { kind: "go" },
+		});
+		expect(calls).toEqual(["max"]);
+		expect(result.status).toBe("interrupted");
+		expect(result.attempts).toHaveLength(1);
+	});
+
+	test("продолжает с канала, на котором прервались", async () => {
+		const calls: string[] = [];
+		const previous = [
+			{ channel: "max" as const, ok: false, error: "нет в MAX", at: "x" },
+		];
+		const result = await runCascade({
+			...base,
+			senders: [
+				sender("max", { kind: "sent", userId: "m" }, calls),
+				sender("telegram", { kind: "sent", userId: "tg" }, calls),
+			],
+			breaker: new ChannelBreaker(),
+			previousAttempts: previous,
+		});
+		expect(calls).toEqual(["telegram"]);
+		expect(result.attempts).toHaveLength(2);
+	});
+
+	test("все каналы на лимите — уходит в email", async () => {
+		const result = await runCascade({
+			...base,
+			senders: [sender("max", { kind: "sent", userId: "m" })],
+			breaker: new ChannelBreaker(),
+			gate: async () => ({ kind: "skip", reason: "лимит" }),
+		});
+		expect(result.status).toBe("email_pending");
 	});
 });

@@ -1,8 +1,8 @@
 /**
  * Каскад каналов мультиканальной рассылки по списку: сообщение пробуется
- * через личные номера по приоритету MAX → Telegram → WhatsApp, а если ни
- * один мессенджер не доставил — получатель уходит в email-фазу (письмо
- * отправляет обычная email-кампания, см. hatchet/outreach.ts).
+ * через личные номера в заданном порядке (по умолчанию MAX → Telegram →
+ * WhatsApp), а если ни один мессенджер не доставил — получатель уходит в
+ * email-фазу (письмо отправляет обычная email-кампания, см. hatchet/outreach.ts).
  *
  * Модуль без побочных эффектов: отправители передаются снаружи, поэтому
  * правила каскада покрыты тестами без Redis/WAHA/воркеров.
@@ -39,8 +39,21 @@ export interface CascadeAttempt {
 	channel: MessengerChannel | "email";
 	ok: boolean;
 	error?: string;
+	/** Канал пропущен без отправки (исчерпан дневной лимит номера). */
+	skipped?: boolean;
 	at: string;
 }
+
+/**
+ * Решение перед попыткой в канал (темп, лимиты — см. pacing.ts):
+ * go — можно отправлять (нужная пауза уже выдержана); skip — канал сейчас
+ * недоступен, пробуем следующий; stop — каскад прерывается (отмена,
+ * задача передаёт эстафету), получатель продолжит с этого канала позже.
+ */
+export type GateDecision =
+	| { kind: "go" }
+	| { kind: "skip"; reason: string }
+	| { kind: "stop" };
 
 export type CascadeResult =
 	| {
@@ -51,6 +64,7 @@ export type CascadeResult =
 			attempts: CascadeAttempt[];
 	  }
 	| { status: "email_pending"; attempts: CascadeAttempt[] }
+	| { status: "interrupted"; attempts: CascadeAttempt[] }
 	| { status: "failed" | "unknown"; error: string; attempts: CascadeAttempt[] };
 
 /** Сколько сбоев канала подряд выключают его до конца запуска. */
@@ -92,15 +106,42 @@ export async function runCascade(params: {
 	/** Состояние каналов в этом запуске (обновляется здесь). */
 	breaker: ChannelBreaker;
 	emailEnabled: boolean;
+	/** Попытки прошлого, прерванного запуска — эти каналы повторно не пробуем. */
+	previousAttempts?: CascadeAttempt[];
+	/** Вызывается перед каждой попыткой; attempts — уже сделанные попытки этого получателя. */
+	gate?: (
+		channel: MessengerChannel,
+		attempts: CascadeAttempt[],
+	) => Promise<GateDecision>;
 	now?: () => Date;
 }): Promise<CascadeResult> {
 	const now = params.now ?? (() => new Date());
-	const attempts: CascadeAttempt[] = [];
-	let lastError: string | null = null;
+	const attempts: CascadeAttempt[] = [...(params.previousAttempts ?? [])];
+	const tried = new Set(attempts.map((a) => a.channel));
+	let lastError: string | null =
+		[...attempts].reverse().find((a) => !a.ok)?.error ?? null;
 
 	if (params.phone) {
 		for (const sender of params.senders) {
+			if (tried.has(sender.channel)) continue;
 			if (params.breaker.isDisabled(sender.channel)) continue;
+			const decision = params.gate
+				? await params.gate(sender.channel, [...attempts])
+				: ({ kind: "go" } as const);
+			if (decision.kind === "stop") {
+				return { status: "interrupted", attempts };
+			}
+			if (decision.kind === "skip") {
+				attempts.push({
+					channel: sender.channel,
+					ok: false,
+					skipped: true,
+					error: decision.reason,
+					at: now().toISOString(),
+				});
+				lastError = decision.reason;
+				continue;
+			}
 			let outcome: SendOutcome;
 			try {
 				outcome = await sender.send(params.phone, params.text);
@@ -160,12 +201,4 @@ export function personalizeMessage(text: string, name: string | null): string {
 	return text
 		.replace(/[ \t]*,?[ \t]*\{\{\s*name\s*\}\}/g, "")
 		.replace(/[ \t]{2,}/g, " ");
-}
-
-/** Пауза между отправками с разбросом ±25% — ровный ритм похож на бота. */
-export function jitteredDelayMs(
-	intervalSec: number,
-	random: () => number = Math.random,
-): number {
-	return Math.round(intervalSec * 1000 * (0.75 + random() * 0.5));
 }
