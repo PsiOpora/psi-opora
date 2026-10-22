@@ -70,6 +70,29 @@ export function listenForMessages(
 	});
 }
 
+/** Собеседник прочитал наши сообщения в личном диалоге до maxReadId включительно. */
+export interface UserbotOutboxRead {
+	/** ID собеседника — в личном диалоге совпадает с ID чата. */
+	chatId: number;
+	maxReadId: number;
+}
+
+/**
+ * Подписка на прочтение исходящих (MTProto updateReadHistoryOutbox). Только
+ * личные диалоги: группы, каналы и обсуждения рассылка не использует, а
+ * «прочитано» в группе значит «прочитал кто-то один».
+ */
+export function listenForOutboxRead(
+	client: TelegramClient,
+	onRead: (read: UserbotOutboxRead) => void | Promise<void>,
+): void {
+	client.onHistoryRead.add((update) => {
+		if (!update.isOutbox || update.isDiscussion || update.isMonoForum) return;
+		if (update.chatId <= 0) return;
+		void onRead({ chatId: update.chatId, maxReadId: update.maxReadId });
+	});
+}
+
 /** Подписка на MTProto updateUserStatus. Поток глобальный для аккаунта,
  * поэтому вызывающий код должен сохранять только уже известных клиентов. */
 export function listenForUserPresence(

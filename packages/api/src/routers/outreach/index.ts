@@ -3,6 +3,7 @@ import {
 	cancelOutreachCampaign,
 	getEmailList,
 	getOutreachCampaign,
+	getOutreachEngagement,
 	getOutreachStats,
 	listAllEmailListContacts,
 	listAllOutreachRecipients,
@@ -110,7 +111,11 @@ export const outreachRouter = router({
 		if (!campaign) {
 			throw new ORPCError("NOT_FOUND", { message: "Рассылка не найдена" });
 		}
-		return { ...campaign, stats: await getOutreachStats(campaign.id) };
+		const [stats, engagement] = await Promise.all([
+			getOutreachStats(campaign.id),
+			getOutreachEngagement(campaign.id),
+		]);
+		return { ...campaign, stats, engagement };
 	}),
 
 	recipients: bitrixProcedure

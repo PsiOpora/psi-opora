@@ -167,6 +167,13 @@ export const outreachRecipients = pgTable(
 			.default([]),
 		/** ID сообщения в мессенджере (для поиска в журнале bot_messages). */
 		externalId: text("external_id"),
+		/**
+		 * Строка журнала bot_messages с этим сообщением: из неё отчёт берёт
+		 * статус доставки/прочтения и находит ответ клиента (входящее в том же
+		 * диалоге после рассылки). null — рассылка до появления связи или
+		 * запись в журнал не удалась.
+		 */
+		journalMessageId: text("journal_message_id"),
 		/** Получатель созданной email-кампании — его статус (открыл/отписался) смотрим там. */
 		emailRecipientId: text("email_recipient_id"),
 		error: text("error"),

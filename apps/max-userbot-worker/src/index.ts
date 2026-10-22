@@ -4,6 +4,7 @@ import {
 	listConnectedMaxPersonalAccounts,
 	type MaxPersonalAccount,
 	markMaxPersonalAccountError,
+	markOutgoingBotMessagesRead,
 	updateBotMessageExternalResult,
 	upsertBotUser,
 } from "@psi-opora/db/queries";
@@ -13,7 +14,9 @@ import {
 	createUserbotClient,
 	decryptSecret,
 	deleteUserbotMessage,
+	getUserbotSelfId,
 	type MaxProtocolClient,
+	type MaxReadMarkEvent,
 	recoverMaxOutboundMessages,
 	resolveDialogChatId,
 	sendUserbotMessage,
@@ -214,6 +217,43 @@ async function handleDisconnect(
 	if (!runtime.stopped) scheduleReconnect(runtime);
 }
 
+/**
+ * Собеседник прочитал чат — исходящие до времени прочтения становятся
+ * «прочитано» (видно в инбоксе и в отчёте рассылки по списку). Раскладка
+ * NOTIF_MARK вживую не проверена: сырой кадр пишем в лог, а прочтением
+ * считаем только кадр, где есть чат, прочитавший — не мы сами, и mark похож
+ * на время.
+ */
+async function handleReadMark(
+	runtime: AccountRuntime,
+	client: MaxProtocolClient,
+	event: MaxReadMarkEvent,
+): Promise<void> {
+	console.info(
+		`[max-userbot-worker] NOTIF_MARK ${accountLabel(runtime.account)}: ${JSON.stringify(
+			event.raw,
+			(_key, value) => (typeof value === "bigint" ? value.toString() : value),
+		)}`,
+	);
+	const selfId = getUserbotSelfId(client);
+	if (
+		!event.chatId ||
+		!event.userId ||
+		!event.readAt ||
+		event.setAsUnread ||
+		!selfId ||
+		event.userId === selfId
+	) {
+		return;
+	}
+	await markOutgoingBotMessagesRead({
+		messenger: "max-personal",
+		connectorId: runtime.account.connectorId,
+		chatIds: [event.chatId],
+		upToTime: event.readAt,
+	});
+}
+
 async function connectRuntime(runtime: AccountRuntime): Promise<void> {
 	if (runtime.stopped || runtime.connecting || runtime.client) return;
 	runtime.connecting = true;
@@ -233,6 +273,14 @@ async function connectRuntime(runtime: AccountRuntime): Promise<void> {
 						message.messageId,
 					);
 					void relayInboundMessage(runtime.account, message);
+				},
+				onReadMark: (event) => {
+					if (!client) return;
+					void handleReadMark(runtime, client, event).catch((err) =>
+						console.error(
+							`[max-userbot-worker] не удалось отметить прочтение ${accountLabel(runtime.account)}: ${(err as Error).message}`,
+						),
+					);
 				},
 				onDisconnect: (error) => {
 					if (ready && client) void handleDisconnect(runtime, client, error);

@@ -2,6 +2,7 @@ import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import {
 	insertBotMessage,
 	listConnectedTelegramPersonalAccounts,
+	markOutgoingBotMessagesRead,
 	markTelegramPersonalAccountError,
 	type TelegramPersonalAccount,
 	updateBotMessageExternalResult,
@@ -21,6 +22,7 @@ import {
 	drainOutboundMessages,
 	getUserPresence,
 	listenForMessages,
+	listenForOutboxRead,
 	listenForUserPresence,
 	resolveClientPhoneNumber,
 	resolveClientUsername,
@@ -337,6 +339,23 @@ async function startAccountWorker(
 					`[tg-userbot-worker] не удалось обновить presence ${presence.userId}: ${(err as Error).message}`,
 				),
 			),
+		);
+
+		// Клиент прочитал наши сообщения — статус «прочитано» в журнале: его
+		// видят инбокс и отчёт рассылки по списку.
+		listenForOutboxRead(client, ({ chatId, maxReadId }) =>
+			markOutgoingBotMessagesRead({
+				messenger: "telegram-personal",
+				connectorId: account.connectorId,
+				chatIds: [String(chatId)],
+				upToExternalId: maxReadId,
+			})
+				.then(() => undefined)
+				.catch((err) =>
+					console.error(
+						`[tg-userbot-worker] не удалось отметить прочтение в чате ${chatId} (${label}): ${(err as Error).message}`,
+					),
+				),
 		);
 
 		listenForMessages(client, async (message) => {

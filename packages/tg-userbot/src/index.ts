@@ -23,11 +23,13 @@ export {
 	deleteUserbotMessage,
 	getUserPresence,
 	listenForMessages,
+	listenForOutboxRead,
 	listenForUserPresence,
 	resolveClientPhoneNumber,
 	resolveClientUsername,
 	sendUserbotMedia,
 	sendUserbotMessage,
 	type UserbotMediaAttachment,
+	type UserbotOutboxRead,
 	type UserbotPresence,
 } from "./relay";

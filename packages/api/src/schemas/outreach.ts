@@ -124,6 +124,8 @@ export const outreachIdSchema = z.object({ id: z.string().min(1) });
 
 export const OUTREACH_RECIPIENT_FILTER_VALUES = [
 	"all",
+	"read",
+	"replied",
 	"bots",
 	"max",
 	"telegram",

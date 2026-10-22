@@ -43,10 +43,28 @@ export interface MaxPresenceEvent {
 	raw: Record<string, unknown>;
 }
 
+/**
+ * Пуш о прочтении чата (NOTIF_MARK, opcode 130). Поля — по PyMax
+ * (`{chatId, userId, mark, setAsUnread}`); живой кадр никто не публиковал,
+ * поэтому всё, что не похоже на ожидаемое, остаётся null, а решение
+ * «считать ли это прочтением» принимает вызывающий код.
+ */
+export interface MaxReadMarkEvent {
+	chatId: string | null;
+	/** Кто прочитал: собеседник или мы сами с другого устройства. */
+	userId: string | null;
+	/** mark как время прочтения (мс); null — mark не похож на время. */
+	readAt: Date | null;
+	/** Чат отмечен непрочитанным, а не прочитан. */
+	setAsUnread: boolean;
+	raw: Record<string, unknown>;
+}
+
 export interface MaxUserbotHandlers {
 	onMessage?: (message: MaxIncomingMessage) => void | Promise<void>;
 	onTyping?: (event: MaxTypingEvent) => void | Promise<void>;
 	onPresence?: (event: MaxPresenceEvent) => void | Promise<void>;
+	onReadMark?: (event: MaxReadMarkEvent) => void | Promise<void>;
 	onDisconnect?: (error: Error) => void;
 }
 
@@ -68,6 +86,37 @@ function toProtocolId(value: string, label: string): number | bigint {
 	if (!/^\d+$/.test(value)) throw new Error(`Некорректный ${label} MAX`);
 	const bigint = BigInt(value);
 	return bigint <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(bigint) : bigint;
+}
+
+/** Разумные границы метки времени в мс: ID сообщений MAX на порядки больше. */
+const MIN_MARK_MS = Date.UTC(2020, 0, 1);
+const MARK_FUTURE_SLACK_MS = 24 * 60 * 60 * 1000;
+
+export function parseReadMark(
+	payload: Record<string, unknown>,
+	now: Date = new Date(),
+): MaxReadMarkEvent {
+	const raw = payload.mark;
+	const mark =
+		typeof raw === "number"
+			? raw
+			: typeof raw === "bigint" && raw <= BigInt(Number.MAX_SAFE_INTEGER)
+				? Number(raw)
+				: null;
+	const readAt =
+		mark !== null &&
+		Number.isFinite(mark) &&
+		mark >= MIN_MARK_MS &&
+		mark <= now.getTime() + MARK_FUTURE_SLACK_MS
+			? new Date(mark)
+			: null;
+	return {
+		chatId: asId(payload.chatId),
+		userId: asId(payload.userId),
+		readAt,
+		setAsUnread: payload.setAsUnread === true,
+		raw: payload,
+	};
 }
 
 function parseIncomingMessage(
@@ -104,6 +153,10 @@ function dispatchPush(
 				userId: asId(payload.userId ?? payload.senderId),
 				raw: payload,
 			});
+			return;
+		}
+		case OPCODE.NOTIF_MARK: {
+			void handlers.onReadMark?.(parseReadMark(payload));
 			return;
 		}
 		case OPCODE.NOTIF_PRESENCE: {
