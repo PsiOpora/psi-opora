@@ -1,14 +1,11 @@
 "use client";
 
-import {
-	ApiVersion,
-	type B24Frame,
-	initializeB24Frame,
-} from "@bitrix24/b24jssdk";
+import { type B24Frame, initializeB24Frame } from "@bitrix24/b24jssdk";
 import { AlertCircleIcon, Loader2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { establishBitrixSession, setSessionFrame } from "@/lib/bitrix-session";
 
 type Status = "connecting" | "ready" | "standalone" | "error";
 
@@ -33,7 +30,8 @@ export function useB24Frame(): B24FrameState {
  * фрейме (см. https://apidocs.bitrix24.ru/api-reference/oauth/simple-way.html).
  * Полученные access/refresh токены сохраняются на сервере (см.
  * /api/bitrix/session), после чего router.refresh() перезапускает серверные
- * компоненты дашборда уже с доступом к CRM.
+ * компоненты дашборда уже с доступом к CRM. Фрейм регистрируется для
+ * продления сессии при 401 (см. lib/bitrix-session).
  */
 export function BitrixFrameProvider({
 	children,
@@ -67,30 +65,14 @@ export function BitrixFrameProvider({
 				if (!authData)
 					throw new Error("Битрикс24 не передал данные авторизации");
 
-				const clientEndpoint =
-					frame.getTargetOriginWithPath().get(ApiVersion.v2) ??
-					`https://${authData.domain}/rest/`;
-
-				const res = await fetch("/api/bitrix/session", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						memberId: authData.member_id,
-						domain: authData.domain,
-						clientEndpoint,
-						accessToken: authData.access_token,
-						refreshToken: authData.refresh_token,
-						expiresAt: authData.expires,
-						scope: typeof authData.scope === "string" ? authData.scope : "",
-					}),
-				});
-				if (!res.ok) throw new Error("Не удалось сохранить сессию Битрикс24");
+				await establishBitrixSession(frame, authData);
 
 				if (frame.isFirstRun) {
 					await frame.installFinish();
 				}
 
 				if (cancelled) return;
+				setSessionFrame(frame);
 				setB24(frame);
 				setStatus("ready");
 				router.refresh();
@@ -103,6 +85,7 @@ export function BitrixFrameProvider({
 
 		return () => {
 			cancelled = true;
+			setSessionFrame(null);
 		};
 	}, [router]);
 

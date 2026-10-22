@@ -24,13 +24,13 @@ import {
 	mergeThread,
 	type ThreadMessage,
 } from "@/components/inbox/message-list";
-import { resolveThreadPoll } from "@/components/inbox/thread-poll";
 import { messengerLabel } from "@/components/inbox/messenger-meta";
 import { QuickReplies } from "@/components/inbox/quick-replies";
 import {
 	getSendResultError,
 	isSuccessfulSendResult,
 } from "@/components/inbox/send-result";
+import { resolveThreadPoll } from "@/components/inbox/thread-poll";
 import {
 	type ComposerAttachment,
 	MessageComposer,
@@ -49,6 +49,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { fetchWithSessionRenewal } from "@/lib/bitrix-session";
 import { buildDialogLink, copyText } from "@/lib/dialog-link";
 import { orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
@@ -384,7 +385,7 @@ export function ThreadPane({
 		attachmentUploadRef.current = controller;
 		const formData = new FormData();
 		formData.append("file", file);
-		fetch("/api/attachments", {
+		fetchWithSessionRenewal("/api/attachments", {
 			method: "POST",
 			body: formData,
 			signal: controller.signal,
