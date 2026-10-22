@@ -9,8 +9,9 @@ import {
 import { emailCampaigns } from "../email-campaign";
 import { emailLists } from "../email-lists";
 
-/** Канал мультиканальной рассылки — порядок попыток: MAX → Telegram → WhatsApp → email. */
+/** Канал мультиканальной рассылки; порядок мессенджеров задаётся при запуске, email — всегда последний. */
 export type OutreachChannel = "max" | "telegram" | "whatsapp" | "email";
+export type OutreachMessengerChannel = Exclude<OutreachChannel, "email">;
 
 /** Личный номер, выбранный для канала при запуске (null — канал выключен). */
 export interface OutreachAccountRef {
@@ -31,14 +32,50 @@ export interface OutreachAttempt {
 	channel: OutreachChannel;
 	ok: boolean;
 	error?: string;
+	/**
+	 * Канал не пробовали — у номера исчерпан дневной лимит. Такие записи не
+	 * считаются отправками при подсчёте лимитов.
+	 */
+	skipped?: boolean;
 	/** ISO-время попытки. */
 	at: string;
 }
 
+/** Темп отправки с одного личного номера — банят именно номер, поэтому настройки поканальные. */
+export interface OutreachChannelPacing {
+	channel: OutreachMessengerChannel;
+	/** Случайная пауза между сообщениями с этого номера, секунды. */
+	minIntervalSec: number;
+	maxIntervalSec: number;
+	/** Не больше стольких сообщений с номера за сутки (МСК), по всем рассылкам; null — без лимита. */
+	dailyLimit: number | null;
+	/** Перерыв после каждых batchSize сообщений; null — без перерывов. */
+	batchSize: number | null;
+	batchPauseMin: number;
+}
+
+/** Окно отправки по московскому времени: дни недели (1 — пн … 7 — вс) и часы [fromHour, toHour). */
+export interface OutreachSendWindow {
+	days: number[];
+	fromHour: number;
+	toHour: number;
+}
+
+export interface OutreachSettings {
+	/** Включённые мессенджеры в порядке приоритета. */
+	channels: OutreachChannelPacing[];
+	/** wait — ждать следующих суток; skip — пропускать канал и идти дальше по цепочке. */
+	onDailyLimit: "wait" | "skip";
+	window: OutreachSendWindow | null;
+	/** Не писать тем, кому рассылка уже дошла за столько дней; null — не проверять. */
+	dedupDays: number | null;
+}
+
 /**
- * Рассылка по списку контактов через личные номера с каскадом каналов:
- * MAX → Telegram → WhatsApp, а кому не удалось написать ни в один
- * мессенджер — письмо (через обычную email-кампанию, см. emailCampaignId).
+ * Рассылка по списку контактов через личные номера с каскадом каналов в
+ * заданном порядке (по умолчанию MAX → Telegram → WhatsApp), а кому не
+ * удалось написать ни в один мессенджер — письмо (через обычную
+ * email-кампанию, см. emailCampaignId).
  */
 export const outreachCampaigns = pgTable("outreach_campaigns", {
 	id: text("id").primaryKey(),
@@ -50,7 +87,12 @@ export const outreachCampaigns = pgTable("outreach_campaigns", {
 	memberId: text("member_id").notNull(),
 	message: text("message").notNull(),
 	accounts: jsonb("accounts").$type<OutreachAccounts>().notNull(),
-	/** Пауза между отправками в мессенджеры — личные номера банят за частые сообщения. */
+	/**
+	 * Порядок каналов, темп и ограничения. null — рассылка создана до
+	 * появления настроек: порядок MAX → Telegram → WhatsApp, пауза intervalSec ±25%.
+	 */
+	settings: jsonb("settings").$type<OutreachSettings>(),
+	/** Пауза между отправками (у новых рассылок — минимальная пауза первого канала). */
 	intervalSec: integer("interval_sec").notNull(),
 	/** Email-фолбэк: шаблон и тема письма. null — письма не отправляются. */
 	emailTemplateId: text("email_template_id"),
@@ -66,6 +108,9 @@ export const outreachCampaigns = pgTable("outreach_campaigns", {
 		{ onDelete: "set null" },
 	),
 	status: text("status").notNull(), // queued | running | done | error | cancelled
+	/** Рассылка ждёт (окно отправки, лимит, перерыв) — до этого времени и почему. */
+	resumeAt: timestamp("resume_at"),
+	pauseReason: text("pause_reason"),
 	recipientsCount: integer("recipients_count").notNull().default(0),
 	error: text("error"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),

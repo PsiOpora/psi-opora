@@ -5,19 +5,25 @@ import {
 import { sleep } from "../messenger";
 import {
 	ChannelBreaker,
-	jitteredDelayMs,
 	type MessengerChannel,
 	type OutreachSender,
 	personalizeMessage,
 	runCascade,
 } from "../outreach/cascade";
 import {
+	ChannelPacer,
+	moscowDayStart,
+	resolveOutreachPlan,
+} from "../outreach/pacing";
+import { createPacingGate, createWaiter } from "../outreach/scheduler";
+import {
 	createMaxSender,
 	createTelegramSender,
 	createWhatsappSender,
+	type PersonalAccountRef,
 } from "../outreach/senders";
 import { getHatchetClient } from "./client";
-import { deliverEmailCampaign } from "./email-campaign";
+import { startEmailFallback } from "./outreach-email";
 
 export type DeliverOutreachPayload = {
 	campaignId: string;
@@ -28,10 +34,12 @@ export type DeliverOutreachPayload = {
  * между сообщениями личных номеров — десятки секунд, список в тысячу
  * контактов идёт часами; вместо одного многочасового запуска задача
  * перезапускает сама себя (обрабатываются только pending — продолжение,
- * а не повтор).
+ * а не повтор). Ожидания длиннее бюджета (окно отправки, дневной лимит)
+ * становятся отложенным запуском.
  */
 const RUN_BUDGET_MS = 50 * 60 * 1000;
 const BATCH_SIZE = 100;
+const WORKFLOW_NAME = "outreach-deliver";
 
 /** Журнал bot_messages: под этими messenger лежат диалоги личных номеров. */
 const JOURNAL_MESSENGER: Record<MessengerChannel, string> = {
@@ -40,15 +48,24 @@ const JOURNAL_MESSENGER: Record<MessengerChannel, string> = {
 	whatsapp: "whatsapp-personal",
 };
 
+const SENDER_FACTORY: Record<
+	MessengerChannel,
+	(account: PersonalAccountRef) => OutreachSender
+> = {
+	max: createMaxSender,
+	telegram: createTelegramSender,
+	whatsapp: createWhatsappSender,
+};
+
 /**
  * Рассылка по списку контактов через личные номера: каждому получателю
- * сообщение пробуется по приоритету MAX → Telegram → WhatsApp (см.
- * outreach/cascade.ts), а тех, до кого не дошло ни одно, в конце передаём
- * в обычную email-кампанию — так письма получают отписку, стоп-лист и
- * статистику открытий/доставки email-рассылок.
+ * сообщение пробуется по каналам в заданном порядке (см. outreach/cascade.ts)
+ * с соблюдением темпа каждого номера (outreach/pacing.ts), а тех, до кого
+ * не дошло ни одно, в конце передаём в обычную email-кампанию — так письма
+ * получают отписку, стоп-лист и статистику открытий/доставки email-рассылок.
  */
 export const deliverOutreach = CreateTaskWorkflow({
-	name: "outreach-deliver",
+	name: WORKFLOW_NAME,
 	retries: 0,
 	executionTimeout: "1h",
 	scheduleTimeout: "24h",
@@ -63,11 +80,13 @@ export const deliverOutreach = CreateTaskWorkflow({
 		// Ленивый импорт — см. комментарий в hatchet/broadcast.ts.
 		const {
 			finishOutreachCampaign,
+			getOutreachAccountUsage,
 			getOutreachCampaign,
 			insertBotMessage,
 			listOutreachRecipientsByStatus,
 			markInterruptedOutreachRecipients,
 			markOutreachCampaignRunning,
+			setOutreachCampaignPause,
 			updateOutreachRecipient,
 		} = await import("@psi-opora/db/queries");
 
@@ -86,28 +105,70 @@ export const deliverOutreach = CreateTaskWorkflow({
 		}
 
 		const startedAt = Date.now();
+		const runEnd = startedAt + RUN_BUDGET_MS;
 		await markOutreachCampaignRunning(campaign.id);
 		await markInterruptedOutreachRecipients(campaign.id);
 
-		const senders: OutreachSender[] = [];
 		const { accounts, memberId } = campaign;
-		if (accounts.max)
-			senders.push(createMaxSender({ memberId, ...accounts.max }));
-		if (accounts.telegram)
-			senders.push(createTelegramSender({ memberId, ...accounts.telegram }));
-		if (accounts.whatsapp)
-			senders.push(createWhatsappSender({ memberId, ...accounts.whatsapp }));
+		const plan = resolveOutreachPlan(campaign);
+		const senders = plan.channels.flatMap((c) => {
+			const account = accounts[c.channel];
+			return account
+				? [SENDER_FACTORY[c.channel]({ memberId, ...account })]
+				: [];
+		});
+		// Темп номера — с учётом сегодняшних отправок всех рассылок.
+		const usage = await getOutreachAccountUsage(moscowDayStart(new Date()));
+		const pacers = new Map<MessengerChannel, ChannelPacer>();
+		for (const pacing of plan.channels) {
+			const connectorId = accounts[pacing.channel]?.connectorId;
+			const used = usage.find(
+				(u) => u.channel === pacing.channel && u.connectorId === connectorId,
+			);
+			pacers.set(
+				pacing.channel,
+				new ChannelPacer(pacing, {
+					attemptsToday: used?.attempts ?? 0,
+					lastAt: used?.lastAt ?? null,
+					now: new Date(),
+				}),
+			);
+		}
 		const emailEnabled = Boolean(campaign.emailTemplateId);
 		const breaker = new ChannelBreaker();
 
 		const isCancelled = async () =>
 			(await getOutreachCampaign(campaign.id))?.status === "cancelled";
+		const waitUntil = createWaiter({
+			runEnd,
+			isCancelled,
+			setPause: (pause) => setOutreachCampaignPause(campaign.id, pause),
+			sleep,
+		});
 		// Email-фазу пробуем один раз за запуск: если она сама упала, повтор
 		// из catch создал бы ещё одну пустую email-кампанию.
 		let emailPhaseStarted = false;
 		const runEmailPhase = () => {
 			emailPhaseStarted = true;
 			return startEmailFallback(campaign.id);
+		};
+		/** Продолжение — отложенным запуском (или сразу, если отложить не вышло). */
+		const continueLater = async (until: Date, reason: string) => {
+			try {
+				await getHatchetClient().scheduled.create(WORKFLOW_NAME, {
+					triggerAt: until,
+					input: payload,
+				});
+				await setOutreachCampaignPause(campaign.id, {
+					resumeAt: until,
+					reason,
+				});
+			} catch (err) {
+				console.error(
+					`[outreach] не удалось отложить запуск, продолжаем сразу: ${(err as Error).message}`,
+				);
+				await getHatchetClient().runNoWait(deliverOutreach, payload);
+			}
 		};
 
 		try {
@@ -121,7 +182,7 @@ export const deliverOutreach = CreateTaskWorkflow({
 				if (batch.length === 0) break;
 
 				for (const recipient of batch) {
-					if (Date.now() - startedAt > RUN_BUDGET_MS) {
+					if (Date.now() > runEnd) {
 						await getHatchetClient().runNoWait(deliverOutreach, payload);
 						return { processed, continued: true };
 					}
@@ -130,8 +191,17 @@ export const deliverOutreach = CreateTaskWorkflow({
 						return { processed, cancelled: true, emailed };
 					}
 
-					await updateOutreachRecipient(recipient.id, { status: "sending" });
 					const text = personalizeMessage(campaign.message, recipient.name);
+					const pacing = createPacingGate({
+						plan,
+						pacers,
+						waitUntil,
+						onSend: (attempts) =>
+							updateOutreachRecipient(recipient.id, {
+								status: "sending",
+								attempts,
+							}),
+					});
 					const result = await runCascade({
 						phone: recipient.phone,
 						email: recipient.email,
@@ -139,7 +209,33 @@ export const deliverOutreach = CreateTaskWorkflow({
 						senders,
 						breaker,
 						emailEnabled,
+						previousAttempts: recipient.attempts,
+						gate: pacing.gate,
 					});
+
+					if (result.status === "interrupted") {
+						const stop = pacing.takeStopReason();
+						if (stop?.kind === "handoff") {
+							// Получатель продолжит с того канала, на котором остановились.
+							await updateOutreachRecipient(recipient.id, {
+								status: "pending",
+								attempts: result.attempts,
+							});
+							await continueLater(stop.until, stop.reason);
+							return {
+								processed,
+								continued: true,
+								resumeAt: stop.until.toISOString(),
+							};
+						}
+						await updateOutreachRecipient(recipient.id, {
+							status: "skipped",
+							attempts: result.attempts,
+							error: "Рассылка отменена",
+						});
+						const emailed = await runEmailPhase();
+						return { processed, cancelled: true, emailed };
+					}
 
 					if (result.status === "sent") {
 						await updateOutreachRecipient(recipient.id, {
@@ -180,12 +276,6 @@ export const deliverOutreach = CreateTaskWorkflow({
 						});
 					}
 					processed++;
-
-					// Пауза только после реальной попытки в мессенджер — контакты
-					// без телефона уходят в email без задержки.
-					if (result.attempts.length > 0) {
-						await sleep(jitteredDelayMs(campaign.intervalSec));
-					}
 				}
 			}
 
@@ -209,104 +299,3 @@ export const deliverOutreach = CreateTaskWorkflow({
 		}
 	},
 });
-
-/**
- * Email-фаза: всех email_pending отдаём одной email-кампанией (шаблон и
- * тема — из настроек рассылки). Получатель рассылки связывается со строкой
- * email-кампании — по ней в отчёте виден статус письма (доставлено, открыто,
- * отписался), а ссылка отписки в письме работает как в обычной рассылке.
- * Вызывается при завершении, отмене и падении рассылки; без email-шаблона
- * (email выключен) ничего не делает.
- */
-async function startEmailFallback(campaignId: string): Promise<number> {
-	const {
-		createEmailCampaign,
-		finishEmailCampaign,
-		getOutreachCampaign,
-		insertEmailCampaignRecipients,
-		listOutreachRecipientsByStatus,
-		revertOutreachEmailHandoff,
-		setOutreachEmailCampaign,
-		updateOutreachRecipient,
-	} = await import("@psi-opora/db/queries");
-
-	const campaign = await getOutreachCampaign(campaignId);
-	if (!campaign?.emailTemplateId || !campaign.emailSubject) return 0;
-	if (!campaign.emailSenderEmail || !campaign.emailProvider) {
-		throw new Error("Не задан отправитель писем — проверьте /settings/email");
-	}
-
-	const pending: Array<{
-		outreachId: string;
-		name: string | null;
-		email: string;
-	}> = [];
-	for (const r of await listOutreachRecipientsByStatus(
-		campaignId,
-		"email_pending",
-		100_000,
-	)) {
-		if (r.email)
-			pending.push({ outreachId: r.id, name: r.name, email: r.email });
-	}
-	if (pending.length === 0) return 0;
-
-	const emailCampaignId = crypto.randomUUID();
-	await createEmailCampaign({
-		id: emailCampaignId,
-		audience: "list",
-		listId: campaign.listId,
-		listName: campaign.listName
-			? `${campaign.listName} (не дошло в мессенджеры)`
-			: "Рассылка по списку: не дошло в мессенджеры",
-		templateId: campaign.emailTemplateId,
-		templateName: campaign.emailTemplateName ?? undefined,
-		subject: campaign.emailSubject,
-		senderEmail: campaign.emailSenderEmail,
-		senderName: campaign.emailSenderName ?? undefined,
-		provider:
-			campaign.emailProvider === "unisender" ||
-			campaign.emailProvider === "postbox"
-				? campaign.emailProvider
-				: "rusender",
-		publicBaseUrl: campaign.publicBaseUrl,
-		totalDeals: pending.length,
-		recipientsCount: pending.length,
-	});
-
-	const rows = pending.map((p) => ({
-		...p,
-		emailRecipientId: crypto.randomUUID(),
-	}));
-	await insertEmailCampaignRecipients(
-		rows.map((r) => ({
-			id: r.emailRecipientId,
-			campaignId: emailCampaignId,
-			contactName: r.name,
-			email: r.email,
-			status: "pending",
-		})),
-	);
-	for (const r of rows) {
-		await updateOutreachRecipient(r.outreachId, {
-			status: "email",
-			channel: "email",
-			emailRecipientId: r.emailRecipientId,
-			sentAt: new Date(),
-		});
-	}
-
-	try {
-		await getHatchetClient().runNoWait(deliverEmailCampaign, {
-			campaignId: emailCampaignId,
-		});
-	} catch (err) {
-		const error = `Не удалось запустить отправку писем: ${(err as Error).message}`;
-		await finishEmailCampaign(emailCampaignId, { status: "error", error });
-		// Письма не ушли — получатели снова ждут email, а не числятся отправленными.
-		await revertOutreachEmailHandoff(campaignId, emailCampaignId, error);
-		throw err;
-	}
-	await setOutreachEmailCampaign(campaignId, emailCampaignId);
-	return rows.length;
-}

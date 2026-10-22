@@ -99,7 +99,10 @@ export function OutreachHistory() {
 										{(c.stats.failed + c.stats.unknown).toLocaleString("ru-RU")}
 									</TableCell>
 									<TableCell>
-										<OutreachStatusBadge status={c.status} />
+										<OutreachStatusBadge
+											status={c.status}
+											resumeAt={c.resumeAt}
+										/>
 									</TableCell>
 								</TableRow>
 							))}

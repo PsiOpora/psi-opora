@@ -217,6 +217,7 @@ export * from "./email-suppressions";
 export * from "./email-templates";
 export * from "./max-personal";
 export * from "./outreach";
+export * from "./outreach-pacing";
 export * from "./postbox";
 export type { QuickReply } from "./quick-replies";
 export * from "./resend";

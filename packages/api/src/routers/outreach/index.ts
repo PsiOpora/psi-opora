@@ -1,43 +1,31 @@
 import { ORPCError } from "@orpc/server";
 import {
 	cancelOutreachCampaign,
-	createOutreachCampaign,
-	finishOutreachCampaign,
 	getEmailList,
-	getEmailSuppressions,
-	getEmailTemplate,
 	getOutreachCampaign,
 	getOutreachStats,
-	insertOutreachRecipients,
 	listAllEmailListContacts,
 	listAllOutreachRecipients,
-	listMaxPersonalAccounts,
 	listOutreachCampaigns,
 	listOutreachRecipientsPage,
-	listTelegramPersonalAccounts,
-	listWhatsappPersonalAccounts,
-	type OutreachAccountRef,
-	type OutreachAccounts,
 } from "@psi-opora/db/queries";
 import { enqueueOutreach } from "@psi-opora/jobs";
 import { bitrixProcedure, router } from "../../orpc";
-import { publicOriginFromHeaders } from "../../public-origin";
 import {
 	outreachIdSchema,
 	outreachPreviewSchema,
 	outreachRecipientsQuerySchema,
-	sendOutreachSchema,
 } from "../../schemas/outreach";
 import { getActiveEmailSender } from "../email-broadcast/active-sender";
+import { sendOutreach } from "./send";
+import {
+	loadAccountOptions,
+	type OutreachAccountOption,
+	recentlyContactedChecker,
+	requireMember,
+} from "./shared";
 
-/** Личный номер, доступный для рассылки, — для выбора в форме. */
-export interface OutreachAccountOption {
-	openLineId: string;
-	connectorId: string;
-	phone: string;
-	/** connected — можно выбирать; остальные показываются неактивными. */
-	status: string;
-}
+export type { OutreachAccountOption };
 
 export interface OutreachOptions {
 	max: OutreachAccountOption[];
@@ -56,39 +44,10 @@ export interface OutreachPreview {
 	withEmail: number;
 	/** Адреса в стоп-листе: письмо им не уйдёт. */
 	suppressed: number;
-}
-
-function requireMember(memberId: string | null): string {
-	if (!memberId) {
-		throw new ORPCError("UNAUTHORIZED", {
-			message: "Нет сессии Битрикс24 — обновите страницу",
-		});
-	}
-	return memberId;
-}
-
-async function loadAccountOptions(memberId: string) {
-	const [max, telegram, whatsapp] = await Promise.all([
-		listMaxPersonalAccounts(memberId),
-		listTelegramPersonalAccounts(memberId),
-		listWhatsappPersonalAccounts(memberId),
-	]);
-	const toOption = (row: {
-		openLineId: string;
-		connectorId: string;
-		phone: string;
-		status: string;
-	}): OutreachAccountOption => ({
-		openLineId: row.openLineId,
-		connectorId: row.connectorId,
-		phone: row.phone,
-		status: row.status,
-	});
-	return {
-		max: max.map(toOption),
-		telegram: telegram.map(toOption),
-		whatsapp: whatsapp.map(toOption),
-	};
+	/** Уже получали рассылку за dedupDays — будут пропущены. */
+	recentlyContacted: number;
+	/** С телефоном и не отсеяны повтором — столько сообщений пойдёт в мессенджеры. */
+	messengerCandidates: number;
 }
 
 export const outreachRouter = router({
@@ -116,162 +75,25 @@ export const outreachRouter = router({
 				throw new ORPCError("NOT_FOUND", { message: "Список не найден" });
 			}
 			const contacts = await listAllEmailListContacts(list.id);
+			const wasContacted = await recentlyContactedChecker(
+				contacts,
+				input.dedupDays,
+			);
+			const recent = contacts.filter(wasContacted);
 			return {
 				total: contacts.length,
 				withPhone: contacts.filter((c) => c.phone).length,
 				emailOnly: contacts.filter((c) => c.email && !c.phone).length,
 				withEmail: contacts.filter((c) => c.email).length,
 				suppressed: contacts.filter((c) => c.suppressionReason).length,
+				recentlyContacted: recent.length,
+				messengerCandidates:
+					contacts.filter((c) => c.phone).length -
+					recent.filter((c) => c.phone).length,
 			};
 		}),
 
-	send: bitrixProcedure
-		.input(sendOutreachSchema)
-		.handler(async ({ input, context }) => {
-			const memberId = requireMember(context.memberId);
-			const list = await getEmailList(input.listId);
-			if (!list) {
-				throw new ORPCError("NOT_FOUND", { message: "Список не найден" });
-			}
-
-			// Номера сверяем с БД: из браузера приходят только их ID, а
-			// подключён ли номер и принадлежит ли он порталу — решает сервер.
-			const options = await loadAccountOptions(memberId);
-			const pick = (
-				channel: "max" | "telegram" | "whatsapp",
-				label: string,
-			): OutreachAccountRef | null => {
-				const ref = input.accounts[channel];
-				if (!ref) return null;
-				const account = options[channel].find(
-					(a) =>
-						a.connectorId === ref.connectorId &&
-						a.openLineId === ref.openLineId,
-				);
-				if (account?.status !== "connected") {
-					throw new ORPCError("BAD_REQUEST", {
-						message: `Личный номер ${label} не подключён — выберите другой или выключите канал`,
-					});
-				}
-				return {
-					openLineId: account.openLineId,
-					connectorId: account.connectorId,
-					phone: account.phone,
-				};
-			};
-			const accounts: OutreachAccounts = {
-				max: pick("max", "MAX"),
-				telegram: pick("telegram", "Telegram"),
-				whatsapp: pick("whatsapp", "WhatsApp"),
-			};
-			if (
-				!accounts.max &&
-				!accounts.telegram &&
-				!accounts.whatsapp &&
-				!input.email
-			) {
-				throw new ORPCError("BAD_REQUEST", {
-					message: "Включите хотя бы один канал",
-				});
-			}
-
-			let email: {
-				templateId: string;
-				templateName: string | null;
-				subject: string;
-				senderEmail: string;
-				senderName: string | null;
-				provider: string;
-			} | null = null;
-			if (input.email) {
-				const template = await getEmailTemplate(input.email.templateId);
-				if (!template) {
-					throw new ORPCError("BAD_REQUEST", {
-						message: "Шаблон письма не найден",
-					});
-				}
-				const sender = await getActiveEmailSender();
-				if ("error" in sender) {
-					throw new ORPCError("BAD_REQUEST", { message: sender.error });
-				}
-				email = {
-					templateId: template.id,
-					templateName: input.email.templateName ?? template.title,
-					subject: input.email.subject,
-					senderEmail: sender.senderEmail,
-					senderName: sender.senderName ?? null,
-					provider: sender.provider,
-				};
-			}
-
-			const contacts = await listAllEmailListContacts(list.id);
-			if (contacts.length !== input.expectedRecipients) {
-				throw new ORPCError("CONFLICT", {
-					message: `Состав списка изменился с момента предпросмотра (было ${input.expectedRecipients}, стало ${contacts.length}). Обновите предпросмотр.`,
-				});
-			}
-			if (contacts.length === 0) {
-				throw new ORPCError("BAD_REQUEST", { message: "Список пуст" });
-			}
-
-			// Адрес из стоп-листа не используем как email-фолбэк — отписавшимся
-			// письма не шлём. Повторная проверка будет и в самой email-задаче.
-			const suppressed = await getEmailSuppressions(
-				contacts.map((c) => c.email).filter((e): e is string => !!e),
-			);
-
-			const campaignId = crypto.randomUUID();
-			await createOutreachCampaign({
-				id: campaignId,
-				listId: list.id,
-				listName: list.name,
-				memberId,
-				message: input.message,
-				accounts,
-				intervalSec: input.intervalSec,
-				emailTemplateId: email?.templateId ?? null,
-				emailTemplateName: email?.templateName ?? null,
-				emailSubject: email?.subject ?? null,
-				emailSenderEmail: email?.senderEmail ?? null,
-				emailSenderName: email?.senderName ?? null,
-				emailProvider: email?.provider ?? null,
-				publicBaseUrl: publicOriginFromHeaders(context.headers),
-				recipientsCount: contacts.length,
-			});
-			await insertOutreachRecipients(
-				contacts.map((c) => {
-					const emailSuppressed = c.email ? suppressed.has(c.email) : false;
-					// Без телефона и с адресом из стоп-листа писать некуда — сразу
-					// в отчёт как пропущенного, а не в очередь каскада.
-					const unreachable = emailSuppressed && !c.phone;
-					return {
-						id: crypto.randomUUID(),
-						campaignId,
-						listContactId: c.id,
-						name: c.name,
-						phone: c.phone,
-						email: emailSuppressed ? null : c.email,
-						status: unreachable ? "skipped" : "pending",
-						error: unreachable
-							? "Нет телефона, а email в стоп-листе (отписался или недоступен)"
-							: null,
-					};
-				}),
-			);
-
-			try {
-				await enqueueOutreach({ campaignId });
-			} catch (err) {
-				await finishOutreachCampaign(campaignId, {
-					status: "error",
-					error: `Не удалось запустить фоновую задачу: ${(err as Error).message}`,
-				});
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: `Рассылка не запущена: ${(err as Error).message}. Проверьте подключение Hatchet (HATCHET_CLIENT_TOKEN).`,
-				});
-			}
-			return { campaignId, queued: contacts.length };
-		}),
+	send: sendOutreach,
 
 	list: bitrixProcedure.handler(() => listOutreachCampaigns()),
 
@@ -301,9 +123,19 @@ export const outreachRouter = router({
 		.handler(({ input }) => listAllOutreachRecipients(input.id)),
 
 	cancel: bitrixProcedure.input(outreachIdSchema).handler(async ({ input }) => {
+		const campaign = await getOutreachCampaign(input.id);
 		const cancelled = await cancelOutreachCampaign(input.id);
 		if (!cancelled) {
 			throw new ORPCError("CONFLICT", { message: "Рассылка уже завершена" });
+		}
+		// Рассылка ждала отложенного запуска (ночь, лимит) — будим задачу
+		// сейчас, чтобы письма тем, кому мессенджеры не дошли, ушли сразу.
+		if (campaign?.resumeAt && campaign.resumeAt > new Date()) {
+			await enqueueOutreach({ campaignId: input.id }).catch((err: unknown) => {
+				console.error(
+					`[outreach] не удалось запустить задачу после отмены: ${(err as Error).message}`,
+				);
+			});
 		}
 		return { ok: true };
 	}),

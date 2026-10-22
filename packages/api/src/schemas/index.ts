@@ -92,13 +92,21 @@ export {
 	sendClientMessageSchema,
 } from "./messages";
 export {
-	OUTREACH_DEFAULT_INTERVAL_SEC,
+	OUTREACH_MAX_BATCH_PAUSE_MIN,
+	OUTREACH_MAX_DAILY_LIMIT,
+	OUTREACH_MAX_DEDUP_DAYS,
 	OUTREACH_MAX_INTERVAL_SEC,
+	OUTREACH_MESSENGER_CHANNELS,
 	OUTREACH_MIN_INTERVAL_SEC,
 	OUTREACH_RECIPIENT_FILTER_VALUES,
+	type OutreachChannelInput,
+	type OutreachMessengerChannelInput,
+	type OutreachWindowInput,
+	outreachChannelSchema,
 	outreachIdSchema,
 	outreachPreviewSchema,
 	outreachRecipientsQuerySchema,
+	outreachWindowSchema,
 	type SendOutreachInput,
 	sendOutreachSchema,
 } from "./outreach";
