@@ -1,19 +1,29 @@
 /**
  * Каскад каналов мультиканальной рассылки по списку: сообщение пробуется
- * через личные номера в заданном порядке (по умолчанию MAX → Telegram →
- * WhatsApp), а если ни один мессенджер не доставил — получатель уходит в
- * email-фазу (письмо отправляет обычная email-кампания, см. hatchet/outreach.ts).
+ * сначала через официальных ботов MAX → Telegram (если этот телефон уже
+ * писал боту, см. outreach/bot-targets.ts), затем через личные номера в
+ * заданном порядке (по умолчанию MAX → Telegram → WhatsApp), а если ни один
+ * мессенджер не доставил — получатель уходит в email-фазу (письмо
+ * отправляет обычная email-кампания, см. hatchet/outreach.ts).
  *
  * Модуль без побочных эффектов: отправители передаются снаружи, поэтому
  * правила каскада покрыты тестами без Redis/WAHA/воркеров.
  */
 
-export type MessengerChannel = "max" | "telegram" | "whatsapp";
+/** Личные номера — max/telegram/whatsapp; официальные боты — *_bot. */
+export type PersonalChannel = "max" | "telegram" | "whatsapp";
+export type BotChannel = "max_bot" | "telegram_bot";
+export type MessengerChannel = BotChannel | PersonalChannel;
+
+export function isBotChannel(channel: string): channel is BotChannel {
+	return channel === "max_bot" || channel === "telegram_bot";
+}
 
 /**
  * Итог попытки в одном канале:
  * - sent — доставлено мессенджеру; userId — ключ диалога для журнала;
- * - not_found — у получателя нет аккаунта в этом мессенджере;
+ * - not_found — у получателя нет аккаунта в этом мессенджере (для бота —
+ *   этот номер не писал боту или клиент заблокировал бота);
  * - failed — отправка не удалась, пробуем следующий канал;
  * - channel_down — канал не смог обработать сообщение (воркер не ответил,
  *   WAHA недоступна, номер в флуд-бане): пробуем следующий канал. fatal —

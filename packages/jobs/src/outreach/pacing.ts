@@ -6,10 +6,11 @@
  * Модуль без побочных эффектов: время и случайность передаются снаружи.
  */
 
-import type { MessengerChannel } from "./cascade";
+import type { PersonalChannel } from "./cascade";
 
+/** Темп — только у личных номеров: банят их, а не ботов. */
 export interface ChannelPacing {
-	channel: MessengerChannel;
+	channel: PersonalChannel;
 	minIntervalSec: number;
 	maxIntervalSec: number;
 	dailyLimit: number | null;
@@ -25,6 +26,9 @@ export interface SendWindow {
 }
 
 export interface OutreachPlan {
+	/** Сначала боты MAX → Telegram — тем, кто уже писал боту. */
+	useBots: boolean;
+	/** Личные номера в порядке приоритета. */
 	channels: ChannelPacing[];
 	onDailyLimit: "wait" | "skip";
 	window: SendWindow | null;
@@ -34,31 +38,35 @@ export interface OutreachPlan {
 const MOSCOW_OFFSET_MS = 3 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const MESSENGER_ORDER: MessengerChannel[] = ["max", "telegram", "whatsapp"];
+const MESSENGER_ORDER: PersonalChannel[] = ["max", "telegram", "whatsapp"];
 
 /**
  * План рассылки из сохранённых настроек. Рассылки, созданные до появления
- * настроек, идут как раньше: MAX → Telegram → WhatsApp, пауза intervalSec ±25%.
+ * настроек, идут как раньше: MAX → Telegram → WhatsApp, пауза intervalSec ±25%;
+ * созданные до шага с ботами — без ботов.
  */
 export function resolveOutreachPlan(campaign: {
 	settings: {
+		useBots?: boolean;
 		channels: ChannelPacing[];
 		onDailyLimit: "wait" | "skip";
 		window: SendWindow | null;
 	} | null;
-	accounts: Record<MessengerChannel, unknown>;
+	accounts: Record<PersonalChannel, unknown>;
 	intervalSec: number;
 }): OutreachPlan {
-	const enabled = (channel: MessengerChannel) =>
+	const enabled = (channel: PersonalChannel) =>
 		Boolean(campaign.accounts[channel]);
 	if (campaign.settings) {
 		return {
+			useBots: campaign.settings.useBots === true,
 			channels: campaign.settings.channels.filter((c) => enabled(c.channel)),
 			onDailyLimit: campaign.settings.onDailyLimit,
 			window: campaign.settings.window,
 		};
 	}
 	return {
+		useBots: false,
 		channels: MESSENGER_ORDER.filter(enabled).map((channel) => ({
 			channel,
 			minIntervalSec: Math.round(campaign.intervalSec * 0.75),
@@ -186,7 +194,7 @@ export class ChannelPacer {
 	}
 }
 
-const CHANNEL_LABELS: Record<MessengerChannel, string> = {
+const CHANNEL_LABELS: Record<PersonalChannel, string> = {
 	max: "MAX",
 	telegram: "Telegram",
 	whatsapp: "WhatsApp",
@@ -194,7 +202,7 @@ const CHANNEL_LABELS: Record<MessengerChannel, string> = {
 
 /** Подпись паузы для отчёта: «Перерыв Telegram после 20 сообщений». */
 export function describePause(
-	channel: MessengerChannel,
+	channel: PersonalChannel,
 	state: Exclude<PacerState, { kind: "ready" }>,
 	pacing: ChannelPacing,
 ): string {

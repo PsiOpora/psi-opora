@@ -61,7 +61,8 @@ export async function getOutreachAccountUsage(
 					isNull(outreachCampaigns.finishedAt),
 					gte(outreachCampaigns.finishedAt, since),
 				),
-				sql`${channel} <> 'email'`,
+				// Темп и лимиты — только у личных номеров; боты не в счёт.
+				sql`${channel} not in ('email', 'max_bot', 'telegram_bot')`,
 				sql`coalesce((${attempt}->>'skipped')::boolean, false) = false`,
 				sql`${at} >= ${sinceIso}::timestamptz`,
 			),

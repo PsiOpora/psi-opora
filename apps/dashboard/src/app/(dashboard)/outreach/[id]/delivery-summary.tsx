@@ -32,6 +32,8 @@ export function DeliverySummary({
 	const order = settings
 		? settings.channels.map((c) => c.channel)
 		: LEGACY_ORDER.filter((c) => accounts[c]);
+	// Боты — первый этап, если включены: шаги личных номеров идут после них.
+	const bots = settings?.useBots ? ["Бот MAX", "Бот Telegram"] : [];
 	const rules: string[] = [];
 	if (settings?.window) {
 		const { days, fromHour, toHour } = settings.window;
@@ -64,12 +66,17 @@ export function DeliverySummary({
 				</p>
 			)}
 			<ol className="flex flex-col gap-0.5">
+				{bots.map((label, index) => (
+					<li key={label}>
+						{index + 1}. {label} — если этот номер уже писал боту
+					</li>
+				))}
 				{order.map((channel, index) => {
 					const account = accounts[channel];
 					const pacing = settings?.channels.find((c) => c.channel === channel);
 					return (
 						<li key={channel}>
-							{index + 1}. {MESSENGER_LABELS[channel]}
+							{bots.length + index + 1}. Личный {MESSENGER_LABELS[channel]}
 							{account && ` ${formatPhone(account.phone)}`}
 							{" — "}
 							{pacing
@@ -80,7 +87,7 @@ export function DeliverySummary({
 				})}
 				{campaign.emailTemplateId && (
 					<li>
-						{order.length + 1}. Email «
+						{bots.length + order.length + 1}. Email «
 						{campaign.emailSubject ?? campaign.emailTemplateName ?? ""}»
 					</li>
 				)}

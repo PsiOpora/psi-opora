@@ -1,9 +1,11 @@
 import { Badge } from "@/components/ui/badge";
 
 export const CHANNEL_LABELS: Record<string, string> = {
-	max: "MAX",
-	telegram: "Telegram",
-	whatsapp: "WhatsApp",
+	max_bot: "Бот MAX",
+	telegram_bot: "Бот Telegram",
+	max: "Личный MAX",
+	telegram: "Личный Telegram",
+	whatsapp: "Личный WhatsApp",
 	email: "Email",
 };
 

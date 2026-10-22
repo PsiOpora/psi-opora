@@ -55,9 +55,10 @@ export function OutreachHistory() {
 								<TableHead>Список</TableHead>
 								<TableHead>Сообщение</TableHead>
 								<TableHead className="text-right">Всего</TableHead>
-								<TableHead className="text-right">MAX</TableHead>
-								<TableHead className="text-right">Telegram</TableHead>
-								<TableHead className="text-right">WhatsApp</TableHead>
+								<TableHead className="text-right">Боты</TableHead>
+								<TableHead className="text-right">Личный MAX</TableHead>
+								<TableHead className="text-right">Личный Telegram</TableHead>
+								<TableHead className="text-right">Личный WhatsApp</TableHead>
 								<TableHead className="text-right">Email</TableHead>
 								<TableHead className="text-right">Не дошло</TableHead>
 								<TableHead>Статус</TableHead>
@@ -82,6 +83,9 @@ export function OutreachHistory() {
 									</TableCell>
 									<TableCell className="text-right tabular-nums">
 										{c.stats.total.toLocaleString("ru-RU")}
+									</TableCell>
+									<TableCell className="text-right tabular-nums">
+										{c.stats.sentBots.toLocaleString("ru-RU")}
 									</TableCell>
 									<TableCell className="text-right tabular-nums">
 										{c.stats.sentMax.toLocaleString("ru-RU")}

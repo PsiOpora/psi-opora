@@ -5,7 +5,13 @@
  * (ночь, выходные, следующие сутки), задача передаёт отложенному запуску.
  */
 
-import type { CascadeAttempt, GateDecision, MessengerChannel } from "./cascade";
+import {
+	type CascadeAttempt,
+	type GateDecision,
+	isBotChannel,
+	type MessengerChannel,
+	type PersonalChannel,
+} from "./cascade";
 import {
 	type ChannelPacer,
 	describePause,
@@ -61,12 +67,14 @@ export type StopReason = Exclude<WaitResult, { kind: "ok" }>;
 /**
  * Шлюз каскада: перед попыткой в канал ждёт окно отправки и паузу номера,
  * а при исчерпанном дневном лимите либо ждёт следующих суток, либо
- * пропускает канал (как задано в рассылке). Почему каскад остановлен —
+ * пропускает канал (как задано в рассылке). Боты соблюдают только окно
+ * отправки: пауз и лимитов у них нет — банят личные номера, а пишет бот
+ * только тем, кто сам ему писал. Почему каскад остановлен —
  * в stopReason(), чтобы задача решила: отменять или передавать эстафету.
  */
 export function createPacingGate(params: {
 	plan: OutreachPlan;
-	pacers: Map<MessengerChannel, ChannelPacer>;
+	pacers: Map<PersonalChannel, ChannelPacer>;
 	waitUntil: ReturnType<typeof createWaiter>;
 	/** Перед отправкой — получатель «в процессе» (с уже сделанными попытками). */
 	onSend: (attempts: CascadeAttempt[]) => Promise<void>;
@@ -79,13 +87,17 @@ export function createPacingGate(params: {
 		channel: MessengerChannel,
 		attempts: CascadeAttempt[],
 	): Promise<GateDecision> {
-		const pacer = params.pacers.get(channel);
-		if (!pacer) return { kind: "go" };
+		const bot = isBotChannel(channel);
+		const pacer = bot ? null : params.pacers.get(channel);
+		if (!bot && !pacer) return { kind: "go" };
 		for (;;) {
 			let waited: WaitResult;
 			const opening = nextWindowOpening(now(), params.plan.window);
 			if (opening) {
 				waited = await params.waitUntil(opening, "Вне окна отправки");
+			} else if (bot || !pacer) {
+				await params.onSend(attempts);
+				return { kind: "go" };
 			} else {
 				const state = pacer.state(now());
 				if (state.kind === "ready") {
@@ -93,7 +105,7 @@ export function createPacingGate(params: {
 					await params.onSend(attempts);
 					return { kind: "go" };
 				}
-				const reason = describePause(channel, state, pacer.pacing);
+				const reason = describePause(pacer.pacing.channel, state, pacer.pacing);
 				if (
 					state.kind === "daily_limit" &&
 					params.plan.onDailyLimit === "skip"

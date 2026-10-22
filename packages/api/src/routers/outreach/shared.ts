@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import {
 	findRecentlyContactedOutreach,
+	getBotConnector,
 	listMaxPersonalAccounts,
 	listTelegramPersonalAccounts,
 	listWhatsappPersonalAccounts,
@@ -22,6 +23,23 @@ export function requireMember(memberId: string | null): string {
 		});
 	}
 	return memberId;
+}
+
+/** Подключённые официальные боты (есть токен) — первый этап рассылки. */
+export interface OutreachBotOptions {
+	max: boolean;
+	telegram: boolean;
+}
+
+export async function loadBotOptions(): Promise<OutreachBotOptions> {
+	const [max, telegram] = await Promise.all([
+		getBotConnector("max").catch(() => null),
+		getBotConnector("telegram").catch(() => null),
+	]);
+	return {
+		max: Boolean(max?.botTokenEncrypted),
+		telegram: Boolean(telegram?.botTokenEncrypted),
+	};
 }
 
 export async function loadAccountOptions(memberId: string) {

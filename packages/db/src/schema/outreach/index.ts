@@ -9,9 +9,25 @@ import {
 import { emailCampaigns } from "../email-campaign";
 import { emailLists } from "../email-lists";
 
-/** Канал мультиканальной рассылки; порядок мессенджеров задаётся при запуске, email — всегда последний. */
-export type OutreachChannel = "max" | "telegram" | "whatsapp" | "email";
-export type OutreachMessengerChannel = Exclude<OutreachChannel, "email">;
+/**
+ * Канал мультиканальной рассылки. Сначала — официальные боты (max_bot,
+ * telegram_bot; только тем, кто уже писал боту), затем личные номера
+ * (max/telegram/whatsapp) в заданном при запуске порядке, email — всегда
+ * последний.
+ */
+export type OutreachChannel =
+	| "max_bot"
+	| "telegram_bot"
+	| "max"
+	| "telegram"
+	| "whatsapp"
+	| "email";
+export type OutreachBotChannel = "max_bot" | "telegram_bot";
+/** Личные номера — у них темп, лимиты и порядок в настройках рассылки. */
+export type OutreachMessengerChannel = Exclude<
+	OutreachChannel,
+	"email" | OutreachBotChannel
+>;
 
 /** Личный номер, выбранный для канала при запуске (null — канал выключен). */
 export interface OutreachAccountRef {
@@ -62,7 +78,13 @@ export interface OutreachSendWindow {
 }
 
 export interface OutreachSettings {
-	/** Включённые мессенджеры в порядке приоритета. */
+	/**
+	 * Сначала пробовать ботов MAX → Telegram: контакт ищется по телефону, бот
+	 * пишет, только если этот номер уже писал боту. Нет поля — рассылка
+	 * создана до появления шага с ботами.
+	 */
+	useBots?: boolean;
+	/** Включённые личные номера в порядке приоритета. */
 	channels: OutreachChannelPacing[];
 	/** wait — ждать следующих суток; skip — пропускать канал и идти дальше по цепочке. */
 	onDailyLimit: "wait" | "skip";
@@ -72,7 +94,8 @@ export interface OutreachSettings {
 }
 
 /**
- * Рассылка по списку контактов через личные номера с каскадом каналов в
+ * Рассылка по списку контактов с каскадом каналов: сначала официальные боты
+ * MAX/Telegram (если этот телефон уже писал боту), затем личные номера в
  * заданном порядке (по умолчанию MAX → Telegram → WhatsApp), а кому не
  * удалось написать ни в один мессенджер — письмо (через обычную
  * email-кампанию, см. emailCampaignId).

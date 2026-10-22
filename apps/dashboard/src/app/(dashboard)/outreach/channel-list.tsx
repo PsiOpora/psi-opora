@@ -40,10 +40,13 @@ export function ChannelList({
 	channels,
 	options,
 	onChange,
+	startStep = 1,
 }: {
 	channels: ChannelDraft[];
 	options: OutreachOptions;
 	onChange: (channels: ChannelDraft[]) => void;
+	/** Номер первого включённого канала в общей цепочке (после ботов). */
+	startStep?: number;
 }) {
 	const update = (index: number, patch: Partial<ChannelDraft>) =>
 		onChange(channels.map((c, i) => (i === index ? { ...c, ...patch } : c)));
@@ -56,8 +59,8 @@ export function ChannelList({
 		onChange(next);
 	};
 
-	// Номер в цепочке — только у включённых каналов.
-	let step = 0;
+	// Номер в цепочке — только у включённых каналов, сквозной с ботами.
+	let step = startStep - 1;
 	return (
 		<div className="flex flex-col gap-2">
 			{channels.map((draft, index) => {
@@ -154,7 +157,7 @@ function ChannelCard({
 						htmlFor={`outreach-channel-${draft.channel}`}
 						className="font-medium"
 					>
-						{label}
+						Личный {label}
 					</Label>
 				</div>
 
