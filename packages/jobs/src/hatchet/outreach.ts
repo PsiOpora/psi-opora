@@ -40,6 +40,7 @@ export type DeliverOutreachPayload = {
 const RUN_BUDGET_MS = 50 * 60 * 1000;
 const BATCH_SIZE = 100;
 const WORKFLOW_NAME = "outreach-deliver";
+const CONTINUATION_RETRY_MS = 60_000;
 
 /** Журнал bot_messages: под этими messenger лежат диалоги личных номеров. */
 const JOURNAL_MESSENGER: Record<MessengerChannel, string> = {
@@ -152,22 +153,37 @@ export const deliverOutreach = CreateTaskWorkflow({
 			emailPhaseStarted = true;
 			return startEmailFallback(campaign.id);
 		};
-		/** Продолжение — отложенным запуском (или сразу, если отложить не вышло). */
+		/** Продолжение — отложенным запуском, при сбое планировщика — после паузы. */
 		const continueLater = async (until: Date, reason: string) => {
 			try {
 				await getHatchetClient().scheduled.create(WORKFLOW_NAME, {
 					triggerAt: until,
 					input: payload,
 				});
+			} catch (err) {
+				console.error(
+					`[outreach] не удалось отложить запуск, повторим после паузы: ${(err as Error).message}`,
+				);
+				// Долгое ожидание превысит тайм-аут задачи; следующий запуск
+				// снова проверит окно отправки и лимиты перед доставкой.
+				await sleep(
+					Math.min(
+						CONTINUATION_RETRY_MS,
+						Math.max(0, until.getTime() - Date.now()),
+					),
+				);
+				await getHatchetClient().runNoWait(deliverOutreach, payload);
+				return;
+			}
+			try {
 				await setOutreachCampaignPause(campaign.id, {
 					resumeAt: until,
 					reason,
 				});
 			} catch (err) {
 				console.error(
-					`[outreach] не удалось отложить запуск, продолжаем сразу: ${(err as Error).message}`,
+					`[outreach] запуск отложен, но не удалось записать паузу: ${(err as Error).message}`,
 				);
-				await getHatchetClient().runNoWait(deliverOutreach, payload);
 			}
 		};
 

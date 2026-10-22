@@ -325,12 +325,44 @@ export function deliveryProblems(draft: DeliveryDraft): string[] {
 			);
 		if (c.maxIntervalSec < c.minIntervalSec)
 			problems.push(`${label}: максимальная пауза меньше минимальной`);
+		if (
+			c.dailyLimit !== null &&
+			(!Number.isInteger(c.dailyLimit) ||
+				c.dailyLimit < 1 ||
+				c.dailyLimit > OUTREACH_MAX_DAILY_LIMIT)
+		)
+			problems.push(
+				`${label}: дневной лимит — целое число от 1 до ${OUTREACH_MAX_DAILY_LIMIT}`,
+			);
+		if (
+			c.batchSize !== null &&
+			(!Number.isInteger(c.batchSize) || c.batchSize < 1 || c.batchSize > 1000)
+		)
+			problems.push(`${label}: размер партии — целое число от 1 до 1000`);
+		if (
+			c.batchSize !== null &&
+			(!Number.isInteger(c.batchPauseMin) ||
+				c.batchPauseMin < 1 ||
+				c.batchPauseMin > OUTREACH_MAX_BATCH_PAUSE_MIN)
+		)
+			problems.push(
+				`${label}: перерыв — целое число от 1 до ${OUTREACH_MAX_BATCH_PAUSE_MIN} мин`,
+			);
 	}
 	if (draft.windowEnabled) {
 		if (draft.window.days.length === 0) problems.push("выберите дни отправки");
 		if (draft.window.toHour <= draft.window.fromHour)
 			problems.push("окно отправки: конец раньше начала");
 	}
+	if (
+		draft.dedupEnabled &&
+		(!Number.isInteger(draft.dedupDays) ||
+			draft.dedupDays < 1 ||
+			draft.dedupDays > OUTREACH_MAX_DEDUP_DAYS)
+	)
+		problems.push(
+			`защита от повторов — целое число от 1 до ${OUTREACH_MAX_DEDUP_DAYS} дн.`,
+		);
 	return problems;
 }
 
