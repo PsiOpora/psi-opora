@@ -17,6 +17,7 @@ import { sendOutreachSchema } from "../../schemas/outreach";
 import { getActiveEmailSender } from "../email-broadcast/active-sender";
 import {
 	loadAccountOptions,
+	loadBotOptions,
 	recentlyContactedChecker,
 	requireMember,
 } from "./shared";
@@ -60,12 +61,15 @@ export const sendOutreach = bitrixProcedure
 				phone: account.phone,
 			};
 		}
-		if (input.channels.length === 0 && !input.email) {
+		const bots = await loadBotOptions();
+		const useBots = input.useBots && (bots.max || bots.telegram);
+		if (!useBots && input.channels.length === 0 && !input.email) {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Включите хотя бы один канал",
 			});
 		}
 		const settings: OutreachSettings = {
+			useBots,
 			channels: input.channels.map((c) => ({
 				channel: c.channel,
 				minIntervalSec: c.minIntervalSec,

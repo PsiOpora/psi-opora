@@ -11,6 +11,8 @@ import {
 	sql,
 } from "drizzle-orm";
 import { db } from "../client";
+import { bookPreorderOrders } from "../schema/book-preorder-orders";
+import { botGuideDeliveries } from "../schema/bot-guide-deliveries";
 import { emailCampaignRecipients } from "../schema/email-campaign";
 import {
 	type OutreachAttempt,
@@ -295,6 +297,8 @@ export async function markInterruptedOutreachRecipients(
 export interface OutreachStats {
 	total: number;
 	pending: number;
+	/** Через официальных ботов MAX/Telegram (номер уже писал боту). */
+	sentBots: number;
 	sentMax: number;
 	sentTelegram: number;
 	sentWhatsapp: number;
@@ -308,6 +312,7 @@ export interface OutreachStats {
 const EMPTY_STATS: OutreachStats = {
 	total: 0,
 	pending: 0,
+	sentBots: 0,
 	sentMax: 0,
 	sentTelegram: 0,
 	sentWhatsapp: 0,
@@ -331,7 +336,9 @@ function toStats(
 				stats.pending += n;
 				break;
 			case "sent":
-				if (row.channel === "max") stats.sentMax += n;
+				if (row.channel === "max_bot" || row.channel === "telegram_bot")
+					stats.sentBots += n;
+				else if (row.channel === "max") stats.sentMax += n;
 				else if (row.channel === "telegram") stats.sentTelegram += n;
 				else if (row.channel === "whatsapp") stats.sentWhatsapp += n;
 				break;
@@ -409,6 +416,7 @@ export async function listOutreachCampaigns(
 
 export const OUTREACH_RECIPIENT_FILTERS = [
 	"all",
+	"bots",
 	"max",
 	"telegram",
 	"whatsapp",
@@ -426,6 +434,11 @@ function filterCondition(filter: OutreachRecipientFilter): SQL | undefined {
 	switch (filter) {
 		case "all":
 			return undefined;
+		case "bots":
+			return and(
+				eq(r.status, "sent"),
+				inArray(r.channel, ["max_bot", "telegram_bot"]),
+			);
 		case "max":
 		case "telegram":
 		case "whatsapp":
@@ -525,4 +538,62 @@ export async function listAllOutreachRecipients(
 		eq(outreachRecipients.campaignId, campaignId),
 	).orderBy(asc(outreachRecipients.id));
 	return rows.map(toRecipientRow);
+}
+
+/** Диалог с официальным ботом (messenger — telegram | max, userId — ID в мессенджере). */
+export interface BotDialogRef {
+	messenger: "telegram" | "max";
+	userId: string;
+}
+
+/**
+ * Диалоги с ботами, в которых клиент сам оставил этот телефон в сценарии
+ * (выдача материала, предзаказ книги). Номера там записаны как ввёл клиент
+ * («8 999…», «+7999…»), поэтому сравниваем по последним 10 цифрам.
+ */
+export async function listBotDialogsByScenarioPhone(
+	phone: string,
+): Promise<BotDialogRef[]> {
+	if (!db) return [];
+	const digits = phone.replace(/\D/g, "");
+	if (digits.length < 10) return [];
+	const tail = digits.slice(-10);
+	const matches = (
+		column: typeof botGuideDeliveries.phone | typeof bookPreorderOrders.phone,
+	) => sql`right(regexp_replace(${column}, '[^0-9]', '', 'g'), 10) = ${tail}`;
+	const bots = ["telegram", "max"];
+	const [guides, preorders] = await Promise.all([
+		db
+			.select({
+				messenger: botGuideDeliveries.messenger,
+				userId: botGuideDeliveries.userId,
+			})
+			.from(botGuideDeliveries)
+			.where(
+				and(
+					inArray(botGuideDeliveries.messenger, bots),
+					matches(botGuideDeliveries.phone),
+				),
+			)
+			.orderBy(desc(botGuideDeliveries.deliveredAt))
+			.limit(10),
+		db
+			.select({
+				messenger: bookPreorderOrders.messenger,
+				userId: bookPreorderOrders.userId,
+			})
+			.from(bookPreorderOrders)
+			.where(
+				and(
+					inArray(bookPreorderOrders.messenger, bots),
+					matches(bookPreorderOrders.phone),
+				),
+			)
+			.limit(10),
+	]);
+	return [...guides, ...preorders].flatMap((row) =>
+		row.messenger === "telegram" || row.messenger === "max"
+			? [{ messenger: row.messenger, userId: row.userId }]
+			: [],
+	);
 }

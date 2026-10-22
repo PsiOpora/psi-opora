@@ -2,9 +2,9 @@ import type { OutreachSender, SendOutcome } from "./cascade";
 
 /**
  * Реальные отправители каскада — личные номера MAX/Telegram (через очереди
- * always-on воркеров в Redis) и WhatsApp (WAHA по REST). Пакеты userbot'ов
- * импортируются лениво: mtcute и протокол MAX нужны только при запуске
- * рассылки, а не при индексации задач Hatchet.
+ * always-on воркеров в Redis) и WhatsApp (WAHA по REST); боты — в
+ * bot-sender.ts. Пакеты userbot'ов импортируются лениво: mtcute и протокол
+ * MAX нужны только при запуске рассылки, а не при индексации задач Hatchet.
  */
 
 export interface PersonalAccountRef {

@@ -44,7 +44,9 @@ export interface ChannelDraft extends Pacing {
 }
 
 export interface DeliveryDraft {
-	/** Все мессенджеры в порядке приоритета (выключенные тоже — чтобы не терять место). */
+	/** Этап 1 — боты MAX/Telegram тем, чей номер уже писал боту. */
+	useBots: boolean;
+	/** Все личные номера в порядке приоритета (выключенные тоже — чтобы не терять место). */
 	channels: ChannelDraft[];
 	onDailyLimit: "wait" | "skip";
 	windowEnabled: boolean;
@@ -145,6 +147,7 @@ export function findAccount(
 
 export function defaultDraft(options: OutreachOptions): DeliveryDraft {
 	return {
+		useBots: true,
 		channels: OUTREACH_MESSENGER_CHANNELS.map((channel) => {
 			const key = firstConnected(options[channel]);
 			return {
@@ -254,6 +257,7 @@ export function loadDraft(options: OutreachOptions): DeliveryDraft {
 		: [];
 	const fromHour = clampInt(w?.fromHour, 0, 23, base.window.fromHour);
 	return {
+		useBots: typeof saved.useBots === "boolean" ? saved.useBots : base.useBots,
 		channels,
 		onDailyLimit: saved.onDailyLimit === "skip" ? "skip" : "wait",
 		windowEnabled:

@@ -93,6 +93,7 @@ export type {
 } from "./routers/messages";
 export type {
 	OutreachAccountOption,
+	OutreachBotOptions,
 	OutreachOptions,
 	OutreachPreview,
 } from "./routers/outreach";

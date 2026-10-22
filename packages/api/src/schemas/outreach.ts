@@ -88,7 +88,12 @@ export const sendOutreachSchema = z.object({
 			MESSAGE_MAX_LENGTH,
 			`Сообщение длиннее ${MESSAGE_MAX_LENGTH} символов`,
 		),
-	/** Включённые мессенджеры в порядке приоритета; выключенных здесь нет. */
+	/**
+	 * Первый этап — боты MAX → Telegram: контакт ищется по телефону, бот
+	 * пишет, только если этот номер уже писал боту. Остальным — личные номера.
+	 */
+	useBots: z.boolean().default(true),
+	/** Включённые личные номера в порядке приоритета; выключенных здесь нет. */
 	channels: z
 		.array(outreachChannelSchema)
 		.max(OUTREACH_MESSENGER_CHANNELS.length)
@@ -119,6 +124,7 @@ export const outreachIdSchema = z.object({ id: z.string().min(1) });
 
 export const OUTREACH_RECIPIENT_FILTER_VALUES = [
 	"all",
+	"bots",
 	"max",
 	"telegram",
 	"whatsapp",

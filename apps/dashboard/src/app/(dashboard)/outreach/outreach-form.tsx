@@ -40,6 +40,12 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { orpc } from "@/lib/orpc/client";
+import {
+	BotsStage,
+	connectedBots,
+	StageHeading,
+	StageTransition,
+} from "./bots-stage";
 import { ChannelList } from "./channel-list";
 import {
 	activeChannels,
@@ -111,6 +117,8 @@ export function OutreachForm({
 	);
 
 	const channels = activeChannels(delivery, options);
+	const bots = delivery.useBots ? connectedBots(options.bots) : [];
+	const useBots = bots.length > 0;
 	const useEmail = emailEnabled && emailAvailable;
 	const sendWindow = delivery.windowEnabled ? delivery.window : null;
 
@@ -120,7 +128,7 @@ export function OutreachForm({
 	if (!trimmed) problems.push("введите текст сообщения");
 	if (trimmed.length > MESSAGE_MAX_LENGTH)
 		problems.push(`сообщение длиннее ${MESSAGE_MAX_LENGTH} символов`);
-	if (channels.length === 0 && !useEmail)
+	if (!useBots && channels.length === 0 && !useEmail)
 		problems.push("включите хотя бы один канал");
 	if (useEmail && (!templateId || !subject.trim()))
 		problems.push("выберите шаблон и тему письма");
@@ -128,7 +136,8 @@ export function OutreachForm({
 	if (preview && preview.total === 0) problems.push("список пуст");
 
 	const routeSummary = [
-		...channels.map((c) => MESSENGER_LABELS[c.channel]),
+		...bots.map((b) => b.label),
+		...channels.map((c) => `Личный ${MESSENGER_LABELS[c.channel]}`),
 		...(useEmail ? ["Email"] : []),
 	].join(" → ");
 	const duration =
@@ -142,6 +151,7 @@ export function OutreachForm({
 		send.mutate({
 			listId,
 			message: trimmed,
+			useBots,
 			channels,
 			onDailyLimit: delivery.onDailyLimit,
 			window: sendWindow,
@@ -158,9 +168,10 @@ export function OutreachForm({
 			<CardHeader>
 				<CardTitle>Новая рассылка</CardTitle>
 				<CardDescription>
-					Каждому контакту сообщение пробуется по каналам сверху вниз: если
-					номера нет в мессенджере или отправка не удалась — следующий канал.
-					Один контакт получает сообщение только по одному каналу.
+					Каждому контакту сообщение пробуется по этапам. Сначала — боты MAX и
+					Telegram, если этот номер телефона уже писал боту. Если не писал —
+					личные номера по порядку, а если и они не доставили — письмо. Один
+					контакт получает сообщение только по одному каналу.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-6">
@@ -224,9 +235,9 @@ export function OutreachForm({
 						<div>
 							<Label>Каналы и порядок</Label>
 							<p className="mt-1 text-xs text-muted-foreground">
-								Стрелками меняется приоритет, переключателем канал выключается.
-								Темп задаётся для каждого номера отдельно — блокируют именно
-								номер.
+								Боты всегда первые. Порядок личных номеров меняется стрелками,
+								переключателем канал выключается. Темп задаётся для каждого
+								номера отдельно — блокируют именно номер.
 							</p>
 						</div>
 						<Button
@@ -239,25 +250,62 @@ export function OutreachForm({
 							Сбросить настройки
 						</Button>
 					</div>
-					<ChannelList
-						channels={delivery.channels}
-						options={options}
-						onChange={(next) => patchDelivery({ channels: next })}
-					/>
-					<EmailFallback
-						options={options}
-						templates={templates}
-						step={useEmail ? channels.length + 1 : null}
-						enabled={useEmail}
-						onEnabledChange={setEmailEnabled}
-						templateId={templateId}
-						onTemplateChange={(template) => {
-							setTemplateId(template.id);
-							setSubject(template.subject);
-						}}
-						subject={subject}
-						onSubjectChange={setSubject}
-					/>
+					<div className="flex flex-col gap-2">
+						<StageHeading
+							stage={1}
+							title="Боты MAX и Telegram"
+							condition="если этот номер уже писал боту"
+							muted={!useBots}
+						/>
+						<BotsStage
+							bots={options.bots}
+							enabled={delivery.useBots}
+							onEnabledChange={(useBots) => patchDelivery({ useBots })}
+							startStep={1}
+						/>
+					</div>
+					<StageTransition>
+						Номер не писал ботам, удалил чат или заблокировал бота — этап 2
+					</StageTransition>
+					<div className="flex flex-col gap-2">
+						<StageHeading
+							stage={2}
+							title="Личные номера"
+							condition="пишем первыми, по порядку сверху вниз"
+							muted={channels.length === 0}
+						/>
+						<ChannelList
+							channels={delivery.channels}
+							options={options}
+							onChange={(next) => patchDelivery({ channels: next })}
+							startStep={bots.length + 1}
+						/>
+					</div>
+					<StageTransition>
+						Номера нет ни в одном мессенджере или отправка не удалась — этап 3
+					</StageTransition>
+					<div className="flex flex-col gap-2">
+						<StageHeading
+							stage={3}
+							title="Email"
+							condition="если мессенджеры не доставили"
+							muted={!useEmail}
+						/>
+						<EmailFallback
+							options={options}
+							templates={templates}
+							step={useEmail ? bots.length + channels.length + 1 : null}
+							enabled={useEmail}
+							onEnabledChange={setEmailEnabled}
+							templateId={templateId}
+							onTemplateChange={(template) => {
+								setTemplateId(template.id);
+								setSubject(template.subject);
+							}}
+							subject={subject}
+							onSubjectChange={setSubject}
+						/>
+					</div>
 				</div>
 
 				<Separator />
@@ -283,7 +331,8 @@ export function OutreachForm({
 								<span className="text-muted-foreground">
 									{" "}
 									· отправка в мессенджеры займёт {duration} (оценка, если все
-									сообщения пойдут через первый канал)
+									сообщения пойдут через первый личный номер
+									{useBots ? "; тем, кто писал боту, — быстрее" : ""})
 								</span>
 							)}
 						</p>

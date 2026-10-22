@@ -20,14 +20,18 @@ import { getActiveEmailSender } from "../email-broadcast/active-sender";
 import { sendOutreach } from "./send";
 import {
 	loadAccountOptions,
+	loadBotOptions,
 	type OutreachAccountOption,
+	type OutreachBotOptions,
 	recentlyContactedChecker,
 	requireMember,
 } from "./shared";
 
-export type { OutreachAccountOption };
+export type { OutreachAccountOption, OutreachBotOptions };
 
 export interface OutreachOptions {
+	/** Боты — первый этап: пишут тем, чей номер уже писал боту. */
+	bots: OutreachBotOptions;
 	max: OutreachAccountOption[];
 	telegram: OutreachAccountOption[];
 	whatsapp: OutreachAccountOption[];
@@ -51,13 +55,17 @@ export interface OutreachPreview {
 }
 
 export const outreachRouter = router({
-	/** Подключённые личные номера и состояние email — для формы рассылки. */
+	/** Подключённые боты, личные номера и состояние email — для формы рассылки. */
 	options: bitrixProcedure.handler(
 		async ({ context }): Promise<OutreachOptions> => {
 			const memberId = requireMember(context.memberId);
-			const accounts = await loadAccountOptions(memberId);
-			const sender = await getActiveEmailSender();
+			const [accounts, bots, sender] = await Promise.all([
+				loadAccountOptions(memberId),
+				loadBotOptions(),
+				getActiveEmailSender(),
+			]);
 			return {
+				bots,
 				...accounts,
 				email:
 					"error" in sender

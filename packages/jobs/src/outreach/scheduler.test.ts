@@ -90,7 +90,13 @@ describe("createPacingGate", () => {
 		]);
 		const sent: number[] = [];
 		const gate = createPacingGate({
-			plan: { channels: [pacing], onDailyLimit: "skip", window: null, ...plan },
+			plan: {
+				useBots: false,
+				channels: [pacing],
+				onDailyLimit: "skip",
+				window: null,
+				...plan,
+			},
 			pacers,
 			waitUntil: createWaiter({
 				runEnd: c.now() + 60 * 60 * 1000,
@@ -134,6 +140,23 @@ describe("createPacingGate", () => {
 			kind: "handoff",
 			reason: "Вне окна отправки",
 			until: new Date("2026-10-22T09:00:00Z"),
+		});
+	});
+
+	test("бот: без пауз и лимитов номера, но в окне отправки", async () => {
+		const { gate, sent } = setup({});
+		// Лимит личного MAX (1 в сутки) на бота не влияет.
+		expect((await gate.gate("max_bot", [])).kind).toBe("go");
+		expect((await gate.gate("max_bot", [])).kind).toBe("go");
+		expect(sent).toHaveLength(2);
+
+		const night = setup({
+			window: { days: [1, 2, 3, 4, 5], fromHour: 12, toHour: 18 },
+		});
+		expect((await night.gate.gate("telegram_bot", [])).kind).toBe("stop");
+		expect(night.gate.takeStopReason()).toMatchObject({
+			kind: "handoff",
+			reason: "Вне окна отправки",
 		});
 	});
 });

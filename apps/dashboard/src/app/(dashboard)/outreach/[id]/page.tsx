@@ -295,7 +295,7 @@ export default function OutreachReportPage() {
 				</CardContent>
 			</Card>
 
-			<div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+			<div className="grid grid-cols-2 gap-3 md:grid-cols-5 xl:grid-cols-9">
 				<StatTile
 					label="Всего"
 					value={stats.total}
@@ -303,19 +303,26 @@ export default function OutreachReportPage() {
 					onClick={() => selectFilter("all")}
 				/>
 				<StatTile
-					label="MAX"
+					label="Боты"
+					value={stats.sentBots}
+					hint="номер уже писал боту"
+					active={filter === "bots"}
+					onClick={() => selectFilter("bots")}
+				/>
+				<StatTile
+					label="Личный MAX"
 					value={stats.sentMax}
 					active={filter === "max"}
 					onClick={() => selectFilter("max")}
 				/>
 				<StatTile
-					label="Telegram"
+					label="Личный Telegram"
 					value={stats.sentTelegram}
 					active={filter === "telegram"}
 					onClick={() => selectFilter("telegram")}
 				/>
 				<StatTile
-					label="WhatsApp"
+					label="Личный WhatsApp"
 					value={stats.sentWhatsapp}
 					active={filter === "whatsapp"}
 					onClick={() => selectFilter("whatsapp")}

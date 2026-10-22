@@ -3,10 +3,14 @@ import {
 	CreateTaskWorkflow,
 } from "@hatchet-dev/typescript-sdk/v1";
 import { sleep } from "../messenger";
+import { createBotSender } from "../outreach/bot-sender";
+import { createBotTargetLookup } from "../outreach/bot-targets";
 import {
 	ChannelBreaker,
+	isBotChannel,
 	type MessengerChannel,
 	type OutreachSender,
+	type PersonalChannel,
 	personalizeMessage,
 	runCascade,
 } from "../outreach/cascade";
@@ -41,16 +45,24 @@ const RUN_BUDGET_MS = 50 * 60 * 1000;
 const BATCH_SIZE = 100;
 const WORKFLOW_NAME = "outreach-deliver";
 const CONTINUATION_RETRY_MS = 60_000;
+/**
+ * Пауза после каждого контакта с телефоном, если включены боты: на каждый
+ * номер — поиск в CRM (2–3 запроса), а лимит Bitrix24 — ~2 запроса в секунду.
+ * Паузы личных номеров считает их темп (pacing.ts), эта — только для CRM.
+ */
+const BOT_LOOKUP_PAUSE_MS = 1000;
 
-/** Журнал bot_messages: под этими messenger лежат диалоги личных номеров. */
+/** Журнал bot_messages: под этими messenger лежат диалоги ботов и личных номеров. */
 const JOURNAL_MESSENGER: Record<MessengerChannel, string> = {
+	max_bot: "max",
+	telegram_bot: "telegram",
 	max: "max-personal",
 	telegram: "telegram-personal",
 	whatsapp: "whatsapp-personal",
 };
 
 const SENDER_FACTORY: Record<
-	MessengerChannel,
+	PersonalChannel,
 	(account: PersonalAccountRef) => OutreachSender
 > = {
 	max: createMaxSender,
@@ -59,9 +71,11 @@ const SENDER_FACTORY: Record<
 };
 
 /**
- * Рассылка по списку контактов через личные номера: каждому получателю
- * сообщение пробуется по каналам в заданном порядке (см. outreach/cascade.ts)
- * с соблюдением темпа каждого номера (outreach/pacing.ts), а тех, до кого
+ * Рассылка по списку контактов: каждому получателю сообщение пробуется
+ * сначала через ботов MAX → Telegram (если этот телефон уже писал боту, см.
+ * outreach/bot-targets.ts), затем с личных номеров в заданном порядке (см.
+ * outreach/cascade.ts) с соблюдением темпа каждого номера
+ * (outreach/pacing.ts), а тех, до кого
  * не дошло ни одно, в конце передаём в обычную email-кампанию — так письма
  * получают отписку, стоп-лист и статистику открытий/доставки email-рассылок.
  */
@@ -112,15 +126,23 @@ export const deliverOutreach = CreateTaskWorkflow({
 
 		const { accounts, memberId } = campaign;
 		const plan = resolveOutreachPlan(campaign);
-		const senders = plan.channels.flatMap((c) => {
+		const senders: OutreachSender[] = [];
+		if (plan.useBots) {
+			// Бот пишет только тем, кто сам открывал с ним диалог, и не рискует
+			// баном личного номера — поэтому всегда первым. Поиск по телефону
+			// общий для обоих ботов.
+			const findTargets = await createBotTargetLookup(memberId);
+			senders.push(createBotSender("max_bot", findTargets));
+			senders.push(createBotSender("telegram_bot", findTargets));
+		}
+		for (const c of plan.channels) {
 			const account = accounts[c.channel];
-			return account
-				? [SENDER_FACTORY[c.channel]({ memberId, ...account })]
-				: [];
-		});
+			if (account)
+				senders.push(SENDER_FACTORY[c.channel]({ memberId, ...account }));
+		}
 		// Темп номера — с учётом сегодняшних отправок всех рассылок.
 		const usage = await getOutreachAccountUsage(moscowDayStart(new Date()));
-		const pacers = new Map<MessengerChannel, ChannelPacer>();
+		const pacers = new Map<PersonalChannel, ChannelPacer>();
 		for (const pacing of plan.channels) {
 			const connectorId = accounts[pacing.channel]?.connectorId;
 			const used = usage.find(
@@ -263,7 +285,9 @@ export const deliverOutreach = CreateTaskWorkflow({
 							sentAt: new Date(),
 						});
 						// Журнал сообщений — рассылка видна в истории диалога в инбоксе.
-						const account = accounts[result.channel];
+						const account = isBotChannel(result.channel)
+							? null
+							: accounts[result.channel];
 						await insertBotMessage({
 							messenger: JOURNAL_MESSENGER[result.channel],
 							userId: result.userId,
@@ -292,6 +316,9 @@ export const deliverOutreach = CreateTaskWorkflow({
 						});
 					}
 					processed++;
+					if (plan.useBots && recipient.phone) {
+						await sleep(BOT_LOOKUP_PAUSE_MS);
+					}
 				}
 			}
 

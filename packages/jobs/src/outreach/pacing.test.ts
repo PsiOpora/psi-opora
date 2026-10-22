@@ -146,5 +146,21 @@ describe("resolveOutreachPlan", () => {
 			intervalSec: 30,
 		});
 		expect(plan.channels.map((c) => c.channel)).toEqual(["whatsapp", "max"]);
+		// Настройки без useBots — рассылка создана до шага с ботами.
+		expect(plan.useBots).toBe(false);
+	});
+
+	test("боты включены в настройках", () => {
+		const plan = resolveOutreachPlan({
+			settings: {
+				useBots: true,
+				channels: [pacing],
+				onDailyLimit: "skip",
+				window: null,
+			},
+			accounts: { max: null, telegram: {}, whatsapp: null },
+			intervalSec: 30,
+		});
+		expect(plan.useBots).toBe(true);
 	});
 });
