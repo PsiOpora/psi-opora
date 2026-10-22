@@ -70,6 +70,7 @@ export const sendOutreach = bitrixProcedure
 		}
 		const settings: OutreachSettings = {
 			useBots,
+			bots,
 			channels: input.channels.map((c) => ({
 				channel: c.channel,
 				minIntervalSec: c.minIntervalSec,

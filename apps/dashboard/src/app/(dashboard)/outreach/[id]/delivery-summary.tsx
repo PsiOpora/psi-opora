@@ -33,7 +33,12 @@ export function DeliverySummary({
 		? settings.channels.map((c) => c.channel)
 		: LEGACY_ORDER.filter((c) => accounts[c]);
 	// Боты — первый этап, если включены: шаги личных номеров идут после них.
-	const bots = settings?.useBots ? ["Бот MAX", "Бот Telegram"] : [];
+	const bots = settings?.useBots
+		? (["max", "telegram"] as const)
+				// У старых кампаний доступность ботов не сохранялась.
+				.filter((channel) => settings.bots?.[channel] ?? true)
+				.map((channel) => `Бот ${MESSENGER_LABELS[channel]}`)
+		: [];
 	const rules: string[] = [];
 	if (settings?.window) {
 		const { days, fromHour, toHour } = settings.window;

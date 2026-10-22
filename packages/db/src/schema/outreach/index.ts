@@ -84,6 +84,8 @@ export interface OutreachSettings {
 	 * создана до появления шага с ботами.
 	 */
 	useBots?: boolean;
+	/** Доступность каждого бота на момент создания кампании; у старых рассылок поля нет. */
+	bots?: { max: boolean; telegram: boolean };
 	/** Включённые личные номера в порядке приоритета. */
 	channels: OutreachChannelPacing[];
 	/** wait — ждать следующих суток; skip — пропускать канал и идти дальше по цепочке. */

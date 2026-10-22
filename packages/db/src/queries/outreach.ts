@@ -549,7 +549,8 @@ export interface BotDialogRef {
 /**
  * Диалоги с ботами, в которых клиент сам оставил этот телефон в сценарии
  * (выдача материала, предзаказ книги). Номера там записаны как ввёл клиент
- * («8 999…», «+7999…»), поэтому сравниваем по последним 10 цифрам.
+ * («8 999…», «+7999…»), поэтому сравниваем полные нормализованные номера,
+ * сохраняя международный префикс.
  */
 export async function listBotDialogsByScenarioPhone(
 	phone: string,
@@ -557,10 +558,26 @@ export async function listBotDialogsByScenarioPhone(
 	if (!db) return [];
 	const digits = phone.replace(/\D/g, "");
 	if (digits.length < 10) return [];
-	const tail = digits.slice(-10);
+	// Одна нормализация для входа и обеих колонок: явный «+» сохраняет код
+	// страны, российские местные номера дополняются кодом 7.
+	const canonical = (
+		value:
+			| string
+			| typeof botGuideDeliveries.phone
+			| typeof bookPreorderOrders.phone,
+	) => {
+		const digits = sql`regexp_replace(${value}, '[^0-9]', '', 'g')`;
+		return sql`case
+			when position('+' in ${value}) = 0 and ${digits} ~ '^[3-9][0-9]{9}$'
+				then '7' || ${digits}
+			when position('+' in ${value}) = 0 and ${digits} ~ '^8[0-9]{10}$'
+				then '7' || substring(${digits} from 2)
+			else ${digits}
+		end`;
+	};
 	const matches = (
 		column: typeof botGuideDeliveries.phone | typeof bookPreorderOrders.phone,
-	) => sql`right(regexp_replace(${column}, '[^0-9]', '', 'g'), 10) = ${tail}`;
+	) => sql`${canonical(column)} = ${canonical(phone)}`;
 	const bots = ["telegram", "max"];
 	const [guides, preorders] = await Promise.all([
 		db
