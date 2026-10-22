@@ -158,6 +158,52 @@ export async function getBotMessageMedia(
 	};
 }
 
+/**
+ * Собеседник прочитал исходящие сообщения личного номера до указанного
+ * места: Telegram сообщает ID последнего прочитанного сообщения (в диалоге
+ * ID растут), MAX — время прочтения. Статус поднимается только у
+ * отправленных/доставленных — неудачные не становятся «прочитанными».
+ * Возвращает число обновлённых сообщений.
+ */
+export async function markOutgoingBotMessagesRead(
+	db: Database,
+	params: {
+		messenger: string;
+		connectorId: string;
+		/** Ключи диалога: user_id или канонический external_chat_id. */
+		chatIds: string[];
+		upToExternalId?: number;
+		upToTime?: Date;
+	},
+): Promise<number> {
+	if (!db || params.chatIds.length === 0) return 0;
+	const upTo =
+		params.upToExternalId !== undefined
+			? sql`(${botMessages.externalId} ~ '^[0-9]+$' and ${botMessages.externalId}::bigint <= ${params.upToExternalId})`
+			: params.upToTime
+				? sql`${botMessages.createdAt} <= ${params.upToTime.toISOString()}::timestamptz`
+				: null;
+	if (!upTo) return 0;
+	const rows = await db
+		.update(botMessages)
+		.set({ status: "read", updatedAt: new Date() })
+		.where(
+			and(
+				eq(botMessages.messenger, params.messenger),
+				eq(botMessages.connectorId, params.connectorId),
+				eq(botMessages.direction, "out"),
+				inArray(botMessages.status, ["sent", "delivered"]),
+				or(
+					inArray(botMessages.userId, params.chatIds),
+					inArray(botMessages.externalChatId, params.chatIds),
+				),
+				upTo,
+			),
+		)
+		.returning({ id: botMessages.id });
+	return rows.length;
+}
+
 /** Обновляет статус доставки по внешнему id сообщения (сейчас — только
  * WAHA-вебхук `message.ack`). */
 export async function updateBotMessageStatus(

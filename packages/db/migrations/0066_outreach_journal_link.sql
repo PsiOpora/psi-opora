@@ -1,0 +1,1 @@
+ALTER TABLE "outreach_recipients" ADD COLUMN "journal_message_id" text;
