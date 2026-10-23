@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-Package manager is **Bun** (`bun@1.4.3`, pinned in `packageManager`). Install with `bun install`.
+Package manager is **Bun** (`bun@1.4.4`, pinned in `packageManager`). Install with `bun install`.
 
 ```bash
 bun run dev:tg          # apps/tg-bot (long polling)
