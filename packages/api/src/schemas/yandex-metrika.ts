@@ -1,3 +1,4 @@
+import type { AdDealFieldKey } from "@psi-opora/db/queries";
 import { z } from "zod";
 
 /**
@@ -19,6 +20,30 @@ export type YandexMetrikaSettingsInput = z.infer<
 	typeof yandexMetrikaSettingsSchema
 >;
 
+// Пустая строка — поле не используется; иначе код пользовательского поля сделки.
+const dealFieldCode = z
+	.string()
+	.trim()
+	.regex(/^(UF_CRM_[A-Za-z0-9_]+)?$/, "Код поля вида UF_CRM_1234567890")
+	.optional();
+
+/**
+ * Коды пользовательских полей сделки Bitrix для данных рекламы (последнее
+ * касание): кампания, группа, объявление, поисковый запрос, регион, позиция
+ * клика, страница перехода. Незаполненные поля бот не пишет.
+ */
+export const yandexAdDealFieldsSchema = z.object({
+	campaign: dealFieldCode,
+	adGroup: dealFieldCode,
+	ad: dealFieldCode,
+	searchQuery: dealFieldCode,
+	region: dealFieldCode,
+	clickPosition: dealFieldCode,
+	landingPage: dealFieldCode,
+} satisfies Record<AdDealFieldKey, typeof dealFieldCode>);
+
+export type YandexAdDealFieldsInput = z.infer<typeof yandexAdDealFieldsSchema>;
+
 /**
  * Цель Метрики, привязанная к стадии воронки Bitrix (/settings/metrika) —
  * когда сделка попадает в стадию, бот отправляет в Метрику конверсию этой цели.
@@ -34,10 +59,7 @@ export const yandexMetrikaStageGoalSchema = z.object({
 		.trim()
 		.min(1, "Укажите идентификатор цели")
 		.max(200)
-		.regex(
-			/^[A-Za-z0-9_.:-]+$/,
-			"Только латиница, цифры и символы _ . : -",
-		),
+		.regex(/^[A-Za-z0-9_.:-]+$/, "Только латиница, цифры и символы _ . : -"),
 	stageId: z.string().trim().min(1, "Выберите стадию").max(100),
 	enabled: z.boolean(),
 });

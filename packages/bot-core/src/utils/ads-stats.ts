@@ -7,6 +7,7 @@ import {
 	isRedisConfigured,
 	type RedisClient,
 } from "../storage/redis";
+import { fetchDirectReport } from "./direct-reports";
 
 /** null, если Redis не задан (локальная разработка без Redis). */
 export function getRedisOrNull(): RedisClient | null {
@@ -128,133 +129,39 @@ const REPORT_FIELDS = [
 ] as const;
 
 /**
- * В отличие от остальных методов v5 (JSON {result: ...}/{error: ...}),
- * отчёты — отдельный формат: тело ответа при готовности — сырой TSV, не
- * JSON, а обёртки {data:{Rows:[...]}} (как раньше в этом файле) в реальном
- * API не существует — вызов всегда падал с "undefined is not an object".
- * При processingMode=auto Яндекс может не успеть посчитать отчёт сразу и
- * вернуть 201/202 с заголовком retryIn (секунды) — тогда нужно повторить
- * тот же запрос (тот же ReportName) позже; это штатное поведение API, не ошибка.
+ * Без фильтра по CampaignId: campaigns.get отдаёт только текущие
+ * (неудалённые) кампании этого клиента, а отчёт должен видеть и
+ * удалённые/архивные — иначе расход кампании, которую уже снесли в
+ * кабинете, молча пропадает из ad_daily_stats задним числом. Чужие
+ * кампании, которые из-за этого просачиваются через отчёт (см.
+ * FOREIGN_CAMPAIGN_IDS ниже), отсеиваются точечно по ID, а не общим
+ * фильтром по campaigns.get.
  */
-async function requestYandexReportOnce(
-	token: string,
-	dateFrom: string,
-	dateTo: string,
-	reportName: string,
-	clientLogin?: string,
-): Promise<{ status: number; retryInSeconds: number | null; body: string }> {
-	const res = await fetch(`${YANDEX_API_URL}/reports`, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${token}`,
-			"Content-Type": "application/json; charset=utf-8",
-			processingMode: "auto",
-			skipReportHeader: "true",
-			skipReportSummary: "true",
-			...(clientLogin ? { "Client-Login": clientLogin } : {}),
-		},
-		body: JSON.stringify({
-			params: {
-				// Без фильтра по CampaignId: campaigns.get отдаёт только текущие
-				// (неудалённые) кампании этого клиента, а отчёт должен видеть и
-				// удалённые/архивные — иначе расход кампании, которую уже снесли в
-				// кабинете, молча пропадает из ad_daily_stats задним числом. Чужие
-				// кампании, которые из-за этого просачиваются через отчёт (см.
-				// FOREIGN_CAMPAIGN_IDS ниже), отсеиваются точечно по ID, а не общим
-				// фильтром по campaigns.get.
-				SelectionCriteria: {
-					DateFrom: dateFrom,
-					DateTo: dateTo,
-				},
-				FieldNames: REPORT_FIELDS,
-				ReportName: reportName,
-				ReportType: "CAMPAIGN_PERFORMANCE_REPORT",
-				DateRangeType: "CUSTOM_DATE",
-				Format: "TSV",
-				IncludeVAT: "NO",
-				IncludeDiscount: "NO",
-			},
-		}),
-	});
-	const body = await res.text();
-	const retryInHeader = res.headers.get("retryIn");
-	return {
-		status: res.status,
-		retryInSeconds: retryInHeader ? Number(retryInHeader) : null,
-		body,
-	};
-}
-
-function parseYandexReportTsv(text: string): YandexReportRow[] {
-	const lines = text.trim().split("\n").filter(Boolean);
-	if (lines.length === 0) return [];
-	const header = lines[0]?.split("\t") ?? [];
-	const columnIndex = (name: string) => header.indexOf(name);
-	const idx = {
-		campaignId: columnIndex("CampaignId"),
-		campaignName: columnIndex("CampaignName"),
-		impressions: columnIndex("Impressions"),
-		clicks: columnIndex("Clicks"),
-		cost: columnIndex("Cost"),
-		date: columnIndex("Date"),
-	};
-	return lines.slice(1).map((line) => {
-		const cols = line.split("\t");
-		return {
-			CampaignId: Number(cols[idx.campaignId]),
-			CampaignName: cols[idx.campaignName] ?? "",
-			Impressions: Number(cols[idx.impressions] ?? 0),
-			Clicks: Number(cols[idx.clicks] ?? 0),
-			// Cost в отчёте — в микроединицах валюты (см. документацию Reports API),
-			// переводим в обычные рубли здесь же, чтобы дальше по коду Cost везде
-			// значил "рубли", как и предполагалось изначально.
-			Cost: Number(cols[idx.cost] ?? 0) / 1_000_000,
-			Date: cols[idx.date] ?? "",
-		};
-	});
-}
-
-const REPORT_MAX_ATTEMPTS = 6;
-const REPORT_MAX_WAIT_SECONDS = 30;
-
 async function getYandexReport(
 	token: string,
 	dateFrom: string,
 	dateTo: string,
 	clientLogin?: string,
 ): Promise<YandexReportRow[]> {
-	const reportName = `psi-opora_${Date.now()}`;
-	for (let attempt = 0; attempt < REPORT_MAX_ATTEMPTS; attempt++) {
-		const { status, retryInSeconds, body } = await requestYandexReportOnce(
-			token,
-			dateFrom,
-			dateTo,
-			reportName,
-			clientLogin,
-		);
-		if (status === 200) return parseYandexReportTsv(body);
-		if (status === 201 || status === 202) {
-			const waitSeconds = Math.min(
-				Math.max(retryInSeconds ?? 2, 1),
-				REPORT_MAX_WAIT_SECONDS,
-			);
-			await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
-			continue;
-		}
-		let message = body;
-		try {
-			const json = JSON.parse(body) as YandexApiResponse;
-			if (json.error) {
-				message = `${json.error.error_code}: ${json.error.error_detail ?? json.error.error_string}`;
-			}
-		} catch {
-			// тело не JSON — оставляем как есть для лога
-		}
-		throw new Error(`Yandex reports API error (${status}): ${message}`);
-	}
-	throw new Error(
-		"Yandex reports API: отчёт не готов после нескольких попыток",
-	);
+	const rows = await fetchDirectReport({
+		token,
+		clientLogin,
+		reportType: "CAMPAIGN_PERFORMANCE_REPORT",
+		fieldNames: REPORT_FIELDS,
+		dateFrom,
+		dateTo,
+	});
+	return rows.map((row) => ({
+		CampaignId: Number(row.CampaignId),
+		CampaignName: row.CampaignName ?? "",
+		Impressions: Number(row.Impressions ?? 0),
+		Clicks: Number(row.Clicks ?? 0),
+		// Cost в отчёте — в микроединицах валюты (см. документацию Reports API),
+		// переводим в обычные рубли здесь же, чтобы дальше по коду Cost везде
+		// значил "рубли", как и предполагалось изначально.
+		Cost: Number(row.Cost ?? 0) / 1_000_000,
+		Date: row.Date ?? "",
+	}));
 }
 
 export interface AdCampaign {
@@ -337,7 +244,7 @@ export async function fetchAdStats(
 			);
 			// getYandexCampaigns — только для статуса/подписи текущих кампаний в
 			// сводке ниже; список кампаний для отчёта report сам не ограничивает
-			// (см. комментарий в requestYandexReportOnce) — иначе гейт
+			// (см. комментарий к getYandexReport) — иначе гейт
 			// "yandexCampaigns.length > 0" тоже пропустил бы отчёт целиком, если
 			// в кабинете сейчас нет ни одной активной кампании.
 			const clientLogin = creds.yandexClientLogin ?? undefined;

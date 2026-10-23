@@ -68,6 +68,7 @@ mock.module("@psi-opora/db/queries", () => ({
 	getAdEntities: () => Promise.resolve([]),
 	upsertAdEntities: () => Promise.resolve(),
 	insertDealTouches: () => Promise.resolve(),
+	insertAdSearchQueryLookup: () => Promise.resolve(),
 	listAdTouchesForClient: () => Promise.resolve([]),
 }));
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { PageSuspense } from "@/components/dashboard/page-suspense";
 import {
 	Card,
 	CardContent,
@@ -8,8 +9,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { PageSuspense } from "@/components/dashboard/page-suspense";
 import { orpc } from "@/lib/orpc/client";
+import { YandexAdDealFieldsCard } from "./ad-deal-fields-card";
 import { YandexMetrikaSettingsForm } from "./credentials-form";
 import { YandexMetrikaStageGoalsCard } from "./stage-goals-card";
 
@@ -58,6 +59,10 @@ export default function YandexMetrikaSettingsPage() {
 					)}
 				</CardContent>
 			</Card>
+
+			{!isLoading && (
+				<YandexAdDealFieldsCard initialSettings={settings ?? null} />
+			)}
 
 			<PageSuspense>
 				<YandexMetrikaStageGoalsCard />

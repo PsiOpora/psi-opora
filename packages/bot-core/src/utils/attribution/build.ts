@@ -1,4 +1,8 @@
-import type { AdTouch, DealTouchRole } from "@psi-opora/db/queries";
+import type {
+	AdDealFieldKey,
+	AdTouch,
+	DealTouchRole,
+} from "@psi-opora/db/queries";
 import type { AdEntityNames, AdEntityRefs } from "./ad-directory";
 import { entityKey } from "./ad-directory";
 
@@ -20,6 +24,14 @@ export interface DealAttribution {
 	/** Текст комментария в таймлайн сделки: вся цепочка касаний. */
 	timelineComment: string;
 	touches: Array<{ id: string; role: DealTouchRole }>;
+	/**
+	 * Значения для отдельных полей сделки (коды полей — в настройках
+	 * /settings/metrika). Поисковый запрос сюда не входит: его дописывает крон
+	 * по отчёту Директа (см. search-queries.ts).
+	 */
+	dealFields: Partial<Record<AdDealFieldKey, string>>;
+	/** Касание, запрос которого стоит искать в отчёте Директа; нет — не ищем. */
+	searchQueryTouchId?: string;
 }
 
 export interface BuildAttributionInput {
@@ -101,6 +113,95 @@ function describeTouch(touch: AdTouch, names: AdEntityNames): string {
 	return parts.join(" · ");
 }
 
+const POSITION_TYPE_LABELS: Record<string, string> = {
+	premium: "премиум-показы",
+	dynamic_places: "динамические места",
+	other: "блок справа или внизу",
+};
+
+/** «1 · премиум-показы»; позиция 0 или тип none — показ в сетях, не на поиске. */
+export function formatClickPosition(touch: AdTouch): string | undefined {
+	if (touch.adPositionType === "none" || touch.adPosition === "0") {
+		return "сети (РСЯ)";
+	}
+	const type = touch.adPositionType
+		? POSITION_TYPE_LABELS[touch.adPositionType]
+		: undefined;
+	if (touch.adPosition && type) return `${touch.adPosition} · ${type}`;
+	return touch.adPosition ?? type;
+}
+
+const DEVICE_LABELS: Record<string, string> = {
+	desktop: "компьютер",
+	mobile: "смартфон",
+	tablet: "планшет",
+};
+
+/** Регион, позиция и устройство одной строкой для таймлайна. */
+function describeContext(touch: AdTouch): string | undefined {
+	const parts: string[] = [];
+	const region = touch.regionName ?? touch.regionId;
+	if (region) parts.push(`регион ${region}`);
+	const position = formatClickPosition(touch);
+	if (position) parts.push(`позиция ${position}`);
+	if (touch.deviceType) {
+		parts.push(DEVICE_LABELS[touch.deviceType] ?? touch.deviceType);
+	}
+	return parts.length ? parts.join(" · ") : undefined;
+}
+
+function campaignLabel(
+	touch: AdTouch,
+	names: AdEntityNames,
+): string | undefined {
+	const name = touch.adCampaignId
+		? names.get(entityKey("campaign", touch.adCampaignId))
+		: undefined;
+	if (name) return name;
+	if (touch.utmCampaign && !isNumeric(touch.utmCampaign)) {
+		return touch.utmCampaign;
+	}
+	return touch.adCampaignId ?? touch.utmCampaign ?? undefined;
+}
+
+function dealFieldsOf(
+	touch: AdTouch,
+	names: AdEntityNames,
+): Partial<Record<AdDealFieldKey, string>> {
+	const group = touch.adGroupId
+		? (names.get(entityKey("group", touch.adGroupId)) ?? touch.adGroupId)
+		: undefined;
+	const adName = touch.adId
+		? names.get(entityKey("ad", touch.adId))
+		: undefined;
+	const ad = adName ? `${adName} (${touch.adId})` : (touch.adId ?? undefined);
+	const values: Partial<Record<AdDealFieldKey, string | undefined>> = {
+		campaign: campaignLabel(touch, names),
+		adGroup: group,
+		ad,
+		region: touch.regionName ?? touch.regionId ?? undefined,
+		clickPosition: formatClickPosition(touch),
+		landingPage: touch.landingUrl ?? undefined,
+	};
+	return Object.fromEntries(
+		Object.entries(values).filter(([, value]) => Boolean(value)),
+	);
+}
+
+/**
+ * Запрос есть только у клика на поиске: в сетях (РСЯ) пользователь ничего не
+ * искал. Без группы объявлений строку отчёта не сопоставить.
+ */
+function needsSearchQuery(touch: AdTouch): boolean {
+	return (
+		Boolean(touch.adGroupId) &&
+		touch.utmSource === "yandex" &&
+		touch.sourceType !== "context" &&
+		touch.adPositionType !== "none" &&
+		touch.adPosition !== "0"
+	);
+}
+
 function roleAt(index: number, total: number): DealTouchRole {
 	if (total === 1) return "first_last";
 	if (index === 0) return "first";
@@ -138,10 +239,14 @@ export function buildAttribution(
 
 	const timelineLines = [
 		`Касания с рекламой до заявки (${touches.length}):`,
-		...touches.flatMap((touch, index) => [
-			`${index + 1}. ${MSK_FORMAT.format(touch.occurredAt)} МСК — ${describeTouch(touch, names)}`,
-			...(touch.landingUrl ? [`   Страница: ${touch.landingUrl}`] : []),
-		]),
+		...touches.flatMap((touch, index) => {
+			const context = describeContext(touch);
+			return [
+				`${index + 1}. ${MSK_FORMAT.format(touch.occurredAt)} МСК — ${describeTouch(touch, names)}`,
+				...(context ? [`   ${context}`] : []),
+				...(touch.landingUrl ? [`   Страница: ${touch.landingUrl}`] : []),
+			];
+		}),
 		`Первое касание: ${describeTouch(first, names)}`,
 		`Последнее касание: ${lastDescription}`,
 	];
@@ -164,5 +269,7 @@ export function buildAttribution(
 			id: touch.id,
 			role: roleAt(index, touches.length),
 		})),
+		dealFields: dealFieldsOf(last, names),
+		...(needsSearchQuery(last) ? { searchQueryTouchId: last.id } : {}),
 	};
 }

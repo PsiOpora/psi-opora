@@ -1,4 +1,5 @@
 import {
+	type AdDealFieldCodes,
 	createYandexMetrikaStageGoal,
 	deleteYandexMetrikaStageGoal,
 	getYandexMetrikaSettings,
@@ -9,6 +10,7 @@ import {
 import { bitrixProcedure, router } from "../orpc";
 import {
 	updateYandexMetrikaStageGoalSchema,
+	yandexAdDealFieldsSchema,
 	yandexMetrikaSettingsSchema,
 	yandexMetrikaStageGoalIdSchema,
 	yandexMetrikaStageGoalSchema,
@@ -49,6 +51,17 @@ export const yandexMetrikaRouter = router({
 			return { ok: true };
 		}),
 
+	/** Коды полей сделки для данных рекламы — сохраняются целиком, пустые убираются. */
+	upsertAdDealFields: bitrixProcedure
+		.input(yandexAdDealFieldsSchema)
+		.handler(async ({ input }) => {
+			const codes: AdDealFieldCodes = Object.fromEntries(
+				Object.entries(input).filter(([, code]) => Boolean(code)),
+			);
+			await upsertYandexMetrikaSettings({ bitrixAdDealFields: codes });
+			return { ok: true };
+		}),
+
 	/** Цели, привязанные к стадиям воронки, с числом отправленных конверсий. */
 	listStageGoals: bitrixProcedure.handler(async () => {
 		return listYandexMetrikaStageGoals();
@@ -64,9 +77,7 @@ export const yandexMetrikaRouter = router({
 				);
 			} catch (err) {
 				if (isDuplicateStageGoalError(err)) {
-					throw new Error(
-						`Цель «${input.goalId}» уже привязана к этой стадии`,
-					);
+					throw new Error(`Цель «${input.goalId}» уже привязана к этой стадии`);
 				}
 				throw err;
 			}
@@ -80,9 +91,7 @@ export const yandexMetrikaRouter = router({
 				await updateYandexMetrikaStageGoal(input.id, toStageGoalRow(input));
 			} catch (err) {
 				if (isDuplicateStageGoalError(err)) {
-					throw new Error(
-						`Цель «${input.goalId}» уже привязана к этой стадии`,
-					);
+					throw new Error(`Цель «${input.goalId}» уже привязана к этой стадии`);
 				}
 				throw err;
 			}

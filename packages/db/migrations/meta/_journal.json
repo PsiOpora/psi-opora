@@ -469,6 +469,13 @@
       "when": 1792691787209,
       "tag": "0066_outreach_journal_link",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1792751711612,
+      "tag": "0067_ad_deal_fields",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,14 @@ export const touchPayloadSchema = z.object({
 	gbid: z.coerce.string().optional(),
 	ad_id: z.coerce.string().optional(),
 	phrase_id: z.coerce.string().optional(),
+	// Обстоятельства показа: {region_name}, {region_id}, {position},
+	// {position_type}, {source_type}, {device_type}.
+	region_name: z.string().optional(),
+	region_id: z.coerce.string().optional(),
+	position: z.coerce.string().optional(),
+	position_type: z.string().optional(),
+	source_type: z.string().optional(),
+	device_type: z.string().optional(),
 	landingUrl: z.string().optional(),
 	referrer: z.string().optional(),
 });
@@ -31,6 +39,14 @@ const YCLID_RE = /^\d{10,25}$/;
 const AD_ENTITY_ID_RE = /^\d{5,20}$/;
 /** Тот же числовой хвост, что и в dashboard ad-spend-match: ID кампании в конце имени метки. */
 const TRAILING_ID_RE = /(\d{6,20})$/;
+/** Регион Директа — числовой ID геобазы Яндекса. */
+const REGION_ID_RE = /^\d{1,10}$/;
+/** {position}: номер места в блоке, 0 — показ в сетях. */
+const POSITION_RE = /^\d{1,2}$/;
+const POSITION_TYPES = ["premium", "dynamic_places", "other", "none"] as const;
+const SOURCE_TYPES = ["search", "context"] as const;
+const DEVICE_TYPES = ["desktop", "mobile", "tablet"] as const;
+const MAX_REGION_LENGTH = 100;
 const MAX_VALUE_LENGTH = 200;
 const MAX_URL_LENGTH = 500;
 
@@ -53,6 +69,15 @@ function cleanText(
 function cleanId(value: string | undefined, re: RegExp): string | undefined {
 	const text = cleanText(value);
 	return text && re.test(text) ? text : undefined;
+}
+
+/** Значение из закрытого списка макроса Директа, иначе undefined. */
+function cleanEnum<T extends string>(
+	value: string | undefined,
+	allowed: readonly T[],
+): T | undefined {
+	const text = cleanText(value)?.toLowerCase();
+	return allowed.find((item) => item === text);
 }
 
 /**
@@ -105,6 +130,12 @@ export function normalizeTouchPayload(
 		adGroupId: adGroupId ?? null,
 		adId: adId ?? null,
 		keywordId: keywordId ?? null,
+		regionName: cleanText(payload.region_name, MAX_REGION_LENGTH) ?? null,
+		regionId: cleanId(payload.region_id, REGION_ID_RE) ?? null,
+		adPosition: cleanId(payload.position, POSITION_RE) ?? null,
+		adPositionType: cleanEnum(payload.position_type, POSITION_TYPES) ?? null,
+		sourceType: cleanEnum(payload.source_type, SOURCE_TYPES) ?? null,
+		deviceType: cleanEnum(payload.device_type, DEVICE_TYPES) ?? null,
 		landingUrl: cleanText(payload.landingUrl, MAX_URL_LENGTH) ?? null,
 		referrer: cleanText(payload.referrer, MAX_URL_LENGTH) ?? null,
 		occurredAt: now,

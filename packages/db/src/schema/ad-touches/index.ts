@@ -1,5 +1,6 @@
 import {
 	index,
+	integer,
 	pgTable,
 	primaryKey,
 	text,
@@ -32,6 +33,16 @@ export const adTouches = pgTable(
 		adGroupId: text("ad_group_id"),
 		adId: text("ad_id"),
 		keywordId: text("keyword_id"),
+		// Обстоятельства показа из макросов Директа: {region_name}/{region_id}
+		// (регион показа), {position}/{position_type} (место объявления в блоке
+		// выдачи, 0/none — сети), {source_type} (search | context),
+		// {device_type} (desktop | mobile | tablet).
+		regionName: text("region_name"),
+		regionId: text("region_id"),
+		adPosition: text("ad_position"),
+		adPositionType: text("ad_position_type"),
+		sourceType: text("source_type"),
+		deviceType: text("device_type"),
 		landingUrl: text("landing_url"),
 		referrer: text("referrer"),
 		occurredAt: timestamp("occurred_at").notNull().defaultNow(),
@@ -83,4 +94,31 @@ export const dealTouches = pgTable(
 		primaryKey({ columns: [table.dealId, table.touchId] }),
 		index("deal_touches_touch_idx").on(table.touchId),
 	],
+);
+
+/**
+ * Поиск запроса, по которому клиент кликнул по объявлению. Макроса с запросом
+ * у Директа нет, а Метрика скрывает поисковые фразы в выборках меньше 10
+ * посетителей, поэтому запрос берётся из отчёта Директа по поисковым запросам
+ * (SEARCH_QUERY_PERFORMANCE_REPORT) за день клика по группе/объявлению/ключу
+ * последнего касания. Отчёт появляется с задержкой — запись ждёт крона
+ * ads-sync (packages/jobs/src/hatchet/ads-sync.ts). Одна запись на сделку.
+ */
+export const adSearchQueryLookups = pgTable(
+	"ad_search_query_lookups",
+	{
+		dealId: text("deal_id").primaryKey(), // ID сделки в Bitrix24, как есть
+		touchId: text("touch_id").notNull(),
+		// Канал бота, создавшего сделку, — им же пишется результат в Bitrix.
+		messenger: text("messenger").notNull(),
+		status: text("status", { enum: ["pending", "found", "not_found"] })
+			.notNull()
+			.default("pending"),
+		// Один запрос или несколько вероятных через « / ».
+		query: text("query"),
+		attempts: integer("attempts").notNull().default(0),
+		createdAt: timestamp("created_at").notNull().defaultNow(),
+		resolvedAt: timestamp("resolved_at"),
+	},
+	(table) => [index("ad_search_query_lookups_status_idx").on(table.status)],
 );
