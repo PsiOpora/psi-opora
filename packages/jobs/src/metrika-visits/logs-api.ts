@@ -117,7 +117,6 @@ export function createLogsApi(
 					);
 				}
 				if (Date.now() - startedAt > MAX_WAIT_MS) {
-					await request(`/logrequest/${id}/cancel`, "POST").catch(() => {});
 					throw new Error(
 						`Metrika Logs API: запрос ${id} не готов за отведённое время`,
 					);
@@ -133,7 +132,9 @@ export function createLogsApi(
 				const text = await (
 					await request(`/logrequest/${id}/part/${part.part_number}/download`)
 				).text();
-				rows.push(...parseLogsTsv(text));
+				for (const row of parseLogsTsv(text)) {
+					rows.push(row);
+				}
 			}
 			await request(`/logrequest/${id}/clean`, "POST");
 			return rows;
@@ -141,6 +142,8 @@ export function createLogsApi(
 			// Готовые, но не скачанные файлы тоже занимают квоту.
 			if (logRequest.status === "processed") {
 				await request(`/logrequest/${id}/clean`, "POST").catch(() => {});
+			} else if (logRequest.status === "created") {
+				await request(`/logrequest/${id}/cancel`, "POST").catch(() => {});
 			}
 			throw err;
 		}
