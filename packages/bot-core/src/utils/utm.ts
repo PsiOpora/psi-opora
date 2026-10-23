@@ -204,6 +204,25 @@ export function matchesBookPreorderStartParam(
 	return { source, intent: BOOK_PREORDER_KEYWORD_INTENTS[normalized] };
 }
 
+/**
+ * Кодовое слово «сразу в запись на консультацию» — без приветствия и выбора
+ * кнопок на старте. Его шлёт кнопка «Записаться» мини-приложения MAX
+ * (apps/max-bot/src/webapp), годится и для ссылки с сайта. Источник — как
+ * у гайд-кампаний, через `_` (см. splitStartParam), напр. `CONSULT_VK`.
+ */
+export const CONSULT_START_KEYWORD = "CONSULT";
+
+export function matchesConsultStartParam(
+	startParam: string | undefined,
+): { source?: string } | null {
+	if (!startParam) return null;
+	const parsed = startParamSchema.safeParse(startParam);
+	if (!parsed.success) return null;
+	const { keyword, source } = splitStartParam(parsed.data);
+	if (keyword.toUpperCase() !== CONSULT_START_KEYWORD) return null;
+	return source ? { source } : {};
+}
+
 export function formatUtmLog(params: UtmParams): string {
 	const parts = [
 		params.source && `source=${params.source}`,

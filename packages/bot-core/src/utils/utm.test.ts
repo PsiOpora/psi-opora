@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	extractYmClientId,
 	isValidCampaignKeyword,
+	matchesConsultStartParam,
 	parseUtmParams,
 	splitStartParam,
 } from "./utm";
@@ -136,5 +137,25 @@ describe("isValidCampaignKeyword", () => {
 
 	test("кириллица нельзя — не пройдёт в start-параметр", () => {
 		expect(isValidCampaignKeyword("ШКОЛА")).toBe(false);
+	});
+});
+
+describe("matchesConsultStartParam", () => {
+	test("узнаёт кодовое слово без учёта регистра", () => {
+		expect(matchesConsultStartParam("CONSULT")).toEqual({});
+		expect(matchesConsultStartParam("consult")).toEqual({});
+	});
+
+	test("отделяет источник через подчёркивание", () => {
+		expect(matchesConsultStartParam("CONSULT_webapp")).toEqual({
+			source: "webapp",
+		});
+	});
+
+	test("не путает с другими параметрами", () => {
+		expect(matchesConsultStartParam(undefined)).toBeNull();
+		expect(matchesConsultStartParam("CONSULTATION")).toBeNull();
+		expect(matchesConsultStartParam("TELOBOOK_VK")).toBeNull();
+		expect(matchesConsultStartParam("CONSULT VK")).toBeNull();
 	});
 });

@@ -1,6 +1,6 @@
 {
-  "id": "b479a94a-0205-4670-b219-f10dc6ad36c3",
-  "prevId": "fc3e5eff-829c-49b1-8665-5ad464ba6400",
+  "id": "6daf8184-ad23-426d-a44b-dea6c0c1a979",
+  "prevId": "7d92401b-7539-4c64-ab8e-8b31469f6789",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -52,86 +52,6 @@
           ]
         }
       },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ad_search_query_lookups": {
-      "name": "ad_search_query_lookups",
-      "schema": "",
-      "columns": {
-        "deal_id": {
-          "name": "deal_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "touch_id": {
-          "name": "touch_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "messenger": {
-          "name": "messenger",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "query": {
-          "name": "query",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "resolved_at": {
-          "name": "resolved_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "ad_search_query_lookups_status_idx": {
-          "name": "ad_search_query_lookups_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -209,42 +129,6 @@
         },
         "keyword_id": {
           "name": "keyword_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "region_name": {
-          "name": "region_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "region_id": {
-          "name": "region_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ad_position": {
-          "name": "ad_position",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ad_position_type": {
-          "name": "ad_position_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source_type": {
-          "name": "source_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "device_type": {
-          "name": "device_type",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -5015,18 +4899,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "visits_summary_status": {
-          "name": "visits_summary_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "visits_summarized_at": {
-          "name": "visits_summarized_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -5110,6 +4982,64 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.yandex_metrika_messenger_visitors": {
+      "name": "yandex_metrika_messenger_visitors",
+      "schema": "",
+      "columns": {
+        "messenger": {
+          "name": "messenger",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "yclid": {
+          "name": "yclid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "visited_at": {
+          "name": "visited_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "yandex_metrika_messenger_visitors_messenger_user_id_pk": {
+          "name": "yandex_metrika_messenger_visitors_messenger_user_id_pk",
+          "columns": [
+            "messenger",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.yandex_metrika_settings": {
       "name": "yandex_metrika_settings",
       "schema": "",
@@ -5145,20 +5075,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "bitrix_ad_deal_fields": {
-          "name": "bitrix_ad_deal_fields",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "bitrix_visit_deal_fields": {
-          "name": "bitrix_visit_deal_fields",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
         },
         "updated_at": {
           "name": "updated_at",
