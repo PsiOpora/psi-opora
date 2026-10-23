@@ -90,10 +90,9 @@ export function decodePayload(payload: Uint8Array): Record<string, unknown> {
 	// на пустом буфере падает с «Out of bounds access».
 	if (payload.length === 0) return {};
 	const decodeAndNormalize = (value: Uint8Array) =>
-		normalizeBigInts(decode(value, { useBigInt64: true })) as Record<
-			string,
-			unknown
-		>;
+		normalizeBigInts(
+			decode(value, { useBigInt64: true, mapKeyConverter: convertMapKey }),
+		) as Record<string, unknown>;
 	try {
 		return decodeAndNormalize(payload);
 	} catch (err) {
@@ -106,6 +105,20 @@ export function decodePayload(payload: Uint8Array): Record<string, unknown> {
 		}
 		throw err;
 	}
+}
+
+/**
+ * MAX кладёт 64-битные идентификаторы и в ключи мап (например ответ LOGIN,
+ * opcode 19, с мапами по chatId/userId). С useBigInt64 такие ключи приходят
+ * bigint, а дефолтный конвертер @msgpack/msgpack на них падает с «The type of
+ * key must be string or number but bigint». Ключ JS-объекта всё равно строка,
+ * поэтому переводим bigint в десятичную строку — так же, как значения в
+ * normalizeBigInts.
+ */
+function convertMapKey(key: unknown): string | number {
+	if (typeof key === "string" || typeof key === "number") return key;
+	if (typeof key === "bigint") return key.toString();
+	throw new Error(`Неподдерживаемый тип ключа MessagePack-мапы: ${typeof key}`);
 }
 
 function normalizeBigInts(value: unknown): unknown {

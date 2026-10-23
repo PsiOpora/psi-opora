@@ -106,6 +106,24 @@ describe("decodePayload", () => {
 		expect(decodePayload(encoded)).toEqual({ chatId: "9007199254740993" });
 	});
 
+	test("разбирает мапу с 64-битными ключами (ответ LOGIN, opcode 19)", () => {
+		// encode() не сериализует JS Map, поэтому мапу с uint64-ключом собираем
+		// вручную: fixmap(1) { "chats": fixmap(1) { uint64: { title: "x" } } }.
+		const key = Buffer.alloc(9);
+		key.writeUInt8(0xcf, 0);
+		key.writeBigUInt64BE(9_007_199_254_740_993n, 1);
+		const encoded = Buffer.concat([
+			Buffer.from([0x81]),
+			Buffer.from(encode("chats")),
+			Buffer.from([0x81]),
+			key,
+			Buffer.from(encode({ title: "x" })),
+		]);
+		expect(decodePayload(encoded)).toEqual({
+			chats: { "9007199254740993": { title: "x" } },
+		});
+	});
+
 	test("бросает исходную ошибку, если ни один вариант не разобрался", () => {
 		const garbage = Buffer.from([0xff, 0xff, 0xff, 0xff]);
 		expect(() => decodePayload(garbage)).toThrow();
