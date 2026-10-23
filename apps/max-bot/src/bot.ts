@@ -28,9 +28,11 @@ import {
 	logSlowUpdate,
 	looksLikeDiagnosticConsent,
 	matchesBookPreorderStartParam,
+	matchesConsultStartParam,
 	parseDripCallback,
 	parseStageConsentPayload,
 	parseUtmParams,
+	rememberYandexMetrikaVisitor,
 	resolveGuideCampaignStart,
 	resolveGuideFile,
 	resolveKnownContact,
@@ -522,6 +524,10 @@ export function createMaxBot({
 		} = extractYmClientId(decodeStartParam(startPayload));
 		if (ymClientId) ctx.session.ymClientId = ymClientId;
 		if (yclid) ctx.session.yclid = yclid;
+		void rememberYandexMetrikaVisitor("max", ctx.user?.user_id, {
+			clientId: ymClientId,
+			yclid,
+		});
 
 		// Диплинк с лендинга предзаказа книги (см. такую же ветку в
 		// packages/bot-core/src/bot.ts, matchesBookPreorderStartParam).
@@ -552,6 +558,20 @@ export function createMaxBot({
 		// packages/bot-core/src/bot.ts.
 		if (ctx.session.bookPreorder) {
 			ctx.session.bookPreorder = undefined;
+		}
+
+		// Кнопка «Записаться» мини-приложения (apps/max-bot/src/webapp) или
+		// такая же ссылка с сайта — сразу в анкету записи, минуя выбор на старте.
+		const consult = matchesConsultStartParam(startParam);
+		if (consult) {
+			if (consult.source) ctx.session.source = consult.source;
+			log(
+				`[START] user=${ctx.user?.user_id} chat=${ctx.chatId} consult${consult.source ? ` source=${consult.source}` : ""} messenger=max`,
+			);
+			collectProfileInBackground(ctx);
+			const texts = await getScenarioTexts();
+			await dispatch(ctx, startConsultation(texts), texts);
+			return;
 		}
 
 		const resolved = startParam

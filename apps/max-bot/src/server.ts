@@ -15,6 +15,7 @@ import {
 } from "@psi-opora/jobs/bot-background";
 import { Hono } from "hono";
 import { createMaxBot, processUpdate } from "./bot";
+import { createWebAppRoutes } from "./webapp/routes";
 
 const redis = createRedisClient();
 const storage = createRedisStorage<ConsultationSession>(redis);
@@ -42,54 +43,9 @@ const bot = createMaxBot({
 });
 
 const app = new Hono();
-// Лендинг для webapp-кнопки бота в MAX (кнопка «Открыть» настроена вне
-// этого репозитория, в самом MAX, и указывает на этот адрес).
-app.get("/", (c) =>
-	c.html(`<!doctype html>
-<html lang="ru">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Опора</title>
-<style>
-  html, body {
-    height: 100%;
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #fafafa;
-    color: #222;
-  }
-  body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    box-sizing: border-box;
-  }
-  .card {
-    max-width: 360px;
-    text-align: center;
-  }
-  h1 {
-    margin: 0 0 12px;
-    font-size: 28px;
-    letter-spacing: 0.02em;
-  }
-  p {
-    margin: 0;
-    line-height: 1.5;
-    color: #555;
-  }
-</style>
-</head>
-<body>
-<div class="card">
-  <h1>Опора</h1>
-  <p>Спасибо, что заглянули. Все вопросы и запись — прямо в чате с ботом.</p>
-</div>
-</body>
-</html>`),
-);
+// Мини-приложение для кнопки «Открыть» в чате с ботом (URL задаётся в
+// business.max.ru — см. docs/max-mini-app.md).
+app.route("/", createWebAppRoutes({ bot, token }));
 app.get("/api/webhook", (c) => c.text("ok"));
 app.post("/api/webhook", async (c) => {
 	const body = await c.req.json();

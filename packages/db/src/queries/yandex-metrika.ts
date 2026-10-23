@@ -1,8 +1,9 @@
-import { and, asc, count, eq, lt, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "../client";
 import {
 	yandexMetrikaDealVisitors,
 	yandexMetrikaGoalEvents,
+	yandexMetrikaMessengerVisitors,
 	yandexMetrikaSettings,
 	yandexMetrikaStageGoals,
 } from "../schema/yandex-metrika";
@@ -167,6 +168,72 @@ export async function getYandexMetrikaDealVisitor(
 		})
 		.from(yandexMetrikaDealVisitors)
 		.where(eq(yandexMetrikaDealVisitors.dealId, dealId))
+		.limit(1);
+	return rows[0] ?? null;
+}
+
+export type YandexMetrikaMessenger = "telegram" | "max";
+
+/**
+ * Запоминает ClientID/yclid визита, с которым пользователь открыл бота.
+ * Пара относится к одному визиту, поэтому новый визит перезаписывает обе
+ * колонки (старый yclid к новому ClientID не относится).
+ */
+export async function saveYandexMetrikaMessengerVisitor(
+	messenger: YandexMetrikaMessenger,
+	userId: string,
+	visitor: { clientId?: string; yclid?: string },
+): Promise<void> {
+	if (!db) return;
+	const values = {
+		clientId: visitor.clientId || null,
+		yclid: visitor.yclid || null,
+		updatedAt: sql`now()`,
+	};
+	await db
+		.insert(yandexMetrikaMessengerVisitors)
+		.values({ messenger, userId, ...values })
+		.onConflictDoUpdate({
+			target: [
+				yandexMetrikaMessengerVisitors.messenger,
+				yandexMetrikaMessengerVisitors.userId,
+			],
+			set: values,
+		});
+}
+
+/**
+ * Самый свежий визит среди пользователей мессенджеров одного контакта (у
+ * контакта Bitrix может быть и Telegram, и MAX) или null, если визитов нет.
+ */
+export async function findYandexMetrikaMessengerVisitor(
+	users: Array<{ messenger: YandexMetrikaMessenger; userId: string }>,
+): Promise<YandexMetrikaDealVisitor | null> {
+	if (!db || users.length === 0) return null;
+	const byMessenger = new Map<YandexMetrikaMessenger, string[]>();
+	for (const user of users) {
+		byMessenger.set(user.messenger, [
+			...(byMessenger.get(user.messenger) ?? []),
+			user.userId,
+		]);
+	}
+	const rows = await db
+		.select({
+			clientId: yandexMetrikaMessengerVisitors.clientId,
+			yclid: yandexMetrikaMessengerVisitors.yclid,
+		})
+		.from(yandexMetrikaMessengerVisitors)
+		.where(
+			or(
+				...[...byMessenger].map(([messenger, userIds]) =>
+					and(
+						eq(yandexMetrikaMessengerVisitors.messenger, messenger),
+						inArray(yandexMetrikaMessengerVisitors.userId, userIds),
+					),
+				),
+			),
+		)
+		.orderBy(desc(yandexMetrikaMessengerVisitors.updatedAt))
 		.limit(1);
 	return rows[0] ?? null;
 }

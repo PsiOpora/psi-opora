@@ -65,6 +65,7 @@ import {
 	matchesBookPreorderStartParam,
 	parseUtmParams,
 } from "./utils/utm";
+import { rememberYandexMetrikaVisitor } from "./utils/yandex-metrika";
 
 export const log = (msg: string) => {
 	console.log(`${new Date().toISOString()} ${msg}`);
@@ -547,6 +548,10 @@ export function createBot({
 		} = extractYmClientId(decodeStartParam(rawParam));
 		if (ymClientId) ctx.session.ymClientId = ymClientId;
 		if (yclid) ctx.session.yclid = yclid;
+		void rememberYandexMetrikaVisitor("telegram", ctx.from?.id, {
+			clientId: ymClientId,
+			yclid,
+		});
 
 		// Диплинк с лендинга предзаказа книги (t.me/bot?start=TELOPAY|TELOBOOK,
 		// опционально с источником через `_`, см.

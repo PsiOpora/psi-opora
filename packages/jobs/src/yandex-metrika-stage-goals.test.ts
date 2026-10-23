@@ -10,6 +10,10 @@ let hasGoals = true;
 let stageGoals: StageGoal[] = [];
 let visitor: { clientId: string | null; yclid: string | null } | null = null;
 let bitrixClientIdField: string | null = null;
+let messengerVisitor: { clientId: string | null; yclid: string | null } | null =
+	null;
+let contact: { IM?: Array<{ VALUE?: string; VALUE_TYPE?: string }> } | false =
+	false;
 const claimed = new Set<string>();
 const occurredAt = new Date("2026-09-01T12:30:00+03:00");
 
@@ -30,11 +34,20 @@ const releaseYandexMetrikaGoalEvent = mock(
 	},
 );
 const markYandexMetrikaGoalEventSent = mock(async () => {});
+const findYandexMetrikaMessengerVisitor = mock(
+	async (_users: Array<{ messenger: string; userId: string }>) =>
+		messengerVisitor,
+);
+const saveYandexMetrikaDealVisitor = mock(
+	async (_dealId: string, _visitor: Record<string, unknown>) => {},
+);
 mock.module("@psi-opora/db/queries", () => ({
 	hasEnabledYandexMetrikaStageGoals: mock(async () => hasGoals),
 	listEnabledYandexMetrikaGoalsForStage,
 	getYandexMetrikaDealVisitor: mock(async () => visitor),
 	getYandexMetrikaSettings: mock(async () => ({ bitrixClientIdField })),
+	findYandexMetrikaMessengerVisitor,
+	saveYandexMetrikaDealVisitor,
 	claimYandexMetrikaGoalEvent,
 	markYandexMetrikaGoalEventSent,
 	releaseYandexMetrikaGoalEvent,
@@ -55,7 +68,8 @@ const { handleYandexMetrikaStageGoals } = await import(
 
 function apiWithDeal(deal: Record<string, unknown> | false): BitrixApi {
 	return {
-		async call<T>() {
+		async call<T>(method: string) {
+			if (method === "crm.contact.get") return contact as T;
 			return (
 				deal ? { MOVED_TIME: occurredAt.toISOString(), ...deal } : deal
 			) as T;
@@ -72,6 +86,8 @@ describe("handleYandexMetrikaStageGoals", () => {
 		stageGoals = [{ id: "g1", goalId: "consultation_paid" }];
 		visitor = { clientId: "111", yclid: null };
 		bitrixClientIdField = null;
+		messengerVisitor = null;
+		contact = false;
 		sendResult = true;
 		claimed.clear();
 		markYandexMetrikaGoalEventSent.mockReset();
@@ -79,6 +95,8 @@ describe("handleYandexMetrikaStageGoals", () => {
 		claimYandexMetrikaGoalEvent.mockClear();
 		releaseYandexMetrikaGoalEvent.mockClear();
 		sendYandexMetrikaGoal.mockClear();
+		findYandexMetrikaMessengerVisitor.mockClear();
+		saveYandexMetrikaDealVisitor.mockClear();
 		warn.mockClear();
 	});
 
@@ -171,6 +189,62 @@ describe("handleYandexMetrikaStageGoals", () => {
 		expect(result).toEqual({ sent: [], skipped: "no_visitor" });
 		expect(sendYandexMetrikaGoal).not.toHaveBeenCalled();
 		expect(claimYandexMetrikaGoalEvent).not.toHaveBeenCalled();
+	});
+
+	it("берёт визит, с которым контакт сделки открыл бота, и закрепляет его за сделкой", async () => {
+		visitor = null;
+		contact = {
+			IM: [
+				{ VALUE_TYPE: "OPENLINE", VALUE: "imol|max|1|2|3" },
+				{ VALUE_TYPE: "max", VALUE: "16546690" },
+				{ VALUE_TYPE: "TELEGRAM", VALUE: "555" },
+			],
+		};
+		messengerVisitor = { clientId: "888", yclid: "999" };
+
+		const result = await handleYandexMetrikaStageGoals(
+			apiWithDeal({ STAGE_ID: "C2:WON", CATEGORY_ID: "2", CONTACT_ID: "8290" }),
+			42,
+		);
+
+		expect(result.sent).toEqual(["consultation_paid"]);
+		expect(findYandexMetrikaMessengerVisitor).toHaveBeenCalledWith([
+			{ messenger: "max", userId: "16546690" },
+			{ messenger: "telegram", userId: "555" },
+		]);
+		expect(saveYandexMetrikaDealVisitor).toHaveBeenCalledWith("42", {
+			clientId: "888",
+			yclid: "999",
+		});
+		expect(sendYandexMetrikaGoal).toHaveBeenCalledWith(
+			expect.objectContaining({ clientId: "888", yclid: "999" }),
+		);
+	});
+
+	it("не ищет визит по контакту, если ClientID есть в сделке", async () => {
+		contact = { IM: [{ VALUE_TYPE: "max", VALUE: "16546690" }] };
+
+		await handleYandexMetrikaStageGoals(
+			apiWithDeal({ STAGE_ID: "C2:WON", CATEGORY_ID: "2", CONTACT_ID: "8290" }),
+			42,
+		);
+
+		expect(findYandexMetrikaMessengerVisitor).not.toHaveBeenCalled();
+		expect(saveYandexMetrikaDealVisitor).not.toHaveBeenCalled();
+	});
+
+	it("контакт без визита в боте — сделка пропускается", async () => {
+		visitor = null;
+		contact = { IM: [{ VALUE_TYPE: "max", VALUE: "16546690" }] };
+
+		const result = await handleYandexMetrikaStageGoals(
+			apiWithDeal({ STAGE_ID: "C2:WON", CATEGORY_ID: "2", CONTACT_ID: "8290" }),
+			42,
+		);
+
+		expect(result).toEqual({ sent: [], skipped: "no_visitor" });
+		expect(saveYandexMetrikaDealVisitor).not.toHaveBeenCalled();
+		expect(sendYandexMetrikaGoal).not.toHaveBeenCalled();
 	});
 
 	it("неудачная отправка снимает занятость — следующее событие повторит попытку", async () => {
