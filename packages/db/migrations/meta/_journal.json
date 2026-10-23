@@ -473,8 +473,22 @@
     {
       "idx": 67,
       "version": "7",
-      "when": 1792751711612,
-      "tag": "0067_ad_deal_fields",
+      "when": 1792749777615,
+      "tag": "0067_ym_messenger_visitors",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1792754387564,
+      "tag": "0068_ym_visitor_event_time",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1792764170387,
+      "tag": "0069_ad_deal_fields",
       "breakpoints": true
     }
   ]

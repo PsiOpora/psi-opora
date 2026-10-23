@@ -31,6 +31,7 @@ mock.module("@psi-opora/db/queries", () => ({
 	withBookPreorderOrderLock: <T>(_id: string, fn: () => Promise<T>) => fn(),
 	markBookPreorderAwaitingPayment: () => Promise.resolve(),
 	saveYandexMetrikaDealVisitor: () => Promise.resolve(),
+	saveYandexMetrikaMessengerVisitor: () => Promise.resolve(),
 	markBookPreorderDeclined: () => Promise.resolve(),
 	markBookPreorderReserved,
 	upsertBookPreorderOrder,

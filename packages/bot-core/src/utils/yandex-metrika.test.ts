@@ -14,7 +14,18 @@ let settings: SettingsRow | null = {
 	bitrixClientIdField: null,
 };
 const getYandexMetrikaSettings = mock(async () => settings);
-mock.module("@psi-opora/db/queries", () => ({ getYandexMetrikaSettings }));
+const saveYandexMetrikaMessengerVisitor = mock(
+	async (
+		_messenger: string,
+		_userId: string,
+		_visitor: Record<string, unknown>,
+		_visitedAt: Date,
+	) => {},
+);
+mock.module("@psi-opora/db/queries", () => ({
+	getYandexMetrikaSettings,
+	saveYandexMetrikaMessengerVisitor,
+}));
 
 const warn = mock(() => {});
 const error = mock(() => {});
@@ -23,10 +34,11 @@ mock.module("@psi-opora/config", () => ({
 	logger: { warn, error, info },
 }));
 
-const { sendConsultationGoalToYandexMetrika, sendYandexMetrikaGoal } =
-	await import(
-	"./yandex-metrika"
-);
+const {
+	rememberYandexMetrikaVisitor,
+	sendConsultationGoalToYandexMetrika,
+	sendYandexMetrikaGoal,
+} = await import("./yandex-metrika");
 
 describe("sendConsultationGoalToYandexMetrika", () => {
 	beforeEach(() => {
@@ -155,5 +167,56 @@ describe("sendConsultationGoalToYandexMetrika", () => {
 		expect(await file.text()).toBe(
 			"ClientId,Target,DateTime\n163972457524306386,consultation_paid,1767225600\n",
 		);
+	});
+});
+
+describe("rememberYandexMetrikaVisitor", () => {
+	const visitedAt = new Date("2026-10-20T12:00:00Z");
+	beforeEach(() => {
+		saveYandexMetrikaMessengerVisitor.mockReset();
+		error.mockClear();
+	});
+
+	test("сохраняет ClientID/yclid за пользователем мессенджера", async () => {
+		await rememberYandexMetrikaVisitor(
+			"max",
+			16546690,
+			{ clientId: "1791709873319518138", yclid: "529547171272327167" },
+			visitedAt,
+		);
+
+		expect(saveYandexMetrikaMessengerVisitor).toHaveBeenCalledWith(
+			"max",
+			"16546690",
+			{ clientId: "1791709873319518138", yclid: "529547171272327167" },
+			visitedAt,
+		);
+	});
+
+	test("без ClientID и yclid или без пользователя ничего не пишет", async () => {
+		await rememberYandexMetrikaVisitor("telegram", 1, {}, visitedAt);
+		await rememberYandexMetrikaVisitor(
+			"telegram",
+			undefined,
+			{ clientId: "1791709873319518138" },
+			visitedAt,
+		);
+
+		expect(saveYandexMetrikaMessengerVisitor).not.toHaveBeenCalled();
+	});
+
+	test("ошибка БД не пробрасывается в /start", async () => {
+		saveYandexMetrikaMessengerVisitor.mockRejectedValueOnce(
+			new Error("db down"),
+		);
+
+		await rememberYandexMetrikaVisitor(
+			"telegram",
+			1,
+			{ yclid: "529547171272327167" },
+			visitedAt,
+		);
+
+		expect(error).toHaveBeenCalledTimes(1);
 	});
 });

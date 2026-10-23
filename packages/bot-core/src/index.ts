@@ -257,12 +257,14 @@ export {
 export {
 	buildMaxStartLink,
 	buildStartLink,
+	CONSULT_START_KEYWORD,
 	decodeStartParam,
 	extractYmClientId,
 	formatUtmLog,
 	isValidCampaignKeyword,
 	isValidStartParam,
 	matchesBookPreorderStartParam,
+	matchesConsultStartParam,
 	parseUtmParams,
 	type StartParamWithClientId,
 	splitStartParam,
@@ -271,6 +273,7 @@ export {
 export { hasPhoneNumber, isValidEmail } from "./utils/validation";
 export {
 	type ConsultationGoalParams,
+	rememberYandexMetrikaVisitor,
 	sendConsultationGoalToYandexMetrika,
 	sendYandexMetrikaGoal,
 	type YandexMetrikaGoalParams,
