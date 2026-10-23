@@ -8,6 +8,7 @@ import {
 	test,
 } from "bun:test";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as dbSchema from "../schema";
@@ -15,7 +16,7 @@ import * as dbSchema from "../schema";
 // Run this file separately with METRIKA_TEST_DATABASE_URL pointing at disposable
 // PostgreSQL. Only the DB connection is substituted; queries run against PostgreSQL.
 const url = process.env.METRIKA_TEST_DATABASE_URL;
-describe.skipIf(!url)("Metrika goal claims (PostgreSQL)", () => {
+describe.skipIf(!url)("Metrika queries (PostgreSQL)", () => {
 	if (!url) return;
 	const schema = `metrika_test_${crypto.randomUUID().replaceAll("-", "")}`;
 	const client = postgres(url, { connection: { search_path: schema } });
@@ -45,11 +46,37 @@ describe.skipIf(!url)("Metrika goal claims (PostgreSQL)", () => {
 				"utf8",
 			),
 		);
+		await client.unsafe(
+			await readFile(
+				new URL(
+					"../../migrations/0067_ym_messenger_visitors.sql",
+					import.meta.url,
+				),
+				"utf8",
+			),
+		);
+		await client`INSERT INTO yandex_metrika_messenger_visitors
+			(messenger, user_id, client_id, updated_at)
+			VALUES ('telegram', 'legacy', '1234567890', '2026-10-01 12:00:00')`;
+		await client.unsafe(
+			await readFile(
+				new URL(
+					"../../migrations/0068_ym_visitor_event_time.sql",
+					import.meta.url,
+				),
+				"utf8",
+			),
+		);
+		await client`CREATE TABLE bot_messages (
+			messenger text, user_id text, direction text, text text, created_at timestamp
+		)`;
 		mock.module("../client", () => ({ db }));
 		queries = await import("./yandex-metrika");
 	});
 	beforeEach(async () => {
 		await client`DELETE FROM yandex_metrika_goal_events WHERE stage_goal_id = 'goal'`;
+		await client`DELETE FROM yandex_metrika_messenger_visitors WHERE user_id != 'legacy'`;
+		await client`DELETE FROM bot_messages`;
 	});
 	afterAll(async () => {
 		await client`DROP SCHEMA ${client(schema)} CASCADE`;
@@ -136,5 +163,146 @@ describe.skipIf(!url)("Metrika goal claims (PostgreSQL)", () => {
 		await queries.releaseYandexMetrikaGoalEvent("goal", "42", token);
 		expect(await event()).toBeUndefined();
 		expect(await claim()).not.toBe(token);
+	});
+
+	test("visitor migration preserves legacy identifiers and write time", async () => {
+		const [row] = await client`SELECT * FROM yandex_metrika_messenger_visitors
+			WHERE user_id = 'legacy'`;
+		expect(row).toMatchObject({
+			client_id: "1234567890",
+			visited_at: "2026-10-01 12:00:00",
+			updated_at: "2026-10-01 12:00:00",
+		});
+	});
+
+	test("older and equal events cannot overwrite a newer visit or its write time", async () => {
+		const old = new Date("2026-10-01T12:00:00Z");
+		const recent = new Date("2026-10-02T12:00:00Z");
+		await queries.saveYandexMetrikaMessengerVisitor(
+			"telegram",
+			"1",
+			{ clientId: "old", yclid: "old-click" },
+			old,
+		);
+		await queries.saveYandexMetrikaMessengerVisitor(
+			"telegram",
+			"1",
+			{ clientId: "recent" },
+			recent,
+		);
+		const [saved] =
+			await client`SELECT * FROM yandex_metrika_messenger_visitors WHERE user_id = '1'`;
+		expect(saved).toMatchObject({
+			client_id: "recent",
+			yclid: null,
+			visited_at: "2026-10-02 12:00:00",
+		});
+		expect(saved?.updated_at).not.toBe(saved?.visited_at);
+		for (const timestamp of [old, recent]) {
+			await queries.saveYandexMetrikaMessengerVisitor(
+				"telegram",
+				"1",
+				{ yclid: "stale-click" },
+				timestamp,
+			);
+		}
+		const [unchanged] =
+			await client`SELECT * FROM yandex_metrika_messenger_visitors WHERE user_id = '1'`;
+		expect(unchanged).toEqual(saved);
+	});
+
+	test("contact lookup orders messenger visits by event time instead of write time", async () => {
+		await queries.saveYandexMetrikaMessengerVisitor(
+			"telegram",
+			"1",
+			{ clientId: "recent" },
+			new Date("2026-10-02T12:00:00Z"),
+		);
+		await queries.saveYandexMetrikaMessengerVisitor(
+			"max",
+			"2",
+			{ clientId: "old" },
+			new Date("2026-10-01T12:00:00Z"),
+		);
+		expect(
+			await queries.findYandexMetrikaMessengerVisitor([
+				{ messenger: "telegram", userId: "1" },
+				{ messenger: "max", userId: "2" },
+			]),
+		).toEqual({ clientId: "recent", yclid: null });
+	});
+
+	test("backfill decodes suffixes, skips invalid starts, and preserves newer live visits", async () => {
+		await client`INSERT INTO bot_messages VALUES
+			('telegram', 'encoded', 'in', '/start SCHOOL%5Fym1234567890%5Fyc9876543210', '2026-10-01 12:00:00.123456'),
+			('telegram', 'encoded', 'in', '/start SCHOOL', '2026-10-03 12:00:00'),
+			('telegram', 'encoded', 'out', '/start SCHOOL_ym9999999999', '2026-10-04 12:00:00'),
+			('max', 'live', 'in', '/start SCHOOL_ym1234567890', '2026-10-01 12:00:00'),
+			('max', 'click', 'in', '/START SCHOOL%5Fyc9876543210', '2026-10-02 12:00:00'),
+			('max', 'click', 'in', '/start SCHOOL_ym123', '2026-10-03 12:00:00'),
+			('whatsapp', 'other', 'in', '/start SCHOOL_ym1234567890', '2026-10-01 12:00:00'),
+			('max', 'other', 'in', '/starting SCHOOL_ym1234567890', '2026-10-01 12:00:00')`;
+		await queries.saveYandexMetrikaMessengerVisitor(
+			"max",
+			"live",
+			{ clientId: "live" },
+			new Date("2026-10-02T12:00:00Z"),
+		);
+		const isolatedUrl = new URL(url);
+		isolatedUrl.searchParams.set(
+			"options",
+			`-c search_path=${schema} -c timezone=Europe/Moscow`,
+		);
+		async function backfill(apply: boolean) {
+			const proc = Bun.spawn(
+				[
+					process.execPath,
+					fileURLToPath(
+						new URL(
+							"../../../../scripts/backfill-ym-messenger-visitors.ts",
+							import.meta.url,
+						),
+					),
+					...(apply ? ["--apply"] : []),
+				],
+				{
+					env: { ...process.env, POSTGRES_URL: isolatedUrl.toString() },
+					stdout: "pipe",
+					stderr: "pipe",
+				},
+			);
+			const [stdout, stderr, exitCode] = await Promise.all([
+				new Response(proc.stdout).text(),
+				new Response(proc.stderr).text(),
+				proc.exited,
+			]);
+			expect(stderr).toBe("");
+			expect(exitCode).toBe(0);
+			return stdout;
+		}
+		expect(await backfill(false)).toContain("Пробный прогон");
+		expect(
+			await queries.findYandexMetrikaMessengerVisitor([
+				{ messenger: "telegram", userId: "encoded" },
+			]),
+		).toBeNull();
+		expect(await backfill(true)).toContain("Записано/обновлено: 2");
+		const rows = await client`SELECT * FROM yandex_metrika_messenger_visitors
+			WHERE user_id != 'legacy' ORDER BY user_id`;
+		expect(rows).toHaveLength(3);
+		expect(rows[0]).toMatchObject({
+			user_id: "click",
+			client_id: null,
+			yclid: "9876543210",
+		});
+		expect(rows[1]).toMatchObject({
+			user_id: "encoded",
+			client_id: "1234567890",
+			yclid: "9876543210",
+			visited_at: "2026-10-01 12:00:00.123456",
+		});
+		expect(rows[1]?.updated_at).not.toBe(rows[1]?.visited_at);
+		expect(rows[2]?.client_id).toBe("live");
+		expect(await backfill(true)).toContain("Записано/обновлено: 0");
 	});
 });

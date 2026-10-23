@@ -19,6 +19,7 @@ const saveYandexMetrikaMessengerVisitor = mock(
 		_messenger: string,
 		_userId: string,
 		_visitor: Record<string, unknown>,
+		_visitedAt: Date,
 	) => {},
 );
 mock.module("@psi-opora/db/queries", () => ({
@@ -170,29 +171,36 @@ describe("sendConsultationGoalToYandexMetrika", () => {
 });
 
 describe("rememberYandexMetrikaVisitor", () => {
+	const visitedAt = new Date("2026-10-20T12:00:00Z");
 	beforeEach(() => {
 		saveYandexMetrikaMessengerVisitor.mockReset();
 		error.mockClear();
 	});
 
 	test("сохраняет ClientID/yclid за пользователем мессенджера", async () => {
-		await rememberYandexMetrikaVisitor("max", 16546690, {
-			clientId: "1791709873319518138",
-			yclid: "529547171272327167",
-		});
+		await rememberYandexMetrikaVisitor(
+			"max",
+			16546690,
+			{ clientId: "1791709873319518138", yclid: "529547171272327167" },
+			visitedAt,
+		);
 
 		expect(saveYandexMetrikaMessengerVisitor).toHaveBeenCalledWith(
 			"max",
 			"16546690",
 			{ clientId: "1791709873319518138", yclid: "529547171272327167" },
+			visitedAt,
 		);
 	});
 
 	test("без ClientID и yclid или без пользователя ничего не пишет", async () => {
-		await rememberYandexMetrikaVisitor("telegram", 1, {});
-		await rememberYandexMetrikaVisitor("telegram", undefined, {
-			clientId: "1791709873319518138",
-		});
+		await rememberYandexMetrikaVisitor("telegram", 1, {}, visitedAt);
+		await rememberYandexMetrikaVisitor(
+			"telegram",
+			undefined,
+			{ clientId: "1791709873319518138" },
+			visitedAt,
+		);
 
 		expect(saveYandexMetrikaMessengerVisitor).not.toHaveBeenCalled();
 	});
@@ -202,9 +210,12 @@ describe("rememberYandexMetrikaVisitor", () => {
 			new Error("db down"),
 		);
 
-		await rememberYandexMetrikaVisitor("telegram", 1, {
-			yclid: "529547171272327167",
-		});
+		await rememberYandexMetrikaVisitor(
+			"telegram",
+			1,
+			{ yclid: "529547171272327167" },
+			visitedAt,
+		);
 
 		expect(error).toHaveBeenCalledTimes(1);
 	});
