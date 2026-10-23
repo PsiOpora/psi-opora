@@ -95,6 +95,48 @@ describe("normalizeTouchPayload", () => {
 		});
 	});
 
+	test("сохраняет регион, позицию, тип площадки и устройство показа", () => {
+		const touch = normalize({
+			clientId: CLIENT_ID,
+			utm_source: "yandex",
+			region_name: "Санкт-Петербург",
+			region_id: 2,
+			position: "1",
+			position_type: "Premium",
+			source_type: "search",
+			device_type: "mobile",
+		});
+		expect(touch).toMatchObject({
+			regionName: "Санкт-Петербург",
+			regionId: "2",
+			adPosition: "1",
+			adPositionType: "premium",
+			sourceType: "search",
+			deviceType: "mobile",
+		});
+	});
+
+	test("неизвестные и нераскрытые значения макросов показа отбрасываются", () => {
+		const touch = normalize({
+			clientId: CLIENT_ID,
+			utm_source: "yandex",
+			region_name: "{region_name}",
+			region_id: "мск",
+			position: "123",
+			position_type: "top",
+			source_type: "{source_type}",
+			device_type: "tv",
+		});
+		expect(touch).toMatchObject({
+			regionName: null,
+			regionId: null,
+			adPosition: null,
+			adPositionType: null,
+			sourceType: null,
+			deviceType: null,
+		});
+	});
+
 	test("без ClientID и yclid касание не к кому привязать", () => {
 		expect(normalize({ utm_source: "yandex" })).toBeNull();
 		expect(normalize({ clientId: "abc", utm_source: "yandex" })).toBeNull();

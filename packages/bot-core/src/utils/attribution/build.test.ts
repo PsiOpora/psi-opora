@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { AdTouch } from "@psi-opora/db/queries";
 import { entityKey } from "./ad-directory";
-import { buildAttribution, collectEntityRefs } from "./build";
+import {
+	buildAttribution,
+	collectEntityRefs,
+	formatClickPosition,
+} from "./build";
 
 function touch(overrides: Partial<AdTouch>): AdTouch {
 	return {
@@ -17,6 +21,12 @@ function touch(overrides: Partial<AdTouch>): AdTouch {
 		adGroupId: null,
 		adId: null,
 		keywordId: null,
+		regionName: null,
+		regionId: null,
+		adPosition: null,
+		adPositionType: null,
+		sourceType: null,
+		deviceType: null,
 		landingUrl: null,
 		referrer: null,
 		occurredAt: new Date("2026-10-09T09:03:00Z"),
@@ -142,6 +152,104 @@ describe("buildAttribution", () => {
 		expect(result?.timelineComment).toContain(
 			"Страница: https://psi-opora.ru/anorexia/",
 		);
+	});
+});
+
+describe("поля сделки по последнему касанию", () => {
+	const searchClick = {
+		...full,
+		regionName: "Санкт-Петербург",
+		regionId: "2",
+		adPosition: "1",
+		adPositionType: "premium",
+		sourceType: "search",
+		deviceType: "mobile",
+		landingUrl: "https://psi-opora.ru/anorexia/",
+	};
+
+	test("кампания, группа, объявление, регион, позиция и страница — по названиям", () => {
+		const t = touch(searchClick);
+		const result = buildAttribution({ touches: [t], names });
+		expect(result?.dealFields).toEqual({
+			campaign: "Анорексия — поиск",
+			adGroup: "Лечение анорексии",
+			ad: "Помощь при анорексии (17000000123)",
+			region: "Санкт-Петербург",
+			clickPosition: "1 · премиум-показы",
+			landingPage: "https://psi-opora.ru/anorexia/",
+		});
+		expect(result?.searchQueryTouchId).toBe(t.id);
+		expect(result?.timelineComment).toContain(
+			"регион Санкт-Петербург · позиция 1 · премиум-показы · смартфон",
+		);
+	});
+
+	test("без названий из кабинета — ID; пустые поля не передаются", () => {
+		const result = buildAttribution({
+			touches: [touch(full)],
+			names: new Map(),
+		});
+		expect(result?.dealFields).toEqual({
+			campaign: "708811857",
+			adGroup: "5600000111",
+			ad: "17000000123",
+		});
+	});
+
+	test("берутся с последнего касания цепочки", () => {
+		const result = buildAttribution({
+			touches: [
+				touch({ ...searchClick, occurredAt: new Date("2026-10-01T08:00:00Z") }),
+				touch({
+					utmCampaign: "rsya_retarget_anorexia_v2",
+					regionName: "Москва",
+				}),
+			],
+			names,
+		});
+		expect(result?.dealFields).toEqual({
+			campaign: "rsya_retarget_anorexia_v2",
+			region: "Москва",
+		});
+	});
+
+	test("клик в сетях: поисковый запрос не ищем", () => {
+		const result = buildAttribution({
+			touches: [
+				touch({
+					...full,
+					adPosition: "0",
+					adPositionType: "none",
+					sourceType: "context",
+				}),
+			],
+			names,
+		});
+		expect(result?.dealFields.clickPosition).toBe("сети (РСЯ)");
+		expect(result?.searchQueryTouchId).toBeUndefined();
+	});
+
+	test("без группы объявлений запрос не сопоставить — не ищем", () => {
+		const result = buildAttribution({
+			touches: [touch({ ...full, adGroupId: null })],
+			names,
+		});
+		expect(result?.searchQueryTouchId).toBeUndefined();
+	});
+});
+
+describe("formatClickPosition", () => {
+	test("позиция с типом блока, без типа и только тип", () => {
+		expect(
+			formatClickPosition(
+				touch({ adPosition: "3", adPositionType: "dynamic_places" }),
+			),
+		).toBe("3 · динамические места");
+		expect(formatClickPosition(touch({ adPosition: "2" }))).toBe("2");
+		expect(formatClickPosition(touch({ adPositionType: "other" }))).toBe(
+			"блок справа или внизу",
+		);
+		expect(formatClickPosition(touch({}))).toBeUndefined();
 	});
 });
 

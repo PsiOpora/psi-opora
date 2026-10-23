@@ -1,11 +1,31 @@
 import {
 	boolean,
+	jsonb,
 	pgTable,
 	primaryKey,
 	text,
 	timestamp,
 	unique,
 } from "drizzle-orm/pg-core";
+
+/**
+ * Данные рекламы, которые бот пишет в отдельные пользовательские поля сделки
+ * (по последнему касанию с рекламой, см. packages/bot-core/src/utils/attribution).
+ */
+export const AD_DEAL_FIELD_KEYS = [
+	"campaign",
+	"adGroup",
+	"ad",
+	"searchQuery",
+	"region",
+	"clickPosition",
+	"landingPage",
+] as const;
+
+export type AdDealFieldKey = (typeof AD_DEAL_FIELD_KEYS)[number];
+
+/** Код пользовательского поля сделки Bitrix (UF_CRM_…) для каждого вида данных. */
+export type AdDealFieldCodes = Partial<Record<AdDealFieldKey, string>>;
 
 /**
  * Настройки офлайн-конверсии «Запись на консультацию» в Яндекс.Метрику —
@@ -23,6 +43,12 @@ export const yandexMetrikaSettings = pgTable("yandex_metrika_settings", {
 	// Код пользовательского поля сделки в Bitrix (CRM → Настройки →
 	// Пользовательские поля → Сделка) для ClientID — необязательно.
 	bitrixClientIdField: text("bitrix_client_id_field"),
+	// Коды полей сделки для кампании/группы/объявления/запроса/региона/позиции/
+	// страницы — необязательно, незаполненные поля бот не пишет.
+	bitrixAdDealFields: jsonb("bitrix_ad_deal_fields")
+		.$type<AdDealFieldCodes>()
+		.notNull()
+		.default({}),
 	updatedAt: timestamp("updated_at").defaultNow(),
 });
 

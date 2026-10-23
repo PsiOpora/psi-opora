@@ -92,12 +92,19 @@ export async function buildDealFields(data: DealData, contactId: number) {
 		[data.source, data.campaign].filter(Boolean).join(" / ");
 	const flowLabel = buildFlowLabel(data);
 
-	// Код поля для ClientID Метрики настраивается администратором в дашборде
-	// (/settings/metrika), а не в .env — без него просто не пишем это поле.
-	const metrikaSettings = data.ymClientId
-		? await getYandexMetrikaSettings()
-		: null;
+	// Коды полей для ClientID Метрики и данных рекламы настраиваются
+	// администратором в дашборде (/settings/metrika), а не в .env — без них
+	// просто не пишем эти поля.
+	const metrikaSettings =
+		data.ymClientId || attribution ? await getYandexMetrikaSettings() : null;
 	const clientIdField = metrikaSettings?.bitrixClientIdField;
+	const adFieldCodes = metrikaSettings?.bitrixAdDealFields ?? {};
+	const adFields = Object.fromEntries(
+		Object.entries(attribution?.dealFields ?? {}).flatMap(([key, value]) => {
+			const code = adFieldCodes[key as keyof typeof adFieldCodes];
+			return code && value ? [[code, value]] : [];
+		}),
+	);
 	// Метка кампании из рекламы может быть просто числом ({campaign_id}) —
 	// тема читается из названия кампании/объявления в описании источника.
 	const disorderIds = resolveDisorderIds(
@@ -130,6 +137,7 @@ export async function buildDealFields(data: DealData, contactId: number) {
 		...(data.ymClientId && clientIdField
 			? { [clientIdField]: data.ymClientId }
 			: {}),
+		...adFields,
 		...(data.flow === "consult"
 			? { UF_CRM_1779045469683: PRODUCT_CONSULT_ID }
 			: {}),

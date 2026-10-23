@@ -1,7 +1,16 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { DealAttribution } from "../attribution/build";
-import { buildDealFields, resolveDisorderIds } from "./deal";
 import type { DealData } from "./types";
+
+let metrikaSettings: {
+	bitrixClientIdField?: string | null;
+	bitrixAdDealFields?: Record<string, string>;
+} | null = null;
+mock.module("@psi-opora/db/queries", () => ({
+	getYandexMetrikaSettings: () => Promise.resolve(metrikaSettings),
+}));
+
+const { buildDealFields, resolveDisorderIds } = await import("./deal");
 
 describe("resolveDisorderIds", () => {
 	test("узнаёт тему по подстроке в названии кампании", () => {
@@ -49,9 +58,11 @@ describe("buildDealFields с атрибуцией по касаниям", () => 
 		commentLines: ["Реклама (последнее касание): Яндекс.Директ"],
 		timelineComment: "Касания с рекламой до заявки (1):",
 		touches: [{ id: "t1", role: "first_last" }],
+		dealFields: { campaign: "Анорексия — поиск", region: "Москва" },
 	};
 
 	beforeEach(() => {
+		metrikaSettings = null;
 		process.env.TG_BITRIX_SOURCE_ID = "TG_SRC";
 		process.env.TG_BOT_ID = "main_tg_bot";
 	});
@@ -96,5 +107,24 @@ describe("buildDealFields с атрибуцией по касаниям", () => 
 			7,
 		);
 		expect(fields.UF_CRM_1779041362411).toEqual(["48"]);
+	});
+
+	test("данные рекламы пишутся в поля, коды которых заданы в настройках", async () => {
+		metrikaSettings = {
+			bitrixAdDealFields: {
+				campaign: "UF_CRM_AD_CAMPAIGN",
+				adGroup: "UF_CRM_AD_GROUP",
+			},
+		};
+		const fields = await buildDealFields({ ...base, attribution }, 7);
+		expect(fields).toMatchObject({ UF_CRM_AD_CAMPAIGN: "Анорексия — поиск" });
+		// значения нет — поле не трогаем; кода нет — значение не пишем
+		expect(fields).not.toHaveProperty("UF_CRM_AD_GROUP");
+		expect(Object.values(fields)).not.toContain("Москва");
+	});
+
+	test("без настроенных кодов поля рекламы не пишутся", async () => {
+		const fields = await buildDealFields({ ...base, attribution }, 7);
+		expect(Object.values(fields)).not.toContain("Анорексия — поиск");
 	});
 });

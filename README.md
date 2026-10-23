@@ -423,6 +423,22 @@ ClientID Метрики (`_ym…` в ссылке, см. выше).
   страницами захода; в поле «Комментарий» — первое и последнее касание.
 - Снимок касаний сделки — в `deal_touches` (роли first/middle/last) для
   отчётов по касаниям.
+- Отдельные поля сделки (необязательно): кампания, группа, объявление,
+  поисковый запрос, регион, позиция клика, страница перехода — по последнему
+  касанию. Поля создаются в Bitrix как строковые, их коды задаются в
+  `/settings/metrika`, карточка «Данные рекламы в сделке» (колонка
+  `yandex_metrika_settings.bitrix_ad_deal_fields`); незаполненные бот не пишет.
+  Регион, позиция и устройство также пишутся в таймлайн у каждого касания.
+- **Поисковый запрос** приходит позже, чем создаётся сделка. Макроса с запросом
+  у Директа нет, а Метрика скрывает поисковые фразы, если в выборке меньше
+  10 посетителей, то есть по ClientID одного клиента запрос не получить. Поэтому
+  при создании сделки клик с поиска (не РСЯ) ставится в очередь
+  `ad_search_query_lookups`, и крон `ads-sync` (раз в 6 часов) после 06:00 МСК
+  следующего дня ищет его в отчёте Директа `SEARCH_QUERY_PERFORMANCE_REPORT`:
+  тот же день, группа, объявление (и ключ, если совпадает), есть клики. Если
+  подходит один запрос — пишется он, если несколько — «вероятно: …» с самыми
+  кликабельными. Запрос уходит в поле сделки и в таймлайн. Если за 3 дня после
+  дня клика запрос в отчёте не появился, поиск прекращается (`not_found`).
 
 Названия кампаний/групп/объявлений/ключей бот берёт из API Директа
 (`ad_entities`, кэш 7 дней; те же учётные данные, что в `/settings/ads`) —
@@ -435,8 +451,13 @@ ClientID Метрики (`_ym…` в ссылке, см. выше).
 разметка ссылок):
 
 ```
-utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}&utm_term={keyword}&gbid={gbid}&phrase_id={phrase_id}
+utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}&utm_term={keyword}&gbid={gbid}&phrase_id={phrase_id}&region_name={region_name}&region_id={region_id}&position={position}&position_type={position_type}&source_type={source_type}&device_type={device_type}
 ```
+
+`region_*` — регион показа, `position`/`position_type` — место объявления в
+блоке выдачи (`premium`, `dynamic_places`, `other`; `0`/`none` — показ в
+сетях), `source_type` — `search` или `context`, `device_type` — устройство.
+Без `gbid` не будет группы и поискового запроса.
 
 Если нужна читаемая метка, пишите `utm_campaign=search_anorexia_{campaign_id}` —
 ID кампании берётся из числового хвоста метки.
@@ -448,7 +469,9 @@ ID кампании берётся из числового хвоста метк
 (function () {
 	var p = new URLSearchParams(location.search);
 	var keys = ["yclid", "utm_source", "utm_medium", "utm_campaign",
-		"utm_content", "utm_term", "campaign_id", "gbid", "ad_id", "phrase_id"];
+		"utm_content", "utm_term", "campaign_id", "gbid", "ad_id", "phrase_id",
+		"region_name", "region_id", "position", "position_type", "source_type",
+		"device_type"];
 	var payload = {};
 	keys.forEach(function (k) { if (p.get(k)) payload[k] = p.get(k); });
 	if (!payload.yclid && !payload.utm_source && !payload.utm_campaign) return;

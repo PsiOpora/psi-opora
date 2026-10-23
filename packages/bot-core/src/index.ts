@@ -136,6 +136,11 @@ export {
 	resolveDealAttribution,
 } from "./utils/attribution/deal-attribution";
 export {
+	type BitrixCaller,
+	resolvePendingSearchQueries,
+	type SearchQueriesResult,
+} from "./utils/attribution/search-queries";
+export {
 	normalizeTouchPayload,
 	type TouchPayload,
 	touchPayloadSchema,

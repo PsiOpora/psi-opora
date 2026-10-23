@@ -2,11 +2,14 @@ import {
 	ConcurrencyLimitStrategy,
 	CreateTaskWorkflow,
 } from "@hatchet-dev/typescript-sdk/v1";
+import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import {
 	fetchAdStats,
 	getRedisOrNull,
 	loadAdEntityNames,
+	resolvePendingSearchQueries,
 } from "@psi-opora/bot-core";
+import { env } from "@psi-opora/config";
 import {
 	getAdCredentials,
 	listAdTouchEntityRefsSince,
@@ -31,7 +34,12 @@ const ENTITIES_LOOKBACK_MS = 3 * 24 * 60 * 60 * 1000;
  * заранее — заявка не ждёт обращения к API — и освежает давно не
  * обновлявшиеся (переименованные в кабинете) названия.
  *
- * Два шага в одной задаче — из-за лимита Hatchet на число cron-триггеров.
+ * Третьим шагом дописывает в сделки поисковые запросы кликов из отчёта
+ * Директа по поисковым запросам (packages/bot-core/src/utils/attribution/
+ * search-queries.ts) — отчёт за день появляется с задержкой, поэтому не при
+ * создании сделки, а здесь.
+ *
+ * Шаги в одной задаче — из-за лимита Hatchet на число cron-триггеров.
  */
 export const adsSync = CreateTaskWorkflow({
 	name: "ads-sync",
@@ -70,6 +78,13 @@ export const adsSync = CreateTaskWorkflow({
 					keywordIds: unique(rows.map((r) => r.keywordId)),
 				});
 				return { touches: rows.length, resolvedNames: names.size };
+			},
+			searchQueries: async () => {
+				const bitrix = env.BITRIX_MEMBER_ID
+					? resolveBitrixApi(env.BITRIX_MEMBER_ID)
+					: null;
+				if (!bitrix) return { skipped: true, reason: "no_bitrix" };
+				return { ...(await resolvePendingSearchQueries(bitrix)) };
 			},
 		}),
 });

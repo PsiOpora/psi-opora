@@ -1,4 +1,5 @@
 import {
+	insertAdSearchQueryLookup,
 	insertDealTouches,
 	listAdTouchesForClient,
 } from "@psi-opora/db/queries";
@@ -75,6 +76,21 @@ export async function recordDealAttribution(params: {
 		console.error(
 			`[attribution] не удалось сохранить касания сделки ${dealId}: ${(err as Error).message}`,
 		);
+	}
+	// Поисковый запрос клика появится в отчёте Директа позже — его найдёт и
+	// допишет в сделку крон ads-sync (search-queries.ts).
+	if (attribution.searchQueryTouchId) {
+		try {
+			await insertAdSearchQueryLookup({
+				dealId: String(dealId),
+				touchId: attribution.searchQueryTouchId,
+				messenger,
+			});
+		} catch (err) {
+			console.error(
+				`[attribution] не удалось поставить поиск запроса сделки ${dealId}: ${(err as Error).message}`,
+			);
+		}
 	}
 	try {
 		await bitrixPost(

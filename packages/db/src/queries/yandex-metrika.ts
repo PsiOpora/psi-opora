@@ -1,11 +1,18 @@
 import { and, asc, count, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "../client";
 import {
+	type AdDealFieldCodes,
 	yandexMetrikaDealVisitors,
 	yandexMetrikaGoalEvents,
 	yandexMetrikaMessengerVisitors,
 	yandexMetrikaSettings,
 	yandexMetrikaStageGoals,
+} from "../schema/yandex-metrika";
+
+export {
+	AD_DEAL_FIELD_KEYS,
+	type AdDealFieldCodes,
+	type AdDealFieldKey,
 } from "../schema/yandex-metrika";
 
 export type YandexMetrikaSettings = typeof yandexMetrikaSettings.$inferSelect;
@@ -23,6 +30,7 @@ export async function upsertYandexMetrikaSettings(data: {
 	oauthToken?: string | null;
 	goalId?: string | null;
 	bitrixClientIdField?: string | null;
+	bitrixAdDealFields?: AdDealFieldCodes;
 }): Promise<void> {
 	if (!db) return;
 	await db
