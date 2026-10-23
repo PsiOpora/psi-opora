@@ -154,8 +154,10 @@ export {
 	type YandexAdDealFieldsInput,
 	type YandexMetrikaSettingsInput,
 	type YandexMetrikaStageGoalInput,
+	type YandexVisitDealFieldsInput,
 	yandexAdDealFieldsSchema,
 	yandexMetrikaSettingsSchema,
 	yandexMetrikaStageGoalIdSchema,
 	yandexMetrikaStageGoalSchema,
+	yandexVisitDealFieldsSchema,
 } from "./yandex-metrika";
