@@ -76,7 +76,7 @@ docker compose up -d waha
   - `jobs` — scheduled/background job definitions, split between a generic job layer and `src/hatchet/*` (Hatchet workflow registrations run by `apps/hatchet-worker`).
   - `config` — shared env parsing/validation, crypto helpers, logger.
   - `storage` — MinIO/S3-compatible object storage client.
-  - `telemetry` — sends every `console.error` (incl. `logger.error` and Next.js server errors) to SigNoz as an OTLP exception span; `initTelemetry("<service>")` at each app entrypoint / `instrumentation.ts`. No-op without `OTEL_EXPORTER_OTLP_ENDPOINT`. Pod logs are collected separately by SigNoz k8s-infra (`infra/signoz/`).
+  - `telemetry` — sends every `console.error` (incl. `logger.error` and Next.js server errors) to SigNoz Cloud as an OTLP exception span; `initTelemetry("<service>")` at each app entrypoint / `instrumentation.ts`. No-op without `OTEL_EXPORTER_OTLP_ENDPOINT`. Pod logs are shipped separately by the SigNoz k8s-infra chart (`infra/signoz/`).
   - `validators` — shared Zod schemas.
   - `emails` — React Email templates.
   - `rusender-client`, `unisender-client` — email/SMS provider REST clients.

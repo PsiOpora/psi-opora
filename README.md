@@ -18,7 +18,7 @@ CRM/маркетинга и интеграция всей переписки с 
 | `packages/bitrix-client`      | OAuth-клиент Bitrix24 (`resolveBitrixApi`) для методов, требующих app context |
 | `packages/tg-userbot`         | MTProto-клиент (mtcute) для личных номеров Telegram                      |
 | `packages/db`                 | Drizzle-схемы и запросы PostgreSQL                                       |
-| `packages/telemetry`         | Отправка всех ошибок приложений в SigNoz (см. [infra/README.md](infra/README.md#ошибки-и-логи-signoz)) |
+| `packages/telemetry`         | Отправка всех ошибок приложений в SigNoz Cloud (см. [infra/README.md](infra/README.md#ошибки-и-логи-signoz-cloud)) |
 | `packages/api`                | oRPC-роутеры дашборда                                                    |
 
 ## Четыре способа завести переписку в Открытую линию Bitrix24

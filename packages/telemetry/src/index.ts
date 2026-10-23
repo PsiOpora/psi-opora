@@ -1,5 +1,5 @@
 /**
- * Отправка ошибок всех приложений в SigNoz (OTLP/HTTP).
+ * Отправка ошибок всех приложений в SigNoz Cloud (OTLP/HTTP).
  *
  * Каждый вызов `console.error` (включая `logger.error` из @psi-opora/config
  * и ошибки, которые логирует сам Next.js) превращается в отдельный спан со
@@ -26,9 +26,9 @@ import { buildConsoleErrorReport, type ErrorReport } from "./console-error";
 
 export { buildConsoleErrorReport, type ErrorReport } from "./console-error";
 
-// Защита ClickHouse от ошибки в горячем цикле (например, poll каждые 3 с при
-// упавшей БД): сверх лимита в минуту спаны не создаются, в логах подов всё
-// равно остаётся полная история.
+// Защита от ошибки в горячем цикле (например, poll каждые 3 с при упавшей
+// БД) — SigNoz Cloud тарифицирует по объёму: сверх лимита в минуту спаны не
+// создаются, в логах подов всё равно остаётся полная история.
 const MAX_REPORTS_PER_MINUTE = 300;
 
 let provider: TracerProvider | undefined;
