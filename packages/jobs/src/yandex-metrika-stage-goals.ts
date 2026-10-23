@@ -3,13 +3,17 @@ import { sendYandexMetrikaGoal } from "@psi-opora/bot-core";
 import { logger } from "@psi-opora/config";
 import {
 	claimYandexMetrikaGoalEvent,
+	findYandexMetrikaMessengerVisitor,
 	getYandexMetrikaDealVisitor,
 	getYandexMetrikaSettings,
 	hasEnabledYandexMetrikaStageGoals,
 	listEnabledYandexMetrikaGoalsForStage,
 	markYandexMetrikaGoalEventSent,
 	releaseYandexMetrikaGoalEvent,
+	saveYandexMetrikaDealVisitor,
+	type YandexMetrikaDealVisitor,
 } from "@psi-opora/db/queries";
+import { type ContactIm, listContactBotTargets } from "./contact-bot-targets";
 
 export interface YandexMetrikaStageGoalsResult {
 	/** Идентификаторы целей Метрики, конверсии по которым отправлены. */
@@ -31,10 +35,12 @@ export interface YandexMetrikaStageGoalsResult {
  * yandex_metrika_goal_events (в отличие от напоминаний, возврат сделки в
  * стадию цель не дублирует).
  *
- * ClientID берётся из того, что запомнил бот при создании сделки; для сделок,
- * созданных до этого, — из пользовательского поля Bitrix (если оно задано в
- * настройках). У сделок без ClientID/yclid (заведены вручную, из других
- * каналов) конверсию привязать не к чему — они пропускаются.
+ * ClientID ищется по порядку: что запомнил бот при создании сделки →
+ * пользовательское поле Bitrix (если задано в настройках) → визит, с которым
+ * клиент открыл бота (`/start …_ym…`), через IM-поле контакта сделки — так
+ * находятся сделки, которые завёл оператор, а не бот. Найденный по контакту
+ * визит закрепляется за сделкой. У сделок без ClientID/yclid конверсию
+ * привязать не к чему — они пропускаются.
  */
 export async function handleYandexMetrikaStageGoals(
 	api: BitrixApi,
@@ -62,12 +68,20 @@ export async function handleYandexMetrikaStageGoals(
 	const dealKey = String(dealId);
 	const visitor = await getYandexMetrikaDealVisitor(dealKey);
 	let clientId = visitor?.clientId || undefined;
-	const yclid = visitor?.yclid || undefined;
+	let yclid = visitor?.yclid || undefined;
 	if (!clientId) {
 		const field = (await getYandexMetrikaSettings())?.bitrixClientIdField;
 		const fromBitrix = field ? deal[field] : undefined;
 		if (typeof fromBitrix === "string" && fromBitrix.trim()) {
 			clientId = fromBitrix.trim();
+		}
+	}
+	if (!clientId && !yclid) {
+		const contactVisitor = await findContactVisitor(api, deal);
+		clientId = contactVisitor?.clientId || undefined;
+		yclid = contactVisitor?.yclid || undefined;
+		if (clientId || yclid) {
+			await saveYandexMetrikaDealVisitor(dealKey, { clientId, yclid });
 		}
 	}
 	if (!clientId && !yclid) {
@@ -115,4 +129,18 @@ export async function handleYandexMetrikaStageGoals(
 		}
 	}
 	return { sent };
+}
+
+/** Визит, с которым контакт сделки открыл нашего бота в Telegram/MAX. */
+async function findContactVisitor(
+	api: BitrixApi,
+	deal: Record<string, unknown>,
+): Promise<YandexMetrikaDealVisitor | null> {
+	const contactId = Number(deal.CONTACT_ID ?? 0);
+	if (!(contactId > 0)) return null;
+	const contact = await api.call<{ IM?: ContactIm[] } | false>(
+		"crm.contact.get",
+		{ id: contactId },
+	);
+	return findYandexMetrikaMessengerVisitor(listContactBotTargets(contact));
 }

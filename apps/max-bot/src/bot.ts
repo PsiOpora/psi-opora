@@ -31,6 +31,7 @@ import {
 	parseDripCallback,
 	parseStageConsentPayload,
 	parseUtmParams,
+	rememberYandexMetrikaVisitor,
 	resolveGuideCampaignStart,
 	resolveGuideFile,
 	resolveKnownContact,
@@ -522,6 +523,10 @@ export function createMaxBot({
 		} = extractYmClientId(decodeStartParam(startPayload));
 		if (ymClientId) ctx.session.ymClientId = ymClientId;
 		if (yclid) ctx.session.yclid = yclid;
+		void rememberYandexMetrikaVisitor("max", ctx.user?.user_id, {
+			clientId: ymClientId,
+			yclid,
+		});
 
 		// Диплинк с лендинга предзаказа книги (см. такую же ветку в
 		// packages/bot-core/src/bot.ts, matchesBookPreorderStartParam).

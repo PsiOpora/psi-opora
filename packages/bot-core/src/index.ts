@@ -266,6 +266,7 @@ export {
 export { hasPhoneNumber, isValidEmail } from "./utils/validation";
 export {
 	type ConsultationGoalParams,
+	rememberYandexMetrikaVisitor,
 	sendConsultationGoalToYandexMetrika,
 	sendYandexMetrikaGoal,
 	type YandexMetrikaGoalParams,

@@ -32,6 +32,7 @@ mock.module("@psi-opora/db/queries", () => ({
 	upsertBitrixCrmLink: () => Promise.resolve(),
 	upsertBotUser: () => Promise.resolve(),
 	getYandexMetrikaSettings: () => Promise.resolve(null),
+	saveYandexMetrikaMessengerVisitor: () => Promise.resolve(),
 	// Сценарий предзаказа книги (scenario/book-preorder/dispatch.ts,
 	// drip-actions.ts) грузится вместе с этим bot.ts и тянет за собой эти
 	// запросы к БД — без них статический импорт падает на этапе линковки

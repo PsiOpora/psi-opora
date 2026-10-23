@@ -74,6 +74,25 @@ export const yandexMetrikaDealVisitors = pgTable(
 );
 
 /**
+ * ClientID/yclid последнего визита, с которым пользователь мессенджера открыл
+ * бота (`/start …_ym…_yc…`). Сделку часто создаёт не бот, а оператор или
+ * Открытая линия (клиент бросил флоу записи), и тогда в
+ * yandex_metrika_deal_visitors ничего нет — цели по стадиям находят визит
+ * через IM-поле контакта сделки (packages/jobs/src/yandex-metrika-stage-goals.ts).
+ */
+export const yandexMetrikaMessengerVisitors = pgTable(
+	"yandex_metrika_messenger_visitors",
+	{
+		messenger: text("messenger", { enum: ["telegram", "max"] }).notNull(),
+		userId: text("user_id").notNull(),
+		clientId: text("client_id"),
+		yclid: text("yclid"),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [primaryKey({ columns: [table.messenger, table.userId] })],
+);
+
+/**
  * Журнал отправок по стадиям — одна запись на пару «цель + сделка».
  * Pending-запись резервируется на время отправки; sent не отправляется снова.
  * Токен защищает новый резерв от завершения устаревшим обработчиком.

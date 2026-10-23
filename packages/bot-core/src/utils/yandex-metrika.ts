@@ -1,5 +1,8 @@
 import { logger } from "@psi-opora/config";
-import { getYandexMetrikaSettings } from "@psi-opora/db/queries";
+import {
+	getYandexMetrikaSettings,
+	saveYandexMetrikaMessengerVisitor,
+} from "@psi-opora/db/queries";
 
 const UPLOAD_URL_BASE = "https://api-metrika.yandex.net/management/v1/counter";
 const DEFAULT_GOAL_ID = "free_consultation_booked";
@@ -132,4 +135,26 @@ export function sendConsultationGoalToYandexMetrika(
 	params: ConsultationGoalParams,
 ): Promise<boolean> {
 	return sendYandexMetrikaGoal(params);
+}
+
+/**
+ * Запоминает ClientID/yclid из `/start` за пользователем мессенджера — не
+ * только в сессии: сделку по этому клиенту может завести оператор, и тогда
+ * цели по стадиям находят визит через IM-поле контакта (см.
+ * packages/jobs/src/yandex-metrika-stage-goals.ts). Ошибка не мешает /start.
+ */
+export async function rememberYandexMetrikaVisitor(
+	messenger: "telegram" | "max",
+	userId: string | number | undefined,
+	visitor: { clientId?: string; yclid?: string },
+): Promise<void> {
+	if (userId === undefined || (!visitor.clientId && !visitor.yclid)) return;
+	try {
+		await saveYandexMetrikaMessengerVisitor(messenger, String(userId), visitor);
+	} catch (err) {
+		logger.error("yandex_metrika.visitor_save_failed", err as Error, {
+			messenger,
+			userId: String(userId),
+		});
+	}
 }
