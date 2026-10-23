@@ -76,6 +76,10 @@ line/connector ID и никакого ручного запуска скрипт
 - Ответ оператора приходит в `apps/bitrix-webhook` вебхуком
   (событие `ONIMCONNECTORMESSAGEADD`) и пересылается обратно клиенту через
   Bot API (`sendMessengerMessage`, `packages/jobs`).
+- **Мини-приложение MAX** (кнопка «Открыть» в чате с ботом) отдаётся тем же
+  `apps/max-bot` с корня `/`: запись на консультацию, вопрос в чат, контакты.
+  Как прописать URL в business.max.ru и поменять тексты —
+  [docs/max-mini-app.md](docs/max-mini-app.md).
 - **Wazzup на том же боте.** С 08.10.2026 MAX-бот подключён ещё и к Wazzup
   (вторая webhook-подписка `max-bot.wazzup24.com`, видна в
   `GET /subscriptions`). Wazzup на первое сообщение клиента сам заводит
