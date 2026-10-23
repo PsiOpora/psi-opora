@@ -12,7 +12,8 @@
   "dependencies": {
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/db": "workspace:*",
-    "@psi-opora/max-userbot": "workspace:*"
+    "@psi-opora/max-userbot": "workspace:*",
+    "@psi-opora/telemetry": "workspace:*"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",

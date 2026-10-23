@@ -9,7 +9,8 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@psi-opora/jobs": "workspace:*"
+		"@psi-opora/jobs": "workspace:*",
+		"@psi-opora/telemetry": "workspace:*"
 	},
 	"devDependencies": {
 		"@psi-opora/tsconfig": "workspace:*",

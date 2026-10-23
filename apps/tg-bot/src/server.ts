@@ -14,9 +14,12 @@ import {
 	enqueueBotBackgroundTask,
 	isHatchetConfigured,
 } from "@psi-opora/jobs/bot-background";
+import { flushTelemetry, initTelemetry } from "@psi-opora/telemetry";
 import { webhookCallback } from "grammy";
 import { Hono } from "hono";
 import { uploadTelegramAvatar, uploadTelegramMedia } from "./avatar-storage";
+
+initTelemetry("tg-bot");
 
 const redis = createRedisClient();
 const storage = createRedisStorage<ConsultationSession>(redis);
@@ -78,6 +81,7 @@ process.on("SIGTERM", () => {
 	server.close(async () => {
 		// Не теряем фоновые задачи, уже принятые от мессенджера.
 		await background.drain(10_000);
+		await flushTelemetry();
 		process.exit(0);
 	});
 });

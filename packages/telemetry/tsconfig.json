@@ -1,0 +1,9 @@
+{
+	"extends": "@psi-opora/tsconfig/compiled-package.json",
+	"compilerOptions": {
+		"rootDir": "./src",
+		"types": ["node"]
+	},
+	"include": ["src"],
+	"exclude": ["node_modules", "**/*.test.ts"]
+}
