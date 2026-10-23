@@ -1,4 +1,4 @@
-import type { AdDealFieldKey } from "@psi-opora/db/queries";
+import type { AdDealFieldKey, VisitDealFieldKey } from "@psi-opora/db/queries";
 import { z } from "zod";
 
 /**
@@ -43,6 +43,25 @@ export const yandexAdDealFieldsSchema = z.object({
 } satisfies Record<AdDealFieldKey, typeof dealFieldCode>);
 
 export type YandexAdDealFieldsInput = z.infer<typeof yandexAdDealFieldsSchema>;
+
+/**
+ * Коды полей сделки для сводки визитов клиента на сайт до заявки (Logs API
+ * Метрики, крон на следующий день после создания сделки).
+ */
+export const yandexVisitDealFieldsSchema = z.object({
+	visitCount: dealFieldCode,
+	firstVisitAt: dealFieldCode,
+	firstSource: dealFieldCode,
+	city: dealFieldCode,
+	device: dealFieldCode,
+	pageViews: dealFieldCode,
+	timeOnSite: dealFieldCode,
+	goals: dealFieldCode,
+} satisfies Record<VisitDealFieldKey, typeof dealFieldCode>);
+
+export type YandexVisitDealFieldsInput = z.infer<
+	typeof yandexVisitDealFieldsSchema
+>;
 
 /**
  * Цель Метрики, привязанная к стадии воронки Bitrix (/settings/metrika) —

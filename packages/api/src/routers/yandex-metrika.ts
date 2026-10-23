@@ -1,5 +1,4 @@
 import {
-	type AdDealFieldCodes,
 	createYandexMetrikaStageGoal,
 	deleteYandexMetrikaStageGoal,
 	getYandexMetrikaSettings,
@@ -14,6 +13,7 @@ import {
 	yandexMetrikaSettingsSchema,
 	yandexMetrikaStageGoalIdSchema,
 	yandexMetrikaStageGoalSchema,
+	yandexVisitDealFieldsSchema,
 } from "../schemas/yandex-metrika";
 
 /** CATEGORY_ID из STAGE_ID: "C5:NEW" → "5", "NEW" (основная воронка) → "0". */
@@ -24,6 +24,15 @@ function categoryOfStage(stageId: string): string {
 /** Postgres: unique_violation — см. unique (stage_id, goal_id) в yandex_metrika_stage_goals. */
 function isDuplicateStageGoalError(err: unknown): boolean {
 	return (err as { code?: string } | null)?.code === "23505";
+}
+
+/** Убирает незаполненные коды полей — такие поля бот не пишет. */
+function filledCodes<K extends string>(
+	input: Partial<Record<K, string>>,
+): Partial<Record<K, string>> {
+	return Object.fromEntries(
+		Object.entries(input).filter(([, code]) => Boolean(code)),
+	) as Partial<Record<K, string>>;
 }
 
 /** Преобразует проверенные данные цели в поля БД, вычисляя воронку по ID стадии. */
@@ -55,10 +64,19 @@ export const yandexMetrikaRouter = router({
 	upsertAdDealFields: bitrixProcedure
 		.input(yandexAdDealFieldsSchema)
 		.handler(async ({ input }) => {
-			const codes: AdDealFieldCodes = Object.fromEntries(
-				Object.entries(input).filter(([, code]) => Boolean(code)),
-			);
-			await upsertYandexMetrikaSettings({ bitrixAdDealFields: codes });
+			await upsertYandexMetrikaSettings({
+				bitrixAdDealFields: filledCodes(input),
+			});
+			return { ok: true };
+		}),
+
+	/** Коды полей сделки для сводки визитов на сайт — так же, целиком. */
+	upsertVisitDealFields: bitrixProcedure
+		.input(yandexVisitDealFieldsSchema)
+		.handler(async ({ input }) => {
+			await upsertYandexMetrikaSettings({
+				bitrixVisitDealFields: filledCodes(input),
+			});
 			return { ok: true };
 		}),
 

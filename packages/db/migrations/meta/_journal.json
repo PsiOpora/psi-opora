@@ -476,6 +476,13 @@
       "when": 1792751711612,
       "tag": "0067_ad_deal_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1792765164020,
+      "tag": "0068_metrika_deal_visits",
+      "breakpoints": true
     }
   ]
 }
