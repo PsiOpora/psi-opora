@@ -1,6 +1,11 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import { env } from "@psi-opora/config";
 import { jidFromPhone, wahaSendText } from "@psi-opora/waha";
+import {
+	type ContactIm,
+	type DirectBotTarget,
+	listContactBotTargets,
+} from "../contact-bot-targets";
 import { type Messenger, sendMessengerMessage } from "../messenger";
 
 /**
@@ -108,15 +113,7 @@ export function extractClientContactId(deal: Record<string, unknown>): number {
 	return 0;
 }
 
-interface ContactIm {
-	VALUE?: string;
-	VALUE_TYPE?: string;
-}
-
-export interface DirectBotTarget {
-	messenger: Messenger;
-	userId: string;
-}
+export type { DirectBotTarget };
 
 export type BotDeliveryResult =
 	| {
@@ -126,35 +123,17 @@ export type BotDeliveryResult =
 	  }
 	| { status: "skipped" | "error"; reason: string };
 
-function messengerFromImType(raw: unknown): Messenger | null {
-	const type = String(raw ?? "")
-		.trim()
-		.toLowerCase();
-	if (type.includes("telegram")) return "telegram";
-	if (type === "max" || type.endsWith("|max") || type.includes("max.ru")) {
-		return "max";
-	}
-	return null;
-}
-
 /**
  * Находит ID пользователя нашего бота в IM-поле контакта. Сначала учитывает
  * выбранный в сделке мессенджер, затем использует любой валидный Telegram/MAX
- * ID контакта. VALUE должен быть числовым ID пользователя, а не ID чата
- * Открытой линии.
+ * ID контакта (см. listContactBotTargets).
  */
 export function resolveDirectBotTarget(
 	deal: Record<string, unknown>,
 	contact: { IM?: ContactIm[] } | false,
 ): DirectBotTarget | null {
 	const preferred = MESSENGER_BOT_MAP[String(deal[MESSENGER_FIELD] ?? "")];
-	const targets = (contact ? (contact.IM ?? []) : [])
-		.map((entry): DirectBotTarget | null => {
-			const messenger = messengerFromImType(entry.VALUE_TYPE);
-			const userId = String(entry.VALUE ?? "").trim();
-			return messenger && /^\d+$/.test(userId) ? { messenger, userId } : null;
-		})
-		.filter((target): target is DirectBotTarget => target !== null);
+	const targets = listContactBotTargets(contact);
 
 	return (
 		targets.find((target) => target.messenger === preferred) ??

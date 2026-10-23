@@ -15,6 +15,7 @@ mock.module("@psi-opora/db/queries", () => ({
 	listAdTouchesForClient,
 	insertDealTouches: () => Promise.resolve(),
 	getYandexMetrikaSettings: () => Promise.resolve(null),
+	saveYandexMetrikaMessengerVisitor: () => Promise.resolve(),
 	saveYandexMetrikaDealVisitor: () => Promise.resolve(),
 }));
 

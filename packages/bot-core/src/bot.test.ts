@@ -17,6 +17,9 @@ interface LoggedMessage {
 	text: string;
 }
 const insertBotMessage = mock((entry: LoggedMessage) => Promise.resolve(entry));
+const saveYandexMetrikaMessengerVisitor = mock(
+	async (..._args: unknown[]) => {},
+);
 mock.module("@psi-opora/db/queries", () => ({
 	withBookPreorderOrderLock: <T>(_id: string, fn: () => Promise<T>) => fn(),
 	insertBotMessage,
@@ -32,6 +35,8 @@ mock.module("@psi-opora/db/queries", () => ({
 	upsertBitrixCrmLink: () => Promise.resolve(),
 	upsertBotUser: () => Promise.resolve(),
 	getYandexMetrikaSettings: () => Promise.resolve(null),
+	getPostboxSettings: () => Promise.resolve(null),
+	saveYandexMetrikaMessengerVisitor,
 	// Сценарий предзаказа книги (scenario/book-preorder/dispatch.ts,
 	// drip-actions.ts) грузится вместе с этим bot.ts и тянет за собой эти
 	// запросы к БД — без них статический импорт падает на этапе линковки
@@ -195,6 +200,20 @@ function staleBookPreorderStorage() {
 }
 
 describe("телеграм-бот: /start", () => {
+	test("сохраняет время события /start из Telegram в секундах", async () => {
+		const { bot } = makeBot();
+		const update = commandUpdate("/start SCHOOL_ym1234567890");
+		update.message.date = 1792497600;
+		saveYandexMetrikaMessengerVisitor.mockClear();
+		await bot.handleUpdate(update);
+		expect(saveYandexMetrikaMessengerVisitor).toHaveBeenCalledWith(
+			"telegram",
+			"100",
+			{ clientId: "1234567890", yclid: undefined },
+			new Date(1792497600000),
+		);
+	});
+
 	test("отправляет приветствие с кнопками «Записаться» и «Получить гайд»", async () => {
 		const { bot, sent } = makeBot();
 		await bot.handleUpdate(commandUpdate("/start"));
