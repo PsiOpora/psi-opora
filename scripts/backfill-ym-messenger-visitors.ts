@@ -1,8 +1,8 @@
+import pg from "pg";
 import {
 	decodeStartParam,
 	extractYmClientId,
 } from "../packages/bot-core/src/utils/utm";
-import pg from "../packages/db/node_modules/pg/lib/index.js";
 
 /**
  * Заполняет yandex_metrika_messenger_visitors из истории `/start` в
@@ -41,7 +41,7 @@ async function main() {
       FROM bot_messages
       WHERE direction = 'in'
         AND messenger IN ('telegram', 'max')
-        AND text ~* '^/start[[:space:]]+.*_y[mc][0-9]'
+        AND text ~* '^/start[[:space:]]+'
       ORDER BY bot_messages.created_at
     `);
 
@@ -63,7 +63,7 @@ async function main() {
 		}
 
 		console.log(
-			`/start с ClientID/yclid: ${rows.length}, пользователей: ${latest.size}`,
+			`/start с payload: ${rows.length}, пользователей с ClientID/yclid: ${latest.size}`,
 		);
 		let written = 0;
 		for (const { row, clientId, yclid } of latest.values()) {
@@ -74,13 +74,14 @@ async function main() {
 			const result = await pool.query(
 				`
         INSERT INTO yandex_metrika_messenger_visitors
-          (messenger, user_id, client_id, yclid, updated_at)
+          (messenger, user_id, client_id, yclid, visited_at)
         VALUES ($1, $2, $3, $4, $5::timestamp)
         ON CONFLICT (messenger, user_id) DO UPDATE
           SET client_id = EXCLUDED.client_id,
               yclid = EXCLUDED.yclid,
-              updated_at = EXCLUDED.updated_at
-          WHERE yandex_metrika_messenger_visitors.updated_at < EXCLUDED.updated_at
+              visited_at = EXCLUDED.visited_at,
+              updated_at = now()
+          WHERE yandex_metrika_messenger_visitors.visited_at < EXCLUDED.visited_at
       `,
 				[
 					row.messenger,

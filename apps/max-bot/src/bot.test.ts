@@ -2,6 +2,10 @@ import { describe, expect, mock, test } from "bun:test";
 import type { Update } from "@maxhub/max-bot-api/types";
 import type { ConsultationSession, StorageAdapter } from "@psi-opora/bot-core";
 
+const saveYandexMetrikaMessengerVisitor = mock(
+	async (..._args: unknown[]) => {},
+);
+
 // Keep database-backed side effects out of this handler test. The MAX adapter
 // imports the same scenario graph as the Telegram bot, so all statically
 // imported query functions must be available before importing the adapter.
@@ -19,6 +23,14 @@ mock.module("@psi-opora/db/queries", () => ({
 	upsertBitrixCrmLink: () => Promise.resolve(),
 	upsertBotUser: () => Promise.resolve(),
 	getYandexMetrikaSettings: () => Promise.resolve(null),
+	getPostboxSettings: () => Promise.resolve(null),
+	saveYandexMetrikaMessengerVisitor,
+	saveYandexMetrikaDealVisitor: () => Promise.resolve(),
+	getAdCredentials: () => Promise.resolve(null),
+	getAdEntities: () => Promise.resolve([]),
+	upsertAdEntities: () => Promise.resolve(),
+	insertDealTouches: () => Promise.resolve(),
+	listAdTouchesForClient: () => Promise.resolve([]),
 	upsertBookPreorderOrder: () => Promise.resolve(null),
 	markBookPreorderAwaitingPayment: () => Promise.resolve(),
 	markBookPreorderDeclined: () => Promise.resolve(),
@@ -172,6 +184,24 @@ describe("MAX-бот: кнопка «Заказать книгу»", () => {
 		bot.api.answerOnCallback = mock(() => Promise.resolve({})) as never;
 		return { bot, sent };
 	}
+
+	test("сохраняет время события bot_started из MAX в миллисекундах", async () => {
+		const { bot } = makeBotWithSessions(new Map());
+		saveYandexMetrikaMessengerVisitor.mockClear();
+		await dispatch(bot, {
+			update_type: "bot_started",
+			timestamp: 1792497600123,
+			chat_id: 100,
+			user,
+			payload: "SCHOOL_ym1234567890",
+		});
+		expect(saveYandexMetrikaMessengerVisitor).toHaveBeenCalledWith(
+			"max",
+			"100",
+			{ clientId: "1234567890", yclid: undefined },
+			new Date(1792497600123),
+		);
+	});
 
 	test("из общего меню запускает предзаказ книги с нуля", async () => {
 		const sessions = new Map<string, ConsultationSession>();

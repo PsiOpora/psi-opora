@@ -147,10 +147,16 @@ export async function rememberYandexMetrikaVisitor(
 	messenger: "telegram" | "max",
 	userId: string | number | undefined,
 	visitor: { clientId?: string; yclid?: string },
+	visitedAt: Date,
 ): Promise<void> {
 	if (userId === undefined || (!visitor.clientId && !visitor.yclid)) return;
 	try {
-		await saveYandexMetrikaMessengerVisitor(messenger, String(userId), visitor);
+		await saveYandexMetrikaMessengerVisitor(
+			messenger,
+			String(userId),
+			visitor,
+			visitedAt,
+		);
 	} catch (err) {
 		logger.error("yandex_metrika.visitor_save_failed", err as Error, {
 			messenger,

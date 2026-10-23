@@ -524,10 +524,12 @@ export function createMaxBot({
 		} = extractYmClientId(decodeStartParam(startPayload));
 		if (ymClientId) ctx.session.ymClientId = ymClientId;
 		if (yclid) ctx.session.yclid = yclid;
-		void rememberYandexMetrikaVisitor("max", ctx.user?.user_id, {
-			clientId: ymClientId,
-			yclid,
-		});
+		void rememberYandexMetrikaVisitor(
+			"max",
+			ctx.user?.user_id,
+			{ clientId: ymClientId, yclid },
+			new Date(ctx.update.timestamp),
+		);
 
 		// Диплинк с лендинга предзаказа книги (см. такую же ветку в
 		// packages/bot-core/src/bot.ts, matchesBookPreorderStartParam).

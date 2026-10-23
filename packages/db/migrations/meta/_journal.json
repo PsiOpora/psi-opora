@@ -476,6 +476,13 @@
       "when": 1792749777615,
       "tag": "0067_ym_messenger_visitors",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1792754387564,
+      "tag": "0068_ym_visitor_event_time",
+      "breakpoints": true
     }
   ]
 }

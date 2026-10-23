@@ -177,17 +177,20 @@ export type YandexMetrikaMessenger = "telegram" | "max";
 /**
  * Запоминает ClientID/yclid визита, с которым пользователь открыл бота.
  * Пара относится к одному визиту, поэтому новый визит перезаписывает обе
- * колонки (старый yclid к новому ClientID не относится).
+ * колонки (старый yclid к новому ClientID не относится). Повторные и более
+ * ранние события не меняют сохранённый визит.
  */
 export async function saveYandexMetrikaMessengerVisitor(
 	messenger: YandexMetrikaMessenger,
 	userId: string,
 	visitor: { clientId?: string; yclid?: string },
+	visitedAt: Date,
 ): Promise<void> {
 	if (!db) return;
 	const values = {
 		clientId: visitor.clientId || null,
 		yclid: visitor.yclid || null,
+		visitedAt,
 		updatedAt: sql`now()`,
 	};
 	await db
@@ -199,6 +202,7 @@ export async function saveYandexMetrikaMessengerVisitor(
 				yandexMetrikaMessengerVisitors.userId,
 			],
 			set: values,
+			setWhere: lt(yandexMetrikaMessengerVisitors.visitedAt, visitedAt),
 		});
 }
 
@@ -233,7 +237,7 @@ export async function findYandexMetrikaMessengerVisitor(
 				),
 			),
 		)
-		.orderBy(desc(yandexMetrikaMessengerVisitors.updatedAt))
+		.orderBy(desc(yandexMetrikaMessengerVisitors.visitedAt))
 		.limit(1);
 	return rows[0] ?? null;
 }

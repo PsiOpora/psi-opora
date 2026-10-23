@@ -87,6 +87,8 @@ export const yandexMetrikaMessengerVisitors = pgTable(
 		userId: text("user_id").notNull(),
 		clientId: text("client_id"),
 		yclid: text("yclid"),
+		/** Время события /start в мессенджере, независимо от порядка записи. */
+		visitedAt: timestamp("visited_at").notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
 	(table) => [primaryKey({ columns: [table.messenger, table.userId] })],
