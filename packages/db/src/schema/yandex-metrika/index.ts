@@ -28,6 +28,25 @@ export type AdDealFieldKey = (typeof AD_DEAL_FIELD_KEYS)[number];
 export type AdDealFieldCodes = Partial<Record<AdDealFieldKey, string>>;
 
 /**
+ * Сводка визитов клиента на сайт до заявки (Logs API Метрики), которую крон
+ * пишет в отдельные поля сделки — см. packages/jobs/src/metrika-visits.
+ */
+export const VISIT_DEAL_FIELD_KEYS = [
+	"visitCount",
+	"firstVisitAt",
+	"firstSource",
+	"city",
+	"device",
+	"pageViews",
+	"timeOnSite",
+	"goals",
+] as const;
+
+export type VisitDealFieldKey = (typeof VISIT_DEAL_FIELD_KEYS)[number];
+
+export type VisitDealFieldCodes = Partial<Record<VisitDealFieldKey, string>>;
+
+/**
  * Настройки офлайн-конверсии «Запись на консультацию» в Яндекс.Метрику —
  * вводятся администратором в дашборде (/settings/metrika), а не через
  * .env, чтобы это можно было настроить/поменять без деплоя. Singleton-строка
@@ -47,6 +66,11 @@ export const yandexMetrikaSettings = pgTable("yandex_metrika_settings", {
 	// страницы — необязательно, незаполненные поля бот не пишет.
 	bitrixAdDealFields: jsonb("bitrix_ad_deal_fields")
 		.$type<AdDealFieldCodes>()
+		.notNull()
+		.default({}),
+	// Коды полей сделки для сводки визитов на сайт — необязательно.
+	bitrixVisitDealFields: jsonb("bitrix_visit_deal_fields")
+		.$type<VisitDealFieldCodes>()
 		.notNull()
 		.default({}),
 	updatedAt: timestamp("updated_at").defaultNow(),
@@ -96,6 +120,12 @@ export const yandexMetrikaDealVisitors = pgTable(
 		clientId: text("client_id"),
 		yclid: text("yclid"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
+		// Сводка визитов на сайт из Logs API записана в сделку (done) или
+		// визитов по ClientID не нашлось (no_visits); null — ещё не обработана.
+		visitsSummaryStatus: text("visits_summary_status", {
+			enum: ["done", "no_visits"],
+		}),
+		visitsSummarizedAt: timestamp("visits_summarized_at"),
 	},
 );
 

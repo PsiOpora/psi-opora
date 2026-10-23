@@ -1,7 +1,21 @@
-import { and, asc, count, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import {
+	and,
+	asc,
+	count,
+	desc,
+	eq,
+	gte,
+	inArray,
+	isNotNull,
+	isNull,
+	lt,
+	or,
+	sql,
+} from "drizzle-orm";
 import { db } from "../client";
 import {
 	type AdDealFieldCodes,
+	type VisitDealFieldCodes,
 	yandexMetrikaDealVisitors,
 	yandexMetrikaGoalEvents,
 	yandexMetrikaMessengerVisitors,
@@ -13,6 +27,9 @@ export {
 	AD_DEAL_FIELD_KEYS,
 	type AdDealFieldCodes,
 	type AdDealFieldKey,
+	VISIT_DEAL_FIELD_KEYS,
+	type VisitDealFieldCodes,
+	type VisitDealFieldKey,
 } from "../schema/yandex-metrika";
 
 export type YandexMetrikaSettings = typeof yandexMetrikaSettings.$inferSelect;
@@ -31,6 +48,7 @@ export async function upsertYandexMetrikaSettings(data: {
 	goalId?: string | null;
 	bitrixClientIdField?: string | null;
 	bitrixAdDealFields?: AdDealFieldCodes;
+	bitrixVisitDealFields?: VisitDealFieldCodes;
 }): Promise<void> {
 	if (!db) return;
 	await db
@@ -178,6 +196,56 @@ export async function getYandexMetrikaDealVisitor(
 		.where(eq(yandexMetrikaDealVisitors.dealId, dealId))
 		.limit(1);
 	return rows[0] ?? null;
+}
+
+export interface DealVisitorForVisitSummary {
+	dealId: string;
+	clientId: string;
+	createdAt: Date;
+}
+
+/**
+ * Сделки с ClientID, созданные в окне [since, until), по которым сводка
+ * визитов ещё не записана — для крона metrika-visits.
+ */
+export async function listDealVisitorsForVisitSummary(
+	since: Date,
+	until: Date,
+	limit = 200,
+): Promise<DealVisitorForVisitSummary[]> {
+	if (!db) return [];
+	const rows = await db
+		.select({
+			dealId: yandexMetrikaDealVisitors.dealId,
+			clientId: yandexMetrikaDealVisitors.clientId,
+			createdAt: yandexMetrikaDealVisitors.createdAt,
+		})
+		.from(yandexMetrikaDealVisitors)
+		.where(
+			and(
+				isNotNull(yandexMetrikaDealVisitors.clientId),
+				isNull(yandexMetrikaDealVisitors.visitsSummaryStatus),
+				gte(yandexMetrikaDealVisitors.createdAt, since),
+				lt(yandexMetrikaDealVisitors.createdAt, until),
+			),
+		)
+		.orderBy(asc(yandexMetrikaDealVisitors.createdAt))
+		.limit(limit);
+	return rows.flatMap((row) =>
+		row.clientId ? [{ ...row, clientId: row.clientId }] : [],
+	);
+}
+
+/** Фиксирует, что сводка визитов по сделке записана или визитов нет. */
+export async function markDealVisitsSummarized(
+	dealId: string,
+	status: "done" | "no_visits",
+): Promise<void> {
+	if (!db) return;
+	await db
+		.update(yandexMetrikaDealVisitors)
+		.set({ visitsSummaryStatus: status, visitsSummarizedAt: sql`now()` })
+		.where(eq(yandexMetrikaDealVisitors.dealId, dealId));
 }
 
 export type YandexMetrikaMessenger = "telegram" | "max";

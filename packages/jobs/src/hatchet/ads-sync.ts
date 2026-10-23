@@ -14,6 +14,7 @@ import {
 	getAdCredentials,
 	listAdTouchEntityRefsSince,
 } from "@psi-opora/db/queries";
+import { syncDealVisitSummaries } from "../metrika-visits/sync";
 import { runSteps } from "./run-steps";
 
 const ENTITIES_LOOKBACK_MS = 3 * 24 * 60 * 60 * 1000;
@@ -39,6 +40,11 @@ const ENTITIES_LOOKBACK_MS = 3 * 24 * 60 * 60 * 1000;
  * search-queries.ts) — отчёт за день появляется с задержкой, поэтому не при
  * создании сделки, а здесь.
  *
+ * Четвёртым — сводку визитов клиента на сайт до заявки из Logs API
+ * Метрики (packages/jobs/src/metrika-visits): Logs API не отдаёт текущий
+ * день, так что сделка обрабатывается на следующий день, один раз; прогоны,
+ * когда новых сделок нет, в Метрику не ходят.
+ *
  * Шаги в одной задаче — из-за лимита Hatchet на число cron-триггеров.
  */
 export const adsSync = CreateTaskWorkflow({
@@ -46,7 +52,8 @@ export const adsSync = CreateTaskWorkflow({
 	// Сдвиг минуты — чтобы не стартовать одновременно с другими крон-задачами.
 	on: { cron: "23 */6 * * *" },
 	retries: 1,
-	executionTimeout: "10m",
+	// С запасом на асинхронную выгрузку Logs API (до 8 мин ожидания).
+	executionTimeout: "20m",
 	concurrency: {
 		expression: "'ads-sync'",
 		maxRuns: 1,
@@ -85,6 +92,13 @@ export const adsSync = CreateTaskWorkflow({
 					: null;
 				if (!bitrix) return { skipped: true, reason: "no_bitrix" };
 				return { ...(await resolvePendingSearchQueries(bitrix)) };
+			},
+			metrikaVisits: async () => {
+				const bitrix = env.BITRIX_MEMBER_ID
+					? resolveBitrixApi(env.BITRIX_MEMBER_ID)
+					: null;
+				if (!bitrix) return { skipped: true, reason: "no_bitrix" };
+				return { ...(await syncDealVisitSummaries(bitrix)) };
 			},
 		}),
 });

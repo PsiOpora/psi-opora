@@ -10,8 +10,11 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { orpc } from "@/lib/orpc/client";
-import { YandexAdDealFieldsCard } from "./ad-deal-fields-card";
 import { YandexMetrikaSettingsForm } from "./credentials-form";
+import {
+	YandexAdDealFieldsCard,
+	YandexVisitDealFieldsCard,
+} from "./deal-fields-cards";
 import { YandexMetrikaStageGoalsCard } from "./stage-goals-card";
 
 /** Загружает настройки Метрики и показывает формы счётчика и целей по стадиям. */
@@ -61,7 +64,10 @@ export default function YandexMetrikaSettingsPage() {
 			</Card>
 
 			{!isLoading && (
-				<YandexAdDealFieldsCard initialSettings={settings ?? null} />
+				<>
+					<YandexAdDealFieldsCard initialSettings={settings ?? null} />
+					<YandexVisitDealFieldsCard initialSettings={settings ?? null} />
+				</>
 			)}
 
 			<PageSuspense>
