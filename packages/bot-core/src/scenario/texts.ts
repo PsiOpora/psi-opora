@@ -799,6 +799,57 @@ export const SCENARIO_TEXT_DEFS = [
     group: "Предзаказ книги: напоминания о тираже",
     defaultValue: "Хорошо, больше не пишем.",
   },
+  // ── Мини-приложение MAX (кнопка «Открыть» в чате с ботом) ─────────────────
+  // Страницу отдаёт apps/max-bot/src/webapp — тексты подставляются как есть,
+  // без markdown; ссылки, email и телефон в контактах становятся кликабельными.
+  {
+    key: "webapp_title",
+    label: "Заголовок",
+    group: "Мини-приложение MAX",
+    defaultValue: "Психологический центр «Опора»",
+  },
+  {
+    key: "webapp_greeting",
+    label: "Приветствие",
+    hint: "{name} — имя клиента из профиля MAX. Если имени нет, приветствие показывается без него.",
+    group: "Мини-приложение MAX",
+    placeholders: ["{name}"],
+    defaultValue: "Здравствуйте, {name}!",
+  },
+  {
+    key: "webapp_intro",
+    label: "Описание",
+    group: "Мини-приложение MAX",
+    multiline: true,
+    defaultValue:
+      "Запишитесь на консультацию к психологу или задайте вопрос — ответим здесь же, в чате с ботом.",
+  },
+  {
+    key: "webapp_btn_consult",
+    label: "Кнопка «Записаться»",
+    hint: "Закрывает мини-приложение и сразу начинает в чате запись на консультацию (шаги ветки «Записаться на консультацию»).",
+    group: "Мини-приложение MAX",
+    defaultValue: "📝 Записаться на консультацию",
+  },
+  {
+    key: "webapp_btn_chat",
+    label: "Кнопка «Задать вопрос»",
+    hint: "Закрывает мини-приложение и возвращает клиента в чат с ботом.",
+    group: "Мини-приложение MAX",
+    defaultValue: "💬 Задать вопрос в чате",
+  },
+  {
+    key: "webapp_contacts",
+    label: "Контакты",
+    hint: "Каждая строка — отдельный пункт. Ссылки (https://…), email и номера телефонов становятся кликабельными. Пустое поле скрывает блок.",
+    group: "Мини-приложение MAX",
+    multiline: true,
+    defaultValue:
+      "Телефон: +7 930 707-33-32\n" +
+      "Email: info@psi-opora.ru\n" +
+      "Сайт: https://psi-opora.ru\n" +
+      "ВКонтакте: https://vk.com/psi_opora",
+  },
 ] as const satisfies readonly ScenarioTextDef[];
 
 export type ScenarioTextKey = (typeof SCENARIO_TEXT_DEFS)[number]["key"];
@@ -956,6 +1007,19 @@ export const SCENARIO_TEXT_SECTIONS: readonly ScenarioTextSection[] = [
         group: "Диагностика: напоминание перед встречей",
         description:
           "Уходит в чат Открытой линии за час до бесплатной диагностической консультации — дата и время берутся из отдельного поля сделки.",
+      },
+    ],
+  },
+  {
+    label: "Мини-приложение в MAX",
+    description:
+      "Страница, которая открывается по кнопке «Открыть» в чате с MAX-ботом. Как подключить — docs/max-mini-app.md.",
+    numbered: false,
+    groups: [
+      {
+        group: "Мини-приложение MAX",
+        description:
+          "Приветствие, кнопки «Записаться» и «Задать вопрос в чате» и блок контактов. Правки появляются на странице в течение минуты.",
       },
     ],
   },
