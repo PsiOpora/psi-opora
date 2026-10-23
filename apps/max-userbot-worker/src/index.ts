@@ -22,7 +22,10 @@ import {
 	sendUserbotMessage,
 	setMaxSendResult,
 } from "@psi-opora/max-userbot";
+import { initTelemetry } from "@psi-opora/telemetry";
 import { runLoginBroker } from "./login";
+
+initTelemetry("max-userbot-worker");
 
 const OUTBOX_POLL_INTERVAL_MS = 3000;
 const ACCOUNTS_RESCAN_INTERVAL_MS = 5000;

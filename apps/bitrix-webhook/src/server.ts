@@ -42,6 +42,7 @@ import {
 	syncOneDeal,
 } from "@psi-opora/jobs";
 import { pushMaxOutboundMessage } from "@psi-opora/max-userbot";
+import { flushTelemetry, initTelemetry } from "@psi-opora/telemetry";
 import { pushOutboundMessage } from "@psi-opora/tg-userbot";
 import {
 	phoneFromJid,
@@ -67,6 +68,8 @@ import {
 } from "./operator-reply-guard";
 import { handlePayformWebhook } from "./payform-webhook";
 import { handleTrackTouch } from "./track-touch";
+
+initTelemetry("bitrix-webhook");
 
 const operatorReplyRedis: RedisClient | null = isRedisConfigured()
 	? createRedisClient()
@@ -1045,5 +1048,8 @@ const server = serve({ fetch: app.fetch, port }, (info) => {
 // При rollout k8s шлёт SIGTERM до SIGKILL — дожидаемся завершения активных
 // запросов вместо мгновенного обрыва соединений.
 process.on("SIGTERM", () => {
-	server.close(() => process.exit(0));
+	server.close(async () => {
+		await flushTelemetry();
+		process.exit(0);
+	});
 });

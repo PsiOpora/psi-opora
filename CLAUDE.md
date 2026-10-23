@@ -30,7 +30,7 @@ bun run migrate          # drizzle migrate, delegates to packages/db
 Per-package, not exposed at the root:
 
 ```bash
-cd packages/<pkg> && bun test                 # bun's built-in test runner (bot-core, db, max-userbot, tg-userbot, validators, waha)
+cd packages/<pkg> && bun test                 # bun's built-in test runner (bot-core, db, max-userbot, telemetry, tg-userbot, validators, waha)
 cd packages/<pkg> && bun test path/to.test.ts  # single test file
 cd packages/db && bun run push                # drizzle-kit push (dev schema sync)
 cd packages/db && bun run generate             # drizzle-kit generate (new migration)
@@ -76,6 +76,7 @@ docker compose up -d waha
   - `jobs` — scheduled/background job definitions, split between a generic job layer and `src/hatchet/*` (Hatchet workflow registrations run by `apps/hatchet-worker`).
   - `config` — shared env parsing/validation, crypto helpers, logger.
   - `storage` — MinIO/S3-compatible object storage client.
+  - `telemetry` — sends every `console.error` (incl. `logger.error` and Next.js server errors) to SigNoz Cloud as an OTLP exception span; `initTelemetry("<service>")` at each app entrypoint / `instrumentation.ts`. No-op without `OTEL_EXPORTER_OTLP_ENDPOINT`. Pod logs are shipped separately by the SigNoz k8s-infra chart (`infra/signoz/`).
   - `validators` — shared Zod schemas.
   - `emails` — React Email templates.
   - `rusender-client`, `unisender-client` — email/SMS provider REST clients.

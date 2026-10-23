@@ -15,6 +15,7 @@ import {
 	getObjectStream,
 	uploadObject,
 } from "@psi-opora/storage";
+import { initTelemetry } from "@psi-opora/telemetry";
 import {
 	createUserbotClient,
 	decryptSecret,
@@ -30,6 +31,8 @@ import {
 	sendUserbotMessage,
 	setSendResult,
 } from "@psi-opora/tg-userbot";
+
+initTelemetry("tg-userbot-worker");
 
 const OUTBOX_POLL_INTERVAL_MS = 3000;
 const ACCOUNTS_RESCAN_INTERVAL_MS = 60_000;
