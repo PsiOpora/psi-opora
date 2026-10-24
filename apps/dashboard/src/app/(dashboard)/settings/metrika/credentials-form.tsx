@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
 	Form,
 	FormControl,
+	FormDescription,
 	FormField,
 	FormItem,
 	FormLabel,
@@ -32,7 +33,7 @@ function toFormValues(
 	return {
 		counterId: settings?.counterId ?? "",
 		oauthToken: settings?.oauthToken ?? "",
-		goalId: settings?.goalId ?? "free_consultation_booked",
+		goalId: settings?.goalId ?? "",
 		bitrixClientIdField: settings?.bitrixClientIdField ?? "",
 	};
 }
@@ -77,7 +78,12 @@ export function YandexMetrikaSettingsForm({
 		<Form {...form}>
 			<form
 				onSubmit={form.handleSubmit((values) =>
-					mutation.mutate(blankToUndefined(values)),
+					// goalId передаём как есть: пустая цель — «не отправлять», а не
+					// «не менять» (как пустой токен).
+					mutation.mutate({
+						...blankToUndefined(values),
+						goalId: values.goalId ?? "",
+					}),
 				)}
 				className="flex flex-col gap-4"
 			>
@@ -116,6 +122,10 @@ export function YandexMetrikaSettingsForm({
 										{...field}
 									/>
 								</FormControl>
+								<FormDescription className="text-xs">
+									Пусто — не отправлять при создании сделки (цель можно
+									привязать к стадии ниже)
+								</FormDescription>
 								<FormMessage />
 							</FormItem>
 						)}

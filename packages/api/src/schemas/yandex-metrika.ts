@@ -12,7 +12,13 @@ import { z } from "zod";
 export const yandexMetrikaSettingsSchema = z.object({
 	counterId: z.string().trim().optional(),
 	oauthToken: z.string().trim().optional(),
-	goalId: z.string().trim().optional(),
+	// Пусто — не отправлять конверсию при создании сделки. Идентификатор уходит
+	// в CSV офлайн-конверсий без экранирования, поэтому без запятых и пробелов.
+	goalId: z
+		.string()
+		.trim()
+		.regex(/^([A-Za-z0-9_.:-]+)?$/, "Только латиница, цифры и символы _ . : -")
+		.optional(),
 	bitrixClientIdField: z.string().trim().optional(),
 });
 

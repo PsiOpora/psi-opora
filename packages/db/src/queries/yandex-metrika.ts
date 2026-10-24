@@ -203,11 +203,13 @@ export interface DealVisitorForVisitSummary {
 	clientId: string;
 	createdAt: Date;
 	visitsSummaryStatus: "done" | "no_visits" | "pending_search_query" | null;
+	visitsSummarizedAt: Date | null;
 }
 
 /**
  * Сделки с ClientID, созданные в окне [since, until), по которым сводка
- * визитов ещё не записана или ожидается запрос Директа — для крона metrika-visits.
+ * визитов ещё не записана, ожидается запрос Директа или визитов не нашлось
+ * (какие из них перепроверять, решает крон metrika-visits).
  */
 export async function listDealVisitorsForVisitSummary(
 	since: Date,
@@ -221,17 +223,20 @@ export async function listDealVisitorsForVisitSummary(
 			clientId: yandexMetrikaDealVisitors.clientId,
 			createdAt: yandexMetrikaDealVisitors.createdAt,
 			visitsSummaryStatus: yandexMetrikaDealVisitors.visitsSummaryStatus,
+			visitsSummarizedAt: yandexMetrikaDealVisitors.visitsSummarizedAt,
 		})
 		.from(yandexMetrikaDealVisitors)
 		.where(
 			and(
 				isNotNull(yandexMetrikaDealVisitors.clientId),
+				// no_visits тоже: крон перепроверит сделку, если «визитов нет» было
+				// записано до того, как статистика за день стала полной.
 				or(
 					isNull(yandexMetrikaDealVisitors.visitsSummaryStatus),
-					eq(
-						yandexMetrikaDealVisitors.visitsSummaryStatus,
+					inArray(yandexMetrikaDealVisitors.visitsSummaryStatus, [
 						"pending_search_query",
-					),
+						"no_visits",
+					]),
 				),
 				gte(yandexMetrikaDealVisitors.createdAt, since),
 				lt(yandexMetrikaDealVisitors.createdAt, until),

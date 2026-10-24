@@ -168,6 +168,40 @@ describe("sendConsultationGoalToYandexMetrika", () => {
 			"ClientId,Target,DateTime\n163972457524306386,consultation_paid,1767225600\n",
 		);
 	});
+
+	test.each([null, "", "  "])(
+		"пустая цель в настройках (%p) — конверсия при создании сделки выключена",
+		async (goalId) => {
+			if (settings) settings.goalId = goalId;
+			const fetchMock = mock(async () => new Response("{}", { status: 200 }));
+			globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+			const ok = await sendConsultationGoalToYandexMetrika({
+				clientId: "163972457524306386",
+				dealId: 77,
+			});
+
+			expect(ok).toBe(false);
+			expect(fetchMock).not.toHaveBeenCalled();
+			expect(info).toHaveBeenCalledWith("yandex_metrika.goal_disabled", {
+				dealId: 77,
+			});
+		},
+	);
+
+	test("цель по стадии отправляется, даже если цель при создании выключена", async () => {
+		if (settings) settings.goalId = null;
+		const fetchMock = mock(async () => new Response("{}", { status: 200 }));
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const ok = await sendYandexMetrikaGoal({
+			target: "free_consultation_booked",
+			clientId: "163972457524306386",
+		});
+
+		expect(ok).toBe(true);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
 });
 
 describe("rememberYandexMetrikaVisitor", () => {

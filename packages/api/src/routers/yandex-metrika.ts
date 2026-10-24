@@ -56,7 +56,12 @@ export const yandexMetrikaRouter = router({
 	upsertSettings: bitrixProcedure
 		.input(yandexMetrikaSettingsSchema)
 		.handler(async ({ input }) => {
-			await upsertYandexMetrikaSettings(input);
+			// Пустая цель — явное «не отправлять при создании сделки», её надо
+			// сохранить как null, а не пропустить как «поле не менялось».
+			await upsertYandexMetrikaSettings({
+				...input,
+				...(input.goalId === "" ? { goalId: null } : {}),
+			});
 			return { ok: true };
 		}),
 

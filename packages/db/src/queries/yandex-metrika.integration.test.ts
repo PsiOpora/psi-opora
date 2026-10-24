@@ -134,9 +134,13 @@ describe.skipIf(!url)("Metrika queries (PostgreSQL)", () => {
 		]);
 		await queries.markDealVisitsSummarized("1", "done");
 		await queries.markDealVisitsSummarized("2", "no_visits");
-		expect(await queries.listDealVisitorsForVisitSummary(since, until)).toEqual(
-			[],
-		);
+		// no_visits остаётся в выборке с моментом записи: перепроверять ли её,
+		// решает крон (визиты могли записать до того, как данные стали полными).
+		const rows = await queries.listDealVisitorsForVisitSummary(since, until);
+		expect(rows).toMatchObject([
+			{ dealId: "2", visitsSummaryStatus: "no_visits" },
+		]);
+		expect(rows[0]?.visitsSummarizedAt).toBeInstanceOf(Date);
 	});
 
 	test("search queue excludes Metrika deals before applying the limit and preserves fallback", async () => {
