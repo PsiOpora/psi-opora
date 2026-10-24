@@ -121,9 +121,10 @@ export const yandexMetrikaDealVisitors = pgTable(
 		yclid: text("yclid"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		// Сводка визитов на сайт из Logs API записана в сделку (done) или
-		// визитов по ClientID не нашлось (no_visits); null — ещё не обработана.
+		// визитов по ClientID не нашлось (no_visits); pending_search_query —
+		// сводка записана, ждём запрос Директа; null — ещё не обработана.
 		visitsSummaryStatus: text("visits_summary_status", {
-			enum: ["done", "no_visits"],
+			enum: ["done", "no_visits", "pending_search_query"],
 		}),
 		visitsSummarizedAt: timestamp("visits_summarized_at"),
 	},

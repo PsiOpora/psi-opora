@@ -4,7 +4,12 @@ import type { LogsVisitRow } from "./logs-api";
 const CLIENT_ID = "163972457524306386";
 
 let settings: Record<string, unknown> | null = null;
-let deals: Array<{ dealId: string; clientId: string; createdAt: Date }> = [];
+let deals: Array<{
+	dealId: string;
+	clientId: string;
+	createdAt: Date;
+	visitsSummaryStatus?: "pending_search_query" | null;
+}> = [];
 const listCalls: Array<{ since: Date; until: Date }> = [];
 const marked: Array<[string, string]> = [];
 
@@ -205,8 +210,137 @@ describe("syncDealVisitSummaries", () => {
 			logsApi,
 			searchQueryReport: () => Promise.reject(new Error("Директ недоступен")),
 		});
-		expect(result).toMatchObject({ done: 1, searchQueries: 0 });
+		expect(result).toMatchObject({
+			done: 0,
+			searchQueries: 0,
+			pendingSearchQueries: 1,
+		});
+		expect(marked).toContainEqual(["501", "pending_search_query"]);
+		expect(bitrixCalls[0]?.method).toBe("crm.deal.update");
 	});
+
+	test.each([{ reportRows: [] }, { reportRows: null }])(
+		"пустой отчёт или отсутствие учётных данных оставляет поиск на следующий прогон: %j",
+		async ({ reportRows }) => {
+			rows = [visitRow(AD_VISIT)];
+			const result = await syncDealVisitSummaries(bitrix, NOW, {
+				logsApi,
+				searchQueryReport: () => Promise.resolve(reportRows),
+			});
+			expect(result).toMatchObject({ done: 0, pendingSearchQueries: 1 });
+			expect(marked).toContainEqual(["501", "pending_search_query"]);
+			expect(bitrixCalls.map((call) => call.method)).toEqual([
+				"crm.deal.update",
+				"crm.timeline.comment.add",
+			]);
+			expect(JSON.stringify(bitrixCalls)).not.toContain(
+				"Поисковый запрос (отчёт Директа)",
+			);
+		},
+	);
+
+	test("повторный прогон дописывает только найденный запрос и завершает сделку", async () => {
+		settings = {
+			...settings,
+			bitrixAdDealFields: { searchQuery: "UF_CRM_QUERY" },
+		};
+		rows = [visitRow(AD_VISIT)];
+		await syncDealVisitSummaries(bitrix, NOW, { logsApi });
+		deals = deals
+			.filter((deal) => deal.dealId === "501")
+			.map((deal) => ({
+				...deal,
+				visitsSummaryStatus: "pending_search_query",
+			}));
+		bitrixCalls.length = 0;
+		marked.length = 0;
+		const waiting = await syncDealVisitSummaries(bitrix, NOW, { logsApi });
+		expect(waiting.pendingSearchQueries).toBe(1);
+		expect(bitrixCalls).toHaveLength(0);
+		expect(marked).toHaveLength(0);
+
+		const result = await syncDealVisitSummaries(bitrix, NOW, {
+			logsApi,
+			searchQueryReport: () =>
+				Promise.resolve([{ AdGroupId: "5600000111", Query: "новый запрос" }]),
+		});
+		expect(result).toMatchObject({
+			done: 1,
+			searchQueries: 1,
+			pendingSearchQueries: 0,
+		});
+		expect(bitrixCalls).toEqual([
+			{
+				method: "crm.deal.update",
+				params: { id: "501", fields: { UF_CRM_QUERY: "новый запрос" } },
+			},
+			{
+				method: "crm.timeline.comment.add",
+				params: {
+					fields: {
+						ENTITY_ID: 501,
+						ENTITY_TYPE: "deal",
+						COMMENT: "Поисковый запрос (отчёт Директа): новый запрос",
+					},
+				},
+			},
+		]);
+		expect(marked).toEqual([["501", "done"]]);
+	});
+
+	test.each(["search", "context"])(
+		"отсутствующие значения выбранного визита очищаются: %s",
+		async (platform) => {
+			settings = {
+				...settings,
+				bitrixAdDealFields: {
+					campaign: "UF_CAMPAIGN",
+					adGroup: "UF_GROUP",
+					ad: "UF_AD",
+					region: "UF_REGION",
+					clickPosition: "UF_POSITION",
+					landingPage: "UF_PAGE",
+					searchQuery: "UF_QUERY",
+				},
+			};
+			rows = [
+				visitRow(AD_VISIT),
+				visitRow({
+					visitID: "1003",
+					dateTime: "2026-10-08 11:55:00",
+					lastTrafficSource: "ad",
+					lastAdvEngine: "ya_direct",
+					lastDirectPlatformType: platform,
+					startURL: "https://psi-opora.ru/new/",
+					regionCity: "",
+					lastDirectBannerGroup: "5600000042",
+				}),
+			];
+			const reportCalls: unknown[] = [];
+			const result = await syncDealVisitSummaries(bitrix, NOW, {
+				logsApi,
+				searchQueryReport: (clicks) => {
+					reportCalls.push(clicks);
+					return Promise.resolve([]);
+				},
+			});
+			expect(bitrixCalls[0]?.params).toEqual({
+				id: "501",
+				fields: {
+					UF_CRM_VISITS: "2",
+					UF_CAMPAIGN: "",
+					UF_GROUP: "5600000042",
+					UF_AD: "",
+					UF_REGION: "",
+					UF_POSITION: "",
+					UF_PAGE: "https://psi-opora.ru/new/",
+					UF_QUERY: "",
+				},
+			});
+			expect(result.pendingSearchQueries).toBe(platform === "search" ? 1 : 0);
+			expect(reportCalls).toHaveLength(platform === "search" ? 1 : 0);
+		},
+	);
 
 	test("до 08:00 МСК вчерашние сделки ждут полной статистики", async () => {
 		await syncDealVisitSummaries(bitrix, new Date("2026-10-10T03:00:00Z"), {

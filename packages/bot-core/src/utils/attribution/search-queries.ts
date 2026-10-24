@@ -187,7 +187,11 @@ export async function resolvePendingSearchQueries(
 		notFound: 0,
 		waiting: 0,
 	};
-	const pending = await listPendingAdSearchQueryLookups();
+	const settings = await getYandexMetrikaSettings();
+	const pending = await listPendingAdSearchQueryLookups(
+		200,
+		Boolean(settings?.counterId && settings.oauthToken),
+	);
 	const ready = pending.filter(
 		(lookup) =>
 			lookup.adGroupId &&
@@ -198,7 +202,6 @@ export async function resolvePendingSearchQueries(
 
 	const rows = await fetchSearchQueryReport(ready);
 	if (!rows) return { ...result, skipped: true };
-	const settings = await getYandexMetrikaSettings();
 	const fieldCode = settings?.bitrixAdDealFields?.searchQuery;
 
 	for (const lookup of ready) {

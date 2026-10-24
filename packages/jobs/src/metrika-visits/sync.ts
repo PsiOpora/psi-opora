@@ -45,6 +45,7 @@ export interface VisitSummariesResult {
 	visitRows: number;
 	adClicks: number;
 	searchQueries: number;
+	pendingSearchQueries: number;
 }
 
 /** Дата по Москве (YYYY-MM-DD). */
@@ -65,7 +66,7 @@ function toBitrixFields(
 	return Object.fromEntries(
 		Object.entries(values).flatMap(([key, value]) => {
 			const code = codes[key];
-			return code && value ? [[code, value]] : [];
+			return code && value !== undefined ? [[code, value]] : [];
 		}),
 	);
 }
@@ -104,7 +105,8 @@ async function loadSearchQueryRows(
  * - визиты — число, первый визит и источник, устройство, страницы, время,
  *   цели — в поля визитов; подробно всё — в таймлайн.
  * Коды полей — /settings/metrika. Logs API не отдаёт текущий день, поэтому
- * сделка обрабатывается на следующий день после создания, один раз. Фильтра
+ * сводка записывается на следующий день после создания, один раз, а поиск
+ * запроса повторяется до 14 дней после создания сделки. Фильтра
  * по ClientID у Logs API нет: выгружается весь счётчик за окно визитов и
  * сопоставляется со сделками здесь, без сохранения чужих визитов.
  */
@@ -125,6 +127,7 @@ export async function syncDealVisitSummaries(
 		visitRows: 0,
 		adClicks: 0,
 		searchQueries: 0,
+		pendingSearchQueries: 0,
 	};
 	const settings = await getYandexMetrikaSettings();
 	if (!settings?.counterId || !settings.oauthToken) {
@@ -196,6 +199,29 @@ export async function syncDealVisitSummaries(
 	const visitCodes = settings.bitrixVisitDealFields ?? {};
 	for (const { deal, visits, adVisit } of prepared) {
 		try {
+			const query =
+				adVisit?.adClick.groupId && !isNetworkClick(adVisit.adClick)
+					? matchSearchQuery(searchLookup(adVisit), searchRows)
+					: undefined;
+			const pendingSearchQuery = Boolean(
+				adVisit?.adClick.groupId && !isNetworkClick(adVisit.adClick) && !query,
+			);
+			if (deal.visitsSummaryStatus === "pending_search_query") {
+				if (!query) {
+					result.pendingSearchQueries++;
+					continue;
+				}
+				await writeSummary(
+					bitrix,
+					deal.dealId,
+					toBitrixFields({ searchQuery: query }, adCodes),
+					`Поисковый запрос (отчёт Директа): ${query}`,
+				);
+				await markDealVisitsSummarized(deal.dealId, "done");
+				result.searchQueries++;
+				result.done++;
+				continue;
+			}
 			const summary = summarizeVisits(visits, goalNames);
 			if (!summary) {
 				await markDealVisitsSummarized(deal.dealId, "no_visits");
@@ -206,14 +232,11 @@ export async function syncDealVisitSummaries(
 			let adValues: Partial<Record<string, string>> = {};
 			if (adVisit) {
 				result.adClicks++;
-				const query =
-					adVisit.adClick.groupId && !isNetworkClick(adVisit.adClick)
-						? matchSearchQuery(searchLookup(adVisit), searchRows)
-						: undefined;
 				if (query) result.searchQueries++;
 				adValues = {
+					...Object.fromEntries(Object.keys(adCodes).map((key) => [key, ""])),
 					...adDealFields(adVisit.adClick, adVisit.city),
-					...(query ? { searchQuery: query } : {}),
+					searchQuery: query ?? "",
 				};
 				adLines.push(
 					`Реклама (последний клик по Директу перед заявкой): ${describeAdClick(adVisit.adClick)}`,
@@ -231,8 +254,12 @@ export async function syncDealVisitSummaries(
 				fields,
 				[...adLines, summary.timelineComment].join("\n"),
 			);
-			await markDealVisitsSummarized(deal.dealId, "done");
-			result.done++;
+			await markDealVisitsSummarized(
+				deal.dealId,
+				pendingSearchQuery ? "pending_search_query" : "done",
+			);
+			if (pendingSearchQuery) result.pendingSearchQueries++;
+			else result.done++;
 		} catch (err) {
 			result.failed++;
 			console.error(
