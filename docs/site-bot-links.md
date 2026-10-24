@@ -17,8 +17,10 @@
 ## Что делает новый скрипт
 
 - Метка — `data-lead-code` кнопки, иначе `utm_campaign` страницы входа (если
-  она из допустимых символов). Метка и `yclid` запоминаются в `sessionStorage`
-  на первой странице визита, поэтому не теряются при переходе по сайту.
+  она из допустимых символов). Метка и `yclid` запоминаются одной парой в
+  `sessionStorage` на 30 минут, поэтому не теряются при переходе по сайту.
+  Новые входные метки заменяют пару целиком: кампания без нового `yclid`
+  не наследует старый идентификатор. При другой метке кнопки `yclid` опускается.
 - Длина `start` не больше 64. При нехватке места сначала убирается `yclid`
   (при ClientID он не нужен), затем метка; ClientID сохраняется всегда.
 - Остальное как раньше: ждёт ClientID до 1,2 с, открывает ссылку в новой
@@ -53,7 +55,8 @@
 	// Telegram: start — только A-Za-z0-9_- и не длиннее 64 символов.
 	var MAX_START_LENGTH = 64;
 	var SAFE_RE = /^[A-Za-z0-9_-]+$/;
-	var STORAGE_PREFIX = "psi_lead_";
+	var STORAGE_KEY = "psi_lead_visit";
+	var VISIT_LIFETIME_MS = 30 * 60 * 1000;
 
 	function readParam(name) {
 		try {
@@ -63,18 +66,31 @@
 		}
 	}
 
-	// Значение из адреса страницы, иначе запомненное на первой странице визита.
-	function remembered(name, validate) {
-		var value = readParam(name);
+	// Входные метки заменяют всю пару; без них восстанавливаем текущий визит.
+	function remembered() {
+		var campaign = readParam("utm_campaign");
+		var yclid = readParam("yclid");
+		var visit = {
+			utm_campaign: isSafe(campaign) ? campaign : "",
+			yclid: isYclid(yclid) ? yclid : "",
+			expiresAt: Date.now() + VISIT_LIFETIME_MS,
+		};
 		try {
-			if (value && validate(value)) {
-				window.sessionStorage.setItem(STORAGE_PREFIX + name, value);
-				return value;
+			if (!campaign && !yclid) {
+				var stored = JSON.parse(window.sessionStorage.getItem(STORAGE_KEY));
+				if (
+					stored &&
+					typeof stored.expiresAt === "number" &&
+					stored.expiresAt > Date.now() &&
+					typeof stored.utm_campaign === "string" &&
+					(!stored.utm_campaign || isSafe(stored.utm_campaign)) &&
+					typeof stored.yclid === "string" &&
+					(!stored.yclid || isYclid(stored.yclid))
+				) return stored;
 			}
-			return window.sessionStorage.getItem(STORAGE_PREFIX + name) || "";
-		} catch (e) {
-			return value && validate(value) ? value : "";
-		}
+			window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(visit));
+		} catch (e) {}
+		return visit;
 	}
 
 	function isSafe(value) {
@@ -86,8 +102,7 @@
 	}
 
 	// Запоминаем метки сразу при заходе, а не только при клике.
-	remembered("utm_campaign", isSafe);
-	remembered("yclid", isYclid);
+	var attribution = remembered();
 
 	function waitForYm(timeoutMs) {
 		return new Promise(function (resolve) {
@@ -132,12 +147,15 @@
 	}
 
 	function buildStartParam(link, clientId) {
+		var visit = attribution.expiresAt > Date.now()
+			? attribution
+			: { utm_campaign: "", yclid: "" };
 		var leadCode = link.getAttribute("data-lead-code") || "";
 		var code = isSafe(leadCode)
 			? leadCode
-			: remembered("utm_campaign", isSafe);
+			: visit.utm_campaign;
 		var ym = clientId && /^\d{10,25}$/.test(clientId) ? "_ym" + clientId : "";
-		var yclid = remembered("yclid", isYclid);
+		var yclid = code === visit.utm_campaign ? visit.yclid : "";
 		var yc = yclid ? "_yc" + yclid : "";
 
 		// Приоритет: ClientID > метка кампании > yclid.
@@ -163,6 +181,8 @@
 			event.preventDefault();
 			var newTab = link.target === "_blank";
 			var baseUrl = link.href;
+			var tab = newTab ? window.open("about:blank", "_blank") : null;
+			if (tab) tab.opener = null;
 			getClientId(CLIENT_ID_WAIT_MS).then(function (clientId) {
 				var startParam = buildStartParam(link, clientId);
 				var finalUrl = startParam
@@ -171,7 +191,11 @@
 						"start=" +
 						encodeURIComponent(startParam)
 					: baseUrl;
-				openLink(finalUrl, newTab);
+				if (tab && !tab.closed) {
+					tab.location.href = finalUrl;
+				} else {
+					openLink(finalUrl, false);
+				}
 			});
 		},
 		true,
