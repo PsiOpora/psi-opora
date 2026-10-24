@@ -34,4 +34,12 @@ export const SITE_CODES: Record<string, SiteCodeEntry> = {
 		source: "yandex",
 		campaign: "РК- ОКР по конверсиям",
 	},
+	/** Кампания 709724725 «РК- ОКР по конверсиям» — статичная метка в её
+	 * TrackingParams (utm_campaign=direct_okr); сайт передаёт её боту как код
+	 * ссылки. Расход сопоставляется по ручной привязке direct_okr → 709724725
+	 * (/settings/ads), в самой метке ID кампании нет. */
+	direct_okr: {
+		source: "yandex",
+		campaign: "direct_okr",
+	},
 };

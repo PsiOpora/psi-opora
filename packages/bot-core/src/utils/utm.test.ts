@@ -19,6 +19,13 @@ describe("parseUtmParams", () => {
 		});
 	});
 
+	test("метка кампании ОКР direct_okr — источник yandex", () => {
+		expect(parseUtmParams("direct_okr")).toEqual({
+			source: "yandex",
+			campaign: "direct_okr",
+		});
+	});
+
 	test("декодирует неизвестную кампанию перед сохранением", () => {
 		expect(parseUtmParams("%D0%A2%D0%B5%D1%81%D1%82")).toEqual({
 			campaign: "Тест",
