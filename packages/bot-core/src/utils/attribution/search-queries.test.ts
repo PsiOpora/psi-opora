@@ -3,6 +3,8 @@ import type { PendingAdSearchQueryLookup } from "@psi-opora/db/queries";
 import type { DirectReportParams, DirectReportRow } from "../direct-reports";
 
 let pending: PendingAdSearchQueryLookup[] = [];
+let metrikaConfigured = false;
+const lookupCalls: Array<[number | undefined, boolean | undefined]> = [];
 let reportRows: DirectReportRow[] = [];
 let fieldCode: string | undefined = "UF_CRM_SEARCH_QUERY";
 const resolved: Array<{ dealId: string; result: unknown }> = [];
@@ -20,8 +22,16 @@ mock.module("@psi-opora/db/queries", () => ({
 	getYandexMetrikaSettings: () =>
 		Promise.resolve({
 			bitrixAdDealFields: fieldCode ? { searchQuery: fieldCode } : {},
+			counterId: metrikaConfigured ? "123" : null,
+			oauthToken: metrikaConfigured ? "local-token" : null,
 		}),
-	listPendingAdSearchQueryLookups: () => Promise.resolve(pending),
+	listPendingAdSearchQueryLookups: (
+		limit?: number,
+		excludeMetrikaDeals?: boolean,
+	) => {
+		lookupCalls.push([limit, excludeMetrikaDeals]);
+		return Promise.resolve(pending);
+	},
 	resolveAdSearchQueryLookup: (dealId: string, result: unknown) => {
 		resolved.push({ dealId, result });
 		return Promise.resolve();
@@ -138,6 +148,8 @@ describe("resolvePendingSearchQueries", () => {
 
 	beforeEach(() => {
 		pending = [lookup()];
+		metrikaConfigured = false;
+		lookupCalls.length = 0;
 		reportRows = [row({})];
 		fieldCode = "UF_CRM_SEARCH_QUERY";
 		resolved.length = 0;
@@ -175,6 +187,15 @@ describe("resolvePendingSearchQueries", () => {
 			},
 		]);
 	});
+
+	test.each([true, false])(
+		"при настроенной Метрике исключает сделки с ClientID из очереди: %s",
+		async (configured) => {
+			metrikaConfigured = configured;
+			await resolvePendingSearchQueries(bitrix, NOW);
+			expect(lookupCalls).toEqual([[200, configured]]);
+		},
+	);
 
 	test("без кода поля запрос уходит только в таймлайн", async () => {
 		fieldCode = undefined;

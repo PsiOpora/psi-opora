@@ -1,6 +1,7 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, ne, notExists, sql } from "drizzle-orm";
 import { db } from "../client";
 import { adSearchQueryLookups, adTouches } from "../schema/ad-touches";
+import { yandexMetrikaDealVisitors } from "../schema/yandex-metrika";
 
 /** Ожидающий поиск запроса вместе с данными клика из касания. */
 export interface PendingAdSearchQueryLookup {
@@ -26,6 +27,7 @@ export async function insertAdSearchQueryLookup(params: {
 /** Сделки, по которым запрос ещё не найден, — от старых кликов к новым. */
 export async function listPendingAdSearchQueryLookups(
 	limit = 200,
+	excludeMetrikaDeals = false,
 ): Promise<PendingAdSearchQueryLookup[]> {
 	if (!db) return [];
 	return db
@@ -40,7 +42,30 @@ export async function listPendingAdSearchQueryLookups(
 		})
 		.from(adSearchQueryLookups)
 		.innerJoin(adTouches, eq(adTouches.id, adSearchQueryLookups.touchId))
-		.where(eq(adSearchQueryLookups.status, "pending"))
+		.where(
+			and(
+				eq(adSearchQueryLookups.status, "pending"),
+				// При настроенной Метрике запрос сделок с ClientID пишет только
+				// metrikaVisits — по выбранному визиту, а не по старому касанию.
+				excludeMetrikaDeals
+					? notExists(
+							db
+								.select({ id: yandexMetrikaDealVisitors.dealId })
+								.from(yandexMetrikaDealVisitors)
+								.where(
+									and(
+										eq(
+											yandexMetrikaDealVisitors.dealId,
+											adSearchQueryLookups.dealId,
+										),
+										isNotNull(yandexMetrikaDealVisitors.clientId),
+										ne(yandexMetrikaDealVisitors.clientId, ""),
+									),
+								),
+						)
+					: undefined,
+			),
+		)
 		.orderBy(asc(adTouches.occurredAt))
 		.limit(limit);
 }

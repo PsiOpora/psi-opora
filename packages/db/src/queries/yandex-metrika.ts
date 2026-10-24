@@ -202,11 +202,12 @@ export interface DealVisitorForVisitSummary {
 	dealId: string;
 	clientId: string;
 	createdAt: Date;
+	visitsSummaryStatus: "done" | "no_visits" | "pending_search_query" | null;
 }
 
 /**
  * Сделки с ClientID, созданные в окне [since, until), по которым сводка
- * визитов ещё не записана — для крона metrika-visits.
+ * визитов ещё не записана или ожидается запрос Директа — для крона metrika-visits.
  */
 export async function listDealVisitorsForVisitSummary(
 	since: Date,
@@ -219,12 +220,19 @@ export async function listDealVisitorsForVisitSummary(
 			dealId: yandexMetrikaDealVisitors.dealId,
 			clientId: yandexMetrikaDealVisitors.clientId,
 			createdAt: yandexMetrikaDealVisitors.createdAt,
+			visitsSummaryStatus: yandexMetrikaDealVisitors.visitsSummaryStatus,
 		})
 		.from(yandexMetrikaDealVisitors)
 		.where(
 			and(
 				isNotNull(yandexMetrikaDealVisitors.clientId),
-				isNull(yandexMetrikaDealVisitors.visitsSummaryStatus),
+				or(
+					isNull(yandexMetrikaDealVisitors.visitsSummaryStatus),
+					eq(
+						yandexMetrikaDealVisitors.visitsSummaryStatus,
+						"pending_search_query",
+					),
+				),
 				gte(yandexMetrikaDealVisitors.createdAt, since),
 				lt(yandexMetrikaDealVisitors.createdAt, until),
 			),
@@ -236,10 +244,10 @@ export async function listDealVisitorsForVisitSummary(
 	);
 }
 
-/** Фиксирует, что сводка визитов по сделке записана или визитов нет. */
+/** Фиксирует запись сводки, ожидание запроса Директа или отсутствие визитов. */
 export async function markDealVisitsSummarized(
 	dealId: string,
-	status: "done" | "no_visits",
+	status: "done" | "no_visits" | "pending_search_query",
 ): Promise<void> {
 	if (!db) return;
 	await db
