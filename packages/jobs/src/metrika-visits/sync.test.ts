@@ -4,7 +4,12 @@ import type { LogsVisitRow } from "./logs-api";
 const CLIENT_ID = "163972457524306386";
 
 let settings: Record<string, unknown> | null = null;
-let deals: Array<{ dealId: string; clientId: string; createdAt: Date }> = [];
+let deals: Array<{
+	dealId: string;
+	clientId: string;
+	createdAt: Date;
+	visitsSummaryStatus?: "pending_search_query" | null;
+}> = [];
 const listCalls: Array<{ since: Date; until: Date }> = [];
 const marked: Array<[string, string]> = [];
 
@@ -18,6 +23,18 @@ mock.module("@psi-opora/db/queries", () => ({
 		marked.push([dealId, status]);
 		return Promise.resolve();
 	},
+}));
+
+// Сопоставление запроса проверено в bot-core (search-queries.test.ts); здесь —
+// только что задача передаёт клик и пишет результат.
+mock.module("@psi-opora/bot-core", () => ({
+	fetchSearchQueryReport: () => Promise.resolve([]),
+	matchSearchQuery: (
+		lookup: { adGroupId: string | null },
+		rows: Array<Record<string, string>>,
+	) => rows.find((r) => r.AdGroupId === lookup.adGroupId)?.Query,
+	formatClickPosition: (t: { adPosition: string | null }) =>
+		t.adPosition ?? undefined,
 }));
 
 const { syncDealVisitSummaries } = await import("./sync");
@@ -41,6 +58,22 @@ function visitRow(overrides: Partial<LogsVisitRow> = {}): LogsVisitRow {
 
 // 10.10, 10:00 МСК — обрабатываются сделки, созданные до начала суток.
 const NOW = new Date("2026-10-10T07:00:00Z");
+
+const AD_VISIT: Partial<LogsVisitRow> = {
+	visitID: "1002",
+	dateTime: "2026-10-08 11:50:00",
+	startURL: "https://psi-opora.ru/anorexia/?position=2&utm_source=yandex",
+	regionCity: "Saint Petersburg",
+	lastTrafficSource: "ad",
+	lastAdvEngine: "ya_direct",
+	lastDirectClickOrder: "708811857",
+	lastDirectClickOrderName: "Анорексия — поиск",
+	lastDirectBannerGroup: "5600000111",
+	lastClickBannerGroupName: "Лечение анорексии",
+	lastDirectClickBanner: "17000000123",
+	lastDirectClickBannerName: "Помощь при анорексии",
+	lastDirectPlatformType: "search",
+};
 
 describe("syncDealVisitSummaries", () => {
 	const bitrixCalls: Array<{ method: string; params: unknown }> = [];
@@ -112,6 +145,208 @@ describe("syncDealVisitSummaries", () => {
 			["501", "done"],
 			["502", "no_visits"],
 		]);
+	});
+
+	test("последний клик по Директу и поисковый запрос — в рекламные поля", async () => {
+		settings = {
+			...settings,
+			bitrixAdDealFields: {
+				campaign: "UF_CRM_YA_AD_CAMPAIGN",
+				searchQuery: "UF_CRM_QUERY",
+				region: "UF_CRM_YA_AD_REGION",
+				clickPosition: "UF_CRM_POS",
+				landingPage: "UF_CRM_PAGE",
+			},
+		};
+		rows = [visitRow(), visitRow(AD_VISIT)];
+		const reportCalls: unknown[] = [];
+		const result = await syncDealVisitSummaries(bitrix, NOW, {
+			logsApi,
+			searchQueryReport: (clicks) => {
+				reportCalls.push(clicks);
+				return Promise.resolve([
+					{ AdGroupId: "5600000111", Query: "лечение анорексии спб" },
+				]);
+			},
+		});
+		expect(result).toMatchObject({ adClicks: 1, searchQueries: 1 });
+		expect(reportCalls).toEqual([
+			[
+				{
+					adGroupId: "5600000111",
+					adId: "17000000123",
+					keywordId: null,
+					clickedAt: new Date("2026-10-08T08:50:00Z"),
+				},
+			],
+		]);
+		expect(bitrixCalls[0]?.params).toEqual({
+			id: "501",
+			fields: {
+				UF_CRM_VISITS: "2",
+				UF_CRM_CITY: "Saint Petersburg",
+				UF_CRM_YA_AD_CAMPAIGN: "Анорексия — поиск",
+				UF_CRM_QUERY: "лечение анорексии спб",
+				UF_CRM_YA_AD_REGION: "Saint Petersburg",
+				UF_CRM_POS: "2",
+				UF_CRM_PAGE: "https://psi-opora.ru/anorexia/",
+			},
+		});
+		const params = bitrixCalls[1]?.params as
+			| { fields: { COMMENT: string } }
+			| undefined;
+		const comment = params?.fields.COMMENT;
+		expect(comment).toStartWith(
+			"Реклама (последний клик по Директу перед заявкой): РК «Анорексия — поиск»",
+		);
+		expect(comment).toContain(
+			"Поисковый запрос (отчёт Директа): лечение анорексии спб",
+		);
+	});
+
+	test("сбой отчёта Директа не мешает записать остальное", async () => {
+		rows = [visitRow(AD_VISIT)];
+		const result = await syncDealVisitSummaries(bitrix, NOW, {
+			logsApi,
+			searchQueryReport: () => Promise.reject(new Error("Директ недоступен")),
+		});
+		expect(result).toMatchObject({
+			done: 0,
+			searchQueries: 0,
+			pendingSearchQueries: 1,
+		});
+		expect(marked).toContainEqual(["501", "pending_search_query"]);
+		expect(bitrixCalls[0]?.method).toBe("crm.deal.update");
+	});
+
+	test.each([{ reportRows: [] }, { reportRows: null }])(
+		"пустой отчёт или отсутствие учётных данных оставляет поиск на следующий прогон: %j",
+		async ({ reportRows }) => {
+			rows = [visitRow(AD_VISIT)];
+			const result = await syncDealVisitSummaries(bitrix, NOW, {
+				logsApi,
+				searchQueryReport: () => Promise.resolve(reportRows),
+			});
+			expect(result).toMatchObject({ done: 0, pendingSearchQueries: 1 });
+			expect(marked).toContainEqual(["501", "pending_search_query"]);
+			expect(bitrixCalls.map((call) => call.method)).toEqual([
+				"crm.deal.update",
+				"crm.timeline.comment.add",
+			]);
+			expect(JSON.stringify(bitrixCalls)).not.toContain(
+				"Поисковый запрос (отчёт Директа)",
+			);
+		},
+	);
+
+	test("повторный прогон дописывает только найденный запрос и завершает сделку", async () => {
+		settings = {
+			...settings,
+			bitrixAdDealFields: { searchQuery: "UF_CRM_QUERY" },
+		};
+		rows = [visitRow(AD_VISIT)];
+		await syncDealVisitSummaries(bitrix, NOW, { logsApi });
+		deals = deals
+			.filter((deal) => deal.dealId === "501")
+			.map((deal) => ({
+				...deal,
+				visitsSummaryStatus: "pending_search_query",
+			}));
+		bitrixCalls.length = 0;
+		marked.length = 0;
+		const waiting = await syncDealVisitSummaries(bitrix, NOW, { logsApi });
+		expect(waiting.pendingSearchQueries).toBe(1);
+		expect(bitrixCalls).toHaveLength(0);
+		expect(marked).toHaveLength(0);
+
+		const result = await syncDealVisitSummaries(bitrix, NOW, {
+			logsApi,
+			searchQueryReport: () =>
+				Promise.resolve([{ AdGroupId: "5600000111", Query: "новый запрос" }]),
+		});
+		expect(result).toMatchObject({
+			done: 1,
+			searchQueries: 1,
+			pendingSearchQueries: 0,
+		});
+		expect(bitrixCalls).toEqual([
+			{
+				method: "crm.deal.update",
+				params: { id: "501", fields: { UF_CRM_QUERY: "новый запрос" } },
+			},
+			{
+				method: "crm.timeline.comment.add",
+				params: {
+					fields: {
+						ENTITY_ID: 501,
+						ENTITY_TYPE: "deal",
+						COMMENT: "Поисковый запрос (отчёт Директа): новый запрос",
+					},
+				},
+			},
+		]);
+		expect(marked).toEqual([["501", "done"]]);
+	});
+
+	test.each(["search", "context"])(
+		"отсутствующие значения выбранного визита очищаются: %s",
+		async (platform) => {
+			settings = {
+				...settings,
+				bitrixAdDealFields: {
+					campaign: "UF_CAMPAIGN",
+					adGroup: "UF_GROUP",
+					ad: "UF_AD",
+					region: "UF_REGION",
+					clickPosition: "UF_POSITION",
+					landingPage: "UF_PAGE",
+					searchQuery: "UF_QUERY",
+				},
+			};
+			rows = [
+				visitRow(AD_VISIT),
+				visitRow({
+					visitID: "1003",
+					dateTime: "2026-10-08 11:55:00",
+					lastTrafficSource: "ad",
+					lastAdvEngine: "ya_direct",
+					lastDirectPlatformType: platform,
+					startURL: "https://psi-opora.ru/new/",
+					regionCity: "",
+					lastDirectBannerGroup: "5600000042",
+				}),
+			];
+			const reportCalls: unknown[] = [];
+			const result = await syncDealVisitSummaries(bitrix, NOW, {
+				logsApi,
+				searchQueryReport: (clicks) => {
+					reportCalls.push(clicks);
+					return Promise.resolve([]);
+				},
+			});
+			expect(bitrixCalls[0]?.params).toEqual({
+				id: "501",
+				fields: {
+					UF_CRM_VISITS: "2",
+					UF_CAMPAIGN: "",
+					UF_GROUP: "5600000042",
+					UF_AD: "",
+					UF_REGION: "",
+					UF_POSITION: "",
+					UF_PAGE: "https://psi-opora.ru/new/",
+					UF_QUERY: "",
+				},
+			});
+			expect(result.pendingSearchQueries).toBe(platform === "search" ? 1 : 0);
+			expect(reportCalls).toHaveLength(platform === "search" ? 1 : 0);
+		},
+	);
+
+	test("до 08:00 МСК вчерашние сделки ждут полной статистики", async () => {
+		await syncDealVisitSummaries(bitrix, new Date("2026-10-10T03:00:00Z"), {
+			logsApi,
+		});
+		expect(listCalls[0]?.until).toEqual(new Date("2026-10-08T21:00:00Z"));
 	});
 
 	test("без кодов полей сводка уходит только в таймлайн", async () => {

@@ -120,7 +120,9 @@ const POSITION_TYPE_LABELS: Record<string, string> = {
 };
 
 /** «1 · премиум-показы»; позиция 0 или тип none — показ в сетях, не на поиске. */
-export function formatClickPosition(touch: AdTouch): string | undefined {
+export function formatClickPosition(
+	touch: Pick<AdTouch, "adPosition" | "adPositionType">,
+): string | undefined {
 	if (touch.adPositionType === "none" || touch.adPosition === "0") {
 		return "сети (РСЯ)";
 	}

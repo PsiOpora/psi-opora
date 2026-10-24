@@ -130,6 +130,7 @@ export {
 	buildAttribution,
 	collectEntityRefs,
 	type DealAttribution,
+	formatClickPosition,
 } from "./utils/attribution/build";
 export {
 	recordDealAttribution,
@@ -137,6 +138,9 @@ export {
 } from "./utils/attribution/deal-attribution";
 export {
 	type BitrixCaller,
+	fetchSearchQueryReport,
+	matchSearchQuery,
+	mskDate,
 	resolvePendingSearchQueries,
 	type SearchQueriesResult,
 } from "./utils/attribution/search-queries";

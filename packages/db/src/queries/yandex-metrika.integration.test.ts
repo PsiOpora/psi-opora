@@ -22,6 +22,7 @@ describe.skipIf(!url)("Metrika queries (PostgreSQL)", () => {
 	const client = postgres(url, { connection: { search_path: schema } });
 	const db = drizzle(client, { schema: dbSchema });
 	let queries: typeof import("./yandex-metrika");
+	let searchQueries: typeof import("./ad-search-queries");
 
 	beforeAll(async () => {
 		await client`CREATE SCHEMA ${client(schema)}`;
@@ -67,16 +68,33 @@ describe.skipIf(!url)("Metrika queries (PostgreSQL)", () => {
 				"utf8",
 			),
 		);
+		for (const migration of [
+			"0047_nebulous_annihilus.sql",
+			"0059_ad_touches.sql",
+			"0069_ad_deal_fields.sql",
+			"0070_metrika_deal_visits.sql",
+		]) {
+			await client.unsafe(
+				await readFile(
+					new URL(`../../migrations/${migration}`, import.meta.url),
+					"utf8",
+				),
+			);
+		}
 		await client`CREATE TABLE bot_messages (
 			messenger text, user_id text, direction text, text text, created_at timestamp
 		)`;
 		mock.module("../client", () => ({ db }));
 		queries = await import("./yandex-metrika");
+		searchQueries = await import("./ad-search-queries");
 	});
 	beforeEach(async () => {
 		await client`DELETE FROM yandex_metrika_goal_events WHERE stage_goal_id = 'goal'`;
 		await client`DELETE FROM yandex_metrika_messenger_visitors WHERE user_id != 'legacy'`;
 		await client`DELETE FROM bot_messages`;
+		await client`DELETE FROM yandex_metrika_deal_visitors`;
+		await client`DELETE FROM ad_search_query_lookups`;
+		await client`DELETE FROM ad_touches`;
 	});
 	afterAll(async () => {
 		await client`DROP SCHEMA ${client(schema)} CASCADE`;
@@ -99,6 +117,62 @@ describe.skipIf(!url)("Metrika queries (PostgreSQL)", () => {
 			await client`SELECT * FROM yandex_metrika_goal_events WHERE stage_goal_id = 'goal'`;
 		return row;
 	}
+
+	test("visit summaries retry pending queries and stop selecting completed deals", async () => {
+		await client`INSERT INTO yandex_metrika_deal_visitors (deal_id, client_id, created_at)
+			VALUES ('1', 'client', '2026-10-08 09:00:00'), ('2', 'client', '2026-10-09 09:00:00'),
+			('no-client', null, '2026-10-08 09:00:00'), ('old', 'client', '2026-09-01 09:00:00'),
+			('today', 'client', '2026-10-10 09:00:00')`;
+		const since = new Date("2026-09-25T21:00:00Z");
+		const until = new Date("2026-10-09T21:00:00Z");
+		await queries.markDealVisitsSummarized("1", "pending_search_query");
+		expect(
+			await queries.listDealVisitorsForVisitSummary(since, until),
+		).toMatchObject([
+			{ dealId: "1", visitsSummaryStatus: "pending_search_query" },
+			{ dealId: "2", visitsSummaryStatus: null },
+		]);
+		await queries.markDealVisitsSummarized("1", "done");
+		await queries.markDealVisitsSummarized("2", "no_visits");
+		expect(await queries.listDealVisitorsForVisitSummary(since, until)).toEqual(
+			[],
+		);
+	});
+
+	test("search queue excludes Metrika deals before applying the limit and preserves fallback", async () => {
+		await client`INSERT INTO ad_touches (id, occurred_at) VALUES ('touch', '2026-10-08 09:00:00')`;
+		for (const [id, status] of [
+			["1", null],
+			["2", "pending_search_query"],
+			["3", "done"],
+			["4", "no_visits"],
+		]) {
+			await client`INSERT INTO yandex_metrika_deal_visitors (deal_id, client_id, visits_summary_status)
+				VALUES (${id}, 'client', ${status})`;
+			await searchQueries.insertAdSearchQueryLookup({
+				dealId: id as string,
+				touchId: "touch",
+				messenger: "telegram",
+			});
+		}
+		await searchQueries.insertAdSearchQueryLookup({
+			dealId: "yclid-only",
+			touchId: "touch",
+			messenger: "telegram",
+		});
+		await client`INSERT INTO yandex_metrika_deal_visitors (deal_id, client_id, yclid)
+			VALUES ('yclid-only', null, 'click')`;
+		expect(await searchQueries.listPendingAdSearchQueryLookups()).toHaveLength(
+			5,
+		);
+		expect(
+			await searchQueries.listPendingAdSearchQueryLookups(1, true),
+		).toMatchObject([{ dealId: "yclid-only" }]);
+		await client`UPDATE yandex_metrika_deal_visitors SET client_id = '' WHERE deal_id = 'yclid-only'`;
+		expect(
+			await searchQueries.listPendingAdSearchQueryLookups(200, true),
+		).toMatchObject([{ dealId: "yclid-only" }]);
+	});
 
 	test("migration preserves legacy sent events and their timestamps", async () => {
 		const [row] =
