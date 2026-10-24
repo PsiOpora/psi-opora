@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import type { LogsVisitRow } from "./logs-api";
 import {
 	formatDuration,
+	lastAdVisit,
 	type SiteVisit,
 	summarizeVisits,
 	toSiteVisit,
+	visitsBeforeDeal,
 } from "./summary";
 
 const CLIENT_ID = "163972457524306386";
@@ -88,25 +90,27 @@ describe("toSiteVisit", () => {
 describe("summarizeVisits", () => {
 	test("сводка: число визитов, первый визит и источник, страницы, время, цели", () => {
 		const summary = summarizeVisits(
-			[
-				visit(),
-				visit({
-					visitID: "1000",
-					dateTime: "2026-10-01 20:00:00",
-					lastTrafficSource: "organic",
-					lastSearchEngineRoot: "yandex",
-					lastUTMCampaign: "",
-					lastUTMSource: "",
-					pageViews: "1",
-					visitDuration: "15",
-					bounce: "1",
-					goalsID: "[]",
-					deviceCategory: "1",
-					operatingSystemRoot: "Windows",
-					browser: "Chrome",
-				}),
-			],
-			DEAL_CREATED_AT,
+			visitsBeforeDeal(
+				[
+					visit(),
+					visit({
+						visitID: "1000",
+						dateTime: "2026-10-01 20:00:00",
+						lastTrafficSource: "organic",
+						lastSearchEngineRoot: "yandex",
+						lastUTMCampaign: "",
+						lastUTMSource: "",
+						pageViews: "1",
+						visitDuration: "15",
+						bounce: "1",
+						goalsID: "[]",
+						deviceCategory: "1",
+						operatingSystemRoot: "Windows",
+						browser: "Chrome",
+					}),
+				],
+				DEAL_CREATED_AT,
+			),
 			goals,
 		);
 		expect(summary?.fields).toEqual({
@@ -136,13 +140,15 @@ describe("summarizeVisits", () => {
 
 	test("визиты после заявки и старше 30 дней не учитываются, дубли — один раз", () => {
 		const summary = summarizeVisits(
-			[
-				visit(),
-				visit(),
-				visit({ visitID: "2000", dateTime: "2026-10-09 15:00:00" }),
-				visit({ visitID: "999", dateTime: "2026-09-01 10:00:00" }),
-			],
-			DEAL_CREATED_AT,
+			visitsBeforeDeal(
+				[
+					visit(),
+					visit(),
+					visit({ visitID: "2000", dateTime: "2026-10-09 15:00:00" }),
+					visit({ visitID: "999", dateTime: "2026-09-01 10:00:00" }),
+				],
+				DEAL_CREATED_AT,
+			),
 			goals,
 		);
 		expect(summary?.fields.visitCount).toBe("1");
@@ -151,8 +157,10 @@ describe("summarizeVisits", () => {
 	test("нет визитов до заявки — null", () => {
 		expect(
 			summarizeVisits(
-				[visit({ dateTime: "2026-10-09 15:00:00" })],
-				DEAL_CREATED_AT,
+				visitsBeforeDeal(
+					[visit({ dateTime: "2026-10-09 15:00:00" })],
+					DEAL_CREATED_AT,
+				),
 				goals,
 			),
 		).toBeNull();
@@ -160,11 +168,29 @@ describe("summarizeVisits", () => {
 
 	test("неизвестная цель подписывается номером", () => {
 		const summary = summarizeVisits(
-			[visit({ goalsID: "[789]" })],
-			DEAL_CREATED_AT,
+			visitsBeforeDeal([visit({ goalsID: "[789]" })], DEAL_CREATED_AT),
 			new Map(),
 		);
 		expect(summary?.fields.goals).toBe("цель 789");
+	});
+});
+
+describe("lastAdVisit", () => {
+	test("последний визит с клика по Директу, а не просто последний визит", () => {
+		const sorted = visitsBeforeDeal(
+			[
+				visit({ visitID: "1", dateTime: "2026-10-05 10:00:00" }),
+				visit({
+					visitID: "2",
+					dateTime: "2026-10-09 11:50:00",
+					lastTrafficSource: "direct",
+					lastAdvEngine: "",
+					lastUTMCampaign: "",
+				}),
+			],
+			DEAL_CREATED_AT,
+		);
+		expect(lastAdVisit(sorted)?.visitId).toBe("1");
 	});
 });
 

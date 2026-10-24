@@ -1,4 +1,5 @@
 import type { VisitDealFieldKey } from "@psi-opora/db/queries";
+import { type AdClick, parseAdClick } from "./ad-click";
 import type { LogsVisitRow } from "./logs-api";
 
 /** Визит клиента в удобном для сводки виде. */
@@ -14,6 +15,8 @@ export interface SiteVisit {
 	device: string;
 	source: string;
 	goalIds: string[];
+	/** Клик по объявлению Директа, если визит начался с него. */
+	adClick?: AdClick;
 }
 
 /** Визиты до заявки за это окно объясняют путь клиента; старше — уже шум. */
@@ -109,6 +112,7 @@ function parseMskDateTime(value: string | undefined): Date | null {
 export function toSiteVisit(row: LogsVisitRow): SiteVisit | null {
 	const startedAt = parseMskDateTime(row.dateTime);
 	if (!startedAt || !row.clientID || !row.visitID) return null;
+	const adClick = parseAdClick(row);
 	const device = [
 		DEVICE_LABELS[row.deviceCategory ?? ""],
 		row.operatingSystemRoot,
@@ -128,6 +132,7 @@ export function toSiteVisit(row: LogsVisitRow): SiteVisit | null {
 		device,
 		source: describeSource(row),
 		goalIds: parseGoalIds(row.goalsID),
+		...(adClick ? { adClick } : {}),
 	};
 }
 
@@ -144,14 +149,13 @@ export interface VisitSummary {
 }
 
 /**
- * Сводка визитов клиента до заявки: визиты, начавшиеся не позже создания
- * сделки и не раньше VISITS_LOOKBACK_DAYS до неё. null — таких визитов нет.
+ * Визиты, начавшиеся не позже создания сделки и не раньше
+ * VISITS_LOOKBACK_DAYS до неё, без дублей, от старых к новым.
  */
-export function summarizeVisits(
+export function visitsBeforeDeal(
 	visits: SiteVisit[],
 	dealCreatedAt: Date,
-	goalNames: Map<string, string>,
-): VisitSummary | null {
+): SiteVisit[] {
 	const since =
 		dealCreatedAt.getTime() - VISITS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
 	const unique = new Map<string, SiteVisit>();
@@ -161,9 +165,25 @@ export function summarizeVisits(
 			unique.set(visit.visitId, visit);
 		}
 	}
-	const sorted = [...unique.values()].sort(
+	return [...unique.values()].sort(
 		(a, b) => a.startedAt.getTime() - b.startedAt.getTime(),
 	);
+}
+
+export type AdVisit = SiteVisit & { adClick: AdClick };
+
+/** Последний визит с клика по Директу перед заявкой — им объясняется реклама сделки. */
+export function lastAdVisit(sorted: SiteVisit[]): AdVisit | undefined {
+	return sorted
+		.filter((visit): visit is AdVisit => Boolean(visit.adClick))
+		.at(-1);
+}
+
+/** Сводка по визитам до заявки (см. visitsBeforeDeal); null — визитов нет. */
+export function summarizeVisits(
+	sorted: SiteVisit[],
+	goalNames: Map<string, string>,
+): VisitSummary | null {
 	const first = sorted[0];
 	const last = sorted.at(-1);
 	if (!first || !last) return null;

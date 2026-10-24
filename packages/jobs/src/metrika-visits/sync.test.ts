@@ -20,6 +20,18 @@ mock.module("@psi-opora/db/queries", () => ({
 	},
 }));
 
+// Сопоставление запроса проверено в bot-core (search-queries.test.ts); здесь —
+// только что задача передаёт клик и пишет результат.
+mock.module("@psi-opora/bot-core", () => ({
+	fetchSearchQueryReport: () => Promise.resolve([]),
+	matchSearchQuery: (
+		lookup: { adGroupId: string | null },
+		rows: Array<Record<string, string>>,
+	) => rows.find((r) => r.AdGroupId === lookup.adGroupId)?.Query,
+	formatClickPosition: (t: { adPosition: string | null }) =>
+		t.adPosition ?? undefined,
+}));
+
 const { syncDealVisitSummaries } = await import("./sync");
 
 function visitRow(overrides: Partial<LogsVisitRow> = {}): LogsVisitRow {
@@ -41,6 +53,22 @@ function visitRow(overrides: Partial<LogsVisitRow> = {}): LogsVisitRow {
 
 // 10.10, 10:00 МСК — обрабатываются сделки, созданные до начала суток.
 const NOW = new Date("2026-10-10T07:00:00Z");
+
+const AD_VISIT: Partial<LogsVisitRow> = {
+	visitID: "1002",
+	dateTime: "2026-10-08 11:50:00",
+	startURL: "https://psi-opora.ru/anorexia/?position=2&utm_source=yandex",
+	regionCity: "Saint Petersburg",
+	lastTrafficSource: "ad",
+	lastAdvEngine: "ya_direct",
+	lastDirectClickOrder: "708811857",
+	lastDirectClickOrderName: "Анорексия — поиск",
+	lastDirectBannerGroup: "5600000111",
+	lastClickBannerGroupName: "Лечение анорексии",
+	lastDirectClickBanner: "17000000123",
+	lastDirectClickBannerName: "Помощь при анорексии",
+	lastDirectPlatformType: "search",
+};
 
 describe("syncDealVisitSummaries", () => {
 	const bitrixCalls: Array<{ method: string; params: unknown }> = [];
@@ -112,6 +140,79 @@ describe("syncDealVisitSummaries", () => {
 			["501", "done"],
 			["502", "no_visits"],
 		]);
+	});
+
+	test("последний клик по Директу и поисковый запрос — в рекламные поля", async () => {
+		settings = {
+			...settings,
+			bitrixAdDealFields: {
+				campaign: "UF_CRM_YA_AD_CAMPAIGN",
+				searchQuery: "UF_CRM_QUERY",
+				region: "UF_CRM_YA_AD_REGION",
+				clickPosition: "UF_CRM_POS",
+				landingPage: "UF_CRM_PAGE",
+			},
+		};
+		rows = [visitRow(), visitRow(AD_VISIT)];
+		const reportCalls: unknown[] = [];
+		const result = await syncDealVisitSummaries(bitrix, NOW, {
+			logsApi,
+			searchQueryReport: (clicks) => {
+				reportCalls.push(clicks);
+				return Promise.resolve([
+					{ AdGroupId: "5600000111", Query: "лечение анорексии спб" },
+				]);
+			},
+		});
+		expect(result).toMatchObject({ adClicks: 1, searchQueries: 1 });
+		expect(reportCalls).toEqual([
+			[
+				{
+					adGroupId: "5600000111",
+					adId: "17000000123",
+					keywordId: null,
+					clickedAt: new Date("2026-10-08T08:50:00Z"),
+				},
+			],
+		]);
+		expect(bitrixCalls[0]?.params).toEqual({
+			id: "501",
+			fields: {
+				UF_CRM_VISITS: "2",
+				UF_CRM_CITY: "Saint Petersburg",
+				UF_CRM_YA_AD_CAMPAIGN: "Анорексия — поиск",
+				UF_CRM_QUERY: "лечение анорексии спб",
+				UF_CRM_YA_AD_REGION: "Saint Petersburg",
+				UF_CRM_POS: "2",
+				UF_CRM_PAGE: "https://psi-opora.ru/anorexia/",
+			},
+		});
+		const params = bitrixCalls[1]?.params as
+			| { fields: { COMMENT: string } }
+			| undefined;
+		const comment = params?.fields.COMMENT;
+		expect(comment).toStartWith(
+			"Реклама (последний клик по Директу перед заявкой): РК «Анорексия — поиск»",
+		);
+		expect(comment).toContain(
+			"Поисковый запрос (отчёт Директа): лечение анорексии спб",
+		);
+	});
+
+	test("сбой отчёта Директа не мешает записать остальное", async () => {
+		rows = [visitRow(AD_VISIT)];
+		const result = await syncDealVisitSummaries(bitrix, NOW, {
+			logsApi,
+			searchQueryReport: () => Promise.reject(new Error("Директ недоступен")),
+		});
+		expect(result).toMatchObject({ done: 1, searchQueries: 0 });
+	});
+
+	test("до 08:00 МСК вчерашние сделки ждут полной статистики", async () => {
+		await syncDealVisitSummaries(bitrix, new Date("2026-10-10T03:00:00Z"), {
+			logsApi,
+		});
+		expect(listCalls[0]?.until).toEqual(new Date("2026-10-08T21:00:00Z"));
 	});
 
 	test("без кодов полей сводка уходит только в таймлайн", async () => {

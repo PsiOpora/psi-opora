@@ -122,6 +122,45 @@ async function writeToDeal(
 	});
 }
 
+/**
+ * Отчёт Директа по поисковым запросам с кликами за дни кликов по их группам —
+ * одним запросом на все клики. null — учётные данные Директа не настроены.
+ */
+export async function fetchSearchQueryReport(
+	clicks: Array<Pick<PendingAdSearchQueryLookup, "adGroupId" | "clickedAt">>,
+): Promise<DirectReportRow[] | null> {
+	const groupIds = [
+		...new Set(clicks.flatMap((click) => click.adGroupId ?? [])),
+	];
+	if (groupIds.length === 0) return [];
+	const creds = await getAdCredentials();
+	if (
+		!creds?.yandexClientId ||
+		!creds.yandexClientSecret ||
+		!creds.yandexRefreshToken
+	) {
+		return null;
+	}
+	const dates = clicks.map((click) => mskDate(click.clickedAt)).sort();
+	const token = await getYandexToken(
+		creds.yandexClientId,
+		creds.yandexClientSecret,
+		creds.yandexRefreshToken,
+	);
+	return fetchDirectReport({
+		token,
+		clientLogin: creds.yandexClientLogin ?? undefined,
+		reportType: "SEARCH_QUERY_PERFORMANCE_REPORT",
+		fieldNames: REPORT_FIELDS,
+		dateFrom: dates[0] ?? "",
+		dateTo: dates.at(-1) ?? "",
+		filter: [
+			{ Field: "AdGroupId", Operator: "IN", Values: groupIds },
+			{ Field: "Clicks", Operator: "GREATER_THAN", Values: ["0"] },
+		],
+	});
+}
+
 export interface SearchQueriesResult {
 	[key: string]: number | boolean;
 	skipped: boolean;
@@ -148,15 +187,6 @@ export async function resolvePendingSearchQueries(
 		notFound: 0,
 		waiting: 0,
 	};
-	const creds = await getAdCredentials();
-	if (
-		!creds?.yandexClientId ||
-		!creds.yandexClientSecret ||
-		!creds.yandexRefreshToken
-	) {
-		return { ...result, skipped: true };
-	}
-
 	const pending = await listPendingAdSearchQueryLookups();
 	const ready = pending.filter(
 		(lookup) =>
@@ -166,28 +196,8 @@ export async function resolvePendingSearchQueries(
 	result.waiting = pending.length - ready.length;
 	if (ready.length === 0) return result;
 
-	const dates = ready.map((lookup) => mskDate(lookup.clickedAt)).sort();
-	const token = await getYandexToken(
-		creds.yandexClientId,
-		creds.yandexClientSecret,
-		creds.yandexRefreshToken,
-	);
-	const rows = await fetchDirectReport({
-		token,
-		clientLogin: creds.yandexClientLogin ?? undefined,
-		reportType: "SEARCH_QUERY_PERFORMANCE_REPORT",
-		fieldNames: REPORT_FIELDS,
-		dateFrom: dates[0] ?? mskDate(now),
-		dateTo: dates.at(-1) ?? mskDate(now),
-		filter: [
-			{
-				Field: "AdGroupId",
-				Operator: "IN",
-				Values: [...new Set(ready.map((lookup) => lookup.adGroupId ?? ""))],
-			},
-			{ Field: "Clicks", Operator: "GREATER_THAN", Values: ["0"] },
-		],
-	});
+	const rows = await fetchSearchQueryReport(ready);
+	if (!rows) return { ...result, skipped: true };
 	const settings = await getYandexMetrikaSettings();
 	const fieldCode = settings?.bitrixAdDealFields?.searchQuery;
 

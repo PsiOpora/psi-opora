@@ -24,7 +24,19 @@ export const VISIT_FIELDS = [
 	"ym:s:lastUTMSource",
 	"ym:s:lastUTMMedium",
 	"ym:s:lastUTMCampaign",
+	"ym:s:lastUTMContent",
+	"ym:s:lastUTMTerm",
 	"ym:s:goalsID",
+	// Клик по объявлению Директа, приведший к визиту: ID и названия
+	// кампании/группы/объявления, условие показа и тип площадки.
+	"ym:s:lastDirectClickOrder",
+	"ym:s:lastDirectClickOrderName",
+	"ym:s:lastDirectBannerGroup",
+	"ym:s:lastClickBannerGroupName",
+	"ym:s:lastDirectClickBanner",
+	"ym:s:lastDirectClickBannerName",
+	"ym:s:lastDirectPhraseOrCond",
+	"ym:s:lastDirectPlatformType",
 ] as const;
 
 /** Строка выгрузки: значение колонки по имени поля без префикса ym:s:. */
