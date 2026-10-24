@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	adDealFields,
+	adUtmFields,
 	describeAdClick,
 	isNetworkClick,
 	parseAdClick,
@@ -42,7 +43,17 @@ describe("parseAdClick", () => {
 			positionType: "premium",
 			regionName: "Москва",
 			landingPage: "https://psi-opora.ru/anorexia/",
+			utmCampaign: "search_anorexia_708811857",
 		});
+	});
+
+	test("регион показа читается и из параметра region", () => {
+		const click = parseAdClick(
+			row({
+				startURL: "https://psi-opora.ru/?region=%D0%A2%D0%B2%D0%B5%D1%80%D1%8C",
+			}),
+		);
+		expect(click?.regionName).toBe("Тверь");
 	});
 
 	test("без полей Директа в Метрике ID берутся из параметров ссылки", () => {
@@ -112,6 +123,26 @@ describe("поля сделки и описание", () => {
 		expect(click && describeAdClick(click)).toBe(
 			"РК «Анорексия — поиск» · группа «Лечение анорексии» · объявление «Помощь при анорексии (17000000123)» · условие «лечение анорексии» · позиция 1 · премиум-показы",
 		);
+	});
+
+	test("UTM сделки: метки из ссылки, иначе ID кампании и объявления", () => {
+		expect(
+			adUtmFields({
+				campaignId: "708811857",
+				adId: "17000000123",
+				condition: "лечение анорексии",
+			}),
+		).toEqual({
+			UTM_SOURCE: "yandex",
+			UTM_MEDIUM: "cpc",
+			UTM_CAMPAIGN: "708811857",
+			UTM_CONTENT: "17000000123",
+			UTM_TERM: "лечение анорексии",
+		});
+		expect(adUtmFields({})).toEqual({
+			UTM_SOURCE: "yandex",
+			UTM_MEDIUM: "cpc",
+		});
 	});
 
 	test("клик в сетях распознаётся по позиции и типу площадки", () => {

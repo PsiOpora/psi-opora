@@ -203,11 +203,13 @@ export interface DealVisitorForVisitSummary {
 	clientId: string;
 	createdAt: Date;
 	visitsSummaryStatus: "done" | "no_visits" | "pending_search_query" | null;
+	visitsSummarizedAt: Date | null;
 }
 
 /**
  * Сделки с ClientID, созданные в окне [since, until), по которым сводка
- * визитов ещё не записана или ожидается запрос Директа — для крона metrika-visits.
+ * визитов ещё не записана, ожидается запрос Директа или отсутствие визитов
+ * зафиксировано до полной статистики (08:00 МСК следующего дня).
  */
 export async function listDealVisitorsForVisitSummary(
 	since: Date,
@@ -221,6 +223,7 @@ export async function listDealVisitorsForVisitSummary(
 			clientId: yandexMetrikaDealVisitors.clientId,
 			createdAt: yandexMetrikaDealVisitors.createdAt,
 			visitsSummaryStatus: yandexMetrikaDealVisitors.visitsSummaryStatus,
+			visitsSummarizedAt: yandexMetrikaDealVisitors.visitsSummarizedAt,
 		})
 		.from(yandexMetrikaDealVisitors)
 		.where(
@@ -231,6 +234,18 @@ export async function listDealVisitorsForVisitSummary(
 					eq(
 						yandexMetrikaDealVisitors.visitsSummaryStatus,
 						"pending_search_query",
+					),
+					and(
+						eq(yandexMetrikaDealVisitors.visitsSummaryStatus, "no_visits"),
+						or(
+							isNull(yandexMetrikaDealVisitors.visitsSummarizedAt),
+							// Как dataReadyAt в metrika-visits: следующий день, 08:00 МСК
+							// (05:00 UTC); timestamp хранится в UTC без часового пояса.
+							lt(
+								yandexMetrikaDealVisitors.visitsSummarizedAt,
+								sql`date_trunc('day', ${yandexMetrikaDealVisitors.createdAt} + interval '3 hours') + interval '1 day 5 hours'`,
+							),
+						),
 					),
 				),
 				gte(yandexMetrikaDealVisitors.createdAt, since),

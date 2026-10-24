@@ -8,7 +8,8 @@ let deals: Array<{
 	dealId: string;
 	clientId: string;
 	createdAt: Date;
-	visitsSummaryStatus?: "pending_search_query" | null;
+	visitsSummaryStatus?: "pending_search_query" | "no_visits" | null;
+	visitsSummarizedAt?: Date | null;
 }> = [];
 const listCalls: Array<{ since: Date; until: Date }> = [];
 const marked: Array<[string, string]> = [];
@@ -77,8 +78,16 @@ const AD_VISIT: Partial<LogsVisitRow> = {
 
 describe("syncDealVisitSummaries", () => {
 	const bitrixCalls: Array<{ method: string; params: unknown }> = [];
+	// Сделка в Bitrix по crm.deal.get — нужна только для решения, переписывать
+	// ли UTM; вызовы чтения не попадают в bitrixCalls (там только записи).
+	let dealInBitrix: unknown = { UTM_CAMPAIGN: "search_anorexia_708811857" };
+	const dealGets: unknown[] = [];
 	const bitrix = {
 		call: (method: string, params: Record<string, unknown>) => {
+			if (method === "crm.deal.get") {
+				dealGets.push(params);
+				return Promise.resolve(dealInBitrix);
+			}
 			bitrixCalls.push({ method, params });
 			return Promise.resolve(true);
 		},
@@ -122,6 +131,8 @@ describe("syncDealVisitSummaries", () => {
 		listCalls.length = 0;
 		marked.length = 0;
 		bitrixCalls.length = 0;
+		dealGets.length = 0;
+		dealInBitrix = { UTM_CAMPAIGN: "search_anorexia_708811857" };
 		visitsCalls.length = 0;
 	});
 
@@ -202,6 +213,71 @@ describe("syncDealVisitSummaries", () => {
 		expect(comment).toContain(
 			"Поисковый запрос (отчёт Директа): лечение анорексии спб",
 		);
+	});
+
+	test("бот не знал кампанию — UTM сделки заполняются по клику из Директа", async () => {
+		dealInBitrix = {
+			UTM_SOURCE: "max",
+			UTM_MEDIUM: "max_bot",
+			UTM_CAMPAIGN: "",
+		};
+		rows = [
+			visitRow({
+				...AD_VISIT,
+				lastUTMCampaign: "search_anorexia_708811857",
+				lastUTMContent: "17000000123_premium_mobile",
+				lastUTMTerm: "лечение анорексии",
+			}),
+		];
+		await syncDealVisitSummaries(bitrix, NOW, { logsApi });
+		expect(dealGets).toEqual([{ id: "501" }]);
+		expect(bitrixCalls[0]?.params).toMatchObject({
+			id: "501",
+			fields: {
+				UTM_SOURCE: "yandex",
+				UTM_MEDIUM: "cpc",
+				UTM_CAMPAIGN: "search_anorexia_708811857",
+				UTM_CONTENT: "17000000123_premium_mobile",
+				UTM_TERM: "лечение анорексии",
+			},
+		});
+	});
+
+	test("настоящую метку кампании в сделке не трогаем", async () => {
+		rows = [visitRow(AD_VISIT)];
+		await syncDealVisitSummaries(bitrix, NOW, { logsApi });
+		const update = bitrixCalls[0]?.params as { fields: object } | undefined;
+		expect(update?.fields).toBeDefined();
+		expect(update?.fields).not.toHaveProperty("UTM_CAMPAIGN");
+	});
+
+	test("без рекламного визита сделку в Bitrix не читаем", async () => {
+		await syncDealVisitSummaries(bitrix, NOW, { logsApi });
+		expect(dealGets).toHaveLength(0);
+	});
+
+	test("«нет визитов», записанное до полной статистики, перепроверяется", async () => {
+		deals = [
+			{
+				dealId: "6208",
+				clientId: CLIENT_ID,
+				createdAt: new Date("2026-10-08T09:00:00Z"), // 08.10, 12:00 МСК
+				visitsSummaryStatus: "no_visits",
+				// 09.10, 00:24 МСК — до 08:00, данные за 08.10 ещё неполные
+				visitsSummarizedAt: new Date("2026-10-08T21:24:00Z"),
+			},
+			{
+				dealId: "6209",
+				clientId: "999999999999999999",
+				createdAt: new Date("2026-10-08T09:00:00Z"),
+				visitsSummaryStatus: "no_visits",
+				// 09.10, 10:00 МСК — после 08:00, итог окончательный
+				visitsSummarizedAt: new Date("2026-10-09T07:00:00Z"),
+			},
+		];
+		const result = await syncDealVisitSummaries(bitrix, NOW, { logsApi });
+		expect(result).toMatchObject({ deals: 1, done: 1 });
+		expect(marked).toEqual([["6208", "done"]]);
 	});
 
 	test("сбой отчёта Директа не мешает записать остальное", async () => {

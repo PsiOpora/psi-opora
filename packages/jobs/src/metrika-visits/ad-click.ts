@@ -26,6 +26,10 @@ export interface AdClick {
 	regionName?: string;
 	/** Страница входа без строки запроса и якоря. */
 	landingPage?: string;
+	/** UTM-метки визита (Метрика) — для меток сделки, если бот своих не знал. */
+	utmCampaign?: string;
+	utmContent?: string;
+	utmTerm?: string;
 }
 
 const ID_RE = /^\d{5,20}$/;
@@ -85,8 +89,12 @@ export function parseAdClick(row: LogsVisitRow): AdClick | undefined {
 		platformType: textOf(row.lastDirectPlatformType),
 		position: param("position"),
 		positionType: param("position_type"),
-		regionName: param("region_name"),
+		// В шаблонах кампаний регион показа передаётся и как region_name, и как region.
+		regionName: param("region_name") ?? param("region"),
 		landingPage: url ? `${url.origin}${url.pathname}` : undefined,
+		utmCampaign: textOf(row.lastUTMCampaign) ?? param("utm_campaign"),
+		utmContent: textOf(row.lastUTMContent) ?? param("utm_content"),
+		utmTerm: textOf(row.lastUTMTerm) ?? param("utm_term"),
 	};
 	return Object.fromEntries(
 		Object.entries(click).filter(([, value]) => value !== undefined),
@@ -127,6 +135,27 @@ export function adDealFields(
 	};
 	return Object.fromEntries(
 		Object.entries(values).filter(([, value]) => Boolean(value)),
+	);
+}
+
+/**
+ * UTM-поля сделки по клику из Директа — для сделок, где бот не знал кампанию
+ * (UTM_CAMPAIGN пустой: ссылка на бота пришла без метки). Источник всегда
+ * yandex/cpc — как у меток SITE_CODES, по ним дашборд сопоставляет расход;
+ * метка кампании — из ссылки, иначе ID кампании.
+ */
+export function adUtmFields(click: AdClick): Record<string, string> {
+	const fields: Record<string, string | undefined> = {
+		UTM_SOURCE: "yandex",
+		UTM_MEDIUM: "cpc",
+		UTM_CAMPAIGN: click.utmCampaign ?? click.campaignId,
+		UTM_CONTENT: click.utmContent ?? click.adId,
+		UTM_TERM: click.utmTerm ?? click.condition,
+	};
+	return Object.fromEntries(
+		Object.entries(fields).filter((entry): entry is [string, string] =>
+			Boolean(entry[1]),
+		),
 	);
 }
 

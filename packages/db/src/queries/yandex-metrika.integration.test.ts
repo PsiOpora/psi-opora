@@ -134,10 +134,56 @@ describe.skipIf(!url)("Metrika queries (PostgreSQL)", () => {
 		]);
 		await queries.markDealVisitsSummarized("1", "done");
 		await queries.markDealVisitsSummarized("2", "no_visits");
+		await client`UPDATE yandex_metrika_deal_visitors
+			SET visits_summarized_at = '2026-10-10 05:00:00' WHERE deal_id = '2'`;
 		expect(await queries.listDealVisitorsForVisitSummary(since, until)).toEqual(
 			[],
 		);
 	});
+
+	test("final no_visits do not fill the batch before newer deals", async () => {
+		await client`INSERT INTO yandex_metrika_deal_visitors
+			(deal_id, client_id, created_at, visits_summary_status, visits_summarized_at)
+			SELECT 'final-' || n, 'client', '2026-10-08 09:00:00'::timestamp,
+				'no_visits', '2026-10-09 05:00:00'::timestamp
+			FROM generate_series(1, 200) AS n`;
+		await client`INSERT INTO yandex_metrika_deal_visitors
+			(deal_id, client_id, created_at, visits_summary_status)
+			VALUES ('new', 'client', '2026-10-09 09:00:00', null),
+				('pending', 'client', '2026-10-09 10:00:00', 'pending_search_query')`;
+		expect(
+			await queries.listDealVisitorsForVisitSummary(
+				new Date("2026-10-07T21:00:00Z"),
+				new Date("2026-10-09T21:00:00Z"),
+			),
+		).toMatchObject([{ dealId: "new" }, { dealId: "pending" }]);
+	});
+
+	test.each([
+		["2026-10-08 09:00:00", "2026-10-09 04:59:59.999", true],
+		["2026-10-08 09:00:00", "2026-10-09 05:00:00", false],
+		["2026-10-08 09:00:00", "2026-10-09 05:00:00.001", false],
+		["2026-10-08 09:00:00", null, true],
+		// 21:00 UTC starts the next Moscow day; its data is ready a day later.
+		["2026-10-08 21:00:00", "2026-10-10 04:59:59.999", true],
+		["2026-10-08 21:00:00", "2026-10-10 05:00:00", false],
+	] as const)(
+		"no_visits created at %s and summarized at %s: retry=%s",
+		async (createdAt, summarizedAt, retry) => {
+			await client`INSERT INTO yandex_metrika_deal_visitors
+				(deal_id, client_id, created_at, visits_summary_status, visits_summarized_at)
+				VALUES ('retry', 'client', ${createdAt}, 'no_visits', ${summarizedAt})`;
+			const rows = await queries.listDealVisitorsForVisitSummary(
+				new Date("2026-10-07T21:00:00Z"),
+				new Date("2026-10-09T21:00:00Z"),
+				1,
+			);
+			expect(rows.map((row) => row.dealId)).toEqual(retry ? ["retry"] : []);
+			if (retry && summarizedAt) {
+				expect(rows[0]?.visitsSummarizedAt).toBeInstanceOf(Date);
+			}
+		},
+	);
 
 	test("search queue excludes Metrika deals before applying the limit and preserves fallback", async () => {
 		await client`INSERT INTO ad_touches (id, occurred_at) VALUES ('touch', '2026-10-08 09:00:00')`;

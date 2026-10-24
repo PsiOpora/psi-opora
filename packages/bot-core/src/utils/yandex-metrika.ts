@@ -5,7 +5,6 @@ import {
 } from "@psi-opora/db/queries";
 
 const UPLOAD_URL_BASE = "https://api-metrika.yandex.net/management/v1/counter";
-const DEFAULT_GOAL_ID = "free_consultation_booked";
 
 export interface YandexMetrikaGoalParams {
 	/**
@@ -66,10 +65,17 @@ export async function sendYandexMetrikaGoal(
 	const settings = await getYandexMetrikaSettings();
 	const counterId = settings?.counterId;
 	const token = settings?.oauthToken;
-	const target = params.target || settings?.goalId || DEFAULT_GOAL_ID;
+	// Пустая цель в настройках — администратор выключил конверсию при создании
+	// сделки (например, цель уже привязана к стадии воронки); цели по стадиям
+	// передают свой target и от этого не зависят.
+	const target = params.target || settings?.goalId?.trim();
 
 	if (!counterId || !token) {
 		logger.warn("yandex_metrika.not_configured", { dealId: params.dealId });
+		return false;
+	}
+	if (!target) {
+		logger.info("yandex_metrika.goal_disabled", { dealId: params.dealId });
 		return false;
 	}
 	if (!params.clientId && !params.yclid) {

@@ -1,10 +1,17 @@
 import { fetchSearchQueryReport, matchSearchQuery } from "@psi-opora/bot-core";
 import {
+	type DealVisitorForVisitSummary,
 	getYandexMetrikaSettings,
 	listDealVisitorsForVisitSummary,
 	markDealVisitsSummarized,
 } from "@psi-opora/db/queries";
-import { adDealFields, describeAdClick, isNetworkClick } from "./ad-click";
+import { z } from "zod";
+import {
+	adDealFields,
+	adUtmFields,
+	describeAdClick,
+	isNetworkClick,
+} from "./ad-click";
 import { createLogsApi } from "./logs-api";
 import {
 	type AdVisit,
@@ -58,6 +65,46 @@ function mskDayStart(now: Date): number {
 	return Date.parse(`${mskDate(now.getTime())}T00:00:00Z`) - MSK_OFFSET_MS;
 }
 
+/** Момент, с которого статистика за день создания сделки считается полной. */
+function dataReadyAt(createdAt: Date): number {
+	return mskDayStart(createdAt) + DAY_MS + DATA_READY_HOUR_MSK * 60 * 60 * 1000;
+}
+
+/**
+ * «Визитов нет», записанное раньше, чем статистика за день стала полной, —
+ * не итог: такую сделку проверяем ещё раз. Остальные no_visits — окончательные.
+ */
+function needsProcessing(deal: DealVisitorForVisitSummary): boolean {
+	if (deal.visitsSummaryStatus !== "no_visits") return true;
+	return (
+		!deal.visitsSummarizedAt ||
+		deal.visitsSummarizedAt.getTime() < dataReadyAt(deal.createdAt)
+	);
+}
+
+const dealUtmSchema = z
+	.object({ UTM_CAMPAIGN: z.string().nullish() })
+	.nullable();
+
+/**
+ * Метки сделки из Метрики пишем, только если бот кампанию не знал: пустой
+ * UTM_CAMPAIGN — ссылка на бота пришла без метки (UTM_SOURCE тогда max/
+ * telegram). Настоящие метки кампаний не трогаем.
+ */
+async function utmBackfill(
+	bitrix: BitrixCaller,
+	dealId: string,
+	adVisit: AdVisit,
+): Promise<Record<string, string>> {
+	const utm = adUtmFields(adVisit.adClick);
+	if (!utm.UTM_CAMPAIGN) return {};
+	const deal = dealUtmSchema.safeParse(
+		await bitrix.call("crm.deal.get", { id: dealId }),
+	);
+	if (!deal.success || !deal.data || deal.data.UTM_CAMPAIGN) return {};
+	return utm;
+}
+
 /** Значения по ключам → поля Bitrix по кодам из настроек; без кода не пишем. */
 function toBitrixFields(
 	values: Partial<Record<string, string>>,
@@ -104,6 +151,8 @@ async function loadSearchQueryRows(
  *   и поисковый запрос из отчёта Директа — в рекламные поля сделки;
  * - визиты — число, первый визит и источник, устройство, страницы, время,
  *   цели — в поля визитов; подробно всё — в таймлайн.
+ * Если бот не знал кампанию (пустой UTM_CAMPAIGN), UTM-поля сделки тоже
+ * заполняются по клику — иначе сделка не сопоставится с расходом Директа.
  * Коды полей — /settings/metrika. Logs API не отдаёт текущий день, поэтому
  * сводка записывается на следующий день после создания, один раз, а поиск
  * запроса повторяется до 14 дней после создания сделки. Фильтра
@@ -139,10 +188,12 @@ export async function syncDealVisitSummaries(
 		now.getTime() >= todayStart + DATA_READY_HOUR_MSK * 60 * 60 * 1000
 			? todayStart
 			: todayStart - DAY_MS;
-	const deals = await listDealVisitorsForVisitSummary(
-		new Date(todayStart - MAX_DEAL_AGE_DAYS * DAY_MS),
-		new Date(until),
-	);
+	const deals = (
+		await listDealVisitorsForVisitSummary(
+			new Date(todayStart - MAX_DEAL_AGE_DAYS * DAY_MS),
+			new Date(until),
+		)
+	).filter(needsProcessing);
 	result.deals = deals.length;
 	const oldest = deals[0];
 	if (!oldest) return result;
@@ -247,6 +298,7 @@ export async function syncDealVisitSummaries(
 			const fields = {
 				...toBitrixFields(summary.fields, visitCodes),
 				...toBitrixFields(adValues, adCodes),
+				...(adVisit ? await utmBackfill(bitrix, deal.dealId, adVisit) : {}),
 			};
 			await writeSummary(
 				bitrix,
