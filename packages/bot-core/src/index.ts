@@ -222,6 +222,7 @@ export {
 	type BotMessageSource,
 	logBotMessage,
 } from "./utils/message-log";
+export { isBotBlockedError } from "./utils/messenger-errors";
 export {
 	buildProdamusPaymentUrl,
 	type ProdamusPaymentLinkParams,

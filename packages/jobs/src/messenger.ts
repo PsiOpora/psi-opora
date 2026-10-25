@@ -1,5 +1,6 @@
 import {
 	createTelegramFetch,
+	isBotBlockedError,
 	resolveMaxBotToken,
 	resolveTelegramApiRoot,
 	resolveTelegramBotToken,
@@ -7,6 +8,22 @@ import {
 import { logger } from "@psi-opora/config";
 import { RUSSIAN_TRUSTED_ROOT_CA } from "./certs/russian-trusted-ca";
 import { fetchWithCa } from "./fetch-with-ca";
+
+/** Клиент заблокировал/остановил бота или удалил чат — штатная ситуация, а не
+ * сбой: пишем warn, чтобы logger.error не уходил исключением в SigNoz. */
+function logSendFailed(meta: {
+	messenger: "telegram" | "max";
+	userId: string;
+	attempt: number;
+	status: number;
+	description?: string;
+}): void {
+	if (isBotBlockedError(meta.description ?? "")) {
+		logger.warn("messenger.send.recipient_unavailable", meta);
+		return;
+	}
+	logger.error("messenger.send.failed", undefined, meta);
+}
 
 export type Messenger = "telegram" | "max";
 
@@ -120,7 +137,7 @@ async function sendTelegram(
 			await sleep(waitSec * 1000);
 			continue;
 		}
-		logger.error("messenger.send.failed", undefined, {
+		logSendFailed({
 			messenger: "telegram",
 			userId,
 			attempt,
@@ -219,7 +236,7 @@ async function sendMax(
 		const json = (await res.json().catch(() => null)) as {
 			message?: string;
 		} | null;
-		logger.error("messenger.send.failed", undefined, {
+		logSendFailed({
 			messenger: "max",
 			userId,
 			attempt,
@@ -322,7 +339,7 @@ async function sendTelegramMedia(
 			await sleep(waitSec * 1000);
 			continue;
 		}
-		logger.error("messenger.send.failed", undefined, {
+		logSendFailed({
 			messenger: "telegram",
 			userId,
 			attempt,

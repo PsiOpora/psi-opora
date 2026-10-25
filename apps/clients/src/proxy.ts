@@ -16,6 +16,12 @@ const BLOCKED_HTML = `<!doctype html>
 </html>`;
 
 export function proxy(request: NextRequest) {
+	// В приложении нет Server Actions, поэтому запрос с заголовком Next-Action —
+	// это сканер уязвимостей (обычно `Next-Action: x`). Без отсева Next падает с
+	// "Server Reference ID did not match the expected format" и шлёт ошибку в SigNoz.
+	if (request.headers.has("next-action")) {
+		return new NextResponse(null, { status: 404 });
+	}
 	if (
 		process.env.NODE_ENV === "production" &&
 		request.headers.get("sec-fetch-dest") === "document"
