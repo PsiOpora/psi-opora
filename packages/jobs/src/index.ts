@@ -1,3 +1,4 @@
+export { isBotBlockedError } from "@psi-opora/bot-core";
 export {
 	type BackupS3Credentials,
 	type CrmBackupResult,

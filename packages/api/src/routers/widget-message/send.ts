@@ -1,6 +1,10 @@
 import { resolveBitrixPortalKey } from "@psi-opora/bitrix-client";
 import { insertBotMessage } from "@psi-opora/db/queries";
-import { formatMessengerError, sendMessengerMessage } from "@psi-opora/jobs";
+import {
+	formatMessengerError,
+	isBotBlockedError,
+	sendMessengerMessage,
+} from "@psi-opora/jobs";
 import { bitrixProcedure } from "../../orpc";
 import {
 	MESSAGE_MAX_LENGTH,
@@ -131,7 +135,8 @@ export const send = bitrixProcedure
 					);
 				} catch (err) {
 					const error = err as Error;
-					console.error(
+					// Клиент остановил/заблокировал бота — не сбой, в SigNoz не шлём.
+					(isBotBlockedError(error.message) ? console.warn : console.error)(
 						`[widget] ошибка отправки ${channel.messenger}: ${error.message}`,
 						error.cause ?? "",
 						error.stack ?? "",

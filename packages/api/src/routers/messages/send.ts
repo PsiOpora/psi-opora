@@ -22,6 +22,7 @@ import {
 } from "@psi-opora/db/queries";
 import {
 	formatMessengerError,
+	isBotBlockedError,
 	sendMessengerMediaMessage,
 	sendMessengerMessage,
 } from "@psi-opora/jobs";
@@ -416,7 +417,8 @@ export const send = bitrixProcedure
 						: await sendMessengerMessage(input.messenger, input.userId, text);
 				} catch (err) {
 					const error = err as Error;
-					console.error(
+					// Клиент остановил/заблокировал бота — не сбой, в SigNoz не шлём.
+					(isBotBlockedError(error.message) ? console.warn : console.error)(
 						`[messages] ошибка отправки ${input.messenger}: ${error.message}`,
 						error.cause ?? "",
 					);
