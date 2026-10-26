@@ -1,7 +1,7 @@
 services:
-  # Официальный Telegram-бот (apps/tg-bot) — на своём сервере работает через
-  # long polling (webhookCallback из apps/tg-bot/api/webhook.ts используется
-  # только при деплое на Vercel, для polling публичный URL не нужен).
+  # Официальный Telegram-бот (apps/tg-bot) — работает через long polling
+  # (apps/tg-bot/src/polling.ts), публичный URL не нужен. Строго один
+  # экземпляр: два одновременных getUpdates мешают друг другу (409).
   tg-bot:
     build:
       context: .
@@ -10,7 +10,7 @@ services:
     env_file:
       - .env
 
-  # Официальный бот MAX (apps/max-bot) — аналогично tg-bot, long polling.
+  # Официальный бот MAX (apps/max-bot) — принимает вебхук (MAX_WEBHOOK_URL).
   max-bot:
     build:
       context: .
@@ -60,8 +60,7 @@ services:
 
   # Always-on процесс для личных Telegram-номеров (packages/tg-userbot,
   # apps/tg-userbot-worker) — держит постоянное MTProto-соединение,
-  # поэтому не деплоится как serverless-функция (в отличие от apps/tg-bot
-  # и apps/max-bot).
+  # поэтому не деплоится как serverless-функция (в отличие от apps/max-bot).
   tg-userbot-worker:
     build:
       context: .

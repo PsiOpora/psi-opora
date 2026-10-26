@@ -47,11 +47,18 @@ line/connector ID и никакого ручного запуска скрипт
      `packages/api/src/routers/bot-connector`);
   2. сохраняет `connectorId`/`openLineId` в Postgres (`bot_connectors`,
      `packages/db`) — раньше это было в `.env`;
-  3. **автоматически настраивает вебхук бота** (`setMessengerWebhook`,
-     `packages/jobs/src/messenger.ts`) на `TG_WEBHOOK_URL`/`MAX_WEBHOOK_URL` —
-     значение используется как есть, путь `/api/webhook` должен уже быть
-     частью самой переменной (см. `.env.example`); заменяет ручной запуск
-     `set-webhook.ts`.
+  3. **автоматически настраивает доставку апдейтов** (`setMessengerWebhook`,
+     `packages/jobs/src/messenger.ts`): для MAX — вебхук на `MAX_WEBHOOK_URL`
+     (значение используется как есть, путь `/api/webhook` должен уже быть
+     частью самой переменной, см. `.env.example`); для Telegram — снимает
+     вебхук, потому что `apps/tg-bot` сам забирает апдейты через long polling
+     (`getUpdates`, `apps/tg-bot/src/polling.ts`) и публичный адрес ему не
+     нужен. Бот снимает вебхук и сам — при старте и при ответе 409 от
+     Telegram. Держать **ровно один** под `tg-bot`: два одновременных
+     `getUpdates` перебивают друг друга (409); короткое пересечение при
+     выкатке бот переживает — повторно доставленные апдейты отсеиваются по
+     `update_id` в Redis, а при SIGTERM последний полученный апдейт
+     подтверждается Telegram.
 - При пересылке (`deliverMessageToOpenLine`, `packages/bot-core/src/utils/bitrix/openline.ts`)
   бот читает `connectorId`/`openLineId` из той же таблицы `bot_connectors`
   (через `@psi-opora/db/queries`, драйвер `node-postgres`), а OAuth-клиент
@@ -102,10 +109,10 @@ line/connector ID и никакого ручного запуска скрипт
 2. Откройте дашборд внутри портала — рядом с карточкой «Вкладка Мессенджер»
    (`/settings/bot`) появится `memberId` портала. Впишите его в
    `BITRIX_MEMBER_ID` в `.env`.
-3. Задайте `TG_WEBHOOK_URL`/`MAX_WEBHOOK_URL` **с путём `/api/webhook`**
-   (например `https://your-tg-app.vercel.app/api/webhook`) — код использует
-   значение как есть и путь сам не достраивает; сами токены ботов в `.env`
-   не задаются.
+3. Задайте `MAX_WEBHOOK_URL` **с путём `/api/webhook`**
+   (например `https://your-max-app.vercel.app/api/webhook`) — код использует
+   значение как есть и путь сам не достраивает. Telegram-боту адрес не нужен
+   (long polling). Сами токены ботов в `.env` не задаются.
 4. Задайте `NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL` **с путём `/api/bitrix-webhook`**
    (например `https://your-bitrix-webhook.vercel.app/api/bitrix-webhook`) —
    адрес обработчика `apps/bitrix-webhook`, а не просто домен. Нужен, чтобы

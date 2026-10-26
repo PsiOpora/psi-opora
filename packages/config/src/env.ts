@@ -45,9 +45,8 @@ export const env = createEnv({
 		AWS_REGION: z.string().default("us-east-1"),
 		AWS_S3_BUCKET: z.string().default("acme-bucket"),
 
-		// Webhook URLs
+		// Webhook URL (только MAX — Telegram-бот работает через long polling)
 		MAX_WEBHOOK_URL: z.string().optional(),
-		TG_WEBHOOK_URL: z.string().optional(),
 
 		// HTTP-прокси 3proxy для запросов к Bot API Telegram — пока прямые запросы
 		// к api.telegram.org с k3s ненадёжны. Тоггл отдельно от URL, чтобы выключить
@@ -60,11 +59,6 @@ export const env = createEnv({
 		// URL HTTP-прокси 3proxy с учётными данными, например
 		// http://user:pass@proxy.example.com:3128 (SOCKS не поддерживается).
 		TG_3PROXY_URL: z.url({ protocol: /^http$/ }).optional(),
-		// Секрет входящего вебхука Telegram (secret_token в setWebhook, сверяется
-		// с заголовком X-Telegram-Bot-Api-Secret-Token) — то же значение должно
-		// быть задано в env деплоя apps/tg-vercel-proxy как TG_WEBHOOK_SECRET.
-		// Без него /webhook на прокси принял бы запрос от кого угодно.
-		TG_WEBHOOK_SECRET: z.string().min(1).optional(),
 
 		// Redis. REDIS_URL удобен локально; в k3s host/port/password задаются
 		// раздельно, чтобы пароль не приходилось подставлять внутрь URL.
@@ -216,10 +210,8 @@ export const env = createEnv({
 		AWS_REGION: process.env.AWS_REGION,
 		AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
 		MAX_WEBHOOK_URL: process.env.MAX_WEBHOOK_URL,
-		TG_WEBHOOK_URL: process.env.TG_WEBHOOK_URL,
 		TG_3PROXY_ENABLED: process.env.TG_3PROXY_ENABLED,
 		TG_3PROXY_URL: process.env.TG_3PROXY_URL,
-		TG_WEBHOOK_SECRET: process.env.TG_WEBHOOK_SECRET,
 		REDIS_URL: process.env.REDIS_URL,
 		REDIS_HOST: process.env.REDIS_HOST,
 		REDIS_PORT: process.env.REDIS_PORT,

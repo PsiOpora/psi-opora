@@ -30,7 +30,7 @@ export async function subscribeConnectorEvents(
 	// event.bind не проверяет, что по handler-URL вообще есть обработчик —
 	// Bitrix молча сохранит привязку, и на реальном событии, если URL указывает
 	// не туда, будет получать 404 без единой строки в наших логах. Как и
-	// TG_WEBHOOK_URL/MAX_WEBHOOK_URL (packages/jobs/src/messenger.ts),
+	// MAX_WEBHOOK_URL (packages/jobs/src/messenger.ts),
 	// NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL должен уже содержать полный путь до
 	// обработчика (/api/bitrix-webhook) — сама функция путь не достраивает.
 	const failures: string[] = [];

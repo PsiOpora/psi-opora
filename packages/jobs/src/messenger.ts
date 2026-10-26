@@ -666,18 +666,23 @@ export async function deleteMessengerMessage(
 	}
 }
 
-async function setTelegramWebhook(): Promise<void> {
+/**
+ * apps/tg-bot забирает апдейты сам (long polling, apps/tg-bot/src/polling.ts),
+ * а getUpdates не работает, пока у бота выставлен вебхук, — поэтому вместо
+ * setWebhook снимаем его. Накопившиеся апдейты не сбрасываем.
+ */
+async function disableTelegramWebhook(): Promise<void> {
 	const token = await resolveTelegramBotToken();
-	const webhookUrl = process.env.TG_WEBHOOK_URL;
 	if (!token) throw new Error("Токен Telegram-бота не задан в БД");
-	if (!webhookUrl) throw new Error("TG_WEBHOOK_URL не задан");
 
-	const url = `${webhookUrl.replace(/\/$/, "")}`;
-	const res = await telegramFetch(`${telegramApiRoot}/bot${token}/setWebhook`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ url, drop_pending_updates: true }),
-	});
+	const res = await telegramFetch(
+		`${telegramApiRoot}/bot${token}/deleteWebhook`,
+		{
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ drop_pending_updates: false }),
+		},
+	);
 	const json = (await res.json()) as { ok: boolean; description?: string };
 	if (!json.ok) {
 		throw new Error(json.description ?? `Telegram HTTP ${res.status}`);
@@ -709,13 +714,13 @@ async function setMaxWebhook(): Promise<void> {
 }
 
 /**
- * Настраивает вебхук бота на наш деплой (`{WEBHOOK_URL}`) —
- * вызывается автоматически при активации канала в Контакт-центре
- * (packages/api/src/routers/bot-connector), заменяет ручной запуск
- * apps/tg-bot|max-bot/scripts/set-webhook.ts.
+ * Настраивает доставку апдейтов бота — вызывается автоматически при
+ * активации канала в Контакт-центре (packages/api/src/routers/bot-connector).
+ * MAX: вебхук на наш деплой (`MAX_WEBHOOK_URL`). Telegram: бот работает через
+ * long polling, поэтому вебхук, наоборот, снимается.
  */
 export async function setMessengerWebhook(messenger: Messenger): Promise<void> {
-	if (messenger === "telegram") await setTelegramWebhook();
+	if (messenger === "telegram") await disableTelegramWebhook();
 	else await setMaxWebhook();
 }
 

@@ -57,13 +57,13 @@ docker compose up -d waha
 ### Workspace layout
 
 - `apps/*` — deployables. Each has its own `Dockerfile` and is deployed independently (see `.github/workflows/deploy-k3s.yml`, which uses turbo's dependency graph to figure out which app images need rebuilding from a given commit).
-  - `tg-bot`, `max-bot` — official Bot API bots (long polling in production; webhook handlers exist for Vercel deploys).
+  - `tg-bot`, `max-bot` — official Bot API bots. `tg-bot` long-polls `getUpdates` (`src/polling.ts`, concurrent via `@grammyjs/runner`; run exactly one replica) and only serves a health check over HTTP; `max-bot` receives a webhook at `/api/webhook`.
   - `dashboard` — Bitrix24 local app (Next.js, runs inside a Bitrix24 iframe): analytics, broadcasts, integration settings, connector registration widgets.
   - `clients` — operator inbox (Next.js): message history/reply UI outside Bitrix24 itself.
   - `bitrix-webhook` — receives Bitrix24 outgoing webhooks (operator replies, deal updates) and WAHA webhooks; serverless-friendly (no persistent connections).
   - `tg-userbot-worker`, `max-userbot-worker` — always-on processes holding persistent protocol connections (MTProto / reverse-engineered MAX protocol) for personal-number channels. Cannot be serverless functions; deployed as long-running containers.
   - `hatchet-worker` — runs the Hatchet job worker (thin wrapper calling `startHatchetWorker()` from `packages/jobs`).
-  - `tg-vercel-proxy` — Hono app on Vercel, reverse-proxying `api.telegram.org` while direct calls from the RU-hosted k3s cluster are unreliable; also relays Telegram webhook traffic. See `apps/tg-vercel-proxy/README.md`.
+  - `tg-vercel-proxy` — Hono app on Vercel, reverse-proxying `api.telegram.org` while direct calls from the RU-hosted k3s cluster are unreliable. See `apps/tg-vercel-proxy/README.md`.
 - `packages/*` — shared libraries, workspace-referenced as `@psi-opora/*`.
   - `bot-core` — shared bot scenario engine and CRM helper logic used by both `tg-bot` and `max-bot`.
   - `bitrix-client` — OAuth client (`resolveBitrixApi`) for Bitrix24 methods that require full app context (as opposed to a simple incoming webhook).

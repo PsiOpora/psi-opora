@@ -17,13 +17,6 @@ const TELEGRAM_API_ROOT = "https://api.telegram.org";
 // открытый прокси на произвольные адреса.
 const ALLOWED_PREFIXES = ["/bot", "/file/bot"];
 
-// Куда транслировать входящие вебхуки от Telegram — реальный apps/tg-bot в
-// k3s (см. k3s/tg-bot.yaml, IngressRoute Host psi-opora-tg.orixon.ru).
-// Переопределяемо через TG_BOT_ORIGIN_URL на случай смены адреса без
-// передеплоя кода прокси.
-const TG_BOT_ORIGIN =
-	process.env.TG_BOT_ORIGIN_URL ?? "https://psi-opora-tg.orixon.ru";
-
 function stripHopHeaders(headers: Headers): Headers {
 	const copy = new Headers(headers);
 	copy.delete("host");
@@ -43,43 +36,10 @@ const app = new Hono();
 app.get("/", (c) => c.text("hello world"));
 
 /**
- * Транслирует входящий вебхук Telegram (POST /webhook) на реальный
- * apps/tg-bot в k3s — Telegram делает вебхук-запросы на этот Vercel-адрес
- * (см. TG_WEBHOOK_URL), а не на psi-opora-tg.orixon.ru напрямую, на время
- * переезда с РФ-хостинга, пока доставка входящих вебхуков туда ненадёжна.
- * Проверяет secret_token (см. TG_WEBHOOK_SECRET в setWebhook,
- * apps/tg-bot/scripts/set-webhook.ts) — без него любой мог бы слать боту
- * поддельные апдейты, зная только публичный URL.
- */
-app.post("/webhook", async (c) => {
-	const secret = process.env.TG_WEBHOOK_SECRET;
-	if (secret && c.req.header("x-telegram-bot-api-secret-token") !== secret) {
-		return c.text("Unauthorized", 401);
-	}
-
-	const init: StreamingRequestInit = {
-		method: "POST",
-		headers: stripHopHeaders(c.req.raw.headers),
-		body: c.req.raw.body,
-		duplex: "half",
-	};
-	const response = await fetch(`${TG_BOT_ORIGIN}/api/webhook`, init);
-
-	const responseHeaders = new Headers(response.headers);
-	responseHeaders.delete("content-encoding");
-	responseHeaders.delete("content-length");
-
-	return new Response(response.body, {
-		status: response.status,
-		headers: responseHeaders,
-	});
-});
-
-/**
  * Reverse-прокси к api.telegram.org — на время переезда с РФ-хостинга, пока
- * прямые запросы к Telegram с k3s ненадёжны. Исходящие запросы tg-bot теперь
- * идут через 3proxy (TG_3PROXY_*), этот прокси остаётся для вебхуков. Требует общий секрет (PROXY_SECRET), если он задан в env
- * деплоя — без него любой, кто узнает URL, мог бы дёргать Telegram от имени
+ * прямые запросы к Telegram с k3s ненадёжны. Исходящие запросы tg-bot (и
+ * его long polling) теперь идут через 3proxy (TG_3PROXY_*). Требует общий
+ * секрет (PROXY_SECRET), если он задан в env деплоя — без него любой, кто узнает URL, мог бы дёргать Telegram от имени
  * бота, если это вдруг попадёт в чужие руки.
  */
 app.all("*", async (c) => {
