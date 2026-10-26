@@ -188,6 +188,7 @@
       "name": "@psi-opora/tg-bot",
       "version": "0.0.1",
       "dependencies": {
+        "@grammyjs/runner": "2.0.3",
         "@hono/node-server": "2.1.4",
         "@psi-opora/bitrix-client": "workspace:*",
         "@psi-opora/bot-core": "workspace:*",
@@ -201,6 +202,7 @@
       },
       "devDependencies": {
         "@psi-opora/tsconfig": "workspace:*",
+        "@types/bun": "1.4.4",
         "@types/node": "26.6.5",
         "typescript": "7.0.2",
       },
@@ -753,6 +755,8 @@
     "@fuman/node": ["@fuman/node@0.0.21", "", { "dependencies": { "@fuman/io": "^0.0.21", "@fuman/net": "^0.0.21", "@fuman/utils": "^0.0.21" }, "peerDependencies": { "ws": "^8.18.1" }, "optionalPeers": ["ws"] }, "sha512-5WS/REgANmPKoqWNAEkEeiw6DlU/7spCOGJ1s+p1eMetkwHlJFA5ZEeoIR9outisBD54EUZxAbAkWIdSbVXK5Q=="],
 
     "@fuman/utils": ["@fuman/utils@0.0.21", "", {}, "sha512-2N5bPK18uGgZRans+ZQ33SE+xSGj4BZNnJbSUnGdH/i4ADTdz/ziC/16Qy3/Jqzbrwr21IpuKObnELp8DDfkDQ=="],
+
+    "@grammyjs/runner": ["@grammyjs/runner@2.0.3", "", { "dependencies": { "abort-controller": "^3.0.0" }, "peerDependencies": { "grammy": "^1.13.1" } }, "sha512-nckmTs1dPWfVQteK9cxqxzE+0m1VRvluLWB8UgFzsjg62w3qthPJt0TYtJBEdG7OedvfQq4vnFAyE6iaMkR42A=="],
 
     "@grammyjs/types": ["@grammyjs/types@5.0.0", "", {}, "sha512-iq1Qrq1iPKkB8yAa0qSuIURMZOCuqTY5pWy5gHpCeL1oQ+GPadGhw/cDTVE8waJwuCzacUzuIjRv1sESvk7u7A=="],
 

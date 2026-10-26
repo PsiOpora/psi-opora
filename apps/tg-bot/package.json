@@ -5,12 +5,12 @@
 	"private": true,
 	"scripts": {
 		"dev": "bun run --watch --env-file=../../.env src/server.ts",
-		"set-webhook": "bun run --env-file=../../.env scripts/set-webhook.ts",
 		"delete-webhook": "bun run --env-file=../../.env scripts/delete-webhook.ts",
 		"backfill-avatars": "bun run --env-file=../../.env scripts/backfill-avatars.ts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@grammyjs/runner": "2.0.3",
 		"@hono/node-server": "2.1.4",
 		"@psi-opora/bitrix-client": "workspace:*",
 		"@psi-opora/bot-core": "workspace:*",
@@ -24,6 +24,7 @@
 	},
 	"devDependencies": {
 		"@psi-opora/tsconfig": "workspace:*",
+		"@types/bun": "1.4.4",
 		"@types/node": "26.6.5",
 		"typescript": "7.0.2"
 	}

@@ -37,13 +37,13 @@ await c.end();
 "
 ```
 
-For personal accounts select `id, member_id, open_line_id, connector_id, status, last_error, updated_at` from the matching table. Look for: missing row (channel never activated on a line), `status` ≠ `connected`, a non-null `last_error`, `webhook_configured_at IS NULL` (official bot webhook not set), `member_id` ≠ `BITRIX_MEMBER_ID`.
+For personal accounts select `id, member_id, open_line_id, connector_id, status, last_error, updated_at` from the matching table. Look for: missing row (channel never activated on a line), `status` ≠ `connected`, a non-null `last_error`, `webhook_configured_at IS NULL` (official bot delivery not set up: MAX webhook not set / Telegram webhook not removed — the TG bot uses long polling), `member_id` ≠ `BITRIX_MEMBER_ID`.
 
 ## 3. Check env shape (presence and format only)
 
 Report whether each var is set and shaped right, without echoing secrets:
 - `NEXT_PUBLIC_BITRIX_WEBHOOK_APP_URL` must end with `/api/bitrix-webhook` — a bare domain makes `event.bind` succeed but events 404.
-- `TG_WEBHOOK_URL` / `MAX_WEBHOOK_URL` must include `/api/webhook`.
+- `MAX_WEBHOOK_URL` must include `/api/webhook`. The Telegram bot has no webhook URL — it long-polls; `getWebhookInfo` must show an empty `url`, otherwise `apps/tg-bot` logs a 409 and removes the webhook itself.
 - `BITRIX_WEBHOOK_TOKEN` may be a comma-separated list; a missing app `application_token` shows up in `apps/bitrix-webhook` logs as `неверный токен: получено=...`.
 - WhatsApp: `WAHA_URL`, `WAHA_API_KEY`, `WAHA_WEBHOOK_URL` (ends with `/api/waha-webhook`), `WAHA_WEBHOOK_SECRET`.
 - Personal TG/MAX: `TG_USERBOT_ENCRYPTION_KEY`, `REDIS_URL`.
