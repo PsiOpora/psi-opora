@@ -10,7 +10,6 @@ import {
 } from "../utils/consultation-deal";
 import { sendGuideEmail } from "../utils/email";
 import { trackFunnelStep } from "../utils/funnel";
-import { buildGuideTrackingUrl } from "../utils/guide-link";
 import { logBotMessage } from "../utils/message-log";
 import {
 	describeLead,
@@ -56,9 +55,6 @@ interface GuideHandout {
 	/** Тема кампании; пусто для глобального «активного» гайда. */
 	title?: string;
 	fileName: string;
-	url: string;
-	/** Ссылка ушла в чат (Telegram) — по ней и трекаются открытия. */
-	linkInChat: boolean;
 	email?: string;
 	emailSentAt?: Date;
 	emailError?: string;
@@ -66,7 +62,7 @@ interface GuideHandout {
 
 /**
  * Комментарий о выдаче материала. Оператору важны три вещи: что выдали, ушло
- * ли письмо и есть ли у клиента ссылка (по ней потом видно открытие).
+ * ли письмо и получил ли клиент файл прямо в чате.
  */
 function describeGuideHandout(handout: GuideHandout): string {
 	const what = handout.title
@@ -84,9 +80,7 @@ function describeGuideHandout(handout: GuideHandout): string {
 		lines.push("Email клиент не оставил — письмо не отправлялось.");
 	}
 
-	if (handout.linkInChat) {
-		lines.push(`Ссылка в чате: ${handout.url}`);
-	}
+	lines.push("PDF отправлен клиенту в чат.");
 
 	return lines.join("\n");
 }
@@ -125,12 +119,6 @@ export async function dispatchScenarioOutput(
 	out: ScenarioOutput,
 	deps: ScenarioDispatchDeps,
 ): Promise<void> {
-	// Кампания, в рамках которой выдаётся материал: по ней же строится id
-	// выдачи (см. upsertBotGuideDelivery ниже), поэтому токен ссылки и строка
-	// выдачи гарантированно сходятся.
-	const campaignId =
-		out.lead?.campaignId ?? out.state.campaignId ?? deps.guideCampaign?.id;
-
 	// Факты выдачи материала для таймлайна сделки. Сделка на этот момент ещё
 	// может не существовать (в обычном флоу гайда она создаётся позже, на шаге
 	// телефона), поэтому комментарий формируем здесь, а отправляем ниже —
@@ -142,35 +130,10 @@ export async function dispatchScenarioOutput(
 			? await resolveGuideFile(message.guideId)
 			: null;
 
-		// Telegram не шлёт PDF отдельным документом (см. sendTelegramScenarioMessage) —
-		// для гайда конкретной кампании (message.guideId) добавляем прямую
-		// ссылку прямо в текст, иначе клиент видит только «сейчас отправим на
-		// почту» и не может открыть материал сразу с телефона (см. исходное
-		// ТЗ — «бот выдачи материала»). Для глобального гайда (без guideId)
-		// поведение прежнее — только email, чтобы не менять давно живущий флоу.
-		//
-		// Ссылка персональная: с токеном просмотра, чтобы открытие материала
-		// попало в bot_guide_views (кто и когда дошёл до файла). Без кампании
-		// или userId привязать открытие не к чему — отдаём обычный URL.
-		const guideUrl =
-			guide && campaignId && deps.userId !== undefined
-				? buildGuideTrackingUrl(guide.url, {
-						messenger: deps.messenger,
-						userId: deps.userId,
-						campaignId,
-					})
-				: guide?.url;
-
-		const outgoing =
-			guide && guideUrl && message.guideId && deps.messenger === "telegram"
-				? {
-						...message,
-						text: `${message.text}\n\n📄 [Открыть материал](${guideUrl})`,
-					}
-				: message;
-
+		// Сам PDF клиенту в чат отправляет адаптер мессенджера (message.guide):
+		// документом в Telegram, вложением в MAX.
 		try {
-			await deps.sendMessage(outgoing);
+			await deps.sendMessage(message);
 		} catch (err) {
 			// Отправка не удалась (клиент заблокировал бота, чат удалён) — сам факт
 			// попытки всё равно должен остаться в истории со статусом "failed",
@@ -181,7 +144,7 @@ export async function dispatchScenarioOutput(
 				userId: deps.userId,
 				direction: "out",
 				source: "scenario",
-				text: outgoing.text,
+				text: message.text,
 				status: "failed",
 			});
 			throw err;
@@ -191,15 +154,13 @@ export async function dispatchScenarioOutput(
 			userId: deps.userId,
 			direction: "out",
 			source: "scenario",
-			text: outgoing.text,
+			text: message.text,
 		});
 
 		if (guide) {
 			handout = {
 				title: deps.guideCampaign?.title,
 				fileName: guide.name,
-				url: guideUrl ?? guide.url,
-				linkInChat: outgoing !== message,
 				email: out.state.email,
 			};
 		}
