@@ -61,6 +61,15 @@ mock.module("@psi-opora/db/queries", () => ({
 	// Кампании гайда по кодовому слову (scenario/guide-campaign.ts) и
 	// напоминания о диагностике — тоже часть статического графа импортов bot.ts.
 	getBotGuideCampaign: () => Promise.resolve(null),
+	getBotGuide: (id: string) =>
+		Promise.resolve(
+			id === "g1"
+				? {
+						fileUrl: "https://dash.test/api/guide-file/g1/guide.pdf",
+						fileName: "guide.pdf",
+					}
+				: null,
+		),
 	getBotGuideCampaignByKeyword: () => Promise.resolve(null),
 	getPendingGuideDiagnosticDelivery: () => Promise.resolve(null),
 	markGuideDiagnosticRequested: () => Promise.resolve(),
@@ -77,7 +86,7 @@ mock.module("@psi-opora/db/queries", () => ({
 	listAdTouchesForClient: () => Promise.resolve([]),
 }));
 
-const { createBot } = await import("./bot");
+const { createBot, sendTelegramScenarioMessage } = await import("./bot");
 const { createBotBackgroundQueue } = await import("./utils/background-tasks");
 const { DEFAULT_SCENARIO_TEXTS: t } = await import("./scenario/texts");
 
@@ -622,5 +631,52 @@ describe("телеграм-бот: сбои Bot API", () => {
 		expect(messages[0]?.payload.parse_mode).toBe("Markdown");
 		expect(messages[1]?.payload.parse_mode).toBeUndefined();
 		expect(messages[1]?.payload.text).toBe(t.consent_text);
+	});
+});
+
+describe("PDF-гайд в Telegram", () => {
+	function fakeApi(failDocument = false) {
+		const calls: Array<{ method: string; args: unknown[] }> = [];
+		const api = {
+			sendMessage: async (...args: unknown[]) => {
+				calls.push({ method: "sendMessage", args });
+				return { message_id: 1 };
+			},
+			sendDocument: async (...args: unknown[]) => {
+				calls.push({ method: "sendDocument", args });
+				if (failDocument) throw new Error("boom");
+				return { message_id: 2 };
+			},
+			// biome-ignore lint/suspicious/noExplicitAny: урезанный Api для теста
+		} as any;
+		return { api, calls };
+	}
+
+	test("после текста шага документом уходит PDF гайда, а не ссылка", async () => {
+		const { api, calls } = fakeApi();
+		await sendTelegramScenarioMessage(api, 100, {
+			text: "держите гайд",
+			guide: true,
+			guideId: "g1",
+		});
+		expect(calls.map((c) => c.method)).toEqual(["sendMessage", "sendDocument"]);
+		expect(calls[1]?.args[1]).toBe(
+			"https://dash.test/api/guide-file/g1/guide.pdf",
+		);
+	});
+
+	test("без флага guide документ не отправляется", async () => {
+		const { api, calls } = fakeApi();
+		await sendTelegramScenarioMessage(api, 100, { text: "привет" });
+		expect(calls.map((c) => c.method)).toEqual(["sendMessage"]);
+	});
+
+	test("сбой отправки файла не ломает шаг сценария", async () => {
+		const { api } = fakeApi(true);
+		await sendTelegramScenarioMessage(api, 100, {
+			text: "держите гайд",
+			guide: true,
+			guideId: "g1",
+		});
 	});
 });

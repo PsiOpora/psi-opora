@@ -34,7 +34,11 @@ import {
 	looksLikeDiagnosticConsent,
 	resolveGuideCampaignStart,
 } from "./scenario/guide-campaign";
-import { getScenarioTexts, type ScenarioTexts } from "./scenario/texts";
+import {
+	getScenarioTexts,
+	resolveGuideFile,
+	type ScenarioTexts,
+} from "./scenario/texts";
 import type { RedisClient } from "./storage/redis";
 import type { AppContext, ConsultationSession } from "./types/context";
 import {
@@ -298,8 +302,50 @@ export async function sendTelegramScenarioMessage(
 		});
 		throw err;
 	}
-	// PDF-гайд в Telegram отдельным документом не шлём — он уходит вложением
-	// на email (см. dispatchScenarioOutput/sendGuideEmail)
+
+	if (message.guide) await sendTelegramGuideFile(api, chatId, message.guideId);
+}
+
+/**
+ * Отправка PDF-гайда документом в чат. Telegram скачивает файл по URL сам,
+ * поэтому наш трафик к api.telegram.org остаётся лёгким. Текст шага клиент уже
+ * получил — сбой отправки файла диалог не ломает, только пишем в журнал.
+ */
+async function sendTelegramGuideFile(
+	api: Api,
+	chatId: number,
+	guideId?: string | null,
+): Promise<void> {
+	const caption = (name: string) => `📎 ${name}`;
+	let guide: Awaited<ReturnType<typeof resolveGuideFile>> = null;
+	try {
+		guide = await resolveGuideFile(guideId);
+		if (!guide) return;
+		await api.sendDocument(chatId, guide.url, { caption: caption(guide.name) });
+		logger.info("bot.guide_file.sent", { messenger: "telegram", chatId });
+		await logBotMessage({
+			messenger: "telegram",
+			userId: chatId,
+			direction: "out",
+			source: "scenario",
+			text: caption(guide.name),
+		});
+	} catch (err) {
+		logger.error("bot.guide_file.failed", err, {
+			messenger: "telegram",
+			chatId,
+		});
+		if (guide) {
+			await logBotMessage({
+				messenger: "telegram",
+				userId: chatId,
+				direction: "out",
+				source: "scenario",
+				text: caption(guide.name),
+				status: "failed",
+			});
+		}
+	}
 }
 
 interface TelegramFileUrls {
