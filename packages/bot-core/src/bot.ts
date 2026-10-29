@@ -1,6 +1,6 @@
 import { logger } from "@psi-opora/config";
 import type { Api, StorageAdapter } from "grammy";
-import { Bot, GrammyError, InlineKeyboard, session } from "grammy";
+import { Bot, GrammyError, InlineKeyboard, InputFile, session } from "grammy";
 import { dispatchBookPreorderOutput } from "./scenario/book-preorder/dispatch";
 import {
 	handleBookPreorderDripCallback,
@@ -79,6 +79,8 @@ export const log = (msg: string) => {
 // лету, только через переменные окружения и передеплой (см. utils/telegram-proxy).
 const telegramApiRoot = resolveTelegramApiRoot();
 const telegramFetch = createTelegramFetch();
+
+const GUIDE_DOWNLOAD_TIMEOUT_MS = 15_000;
 
 const GET_CHAT_ATTEMPTS = 2;
 const GET_CHAT_RETRY_DELAY_MS = 2_000;
@@ -307,9 +309,11 @@ export async function sendTelegramScenarioMessage(
 }
 
 /**
- * Отправка PDF-гайда документом в чат. Telegram скачивает файл по URL сам,
- * поэтому наш трафик к api.telegram.org остаётся лёгким. Текст шага клиент уже
- * получил — сбой отправки файла диалог не ломает, только пишем в журнал.
+ * Отправка PDF-гайда документом в чат. Файл качаем сами и заливаем байтами:
+ * при отправке по URL Telegram должен дотянуться до нашего дашборда со своих
+ * серверов, и если он не может (хост в РФ, ограничения доступа), документ не
+ * уходит. Текст шага клиент уже получил — сбой отправки файла диалог не
+ * ломает, только пишем в журнал.
  */
 async function sendTelegramGuideFile(
 	api: Api,
@@ -321,7 +325,14 @@ async function sendTelegramGuideFile(
 	try {
 		guide = await resolveGuideFile(guideId);
 		if (!guide) return;
-		await api.sendDocument(chatId, guide.url, { caption: caption(guide.name) });
+		const res = await fetch(guide.url, {
+			signal: AbortSignal.timeout(GUIDE_DOWNLOAD_TIMEOUT_MS),
+		});
+		if (!res.ok) throw new Error(`гайд недоступен: HTTP ${res.status}`);
+		const bytes = new Uint8Array(await res.arrayBuffer());
+		await api.sendDocument(chatId, new InputFile(bytes, guide.name), {
+			caption: caption(guide.name),
+		});
 		logger.info("bot.guide_file.sent", { messenger: "telegram", chatId });
 		await logBotMessage({
 			messenger: "telegram",
