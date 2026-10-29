@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { GrammyError, HttpError, type StorageAdapter } from "grammy";
+import { GrammyError, HttpError, InputFile, type StorageAdapter } from "grammy";
 import type { ConsultationSession } from "./types/context";
 import type {
 	BotBackgroundQueue,
@@ -652,17 +652,31 @@ describe("PDF-гайд в Telegram", () => {
 		return { api, calls };
 	}
 
-	test("после текста шага документом уходит PDF гайда, а не ссылка", async () => {
-		const { api, calls } = fakeApi();
-		await sendTelegramScenarioMessage(api, 100, {
-			text: "держите гайд",
-			guide: true,
-			guideId: "g1",
-		});
-		expect(calls.map((c) => c.method)).toEqual(["sendMessage", "sendDocument"]);
-		expect(calls[1]?.args[1]).toBe(
-			"https://dash.test/api/guide-file/g1/guide.pdf",
-		);
+	test("после текста шага документом уходят байты PDF гайда, а не ссылка", async () => {
+		const realFetch = globalThis.fetch;
+		const requested: string[] = [];
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			requested.push(String(input));
+			return new Response(new Uint8Array([0x25, 0x50, 0x44, 0x46]));
+		}) as typeof fetch;
+		try {
+			const { api, calls } = fakeApi();
+			await sendTelegramScenarioMessage(api, 100, {
+				text: "держите гайд",
+				guide: true,
+				guideId: "g1",
+			});
+			expect(calls.map((c) => c.method)).toEqual([
+				"sendMessage",
+				"sendDocument",
+			]);
+			expect(requested).toEqual([
+				"https://dash.test/api/guide-file/g1/guide.pdf",
+			]);
+			expect(calls[1]?.args[1]).toBeInstanceOf(InputFile);
+		} finally {
+			globalThis.fetch = realFetch;
+		}
 	});
 
 	test("без флага guide документ не отправляется", async () => {
