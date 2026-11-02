@@ -218,6 +218,27 @@ export async function updateBotMessageStatus(
 		.where(eq(botMessages.externalId, externalId));
 }
 
+/** Есть ли уже сообщение личного номера с таким внешним id — чтобы эхо
+ * собственной отправки (MAX присылает его пушем) не писалось второй раз. */
+export async function botMessageExistsByExternalId(
+	db: Database,
+	params: { messenger: string; connectorId: string; externalId: string },
+): Promise<boolean> {
+	if (!db) return false;
+	const [row] = await db
+		.select({ id: botMessages.id })
+		.from(botMessages)
+		.where(
+			and(
+				eq(botMessages.messenger, params.messenger),
+				eq(botMessages.connectorId, params.connectorId),
+				eq(botMessages.externalId, params.externalId),
+			),
+		)
+		.limit(1);
+	return Boolean(row);
+}
+
 /** Возвращает текстовое сообщение, которое текущий оператор вправе изменить. */
 export async function getEditableBotMessage(
 	db: Database,

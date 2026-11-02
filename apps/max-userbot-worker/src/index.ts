@@ -24,6 +24,7 @@ import {
 } from "@psi-opora/max-userbot";
 import { initTelemetry } from "@psi-opora/telemetry";
 import { runLoginBroker } from "./login";
+import { logOwnDeviceMessage, rememberSentMessage } from "./own-messages";
 
 initTelemetry("max-userbot-worker");
 
@@ -158,6 +159,7 @@ async function runOutbox(
 					chatId,
 					message.text,
 				);
+				rememberSentMessage(externalId);
 				if (message.journalMessageId) {
 					await updateBotMessageExternalResult(
 						message.journalMessageId,
@@ -269,6 +271,10 @@ async function connectRuntime(runtime: AccountRuntime): Promise<void> {
 				onMessage: (message) => {
 					if (!message.chatId || message.senderId === null || !message.text)
 						return;
+					if (client && message.senderId === getUserbotSelfId(client)) {
+						void logOwnDeviceMessage(runtime.account, message);
+						return;
+					}
 					void logInboundMessage(
 						runtime.account,
 						message.chatId,
