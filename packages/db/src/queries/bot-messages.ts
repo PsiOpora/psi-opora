@@ -93,6 +93,9 @@ export interface BotMessageEntry {
 	/** Исходное имя файла (kind="file"/"image") — для Content-Disposition и
 	 * подписи в списке сообщений. */
 	mediaFileName?: string;
+	/** Время самого сообщения, если запись делается с задержкой; по умолчанию —
+	 * момент вставки. */
+	createdAt?: Date;
 }
 
 export async function insertBotMessage(
@@ -100,7 +103,7 @@ export async function insertBotMessage(
 	entry: BotMessageEntry,
 ): Promise<string | undefined> {
 	if (!db) return undefined;
-	const now = new Date();
+	const now = entry.createdAt ?? new Date();
 	const id = entry.id ?? crypto.randomUUID();
 	await db.insert(botMessages).values({
 		id,

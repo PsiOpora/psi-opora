@@ -2,6 +2,7 @@ import {
 	botMessageExistsByExternalId,
 	insertBotMessage,
 	type MaxPersonalAccount,
+	markOutgoingBotMessagesRead,
 	upsertBotUser,
 } from "@psi-opora/db/queries";
 
@@ -31,12 +32,36 @@ export function rememberSentMessage(externalId: string): void {
 	}
 }
 
+/**
+ * Последняя отметка прочтения по чату: она может прийти, пока сообщение ещё
+ * ждёт отложенной записи, — тогда статус «прочитано» применяем после вставки.
+ */
+const readMarks = new Map<string, Date>();
+const READ_MARKS_LIMIT = 1000;
+
+export function noteReadMark(
+	connectorId: string,
+	chatId: string,
+	readAt: Date,
+): void {
+	const key = `${connectorId}:${chatId}`;
+	const previous = readMarks.get(key);
+	if (previous && previous >= readAt) return;
+	readMarks.delete(key);
+	readMarks.set(key, readAt);
+	if (readMarks.size > READ_MARKS_LIMIT) {
+		const oldest = readMarks.keys().next().value;
+		if (oldest !== undefined) readMarks.delete(oldest);
+	}
+}
+
 export async function logOwnDeviceMessage(
 	account: MaxPersonalAccount,
 	message: { chatId: string; messageId: string | null; text: string },
 ): Promise<void> {
 	try {
 		const { messageId } = message;
+		const receivedAt = new Date();
 		if (messageId) {
 			await new Promise((resolve) => setTimeout(resolve, ECHO_SETTLE_DELAY_MS));
 			if (
@@ -60,7 +85,17 @@ export async function logOwnDeviceMessage(
 			text: message.text,
 			externalId: messageId ?? undefined,
 			connectorId: account.connectorId,
+			createdAt: receivedAt,
 		});
+		const readAt = readMarks.get(`${account.connectorId}:${message.chatId}`);
+		if (readAt && readAt >= receivedAt) {
+			await markOutgoingBotMessagesRead({
+				messenger: "max-personal",
+				connectorId: account.connectorId,
+				chatIds: [message.chatId],
+				upToTime: readAt,
+			});
+		}
 	} catch (error) {
 		console.error(
 			`[max-userbot-worker] ошибка журналирования своего сообщения: ${(error as Error).message}`,
