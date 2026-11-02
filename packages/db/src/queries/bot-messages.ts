@@ -93,6 +93,9 @@ export interface BotMessageEntry {
 	/** Исходное имя файла (kind="file"/"image") — для Content-Disposition и
 	 * подписи в списке сообщений. */
 	mediaFileName?: string;
+	/** Время самого сообщения, если запись делается с задержкой; по умолчанию —
+	 * момент вставки. */
+	createdAt?: Date;
 }
 
 export async function insertBotMessage(
@@ -100,7 +103,7 @@ export async function insertBotMessage(
 	entry: BotMessageEntry,
 ): Promise<string | undefined> {
 	if (!db) return undefined;
-	const now = new Date();
+	const now = entry.createdAt ?? new Date();
 	const id = entry.id ?? crypto.randomUUID();
 	await db.insert(botMessages).values({
 		id,
@@ -216,6 +219,27 @@ export async function updateBotMessageStatus(
 		.update(botMessages)
 		.set({ status, updatedAt: new Date() })
 		.where(eq(botMessages.externalId, externalId));
+}
+
+/** Есть ли уже сообщение личного номера с таким внешним id — чтобы эхо
+ * собственной отправки (MAX присылает его пушем) не писалось второй раз. */
+export async function botMessageExistsByExternalId(
+	db: Database,
+	params: { messenger: string; connectorId: string; externalId: string },
+): Promise<boolean> {
+	if (!db) return false;
+	const [row] = await db
+		.select({ id: botMessages.id })
+		.from(botMessages)
+		.where(
+			and(
+				eq(botMessages.messenger, params.messenger),
+				eq(botMessages.connectorId, params.connectorId),
+				eq(botMessages.externalId, params.externalId),
+			),
+		)
+		.limit(1);
+	return Boolean(row);
 }
 
 /** Возвращает текстовое сообщение, которое текущий оператор вправе изменить. */

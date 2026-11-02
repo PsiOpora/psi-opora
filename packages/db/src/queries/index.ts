@@ -81,6 +81,7 @@ import {
 	type RecordedGuideView,
 } from "./bot-guide-views";
 import {
+	botMessageExistsByExternalId as _botMessageExistsByExternalId,
 	getBotMessageMedia as _getBotMessageMedia,
 	getClientMessageStats as _getClientMessageStats,
 	getClientMessageStatsForGroup as _getClientMessageStatsForGroup,
@@ -310,6 +311,12 @@ export async function markOutgoingBotMessagesRead(
 	params: Parameters<typeof _markOutgoingBotMessagesRead>[1],
 ): Promise<number> {
 	return _markOutgoingBotMessagesRead(db, params);
+}
+
+export async function botMessageExistsByExternalId(
+	params: Parameters<typeof _botMessageExistsByExternalId>[1],
+): Promise<boolean> {
+	return _botMessageExistsByExternalId(db, params);
 }
 
 export async function updateBotMessageStatus(

@@ -15,6 +15,7 @@ import {
 	decryptSecret,
 	deleteUserbotMessage,
 	getUserbotSelfId,
+	type MaxIncomingMessage,
 	type MaxProtocolClient,
 	type MaxReadMarkEvent,
 	recoverMaxOutboundMessages,
@@ -24,6 +25,11 @@ import {
 } from "@psi-opora/max-userbot";
 import { initTelemetry } from "@psi-opora/telemetry";
 import { runLoginBroker } from "./login";
+import {
+	logOwnDeviceMessage,
+	noteReadMark,
+	rememberSentMessage,
+} from "./own-messages";
 
 initTelemetry("max-userbot-worker");
 
@@ -158,6 +164,7 @@ async function runOutbox(
 					chatId,
 					message.text,
 				);
+				rememberSentMessage(externalId);
 				if (message.journalMessageId) {
 					await updateBotMessageExternalResult(
 						message.journalMessageId,
@@ -249,6 +256,7 @@ async function handleReadMark(
 	) {
 		return;
 	}
+	noteReadMark(runtime.account.connectorId, event.chatId, event.readAt);
 	await markOutgoingBotMessagesRead({
 		messenger: "max-personal",
 		connectorId: runtime.account.connectorId,
@@ -262,20 +270,37 @@ async function connectRuntime(runtime: AccountRuntime): Promise<void> {
 	runtime.connecting = true;
 	let client: MaxProtocolClient | undefined;
 	let ready = false;
+	const earlyMessages: MaxIncomingMessage[] = [];
+	const routeMessage = (
+		connected: MaxProtocolClient,
+		message: MaxIncomingMessage,
+	) => {
+		if (!message.chatId || message.senderId === null || !message.text) return;
+		if (message.senderId === getUserbotSelfId(connected)) {
+			void logOwnDeviceMessage(runtime.account, message);
+			return;
+		}
+		void logInboundMessage(
+			runtime.account,
+			message.chatId,
+			message.text,
+			message.messageId,
+		);
+		void relayInboundMessage(runtime.account, message);
+	};
 	try {
 		client = await createUserbotClient(
 			decryptSecret(runtime.account.sessionEncrypted),
 			{
 				onMessage: (message) => {
-					if (!message.chatId || message.senderId === null || !message.text)
+					// Пуш может прийти до того, как createUserbotClient вернул client
+					// (и до известного selfId) — держим его, пока не отличим своё от
+					// клиентского.
+					if (!client) {
+						earlyMessages.push(message);
 						return;
-					void logInboundMessage(
-						runtime.account,
-						message.chatId,
-						message.text,
-						message.messageId,
-					);
-					void relayInboundMessage(runtime.account, message);
+					}
+					routeMessage(client, message);
 				},
 				onReadMark: (event) => {
 					if (!client) return;
@@ -296,6 +321,9 @@ async function connectRuntime(runtime: AccountRuntime): Promise<void> {
 		}
 		ready = true;
 		runtime.client = client;
+		for (const message of earlyMessages.splice(0)) {
+			routeMessage(client, message);
+		}
 		runtime.retryAttempt = 0;
 		await recoverMaxOutboundMessages(
 			runtime.account.memberId,
