@@ -264,4 +264,44 @@ describe("stage consent", () => {
 		).toBeNull();
 		expect(memory.outbox).toHaveLength(1);
 	});
+
+	test("после сбоя записи первого отказа бот всё равно переспросит", async () => {
+		const memory = new MemoryRedis();
+		await setPendingStageDeal(redis(memory), "max", 7, 42);
+		const decline = () =>
+			handleStageConsentClick(
+				redis(memory),
+				"max",
+				7,
+				42,
+				"stage_ads_decline",
+				DEFAULT_SCENARIO_TEXTS,
+			);
+
+		memory.failOutbox = true;
+		await expect(decline()).rejects.toThrow("Redis unavailable");
+		memory.failOutbox = false;
+		expect((await decline())?.resendAdsQuestion).toBe(true);
+	});
+
+	test("после сбоя записи окончательного отказа его можно нажать снова", async () => {
+		const memory = new MemoryRedis();
+		await setPendingStageDeal(redis(memory), "max", 7, 42);
+		const decline = () =>
+			handleStageConsentClick(
+				redis(memory),
+				"max",
+				7,
+				42,
+				"stage_ads_decline",
+				DEFAULT_SCENARIO_TEXTS,
+			);
+
+		await decline();
+		memory.failOutbox = true;
+		await expect(decline()).rejects.toThrow("Redis unavailable");
+		memory.failOutbox = false;
+		expect((await decline())?.resendAdsQuestion).toBe(false);
+		expect(memory.outbox).toHaveLength(2);
+	});
 });

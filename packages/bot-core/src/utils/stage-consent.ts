@@ -277,15 +277,29 @@ export async function handleStageConsentClick(
 	// Первый отказ — переспрашиваем; второй — окончательный, а всё, что
 	// после него, — повторные нажатия.
 	const shouldRetry = await claimAdsRetry(redis, dealId);
-	if (!shouldRetry && !(await claimConsent(redis, dealId, "ads_declined"))) {
-		return null;
+	if (shouldRetry) {
+		try {
+			await recordStageConsent(
+				redis,
+				messenger,
+				dealId,
+				CONSENT_ADS_DECLINED_FIELD,
+			);
+		} catch (error) {
+			// Иначе следующее нажатие сочтётся вторым отказом и бот не переспросит.
+			await redis.del(adsRetryKey(dealId));
+			throw error;
+		}
+	} else {
+		if (!(await claimConsent(redis, dealId, "ads_declined"))) return null;
+		await recordClaimedConsent(
+			redis,
+			messenger,
+			dealId,
+			"ads_declined",
+			CONSENT_ADS_DECLINED_FIELD,
+		);
 	}
-	await recordStageConsent(
-		redis,
-		messenger,
-		dealId,
-		CONSENT_ADS_DECLINED_FIELD,
-	);
 	return {
 		replyText: texts.stage_consent_ads_declined,
 		resendAdsQuestion: shouldRetry,
