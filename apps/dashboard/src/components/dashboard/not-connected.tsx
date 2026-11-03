@@ -17,8 +17,7 @@ export function NotConnected() {
 				<EmptyTitle>Нет подключения к Битрикс24</EmptyTitle>
 				<EmptyDescription>
 					Откройте приложение внутри своего портала Битрикс24, чтобы увидеть
-					данные CRM. Для локальной разработки задайте
-					DASHBOARD_BITRIX_WEBHOOK_URL в .env.
+					данные CRM. 
 				</EmptyDescription>
 			</EmptyHeader>
 		</Empty>
