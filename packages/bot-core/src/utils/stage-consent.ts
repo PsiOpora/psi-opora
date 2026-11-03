@@ -156,17 +156,49 @@ function completedConsentsKey(dealId: number): string {
 	return `stage-consent:completed:${dealId}`;
 }
 
-async function markConsentCompleted(
+type CompletedConsent = "offer" | "ads" | "ads_declined";
+
+/**
+ * Атомарно отмечает ответ на вопрос согласия в рамках сделки. false — этот
+ * ответ уже был принят: повторное нажатие той же кнопки (в MAX кнопки
+ * остаются под сообщением) не должно ни перезаписывать время согласия в
+ * сделке, ни слать «Спасибо!» ещё раз.
+ */
+async function claimConsent(
+	redis: RedisClient,
+	dealId: number,
+	consent: CompletedConsent,
+): Promise<boolean> {
+	const key = completedConsentsKey(dealId);
+	const added = await redis.sadd(key, consent);
+	await redis.expire(key, PENDING_TTL_SECONDS);
+	return added > 0;
+}
+
+/** Пишет согласие в сделку; при сбое снимает отметку, чтобы клиент мог
+ * нажать ещё раз. */
+async function recordClaimedConsent(
+	redis: RedisClient,
+	messenger: string,
+	dealId: number,
+	consent: CompletedConsent,
+	field: string,
+): Promise<void> {
+	try {
+		await recordStageConsent(redis, messenger, dealId, field);
+	} catch (error) {
+		await redis.srem(completedConsentsKey(dealId), consent);
+		throw error;
+	}
+}
+
+async function releasePendingIfCompleted(
 	redis: RedisClient,
 	messenger: string,
 	userId: number | string,
 	dealId: number,
-	action: StageConsentAction,
 ): Promise<void> {
-	if (action === "stage_ads_decline") return;
 	const key = completedConsentsKey(dealId);
-	await redis.sadd(key, action === "stage_offer_agree" ? "offer" : "ads");
-	await redis.expire(key, PENDING_TTL_SECONDS);
 	const completed = await redis.smembers<string>(key);
 	if (completed.includes("offer") && completed.includes("ads")) {
 		await removePendingStageDeal(redis, messenger, userId, dealId);
@@ -218,31 +250,56 @@ export async function handleStageConsentClick(
 	const pendingDealId = await getPendingStageDeal(redis, messenger, userId);
 	if (pendingDealId !== dealId) return null;
 
-	if (action === "stage_offer_agree") {
-		await recordStageConsent(redis, messenger, dealId, CONSENT_OFFER_FIELD);
-		await markConsentCompleted(redis, messenger, userId, dealId, action);
+	if (action === "stage_offer_agree" || action === "stage_ads_agree") {
+		const consent = action === "stage_offer_agree" ? "offer" : "ads";
+		if (!(await claimConsent(redis, dealId, consent))) return null;
+		await recordClaimedConsent(
+			redis,
+			messenger,
+			dealId,
+			consent,
+			consent === "offer" ? CONSENT_OFFER_FIELD : CONSENT_ADS_FIELD,
+		);
+		await releasePendingIfCompleted(redis, messenger, userId, dealId);
 		return {
-			replyText: texts.stage_consent_offer_agreed,
+			replyText:
+				consent === "offer"
+					? texts.stage_consent_offer_agreed
+					: texts.stage_consent_ads_agreed,
 			resendAdsQuestion: false,
 		};
 	}
 
-	if (action === "stage_ads_agree") {
-		await recordStageConsent(redis, messenger, dealId, CONSENT_ADS_FIELD);
-		await markConsentCompleted(redis, messenger, userId, dealId, action);
-		return {
-			replyText: texts.stage_consent_ads_agreed,
-			resendAdsQuestion: false,
-		};
-	}
-
-	await recordStageConsent(
-		redis,
-		messenger,
-		dealId,
-		CONSENT_ADS_DECLINED_FIELD,
-	);
+	// Отказ после уже данного согласия на рассылку — кнопка от старого
+	// сообщения, игнорируем.
+	const answered = await redis.smembers<string>(completedConsentsKey(dealId));
+	if (answered.includes("ads")) return null;
+	// Первый отказ — переспрашиваем; второй — окончательный, а всё, что
+	// после него, — повторные нажатия.
 	const shouldRetry = await claimAdsRetry(redis, dealId);
+	if (shouldRetry) {
+		try {
+			await recordStageConsent(
+				redis,
+				messenger,
+				dealId,
+				CONSENT_ADS_DECLINED_FIELD,
+			);
+		} catch (error) {
+			// Иначе следующее нажатие сочтётся вторым отказом и бот не переспросит.
+			await redis.del(adsRetryKey(dealId));
+			throw error;
+		}
+	} else {
+		if (!(await claimConsent(redis, dealId, "ads_declined"))) return null;
+		await recordClaimedConsent(
+			redis,
+			messenger,
+			dealId,
+			"ads_declined",
+			CONSENT_ADS_DECLINED_FIELD,
+		);
+	}
 	return {
 		replyText: texts.stage_consent_ads_declined,
 		resendAdsQuestion: shouldRetry,

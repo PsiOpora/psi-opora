@@ -10,7 +10,9 @@ import type { MessengerButton } from "./messenger";
 import { sendMessengerMessage } from "./messenger";
 import {
 	DEAL_CATEGORY_ID,
+	type DirectBotTarget,
 	DEAL_STAGE_IDS,
+	logReminderMessage,
 	resolveDirectBotTarget,
 } from "./reminders/shared";
 
@@ -27,6 +29,28 @@ function sentFlagKey(dealId: number): string {
 }
 
 const SENT_TTL_SECONDS = 90 * 24 * 60 * 60;
+
+/** Отправляет сообщение и пишет его в историю диалога — иначе в инбоксе
+ * видны только ответы клиента «Согласен», без вопросов, на которые он
+ * отвечал. */
+async function sendAndLog(
+	target: DirectBotTarget,
+	text: string,
+	buttons?: MessengerButton[][],
+): Promise<void> {
+	try {
+		const externalId = await sendMessengerMessage(
+			target.messenger,
+			target.userId,
+			text,
+			buttons,
+		);
+		await logReminderMessage({ target, text, status: "sent", externalId });
+	} catch (error) {
+		await logReminderMessage({ target, text, status: "failed" });
+		throw error;
+	}
+}
 
 /**
  * Обработка вебхука ONCRMDEALUPDATE для триггеров Жени: как только сделка
@@ -86,30 +110,16 @@ export async function handleStageConsentTrigger(
 	});
 	if (claimed !== "OK") return { action: "skip", reason: "already_sent" };
 
-	await sendMessengerMessage(
-		target.messenger,
-		target.userId,
-		texts.stage_consent_notice,
-	);
+	await sendAndLog(target, texts.stage_consent_notice);
 
 	await setPendingStageDeal(redis, target.messenger, target.userId, dealId);
 	try {
-		await sendMessengerMessage(
-			target.messenger,
-			target.userId,
-			texts.stage_consent_offer_text,
-			offerButtons,
-		);
+		await sendAndLog(target, texts.stage_consent_offer_text, offerButtons);
 
 		// Согласие на рассылку задаём отдельным сообщением сразу вслед за офертой —
 		// клиент отвечает кнопками в любом порядке, порядок вопросов только
 		// задаёт, что он увидит раньше.
-		await sendMessengerMessage(
-			target.messenger,
-			target.userId,
-			texts.stage_consent_ads_text,
-			adsButtons,
-		);
+		await sendAndLog(target, texts.stage_consent_ads_text, adsButtons);
 	} catch (error) {
 		await removePendingStageDeal(
 			redis,

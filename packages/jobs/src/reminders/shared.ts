@@ -160,8 +160,9 @@ export function botDeliveryLabel(
  * (top-level await + проверка POSTGRES_URL), статический импорт ронял бы
  * индексацию Hatchet-задач при деплое, где БД недоступна (как в
  * hatchet/broadcast.ts). Ошибка записи не должна отменять сам факт отправки.
+ * Используется и триггером согласий стадии (stage-consent.ts).
  */
-async function logReminderMessage(params: {
+export async function logReminderMessage(params: {
 	target: { messenger: Messenger | "whatsapp-personal"; userId: string };
 	text: string;
 	status: "sent" | "failed";

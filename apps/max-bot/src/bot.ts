@@ -681,6 +681,28 @@ export function createMaxBot({
 				texts,
 			);
 			if (!result) return;
+			// Как в Telegram (editMessageReplyMarkup) — убираем кнопки у вопроса,
+			// на который клиент ответил: в MAX они иначе остаются под сообщением,
+			// и клиент нажимает «Согласен» ещё раз. Текст вопроса тот же; если MAX
+			// отклонит разметку — повторяем без неё, как sendMessengerMessage.
+			const questionText =
+				stageConsent.action === "stage_offer_agree"
+					? texts.stage_consent_offer_text
+					: texts.stage_consent_ads_text;
+			await appCtx
+				.editMessage({
+					text: questionText,
+					format: "markdown",
+					attachments: [],
+				})
+				.catch(() =>
+					appCtx.editMessage({ text: questionText, attachments: [] }),
+				)
+				.catch((err) => {
+					log(
+						`[stage-consent] не удалось убрать кнопки user=${userId}: ${describeError(err)}`,
+					);
+				});
 			await logBotMessage({
 				messenger: "max",
 				userId,
