@@ -21,7 +21,12 @@ class MemoryRedis {
 		return (this.values.get(key) as T | undefined) ?? null;
 	}
 
-	async set(key: string, value: unknown): Promise<"OK"> {
+	async set(
+		key: string,
+		value: unknown,
+		options: { nx?: boolean } = {},
+	): Promise<"OK" | null> {
+		if (options.nx && this.values.has(key)) return null;
 		this.values.set(key, value);
 		return "OK";
 	}
@@ -41,6 +46,14 @@ class MemoryRedis {
 		for (const member of members) set.add(member);
 		this.sets.set(key, set);
 		return set.size - before;
+	}
+
+	async srem(key: string, ...members: unknown[]): Promise<number> {
+		const set = this.sets.get(key);
+		if (!set) return 0;
+		let removed = 0;
+		for (const member of members) removed += Number(set.delete(member));
+		return removed;
 	}
 
 	async smembers<T>(key: string): Promise<T[]> {
@@ -164,5 +177,91 @@ describe("stage consent", () => {
 				DEFAULT_SCENARIO_TEXTS,
 			),
 		).rejects.toThrow("Redis unavailable");
+	});
+
+	test("повторное нажатие той же кнопки не записывает согласие ещё раз", async () => {
+		const memory = new MemoryRedis();
+		await setPendingStageDeal(redis(memory), "max", 7, 42);
+		const click = () =>
+			handleStageConsentClick(
+				redis(memory),
+				"max",
+				7,
+				42,
+				"stage_offer_agree",
+				DEFAULT_SCENARIO_TEXTS,
+			);
+
+		expect(await click()).toEqual({
+			replyText: DEFAULT_SCENARIO_TEXTS.stage_consent_offer_agreed,
+			resendAdsQuestion: false,
+		});
+		expect(await click()).toBeNull();
+		expect(memory.outbox).toHaveLength(1);
+		expect(await getPendingStageDeal(redis(memory), "max", 7)).toBe(42);
+	});
+
+	test("после сбоя записи согласие можно нажать снова", async () => {
+		const memory = new MemoryRedis();
+		await setPendingStageDeal(redis(memory), "max", 7, 42);
+		memory.failOutbox = true;
+		const click = () =>
+			handleStageConsentClick(
+				redis(memory),
+				"max",
+				7,
+				42,
+				"stage_ads_agree",
+				DEFAULT_SCENARIO_TEXTS,
+			);
+
+		await expect(click()).rejects.toThrow("Redis unavailable");
+		memory.failOutbox = false;
+		expect(await click()).not.toBeNull();
+		expect(memory.outbox).toHaveLength(1);
+	});
+
+	test("отказ от рассылки: переспрашивает один раз, дальше игнорирует повторы", async () => {
+		const memory = new MemoryRedis();
+		await setPendingStageDeal(redis(memory), "max", 7, 42);
+		const decline = () =>
+			handleStageConsentClick(
+				redis(memory),
+				"max",
+				7,
+				42,
+				"stage_ads_decline",
+				DEFAULT_SCENARIO_TEXTS,
+			);
+
+		expect((await decline())?.resendAdsQuestion).toBe(true);
+		expect((await decline())?.resendAdsQuestion).toBe(false);
+		expect(await decline()).toBeNull();
+		expect(memory.outbox).toHaveLength(2);
+	});
+
+	test("отказ после согласия на рассылку игнорируется", async () => {
+		const memory = new MemoryRedis();
+		await setPendingStageDeal(redis(memory), "max", 7, 42);
+		await handleStageConsentClick(
+			redis(memory),
+			"max",
+			7,
+			42,
+			"stage_ads_agree",
+			DEFAULT_SCENARIO_TEXTS,
+		);
+
+		expect(
+			await handleStageConsentClick(
+				redis(memory),
+				"max",
+				7,
+				42,
+				"stage_ads_decline",
+				DEFAULT_SCENARIO_TEXTS,
+			),
+		).toBeNull();
+		expect(memory.outbox).toHaveLength(1);
 	});
 });
