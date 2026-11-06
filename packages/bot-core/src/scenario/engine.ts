@@ -293,6 +293,18 @@ export function applyScenarioAction(
 	 * email. */
 	knownContact?: KnownContact | null,
 ): ScenarioOutput | null {
+	// Клиент нажал кнопку в сообщении после таймаута (см. ScenarioState.expired) —
+	// сценарий продолжается как обычно, флаг больше не нужен.
+	if (state.expired) {
+		return applyScenarioAction(
+			{ ...state, expired: false },
+			action,
+			t,
+			campaign,
+			knownContact,
+		);
+	}
+
 	switch (state.step) {
 		case "entry": {
 			if (action === "sc_consult") return startConsultation(t);
@@ -474,6 +486,17 @@ export async function applyScenarioText(
 	t: ScenarioTexts,
 	campaign?: GuideCampaignContext | null,
 ): Promise<ScenarioOutput | null> {
+	if (state.expired) {
+		// Сценарий закрыт по таймауту. Возобновляем только на ожидаемый ввод
+		// (телефон/email) — любой другой текст может быть перепиской с
+		// оператором, бот в неё не встревает и не считает попытки.
+		const resumes =
+			(state.step === "phone" && hasPhoneNumber(text)) ||
+			(state.step === "email" && isValidEmail(text));
+		if (!resumes) return null;
+		return applyScenarioText({ ...state, expired: false }, text, t, campaign);
+	}
+
 	switch (state.step) {
 		case "name": {
 			// Клиент иногда присылает на этот вопрос сразу весь блок контактов
