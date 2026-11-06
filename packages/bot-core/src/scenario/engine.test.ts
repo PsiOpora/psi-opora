@@ -637,3 +637,84 @@ describe("describeLead", () => {
 		expect(comment).toContain(t.btn_consult);
 	});
 });
+
+describe("возобновление после таймаута (state.expired)", () => {
+	const expiredAtPhone = async () => {
+		const out = await run([
+			{ action: "sc_consult" },
+			{ action: "consent_agree" },
+			{ text: "Екатерина" },
+		]);
+		expect(out.state.step).toBe("phone");
+		return { ...out.state, reminded: true, expired: true };
+	};
+
+	test("телефон после таймаута продолжает заявку с шага email", async () => {
+		const state = await expiredAtPhone();
+		const out = await applyScenarioText(state, "89232211138", t);
+		expect(out?.state.step).toBe("email");
+		expect(out?.state.phone).toBe("89232211138");
+		expect(out?.state.expired).toBe(false);
+		expect(out?.track).toEqual(["phone"]);
+	});
+
+	test("email после таймаута на шаге email создаёт заявку", async () => {
+		const state = await expiredAtPhone();
+		const atEmail = await applyScenarioText(state, "89232211138", t);
+		if (!atEmail) throw new Error("телефон не обработан");
+		const out = await applyScenarioText(
+			{ ...atEmail.state, reminded: true, expired: true },
+			"katrin@example.com",
+			t,
+		);
+		expect(out?.lead).toMatchObject({
+			flow: "consult",
+			phone: "89232211138",
+			email: "katrin@example.com",
+			name: "Екатерина",
+		});
+		expect(out?.state.step).toBe("done");
+	});
+
+	test("посторонний текст после таймаута игнорируется без подсчёта попыток", async () => {
+		const state = await expiredAtPhone();
+		expect(await applyScenarioText(state, "спасибо, жду звонка", t)).toBeNull();
+	});
+
+	test("строка из одних разделителей не возобновляет шаг phone", async () => {
+		const state = await expiredAtPhone();
+		expect(await applyScenarioText(state, "Спасибо ------- жду", t)).toBeNull();
+	});
+
+	test("номер в свободном тексте возобновляет шаг, сохраняется сам номер", async () => {
+		const state = await expiredAtPhone();
+		const out = await applyScenarioText(
+			state,
+			"мой номер +7 923 221-11-38, звоните",
+			t,
+		);
+		expect(out?.state.step).toBe("email");
+		expect(out?.state.phone).toBe("+7 923 221-11-38");
+	});
+
+	test("на шаге name таймаут не возобновляется (шаг не резюмируем)", async () => {
+		const state: ScenarioOutput["state"] = {
+			step: "name",
+			flow: "consult",
+			expired: true,
+		};
+		expect(await applyScenarioText(state, "89232211138", t)).toBeNull();
+	});
+
+	test("кнопка после таймаута сбрасывает флаг и работает как обычно", async () => {
+		const out = applyScenarioAction(
+			{ step: "email", flow: "consult", expired: true, phone: "+7" },
+			"sc_skip_email",
+			t,
+		);
+		expect(out).not.toBeNull();
+		expect(out?.state.expired).toBe(false);
+		expect(out?.state.step).toBe("done");
+		expect(out?.lead).toMatchObject({ flow: "consult", phone: "+7" });
+	});
+});

@@ -96,7 +96,7 @@ export async function runScenarioReminders({
 			const session = await storage.read(sessionKey);
 			const state = session?.scenario;
 
-			if (!session || !state || state.step === "done") {
+			if (!session || !state || state.step === "done" || state.expired) {
 				await redis.zrem(key, sessionKey);
 				continue;
 			}
@@ -109,7 +109,15 @@ export async function runScenarioReminders({
 			if (state.reminded) {
 				// Напоминание не помогло — тихо завершаем сценарий, но фиксируем
 				// в воронке шаг и причину (см. дашборд "Причины отвала").
-				state.step = "done";
+				// Шаги phone/email не закрываем: клиент может ответить позже (как
+				// 6 ноября — через 5 часов), и тогда заявка должна дойти до сделки.
+				// Из очереди напоминаний сессию всё равно убираем (ниже), поэтому
+				// повторно напоминать не будем.
+				if (state.step === "phone" || state.step === "email") {
+					state.expired = true;
+				} else {
+					state.step = "done";
+				}
 				await storage.write(sessionKey, session);
 				await redis.zrem(key, sessionKey);
 				result.expired++;
