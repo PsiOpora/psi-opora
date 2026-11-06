@@ -147,7 +147,7 @@ export function MergeSection({
 						autoFocus
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
-						placeholder="Поиск по имени или username…"
+						placeholder="Имя, фамилия, username или телефон…"
 					/>
 					<div className="flex max-h-64 flex-col gap-1 overflow-y-auto">
 						{isFetching && (
@@ -173,7 +173,10 @@ export function MergeSection({
 							))}
 						{!isFetching && search.trim() && candidates.length === 0 && (
 							<p className="p-2 text-xs text-muted-foreground">
-								Никого не найдено
+								Никого не найдено среди клиентов с перепиской.{" "}
+								{(data?.crmContacts.length ?? 0) > 0
+									? "Контакт есть в CRM, но диалога с ним здесь нет — объединять пока нечего."
+									: "Телефон ищется целиком, например +7 999 123-45-67."}
 							</p>
 						)}
 					</div>

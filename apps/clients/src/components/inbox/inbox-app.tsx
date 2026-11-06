@@ -106,6 +106,10 @@ export function InboxApp() {
 		}),
 	);
 	const allItems = useMemo(() => listQuery.data?.items ?? [], [listQuery.data]);
+	const crmContacts = useMemo(
+		() => listQuery.data?.crmContacts ?? [],
+		[listQuery.data],
+	);
 
 	const items = useMemo(
 		() =>
@@ -135,7 +139,7 @@ export function InboxApp() {
 		(patch: (item: ClientListItem) => ClientListItem) => {
 			queryClient.setQueriesData<{ items: ClientListItem[] }>(
 				{ queryKey: orpc.messages.list.key() },
-				(old) => (old ? { items: old.items.map(patch) } : old),
+				(old) => (old ? { ...old, items: old.items.map(patch) } : old),
 			);
 		},
 		[queryClient],
@@ -218,6 +222,7 @@ export function InboxApp() {
 				(old) =>
 					old
 						? {
+								...old,
 								items: old.items.filter(
 									(c) =>
 										c.messenger !== deleted.messenger ||
@@ -380,6 +385,7 @@ export function InboxApp() {
 				<ClientList
 					items={items}
 					allItems={allItems}
+					crmContacts={crmContacts}
 					loading={listQuery.isLoading}
 					search={search}
 					onSearchChange={setSearch}

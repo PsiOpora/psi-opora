@@ -579,10 +579,17 @@ export interface ClientListItem {
  */
 export async function listClientsWithLastMessage(
 	db: Database,
-	options: { limit?: number; offset?: number; search?: string } = {},
+	options: {
+		limit?: number;
+		offset?: number;
+		search?: string;
+		/** Клиенты, найденные вне нашей БД (по телефону/фамилии в CRM): попадают в
+		 * выдачу наравне с совпадением по имени. */
+		identities?: ClientIdentityRef[];
+	} = {},
 ): Promise<ClientListItem[]> {
 	if (!db) return [];
-	const { limit = 50, offset = 0, search } = options;
+	const { limit = 50, offset = 0, search, identities = [] } = options;
 
 	const lastMessage = db
 		.selectDistinctOn([botMessages.messenger, botMessages.userId], {
@@ -603,9 +610,33 @@ export async function listClientsWithLastMessage(
 		)
 		.as("last_message");
 
-	const searchFilter = search?.trim()
-		? sql`(${botUsers.name} ilike ${`%${search.trim()}%`} or ${botUsers.username} ilike ${`%${search.trim()}%`})`
+	// Каждое слово запроса должно встретиться где-то в имени, фамилии или
+	// username («Иванова Мария» находит и «Мария Иванова»). Телефона у нас в
+	// bot_users нет — по нему и по фамилии из CRM приходят identities.
+	const tokens = (search ?? "").split(/\s+/).filter(Boolean);
+	const textFilter =
+		tokens.length > 0
+			? and(
+					...tokens.map(
+						(token) =>
+							sql`concat_ws(' ', ${botUsers.name}, ${botUsers.firstName}, ${botUsers.lastName}, ${botUsers.username}) ilike ${`%${token.replace(/[\\%_]/g, "\\$&")}%`}`,
+					),
+				)
+			: undefined;
+	const identityFilter = identities.length
+		? or(
+				...identities.map((identity) =>
+					and(
+						eq(lastMessage.messenger, identity.messenger),
+						eq(lastMessage.userId, identity.userId),
+					),
+				),
+			)
 		: undefined;
+	const searchFilter =
+		textFilter && identityFilter
+			? or(textFilter, identityFilter)
+			: (textFilter ?? identityFilter);
 
 	const rows = await db
 		.select({
