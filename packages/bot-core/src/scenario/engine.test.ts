@@ -681,6 +681,22 @@ describe("возобновление после таймаута (state.expired)
 		expect(await applyScenarioText(state, "спасибо, жду звонка", t)).toBeNull();
 	});
 
+	test("строка из одних разделителей не возобновляет шаг phone", async () => {
+		const state = await expiredAtPhone();
+		expect(await applyScenarioText(state, "Спасибо ------- жду", t)).toBeNull();
+	});
+
+	test("номер в свободном тексте возобновляет шаг, сохраняется сам номер", async () => {
+		const state = await expiredAtPhone();
+		const out = await applyScenarioText(
+			state,
+			"мой номер +7 923 221-11-38, звоните",
+			t,
+		);
+		expect(out?.state.step).toBe("email");
+		expect(out?.state.phone).toBe("+7 923 221-11-38");
+	});
+
 	test("на шаге name таймаут не возобновляется (шаг не резюмируем)", async () => {
 		const state: ScenarioOutput["state"] = {
 			step: "name",
@@ -696,6 +712,9 @@ describe("возобновление после таймаута (state.expired)
 			"sc_skip_email",
 			t,
 		);
-		expect(out?.state.expired).toBeFalsy();
+		expect(out).not.toBeNull();
+		expect(out?.state.expired).toBe(false);
+		expect(out?.state.step).toBe("done");
+		expect(out?.lead).toMatchObject({ flow: "consult", phone: "+7" });
 	});
 });

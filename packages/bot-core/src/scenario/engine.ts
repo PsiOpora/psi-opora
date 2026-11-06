@@ -490,11 +490,27 @@ export async function applyScenarioText(
 		// Сценарий закрыт по таймауту. Возобновляем только на ожидаемый ввод
 		// (телефон/email) — любой другой текст может быть перепиской с
 		// оператором, бот в неё не встревает и не считает попытки.
-		const resumes =
-			(state.step === "phone" && hasPhoneNumber(text)) ||
-			(state.step === "email" && isValidEmail(text));
-		if (!resumes) return null;
-		return applyScenarioText({ ...state, expired: false }, text, t, campaign);
+		// hasPhoneNumber пропускает и строку из одних разделителей, поэтому для
+		// возобновления требуем настоящий номер (7–15 цифр) и сохраняем именно
+		// его, а не всю реплику.
+		const phone =
+			state.step === "phone"
+				? text.match(/\+?\d[\d\s()-]{5,}\d/)?.[0]?.trim()
+				: undefined;
+		const phoneDigits = phone?.replace(/\D/g, "").length ?? 0;
+		if (state.step === "phone") {
+			if (!phone || phoneDigits < 7 || phoneDigits > 15) return null;
+			return applyScenarioText(
+				{ ...state, expired: false },
+				phone,
+				t,
+				campaign,
+			);
+		}
+		if (state.step === "email" && isValidEmail(text)) {
+			return applyScenarioText({ ...state, expired: false }, text, t, campaign);
+		}
+		return null;
 	}
 
 	switch (state.step) {
