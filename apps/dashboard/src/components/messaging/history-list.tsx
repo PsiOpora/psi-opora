@@ -1,6 +1,6 @@
 "use client";
 
-import type { WidgetHistoryItem } from "@psi-opora/api";
+import type { WidgetChannel, WidgetHistoryItem } from "@psi-opora/api";
 import {
 	CheckCheckIcon,
 	CheckIcon,
@@ -8,8 +8,13 @@ import {
 	Clock3Icon,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { ChannelChip } from "@/components/messaging/channel-chip";
 import { MessengerIcon } from "@/components/messaging/messenger-icon";
-import { messengerLabel } from "@/components/messaging/messenger-meta";
+import {
+	conversationKey,
+	messengerLabel,
+	messengerMeta,
+} from "@/components/messaging/messenger-meta";
 import { cn } from "@/lib/utils";
 
 /** Оптимистично добавленное сообщение до подтверждения записи в БД поллингом. */
@@ -116,9 +121,28 @@ function formatTime(iso: string): string {
 	});
 }
 
-export function HistoryList({ history }: { history: HistoryEntry[] }) {
+export function HistoryList({
+	history,
+	channels = [],
+}: {
+	history: HistoryEntry[];
+	/** Каналы контакта — нужны, чтобы подписать сообщение номером нашего
+	 * личного аккаунта (в переписке их может участвовать несколько). */
+	channels?: WidgetChannel[];
+}) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const stickToBottomRef = useRef(true);
+	const phoneByKey = new Map(
+		channels.map((c) => [
+			conversationKey(c.messenger, c.connectorId),
+			c.accountPhone,
+		]),
+	);
+	// Если переписка шла в одном канале, разделители каналов — лишний шум:
+	// канал и так виден в шапке и в подписи каждого сообщения.
+	const multiChannel =
+		new Set(history.map((h) => conversationKey(h.messenger, h.connectorId)))
+			.size > 1;
 
 	useEffect(() => {
 		const el = containerRef.current;
@@ -159,12 +183,17 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 						: BOT_SOURCES.has(item.source)
 							? "bot"
 							: "operator";
+				const key = conversationKey(item.messenger, item.connectorId);
+				const channelChanged =
+					multiChannel &&
+					(!prev || conversationKey(prev.messenger, prev.connectorId) !== key);
+				const accountPhone = phoneByKey.get(key);
 				const groupedWithPrev =
 					!showDay &&
+					!channelChanged &&
 					!!prev &&
 					prev.direction === item.direction &&
-					prev.source === item.source &&
-					prev.messenger === item.messenger;
+					prev.source === item.source;
 				const statusMeta =
 					item.direction === "out" && !item.pending
 						? STATUS_META[item.status]
@@ -176,7 +205,11 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 						key={item.id}
 						className={cn(
 							"flex flex-col",
-							showDay ? "mt-0" : groupedWithPrev ? "mt-1" : "mt-3",
+							showDay || channelChanged
+								? "mt-0"
+								: groupedWithPrev
+									? "mt-1"
+									: "mt-3",
 						)}
 					>
 						{showDay && (
@@ -188,12 +221,28 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 								<div className="h-px flex-1 bg-border" />
 							</div>
 						)}
+						{channelChanged && (
+							<div className="my-3 flex items-center gap-3">
+								<div className="h-px flex-1 bg-border" />
+								<ChannelChip
+									messenger={item.messenger}
+									accountPhone={accountPhone}
+								/>
+								<div className="h-px flex-1 bg-border" />
+							</div>
+						)}
+						{/* Значок канала стоит у пузыря с внешней стороны — по нему
+						 * видно, в каком мессенджере сообщение, не читая подпись. */}
 						<div
 							className={cn(
-								"flex",
-								item.direction === "out" ? "justify-end" : "justify-start",
+								"flex items-end gap-2",
+								item.direction === "out" && "flex-row-reverse",
 							)}
 						>
+							<MessengerIcon
+								messenger={item.messenger}
+								className="mb-0.5 size-5 shrink-0"
+							/>
 							<div
 								className={cn(
 									"max-w-[80%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap shadow-sm",
@@ -207,15 +256,20 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 								{item.text}
 								<div
 									className={cn(
-										"mt-1 flex items-center gap-1 text-[10px] opacity-70",
+										"mt-1 flex flex-wrap items-center gap-x-1 text-[11px] opacity-75",
 										item.direction === "out" && "justify-end",
 									)}
 								>
-									<MessengerIcon
-										messenger={item.messenger}
-										className="size-3 shrink-0"
-									/>
-									<span>{messengerLabel(item.messenger)}</span>
+									<span className="font-medium">
+										{item.direction === "in" ? "из" : "в"}{" "}
+										{messengerMeta(item.messenger)?.name ??
+											messengerLabel(item.messenger)}
+									</span>
+									{accountPhone && (
+										<span>
+											{item.direction === "in" ? "на" : "с"} {accountPhone}
+										</span>
+									)}
 									{SOURCE_LABELS[item.source] && (
 										<>
 											<span>·</span>

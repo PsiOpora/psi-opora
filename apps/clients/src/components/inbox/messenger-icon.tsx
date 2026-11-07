@@ -116,7 +116,7 @@ export function MessengerIcon({
 		case "telegram":
 			return <TelegramBadge className={className} circleColor="#0EA5E9" />;
 		case "telegram-personal":
-			return <TelegramBadge className={className} circleColor="#10B981" />;
+			return <TelegramBadge className={className} circleColor="#0284C7" />;
 		case "whatsapp-personal":
 			return <WhatsAppBadge className={className} circleColor="#16A34A" />;
 		case "max":

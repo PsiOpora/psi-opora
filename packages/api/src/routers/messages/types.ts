@@ -139,6 +139,9 @@ export interface ClientProfile {
 
 export interface ClientMessageItem {
 	id: string;
+	/** Канал, в котором сообщение отправлено/получено. У объединённого клиента
+	 * в одном диалоге бывает несколько мессенджеров (см. merge.ts). */
+	messenger: InboxMessenger;
 	direction: "in" | "out";
 	source: string;
 	text: string;
@@ -168,6 +171,12 @@ export interface ClientMessageItem {
 	/** Когда гайд-PDF из этого сообщения был продублирован клиенту на email —
 	 * null, если письмо сценарием не предусмотрено или не отправилось. */
 	guideEmailSentAt: string | null;
+}
+
+/** Канал клиента в диалоге — по одному на каждую объединённую identity. */
+export interface ClientThreadChannel {
+	messenger: InboxMessenger;
+	userId: string;
 }
 
 /** Формирует публичный URL для аватара, который уже загружен в S3. */
@@ -208,6 +217,7 @@ export function toClientMessageItem(
 		/^\d+$/.test(row.userId);
 	return {
 		id: row.id,
+		messenger: row.messenger as InboxMessenger,
 		direction: row.direction as "in" | "out",
 		source: row.source,
 		text: row.deletedAt ? "Сообщение удалено" : row.text,

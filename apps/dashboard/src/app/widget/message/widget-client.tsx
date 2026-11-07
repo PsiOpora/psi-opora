@@ -7,9 +7,11 @@ import type {
 	WidgetRecipient,
 } from "@psi-opora/api";
 import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
-import { Loader2Icon, SendIcon } from "lucide-react";
+import { Loader2Icon, SendIcon, TriangleAlertIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useB24Frame } from "@/components/bitrix/frame-provider";
+import { ChannelChip } from "@/components/messaging/channel-chip";
+import { ChannelPicker } from "@/components/messaging/channel-picker";
 import { ContactAvatar } from "@/components/messaging/contact-avatar";
 import {
 	type HistoryEntry,
@@ -17,13 +19,12 @@ import {
 	mergeHistory,
 } from "@/components/messaging/history-list";
 import { MessageComposer } from "@/components/messaging/message-composer";
-import { MessengerIcon } from "@/components/messaging/messenger-icon";
-import { Button } from "@/components/ui/button";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+	conversationKey,
+	messengerMeta,
+	summarizeChannelActivity,
+} from "@/components/messaging/messenger-meta";
+import { Button } from "@/components/ui/button";
 import { orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
 
@@ -58,12 +59,6 @@ function writeDraft(key: string, value: string): void {
 	} catch {
 		// недоступно — черновик не сохранится, отправка сообщений при этом не страдает
 	}
-}
-
-function channelKey(
-	channel: Pick<WidgetChannel, "messenger" | "lineId" | "connectorId">,
-): string {
-	return `${channel.messenger}:${channel.lineId ?? ""}:${channel.connectorId ?? ""}`;
 }
 
 /**
@@ -213,6 +208,36 @@ export function MessageWidget({
 		};
 	}, [entity, entityId, loading, loadError, recipient]);
 
+	const activity = summarizeChannelActivity(recipient?.channels ?? [], history);
+	const participants = (recipient?.channels ?? []).filter(
+		(c) => activity.get(conversationKey(c.messenger, c.connectorId))?.lastAt,
+	);
+	const selectedMeta = channel ? messengerMeta(channel.messenger) : undefined;
+	// Клиент в последний раз писал не в тот канал, в который сейчас уйдёт ответ.
+	const lastInbound = [...history].reverse().find((h) => h.direction === "in");
+	const lastInboundChannel = lastInbound
+		? recipient?.channels.find(
+				(c) =>
+					conversationKey(c.messenger, c.connectorId) ===
+					conversationKey(lastInbound.messenger, lastInbound.connectorId),
+			)
+		: undefined;
+	const replyElsewhere =
+		channel &&
+		lastInboundChannel &&
+		conversationKey(channel.messenger, channel.connectorId) !==
+			conversationKey(
+				lastInboundChannel.messenger,
+				lastInboundChannel.connectorId,
+			)
+			? {
+					channel: lastInboundChannel,
+					name:
+						messengerMeta(lastInboundChannel.messenger)?.name ??
+						"другом канале",
+				}
+			: null;
+
 	const trimmedText = text.trim();
 	const overLimit = trimmedText.length > MESSAGE_MAX_LENGTH;
 
@@ -242,6 +267,7 @@ export function MessageWidget({
 				{
 					id: pendingId,
 					messenger: channel.messenger,
+					connectorId: channel.connectorId,
 					direction: "out",
 					source: "widget",
 					text: trimmedText,
@@ -286,48 +312,29 @@ export function MessageWidget({
 							<p className="truncate text-sm font-semibold">
 								{recipient.contactName}
 							</p>
-							<p className="truncate text-xs text-muted-foreground">
-								Сообщение уйдёт через выбранный канал
-							</p>
+							{participants.length > 0 ? (
+								<div className="mt-1 flex flex-wrap items-center gap-1.5">
+									<span className="text-xs text-muted-foreground">
+										Переписка идёт в:
+									</span>
+									{participants.map((c) => (
+										<ChannelChip
+											key={conversationKey(c.messenger, c.connectorId)}
+											messenger={c.messenger}
+											accountPhone={c.accountPhone}
+										/>
+									))}
+								</div>
+							) : (
+								<p className="truncate text-xs text-muted-foreground">
+									Переписки пока нет
+								</p>
+							)}
 						</div>
 					</div>
 
-					{recipient.channels.length > 0 && (
-						<div className="flex flex-wrap items-center gap-1.5 border-b bg-muted/30 px-4 py-2">
-							<span className="text-xs text-muted-foreground">Канал:</span>
-							{recipient.channels.map((c) => {
-								const selected =
-									channel && channelKey(channel) === channelKey(c);
-								return (
-									<Tooltip key={channelKey(c)}>
-										<TooltipTrigger asChild>
-											<button
-												type="button"
-												aria-pressed={Boolean(selected)}
-												onClick={() => setChannel(c)}
-												className={cn(
-													"inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-													selected
-														? "border-primary bg-primary text-primary-foreground"
-														: "bg-background hover:bg-muted",
-												)}
-											>
-												<MessengerIcon
-													messenger={c.messenger}
-													className="size-3.5"
-												/>
-												{c.label}
-											</button>
-										</TooltipTrigger>
-										<TooltipContent>Отправить через {c.label}</TooltipContent>
-									</Tooltip>
-								);
-							})}
-						</div>
-					)}
-
 					<div className="min-h-0 flex-1 bg-muted/10">
-						<HistoryList history={history} />
+						<HistoryList history={history} channels={recipient.channels} />
 					</div>
 
 					{recipient.channels.length === 0 && (
@@ -337,7 +344,34 @@ export function MessageWidget({
 						</div>
 					)}
 
-					<div className="border-t p-3">
+					<div
+						className={cn(
+							"border-t-2 p-3",
+							selectedMeta?.accent.edge ?? "border-t-border",
+						)}
+					>
+						{recipient.channels.length > 0 && (
+							<ChannelPicker
+								channels={recipient.channels}
+								selected={channel}
+								activity={activity}
+								onSelect={setChannel}
+							/>
+						)}
+						{replyElsewhere && (
+							<p className="mb-2 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+								<TriangleAlertIcon className="size-3.5 shrink-0 text-amber-600" />
+								Клиент последний раз писал в {replyElsewhere.name}, а ответ
+								уйдёт в {selectedMeta?.name}.
+								<button
+									type="button"
+									onClick={() => setChannel(replyElsewhere.channel)}
+									className="font-medium text-foreground underline underline-offset-2 hover:no-underline"
+								>
+									Ответить в {replyElsewhere.name}
+								</button>
+							</p>
+						)}
 						<MessageComposer
 							text={text}
 							onTextChange={setText}
@@ -358,7 +392,9 @@ export function MessageWidget({
 								) : (
 									<SendIcon className="size-4" />
 								)}
-								Отправить
+								{selectedMeta
+									? `Отправить в ${selectedMeta.name}`
+									: "Отправить"}
 							</Button>
 						</div>
 					</div>

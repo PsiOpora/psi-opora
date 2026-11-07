@@ -78,6 +78,7 @@ export type {
 	ClientMessageItem,
 	ClientNoteItem,
 	ClientProfile,
+	ClientThreadChannel,
 	CrmContactLink,
 	CrmContactRef,
 	CrmDealLink,

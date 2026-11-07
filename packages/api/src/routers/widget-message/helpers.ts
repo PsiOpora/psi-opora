@@ -399,6 +399,7 @@ export async function resolveContact(
 						lineId: account.openLineId,
 						connectorId: account.connectorId,
 						label: `Telegram (личный, ${maskPhone(account.phone)})`,
+						accountPhone: maskPhone(account.phone),
 					});
 				}
 			}
@@ -418,6 +419,7 @@ export async function resolveContact(
 					lineId: account.openLineId,
 					connectorId: account.connectorId,
 					label: `WhatsApp (личный, ${maskPhone(account.phone)})`,
+					accountPhone: maskPhone(account.phone),
 				});
 			}
 
@@ -437,6 +439,7 @@ export async function resolveContact(
 						lineId: account.openLineId,
 						connectorId: account.connectorId,
 						label: `MAX (личный, ${maskPhone(account.phone)})`,
+						accountPhone: maskPhone(account.phone),
 					});
 				}
 			}

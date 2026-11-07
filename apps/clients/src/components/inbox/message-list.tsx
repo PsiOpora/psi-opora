@@ -1,6 +1,6 @@
 "use client";
 
-import type { MessageDeliveryStatus } from "@psi-opora/api";
+import type { InboxMessenger, MessageDeliveryStatus } from "@psi-opora/api";
 import {
 	BotIcon,
 	CheckCheckIcon,
@@ -15,6 +15,12 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { ChannelChip } from "@/components/inbox/channel-chip";
+import { MessengerIcon } from "@/components/inbox/messenger-icon";
+import {
+	conversationKey,
+	messengerMeta,
+} from "@/components/inbox/messenger-meta";
 import { formatDayLabel, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +28,8 @@ import { cn } from "@/lib/utils";
  * поллингом, ещё без серверного status. */
 export interface ThreadMessage {
 	id: string;
+	/** Канал сообщения: у объединённого клиента в одном диалоге их несколько. */
+	messenger?: InboxMessenger;
 	direction: "in" | "out";
 	source: string;
 	text: string;
@@ -97,10 +105,10 @@ const DEFAULT_SOURCE_META = { label: null, category: "operator" as const };
 const VOICE_PLACEHOLDER_TEXT = "Голосовое сообщение";
 
 const BUBBLE_STYLES = {
-	in: "self-start rounded-bl-md border bg-message-client text-message-client-foreground border-message-client-border",
-	bot: "self-end rounded-br-md bg-message-bot text-message-bot-foreground",
+	in: "rounded-bl-md border bg-message-client text-message-client-foreground border-message-client-border",
+	bot: "rounded-br-md bg-message-bot text-message-bot-foreground",
 	operator:
-		"self-end rounded-br-md bg-message-operator text-message-operator-foreground",
+		"rounded-br-md bg-message-operator text-message-operator-foreground",
 };
 
 /** Насколько близко к низу нужно быть, чтобы новое сообщение автоскроллило —
@@ -162,6 +170,14 @@ export function MessageList({
 }) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const stickToBottomRef = useRef(true);
+	// Если переписка шла в одном канале, разделители каналов — лишний шум:
+	// канал и так виден в шапке и в подписи каждого сообщения.
+	const multiChannel =
+		new Set(
+			messages.map((m) =>
+				m.messenger ? conversationKey(m.messenger, m.connectorId) : "",
+			),
+		).size > 1;
 
 	useEffect(() => {
 		const el = containerRef.current;
@@ -198,11 +214,23 @@ export function MessageList({
 					meta?.category === "operator" && item.operatorName
 						? item.operatorName
 						: meta?.label;
+				const channelKey = item.messenger
+					? conversationKey(item.messenger, item.connectorId)
+					: "";
+				const channelChanged =
+					multiChannel &&
+					!!item.messenger &&
+					(!prev?.messenger ||
+						conversationKey(prev.messenger, prev.connectorId) !== channelKey);
 				const groupedWithPrev =
 					!showDay &&
+					!channelChanged &&
 					!!prev &&
 					prev.direction === item.direction &&
 					prev.source === item.source;
+				const channelName = item.messenger
+					? messengerMeta(item.messenger)?.name
+					: undefined;
 				const Icon = meta?.category === "bot" ? BotIcon : HeadsetIcon;
 				const statusMeta =
 					item.direction === "out" && !item.pending && item.status
@@ -218,7 +246,11 @@ export function MessageList({
 						key={item.id}
 						className={cn(
 							"flex flex-col",
-							showDay ? "mt-0" : groupedWithPrev ? "mt-1" : "mt-3",
+							showDay || channelChanged
+								? "mt-0"
+								: groupedWithPrev
+									? "mt-1"
+									: "mt-3",
 						)}
 					>
 						{showDay && (
@@ -230,156 +262,194 @@ export function MessageList({
 								<div className="h-px flex-1 bg-border" />
 							</div>
 						)}
+						{channelChanged && item.messenger && (
+							<div className="my-3 flex items-center gap-3">
+								<div className="h-px flex-1 bg-border" />
+								<ChannelChip
+									messenger={item.messenger}
+									accountPhone={phoneLabel}
+								/>
+								<div className="h-px flex-1 bg-border" />
+							</div>
+						)}
 						<div
 							className={cn(
-								"group/message relative max-w-[70%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap shadow-sm",
-								BUBBLE_STYLES[
-									item.direction === "in"
-										? "in"
-										: (meta?.category ?? "operator")
-								],
-								item.pending && "opacity-60",
-								item.deletedAt && "italic opacity-70",
+								"flex max-w-[75%] items-end gap-2",
+								item.direction === "in"
+									? "self-start"
+									: "flex-row-reverse self-end",
 							)}
 						>
-							{(item.canEdit || item.canDelete) && (
-								<div className="absolute top-1/2 -left-8 flex -translate-y-1/2 flex-col">
-									{item.canEdit && onEdit && (
-										<button
-											type="button"
-											onClick={() => onEdit(item)}
-											className="flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-60 transition-opacity hover:bg-muted hover:text-foreground hover:opacity-100 focus:opacity-100"
-											title="Редактировать сообщение"
-											aria-label="Редактировать сообщение"
-										>
-											<PencilIcon className="size-3.5" />
-										</button>
-									)}
-									{item.canDelete && onDelete && (
-										<button
-											type="button"
-											onClick={() => onDelete(item)}
-											className="flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-60 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100 focus:opacity-100"
-											title="Удалить сообщение у клиента"
-											aria-label="Удалить сообщение у клиента"
-										>
-											<Trash2Icon className="size-3.5" />
-										</button>
-									)}
-								</div>
-							)}
-							{item.kind === "voice" && item.mediaUrl ? (
-								<>
-									{/* biome-ignore lint/a11y/useMediaCaption: голосовое сообщение клиента, субтитров нет */}
-									<audio
-										controls
-										preload="none"
-										src={item.mediaUrl}
-										className="max-w-full"
-									/>
-									{item.text && item.text !== VOICE_PLACEHOLDER_TEXT && (
-										<p className="mt-1.5">{item.text}</p>
-									)}
-								</>
-							) : item.kind === "image" && item.mediaUrl ? (
-								<>
-									<a href={item.mediaUrl} target="_blank" rel="noreferrer">
-										<img
-											src={item.mediaUrl}
-											alt={item.mediaFileName ?? "Изображение"}
-											className="max-h-64 max-w-full rounded-lg object-contain"
-										/>
-									</a>
-									{item.text && (
-										<p className="mt-1.5 whitespace-pre-wrap">{item.text}</p>
-									)}
-								</>
-							) : item.kind === "file" ? (
-								<>
-									{item.mediaUrl ? (
-										<a
-											href={item.mediaUrl}
-											target="_blank"
-											rel="noreferrer"
-											className="flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2 hover:bg-black/10"
-										>
-											<FileIcon className="size-5 shrink-0" />
-											<span className="min-w-0 flex-1 truncate">
-												{item.mediaFileName ?? "Файл"}
-											</span>
-											<DownloadIcon className="size-4 shrink-0" />
-										</a>
-									) : (
-										<div className="flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2">
-											<FileIcon className="size-5 shrink-0" />
-											<span className="min-w-0 flex-1 truncate">
-												{item.mediaFileName ?? "Файл"}
-											</span>
-										</div>
-									)}
-									{item.text && (
-										<p className="mt-1.5 whitespace-pre-wrap">{item.text}</p>
-									)}
-								</>
-							) : (
-								item.text
+							{item.messenger && (
+								<MessengerIcon
+									messenger={item.messenger}
+									className="mb-0.5 size-5 shrink-0"
+								/>
 							)}
 							<div
 								className={cn(
-									"mt-1 flex items-center gap-1 text-[10px] opacity-70",
-									item.direction === "out" ? "justify-end" : "",
+									"group/message relative min-w-0 rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap shadow-sm",
+									BUBBLE_STYLES[
+										item.direction === "in"
+											? "in"
+											: (meta?.category ?? "operator")
+									],
+									item.pending && "opacity-60",
+									item.deletedAt && "italic opacity-70",
 								)}
 							>
-								{metaLabel && (
-									<>
-										<Icon className="size-3" />
-										<span>{metaLabel}</span>
-										<span>·</span>
-									</>
-								)}
-								<span>{formatTime(item.createdAt)}</span>
-								{item.editedAt && (
-									<>
-										<span>·</span>
-										<span>изменено</span>
-									</>
-								)}
-								{item.deletedAt && (
-									<>
-										<span>·</span>
-										<span>удалено</span>
-									</>
-								)}
-								{phoneLabel && (
-									<>
-										<span>·</span>
-										<span>{phoneLabel}</span>
-									</>
-								)}
-								{item.guideEmailSentAt && (
-									<>
-										<span>·</span>
-										<span
-											className="flex items-center gap-0.5"
-											title={`Гайд продублирован на email: ${formatTime(item.guideEmailSentAt)}`}
-										>
-											<MailCheckIcon className="size-3" />
-											гайд отправлен на почту
-										</span>
-									</>
-								)}
-								{item.pending && <span>· отправляется…</span>}
-								{StatusIcon && (
-									<span
-										className={cn(
-											"flex items-center gap-0.5",
-											statusMeta?.className,
+								{(item.canEdit || item.canDelete) && (
+									<div className="absolute top-1/2 -left-8 flex -translate-y-1/2 flex-col">
+										{item.canEdit && onEdit && (
+											<button
+												type="button"
+												onClick={() => onEdit(item)}
+												className="flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-60 transition-opacity hover:bg-muted hover:text-foreground hover:opacity-100 focus:opacity-100"
+												title="Редактировать сообщение"
+												aria-label="Редактировать сообщение"
+											>
+												<PencilIcon className="size-3.5" />
+											</button>
 										)}
-									>
-										<StatusIcon className="size-3" />
-										{statusMeta?.label}
-									</span>
+										{item.canDelete && onDelete && (
+											<button
+												type="button"
+												onClick={() => onDelete(item)}
+												className="flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-60 transition-opacity hover:bg-destructive/10 hover:text-destructive hover:opacity-100 focus:opacity-100"
+												title="Удалить сообщение у клиента"
+												aria-label="Удалить сообщение у клиента"
+											>
+												<Trash2Icon className="size-3.5" />
+											</button>
+										)}
+									</div>
 								)}
+								{item.kind === "voice" && item.mediaUrl ? (
+									<>
+										{/* biome-ignore lint/a11y/useMediaCaption: голосовое сообщение клиента, субтитров нет */}
+										<audio
+											controls
+											preload="none"
+											src={item.mediaUrl}
+											className="max-w-full"
+										/>
+										{item.text && item.text !== VOICE_PLACEHOLDER_TEXT && (
+											<p className="mt-1.5">{item.text}</p>
+										)}
+									</>
+								) : item.kind === "image" && item.mediaUrl ? (
+									<>
+										<a href={item.mediaUrl} target="_blank" rel="noreferrer">
+											<img
+												src={item.mediaUrl}
+												alt={item.mediaFileName ?? "Изображение"}
+												className="max-h-64 max-w-full rounded-lg object-contain"
+											/>
+										</a>
+										{item.text && (
+											<p className="mt-1.5 whitespace-pre-wrap">{item.text}</p>
+										)}
+									</>
+								) : item.kind === "file" ? (
+									<>
+										{item.mediaUrl ? (
+											<a
+												href={item.mediaUrl}
+												target="_blank"
+												rel="noreferrer"
+												className="flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2 hover:bg-black/10"
+											>
+												<FileIcon className="size-5 shrink-0" />
+												<span className="min-w-0 flex-1 truncate">
+													{item.mediaFileName ?? "Файл"}
+												</span>
+												<DownloadIcon className="size-4 shrink-0" />
+											</a>
+										) : (
+											<div className="flex items-center gap-2 rounded-lg bg-black/5 px-2.5 py-2">
+												<FileIcon className="size-5 shrink-0" />
+												<span className="min-w-0 flex-1 truncate">
+													{item.mediaFileName ?? "Файл"}
+												</span>
+											</div>
+										)}
+										{item.text && (
+											<p className="mt-1.5 whitespace-pre-wrap">{item.text}</p>
+										)}
+									</>
+								) : (
+									item.text
+								)}
+								<div
+									className={cn(
+										"mt-1 flex flex-wrap items-center gap-x-1 text-[11px] opacity-75",
+										item.direction === "out" ? "justify-end" : "",
+									)}
+								>
+									{channelName && (
+										<>
+											<span className="font-medium">
+												{item.direction === "in" ? "из" : "в"} {channelName}
+											</span>
+											{phoneLabel && (
+												<span>
+													{item.direction === "in" ? "на" : "с"} {phoneLabel}
+												</span>
+											)}
+											<span>·</span>
+										</>
+									)}
+									{metaLabel && (
+										<>
+											<Icon className="size-3" />
+											<span>{metaLabel}</span>
+											<span>·</span>
+										</>
+									)}
+									<span>{formatTime(item.createdAt)}</span>
+									{item.editedAt && (
+										<>
+											<span>·</span>
+											<span>изменено</span>
+										</>
+									)}
+									{item.deletedAt && (
+										<>
+											<span>·</span>
+											<span>удалено</span>
+										</>
+									)}
+									{phoneLabel && !channelName && (
+										<>
+											<span>·</span>
+											<span>{phoneLabel}</span>
+										</>
+									)}
+									{item.guideEmailSentAt && (
+										<>
+											<span>·</span>
+											<span
+												className="flex items-center gap-0.5"
+												title={`Гайд продублирован на email: ${formatTime(item.guideEmailSentAt)}`}
+											>
+												<MailCheckIcon className="size-3" />
+												гайд отправлен на почту
+											</span>
+										</>
+									)}
+									{item.pending && <span>· отправляется…</span>}
+									{StatusIcon && (
+										<span
+											className={cn(
+												"flex items-center gap-0.5",
+												statusMeta?.className,
+											)}
+										>
+											<StatusIcon className="size-3" />
+											{statusMeta?.label}
+										</span>
+									)}
+								</div>
 							</div>
 						</div>
 					</div>

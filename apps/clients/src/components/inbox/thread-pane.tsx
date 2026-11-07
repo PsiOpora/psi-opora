@@ -1,6 +1,11 @@
 "use client";
 
-import type { ClientListItem, InboxMessenger } from "@psi-opora/api";
+import type {
+	ClientListItem,
+	ClientMessageItem,
+	ClientThreadChannel,
+	InboxMessenger,
+} from "@psi-opora/api";
 import {
 	MAX_ATTACHMENT_SIZE,
 	messageAttachmentSchema,
@@ -14,17 +19,28 @@ import {
 	SaveIcon,
 	SendIcon,
 	Trash2Icon,
+	TriangleAlertIcon,
 	UserCheckIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { ChannelChip } from "@/components/inbox/channel-chip";
+import {
+	ChannelPicker,
+	type ReplyChannel,
+	replyChannelKey,
+} from "@/components/inbox/channel-picker";
 import { ClientAvatar } from "@/components/inbox/client-avatar";
 import {
 	MessageList,
 	mergeThread,
 	type ThreadMessage,
 } from "@/components/inbox/message-list";
-import { messengerLabel } from "@/components/inbox/messenger-meta";
+import {
+	conversationKey,
+	messengerMeta,
+	summarizeChannelActivity,
+} from "@/components/inbox/messenger-meta";
 import { QuickReplies } from "@/components/inbox/quick-replies";
 import {
 	getSendResultError,
@@ -59,6 +75,107 @@ const THREAD_POLL_INTERVAL_MS = 5000;
 interface PersonalAccountOption {
 	connectorId: string;
 	phone: string;
+	status: string;
+}
+
+type PersonalMessenger =
+	| "telegram-personal"
+	| "whatsapp-personal"
+	| "max-personal";
+
+function isPersonalMessenger(
+	messenger: InboxMessenger,
+): messenger is PersonalMessenger {
+	return (
+		messenger === "telegram-personal" ||
+		messenger === "whatsapp-personal" ||
+		messenger === "max-personal"
+	);
+}
+
+function listPersonalAccounts(
+	messenger: PersonalMessenger,
+): Promise<{ accounts: PersonalAccountOption[] }> {
+	switch (messenger) {
+		case "telegram-personal":
+			return orpcClient.telegramPersonal.list();
+		case "whatsapp-personal":
+			return orpcClient.whatsappPersonal.list();
+		case "max-personal":
+			return orpcClient.maxPersonal.list();
+	}
+}
+
+function toThreadMessage(m: ClientMessageItem): ThreadMessage {
+	return {
+		id: m.id,
+		messenger: m.messenger,
+		direction: m.direction,
+		source: m.source,
+		text: m.text,
+		operatorName: m.operatorName,
+		status: m.status,
+		createdAt: m.createdAt,
+		updatedAt: m.updatedAt,
+		editedAt: m.editedAt,
+		deletedAt: m.deletedAt,
+		canEdit: m.canEdit,
+		canDelete: m.canDelete,
+		kind: m.kind,
+		mediaUrl: m.mediaUrl,
+		mediaFileName: m.mediaFileName,
+		connectorId: m.connectorId,
+		guideEmailSentAt: m.guideEmailSentAt,
+	};
+}
+
+/** Каналы, в которые можно ответить: по одному на каждый мессенджер клиента,
+ * а для личных номеров — по одному на каждый подключённый номер. */
+function buildReplyChannels(
+	identities: ClientThreadChannel[],
+	accounts: Partial<Record<InboxMessenger, PersonalAccountOption[]>>,
+): ReplyChannel[] {
+	return identities.flatMap(({ messenger, userId }): ReplyChannel[] => {
+		const numbers = isPersonalMessenger(messenger)
+			? (accounts[messenger] ?? [])
+			: [];
+		if (numbers.length === 0) return [{ messenger, userId }];
+		return numbers.map((a) => ({
+			messenger,
+			userId,
+			connectorId: a.connectorId,
+			accountPhone: a.phone,
+		}));
+	});
+}
+
+/** Канал по умолчанию — туда, где клиент написал последним (ответ уходит
+ * туда, где его увидят); если он ещё не писал — где последнее сообщение
+ * вообще; иначе канал выбранной строки списка. */
+function pickDefaultChannel(
+	channels: ReplyChannel[],
+	messages: ThreadMessage[],
+	selected: SelectedClient,
+): ReplyChannel | null {
+	const lastIn = [...messages]
+		.reverse()
+		.find((m) => m.direction === "in" && m.messenger);
+	const lastAny = [...messages].reverse().find((m) => m.messenger);
+	for (const m of [lastIn, lastAny]) {
+		if (!m?.messenger) continue;
+		const key = conversationKey(m.messenger, m.connectorId);
+		const hit = channels.find(
+			(c) => conversationKey(c.messenger, c.connectorId) === key,
+		);
+		if (hit) return hit;
+	}
+	return (
+		channels.find(
+			(c) => c.messenger === selected.messenger && c.userId === selected.userId,
+		) ??
+		channels[0] ??
+		null
+	);
 }
 
 /** Курсор поллинга — максимальный updatedAt среди сообщений, а не createdAt:
@@ -151,13 +268,15 @@ export function ThreadPane({
 		setAttachment(null);
 	}, []);
 
-	// Личные номера (Telegram/WhatsApp) на портале может быть несколько —
-	// без явного выбора отправка ушла бы с первого попавшегося, а это не
-	// обязательно тот номер, с которым переписывается клиент.
-	const [personalAccounts, setPersonalAccounts] = useState<
-		PersonalAccountOption[]
-	>([]);
-	const [connectorId, setConnectorId] = useState<string | undefined>();
+	// Каналы клиента: у объединённого клиента (см. merge.ts) в одном диалоге
+	// несколько мессенджеров, а личных номеров одного мессенджера на портале
+	// может быть несколько — без явного выбора ответ ушёл бы не туда, куда
+	// смотрит клиент.
+	const [identities, setIdentities] = useState<ClientThreadChannel[]>([]);
+	const [accountsByMessenger, setAccountsByMessenger] = useState<
+		Partial<Record<InboxMessenger, PersonalAccountOption[]>>
+	>({});
+	const [target, setTarget] = useState<ReplyChannel | null>(null);
 
 	// Загрузка переписки и (для личных номеров) списка подключённых аккаунтов
 	// при смене выбранного клиента — в одном эффекте, чтобы по истории треда
@@ -174,73 +293,63 @@ export function ThreadPane({
 		setEditText("");
 		setDeleteTarget(null);
 		setConfirmConversationDelete(false);
-		setPersonalAccounts([]);
-		setConnectorId(undefined);
+		setIdentities([]);
+		setAccountsByMessenger({});
+		setTarget(null);
 		if (!selected) return;
 		const { messenger, userId } = selected;
-		const isPersonal =
-			messenger === "telegram-personal" ||
-			messenger === "whatsapp-personal" ||
-			messenger === "max-personal";
 		let cancelled = false;
 
 		setThreadLoading(true);
 
-		Promise.all([
-			orpcClient.messages.thread({ messenger, userId }),
-			isPersonal
-				? messenger === "telegram-personal"
-					? orpcClient.telegramPersonal.list()
-					: messenger === "whatsapp-personal"
-						? orpcClient.whatsappPersonal.list()
-						: orpcClient.maxPersonal.list()
-				: Promise.resolve({ accounts: [] as PersonalAccountOption[] }),
-		])
-			.then(([threadRes, accountsRes]) => {
+		(async () => {
+			try {
+				const threadRes = await orpcClient.messages.thread({
+					messenger,
+					userId,
+				});
 				if (cancelled) return;
-				setMessages(
-					threadRes.messages.map((m) => ({
-						id: m.id,
-						direction: m.direction,
-						source: m.source,
-						text: m.text,
-						operatorName: m.operatorName,
-						status: m.status,
-						createdAt: m.createdAt,
-						updatedAt: m.updatedAt,
-						editedAt: m.editedAt,
-						deletedAt: m.deletedAt,
-						canEdit: m.canEdit,
-						canDelete: m.canDelete,
-						kind: m.kind,
-						mediaUrl: m.mediaUrl,
-						mediaFileName: m.mediaFileName,
-						connectorId: m.connectorId,
-						guideEmailSentAt: m.guideEmailSentAt,
-					})),
+				const threadMessages = threadRes.messages.map(toThreadMessage);
+				const ids: ClientThreadChannel[] =
+					threadRes.channels.length > 0
+						? threadRes.channels
+						: [{ messenger, userId }];
+				const personal = [
+					...new Set(ids.map((i) => i.messenger).filter(isPersonalMessenger)),
+				];
+				const lists = await Promise.all(
+					personal.map(async (m) => {
+						const res = await listPersonalAccounts(m).catch(() => ({
+							accounts: [] as PersonalAccountOption[],
+						}));
+						return [
+							m,
+							res.accounts.filter((a) => a.status === "connected"),
+						] as const;
+					}),
 				);
+				if (cancelled) return;
+				const accounts: Partial<
+					Record<InboxMessenger, PersonalAccountOption[]>
+				> = Object.fromEntries(lists);
+				setMessages(threadMessages);
 				sinceRef.current = latestUpdatedAt(threadRes.messages);
 				deletionVersionRef.current = threadRes.deletionVersion;
-
-				if (!isPersonal) return;
-				const accounts = accountsRes.accounts;
-				setPersonalAccounts(accounts);
-				// Номер, с которого реально шла переписка (последнее сообщение с
-				// известным connectorId) — приоритетнее первого подключённого,
-				// чтобы ответ по умолчанию ушёл с того же номера, что видел клиент.
-				const lastKnown = [...threadRes.messages]
-					.reverse()
-					.find((m) => m.connectorId)?.connectorId;
-				const fallback = accounts[0]?.connectorId;
-				setConnectorId(
-					lastKnown && accounts.some((a) => a.connectorId === lastKnown)
-						? lastKnown
-						: fallback,
+				setIdentities(ids);
+				setAccountsByMessenger(accounts);
+				setTarget(
+					pickDefaultChannel(
+						buildReplyChannels(ids, accounts),
+						threadMessages,
+						{ messenger, userId },
+					),
 				);
-			})
-			.finally(() => {
+			} catch {
+				if (!cancelled) toast.error("Не удалось загрузить переписку");
+			} finally {
 				if (!cancelled) setThreadLoading(false);
-			});
+			}
+		})();
 
 		return () => {
 			cancelled = true;
@@ -315,28 +424,7 @@ export function ThreadPane({
 				if (polledMessages.length === 0) return;
 				sinceRef.current = latestUpdatedAt(polledMessages);
 				setMessages((prev) =>
-					mergeThread(
-						prev,
-						polledMessages.map((m) => ({
-							id: m.id,
-							direction: m.direction,
-							source: m.source,
-							text: m.text,
-							operatorName: m.operatorName,
-							status: m.status,
-							createdAt: m.createdAt,
-							updatedAt: m.updatedAt,
-							editedAt: m.editedAt,
-							deletedAt: m.deletedAt,
-							canEdit: m.canEdit,
-							canDelete: m.canDelete,
-							kind: m.kind,
-							mediaUrl: m.mediaUrl,
-							mediaFileName: m.mediaFileName,
-							connectorId: m.connectorId,
-							guideEmailSentAt: m.guideEmailSentAt,
-						})),
-					),
+					mergeThread(prev, polledMessages.map(toThreadMessage)),
 				);
 			} catch {
 				// Keep the cursors unchanged after a failed request and retry next poll.
@@ -436,7 +524,7 @@ export function ThreadPane({
 	};
 
 	const send = () => {
-		if (!selected) return;
+		if (!selected || !target) return;
 		const trimmed = text.trim();
 		const readyAttachment =
 			attachment?.status === "done" ? attachment.uploaded : undefined;
@@ -446,9 +534,9 @@ export function ThreadPane({
 		setSendError(null);
 		startSending(async () => {
 			const result = await orpcClient.messages.send({
-				messenger: selected.messenger,
-				userId: selected.userId,
-				connectorId,
+				messenger: target.messenger,
+				userId: target.userId,
+				connectorId: target.connectorId,
 				text: trimmed,
 				attachment: readyAttachment,
 				operatorId: operator?.id,
@@ -473,6 +561,8 @@ export function ThreadPane({
 				...prev,
 				{
 					id: pendingId,
+					messenger: target.messenger,
+					connectorId: target.connectorId,
 					direction: "out",
 					source: "widget",
 					text: trimmed,
@@ -524,24 +614,7 @@ export function ThreadPane({
 				toast.error(result.error ?? "Не удалось изменить сообщение");
 				return;
 			}
-			const updated: ThreadMessage = {
-				id: result.message.id,
-				direction: result.message.direction,
-				source: result.message.source,
-				text: result.message.text,
-				operatorName: result.message.operatorName,
-				status: result.message.status,
-				createdAt: result.message.createdAt,
-				updatedAt: result.message.updatedAt,
-				editedAt: result.message.editedAt,
-				deletedAt: result.message.deletedAt,
-				canEdit: result.message.canEdit,
-				canDelete: result.message.canDelete,
-				kind: result.message.kind,
-				mediaUrl: result.message.mediaUrl,
-				mediaFileName: result.message.mediaFileName,
-				connectorId: result.message.connectorId,
-			};
+			const updated = toThreadMessage(result.message);
 			setMessages((prev) => mergeThread(prev, [updated]));
 			setEditTarget(null);
 			setEditText("");
@@ -561,24 +634,7 @@ export function ThreadPane({
 				toast.error(result.error ?? "Не удалось удалить сообщение");
 				return;
 			}
-			const updated: ThreadMessage = {
-				id: result.message.id,
-				direction: result.message.direction,
-				source: result.message.source,
-				text: result.message.text,
-				operatorName: result.message.operatorName,
-				status: result.message.status,
-				createdAt: result.message.createdAt,
-				updatedAt: result.message.updatedAt,
-				editedAt: result.message.editedAt,
-				deletedAt: result.message.deletedAt,
-				canEdit: result.message.canEdit,
-				canDelete: result.message.canDelete,
-				kind: result.message.kind,
-				mediaUrl: result.message.mediaUrl,
-				mediaFileName: result.message.mediaFileName,
-				connectorId: result.message.connectorId,
-			};
+			const updated = toThreadMessage(result.message);
 			setMessages((prev) => mergeThread(prev, [updated]));
 			setDeleteTarget(null);
 			onAfterSend();
@@ -636,6 +692,52 @@ export function ThreadPane({
 	const name = client?.name ?? selected.userId;
 	const dialogLink = buildDialogLink(selected, window.location);
 
+	const replyChannels = buildReplyChannels(
+		identities.length > 0 ? identities : [selected],
+		accountsByMessenger,
+	);
+	const activity = summarizeChannelActivity(replyChannels, messages);
+	const targetMeta = target ? messengerMeta(target.messenger) : undefined;
+	// Кто участвует в переписке: каналы, где уже есть сообщения (по одному
+	// бейджу на канал); у нового диалога — канал выбранной строки.
+	const participants = [
+		...new Map(
+			replyChannels
+				.filter(
+					(c) =>
+						activity.get(conversationKey(c.messenger, c.connectorId))?.lastAt,
+				)
+				.map((c) => [conversationKey(c.messenger, c.connectorId), c]),
+		).values(),
+	];
+	const headerChannels =
+		participants.length > 0 ? participants : target ? [target] : [];
+	const connectorLabels = Object.fromEntries(
+		Object.values(accountsByMessenger)
+			.flat()
+			.map((a) => [a.connectorId, a.phone]),
+	);
+	// Клиент в последний раз писал не в тот канал, в который сейчас уйдёт ответ.
+	const lastInbound = [...messages]
+		.reverse()
+		.find((m) => m.direction === "in" && m.messenger);
+	const lastInboundChannel = lastInbound?.messenger
+		? replyChannels.find(
+				(c) =>
+					conversationKey(c.messenger, c.connectorId) ===
+					conversationKey(
+						lastInbound.messenger as string,
+						lastInbound.connectorId,
+					),
+			)
+		: undefined;
+	const replyElsewhere =
+		target &&
+		lastInboundChannel &&
+		replyChannelKey(target) !== replyChannelKey(lastInboundChannel)
+			? lastInboundChannel
+			: null;
+
 	return (
 		<div className="flex min-w-0 flex-1 flex-col">
 			<div className="flex items-center gap-3 border-b px-4 py-2.5">
@@ -646,12 +748,20 @@ export function ThreadPane({
 				/>
 				<div className="min-w-0 flex-1">
 					<p className="truncate text-sm font-semibold">{name}</p>
-					<p className="truncate text-xs text-muted-foreground">
-						{messengerLabel(selected.messenger)}
-						{client?.username ? ` · @${client.username}` : ""}
+					<div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+						{headerChannels.map((c) => (
+							<ChannelChip
+								key={conversationKey(c.messenger, c.connectorId)}
+								messenger={c.messenger}
+								accountPhone={c.accountPhone}
+							/>
+						))}
+					</div>
+					<p className="mt-0.5 truncate text-xs text-muted-foreground">
+						{client?.username ? `@${client.username} · ` : ""}
 						{client?.assignedOperatorName
-							? ` · Ответственный: ${client.assignedOperatorName}`
-							: " · Без ответственного"}
+							? `Ответственный: ${client.assignedOperatorName}`
+							: "Без ответственного"}
 					</p>
 				</div>
 				<Tooltip>
@@ -719,33 +829,37 @@ export function ThreadPane({
 						messages={messages}
 						onEdit={openEditor}
 						onDelete={setDeleteTarget}
-						connectorLabels={Object.fromEntries(
-							personalAccounts.map((a) => [a.connectorId, a.phone]),
-						)}
+						connectorLabels={connectorLabels}
 					/>
 				)}
 			</div>
 
-			<div className="border-t p-3">
-				{personalAccounts.length > 1 && (
-					<div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-						<span>Отправить с номера:</span>
-						{personalAccounts.map((acc) => (
-							<button
-								key={acc.connectorId}
-								type="button"
-								onClick={() => setConnectorId(acc.connectorId)}
-								className={cn(
-									"rounded-md border px-2 py-0.5 transition-colors",
-									connectorId === acc.connectorId
-										? "border-primary bg-primary text-primary-foreground"
-										: "hover:bg-muted",
-								)}
-							>
-								{acc.phone}
-							</button>
-						))}
-					</div>
+			<div
+				className={cn(
+					"border-t-2 p-3",
+					targetMeta?.accent.edge ?? "border-t-border",
+				)}
+			>
+				<ChannelPicker
+					channels={replyChannels}
+					selected={target}
+					activity={activity}
+					onSelect={setTarget}
+				/>
+				{replyElsewhere && (
+					<p className="mb-2 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+						<TriangleAlertIcon className="size-3.5 shrink-0 text-amber-600" />
+						Клиент последний раз писал в{" "}
+						{messengerMeta(replyElsewhere.messenger)?.name}, а ответ уйдёт в{" "}
+						{targetMeta?.name}.
+						<button
+							type="button"
+							onClick={() => setTarget(replyElsewhere)}
+							className="font-medium text-foreground underline underline-offset-2 hover:no-underline"
+						>
+							Ответить в {messengerMeta(replyElsewhere.messenger)?.name}
+						</button>
+					</p>
 				)}
 				<MessageComposer
 					text={text}
@@ -773,6 +887,7 @@ export function ThreadPane({
 						onClick={send}
 						disabled={
 							sending ||
+							!target ||
 							attachment?.status === "uploading" ||
 							(!text.trim() && attachment?.status !== "done")
 						}
@@ -782,7 +897,7 @@ export function ThreadPane({
 						) : (
 							<SendIcon className="size-4" />
 						)}
-						Отправить
+						{targetMeta ? `Отправить в ${targetMeta.name}` : "Отправить"}
 					</Button>
 				</div>
 			</div>
@@ -801,7 +916,12 @@ export function ThreadPane({
 						<DialogTitle>Редактировать сообщение</DialogTitle>
 						<DialogDescription>
 							Изменение сразу увидит клиент в{" "}
-							{selected?.messenger === "max" ? "MAX" : "Telegram"}.
+							{
+								messengerMeta(
+									editTarget?.messenger ?? selected?.messenger ?? "telegram",
+								)?.name
+							}
+							.
 						</DialogDescription>
 					</DialogHeader>
 					<MessageComposer
