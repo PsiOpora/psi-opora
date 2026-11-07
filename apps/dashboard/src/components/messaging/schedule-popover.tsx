@@ -118,7 +118,7 @@ export function SchedulePopover({
 			<PopoverTrigger asChild>
 				<Button
 					type="button"
-					variant="outline"
+					variant="ghost"
 					disabled={disabled}
 					title="Отправить позже"
 				>
@@ -126,7 +126,7 @@ export function SchedulePopover({
 					Отложить
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent align="end" className="w-72">
+			<PopoverContent align="end" side="top" className="w-72">
 				<p className="text-sm font-medium">Отправить позже</p>
 				<div className="flex flex-col gap-1">
 					{presets.map((preset) => (
