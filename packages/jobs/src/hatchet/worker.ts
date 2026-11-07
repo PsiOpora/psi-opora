@@ -12,6 +12,7 @@ import { hourlyDrips } from "./hourly-drips";
 import { maxWebhookHealthcheck } from "./max-webhook-healthcheck";
 import { deliverOutreach } from "./outreach";
 import { scenarioReminders } from "./scenario-reminders";
+import { scheduledMessagesDispatch } from "./scheduled-messages";
 import { stageConsentOutbox } from "./stage-consent";
 
 export const hatchetTasks = [
@@ -38,10 +39,11 @@ export async function startHatchetWorker(): Promise<void> {
 		slots: 10,
 		handleKill: true,
 	});
-	await worker.registerWorkflows(hatchetTasks);
+	const workflows = [...hatchetTasks, scheduledMessagesDispatch];
+	await worker.registerWorkflows(workflows);
 
 	console.info(
-		`[hatchet] worker запускается, зарегистрировано задач: ${hatchetTasks.length}`,
+		`[hatchet] worker запускается, зарегистрировано задач: ${workflows.length}`,
 	);
 	await worker.start();
 }

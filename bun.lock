@@ -135,6 +135,7 @@
       "name": "@psi-opora/hatchet-worker",
       "version": "0.0.1",
       "dependencies": {
+        "@psi-opora/api": "workspace:*",
         "@psi-opora/jobs": "workspace:*",
         "@psi-opora/telemetry": "workspace:*",
       },

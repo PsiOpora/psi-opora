@@ -31,6 +31,7 @@ import { guideCampaignsRouter } from "./guide-campaigns";
 import { maxPersonalRouter } from "./max-personal";
 import { messagesRouter } from "./messages";
 import { outreachRouter } from "./outreach";
+import { scheduledMessagesRouter } from "./scheduled-messages";
 import { telegramPersonalRouter } from "./telegram-personal";
 import { whatsappPersonalRouter } from "./whatsapp-personal";
 import { widgetMessageRouter } from "./widget-message";
@@ -52,6 +53,7 @@ export {
 	maxPersonalRouter,
 	messagesRouter,
 	outreachRouter,
+	scheduledMessagesRouter,
 	telegramPersonalRouter,
 	whatsappPersonalRouter,
 	widgetMessageRouter,
@@ -73,6 +75,7 @@ export const appRouter = {
 	messages: messagesRouter,
 	maxPersonal: maxPersonalRouter,
 	outreach: outreachRouter,
+	scheduledMessages: scheduledMessagesRouter,
 	telegramPersonal: telegramPersonalRouter,
 	whatsappPersonal: whatsappPersonalRouter,
 	widgetMessage: widgetMessageRouter,

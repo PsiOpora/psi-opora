@@ -92,6 +92,17 @@ export {
 	sendClientMessageSchema,
 } from "./messages";
 export {
+	cancelScheduledMessageSchema,
+	listScheduledClientMessagesSchema,
+	listScheduledWidgetMessagesSchema,
+	SCHEDULE_MAX_AHEAD_DAYS,
+	SCHEDULE_MIN_AHEAD_SECONDS,
+	type ScheduleClientMessageInput,
+	type ScheduleWidgetMessageInput,
+	scheduleClientMessageSchema,
+	scheduleWidgetMessageSchema,
+} from "./scheduled-messages";
+export {
 	OUTREACH_MAX_BATCH_PAUSE_MIN,
 	OUTREACH_MAX_DAILY_LIMIT,
 	OUTREACH_MAX_DEDUP_DAYS,

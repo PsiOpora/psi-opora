@@ -56,6 +56,10 @@ export {
 } from "./message-attachment-storage";
 export { createORPCContext } from "./orpc";
 export { publicOriginFromHeaders } from "./public-origin";
+export {
+	type DispatchScheduledMessagesResult,
+	dispatchDueScheduledMessages,
+} from "./scheduled-messages-dispatch";
 export { type AppRouter, appRouter } from "./routers";
 export type { BotConnectorView } from "./routers/bot-connector";
 export type {
@@ -97,6 +101,10 @@ export type {
 	OutreachOptions,
 	OutreachPreview,
 } from "./routers/outreach";
+export type {
+	ScheduledMessageItem,
+	ScheduleMessageResult,
+} from "./routers/scheduled-messages";
 export type { TelegramPersonalAccountView } from "./routers/telegram-personal";
 export type { WhatsappPersonalAccountView } from "./routers/whatsapp-personal";
 export type {

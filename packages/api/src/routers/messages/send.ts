@@ -38,7 +38,10 @@ import {
 } from "@psi-opora/waha";
 import { downloadOutboundAttachment } from "../../message-attachment-storage";
 import { bitrixProcedure } from "../../orpc";
-import { sendClientMessageSchema } from "../../schemas/messages";
+import {
+	type SendClientMessageInput,
+	sendClientMessageSchema,
+} from "../../schemas/messages";
 import {
 	captureWhatsappPresence,
 	sendViaPersonalNumber,
@@ -288,6 +291,15 @@ async function sendWhatsappPersonal(
 	}
 }
 
+/** Всё, что нужно отправке от запроса: из живой сессии оператора (процедура
+ * send) или восстановленное воркером отложенных сообщений. */
+export interface SendClientMessageContext {
+	memberId: string | null;
+	/** Bitrix-ID автора — из подписанной сессии либо сохранённый при планировании. */
+	operatorId: string;
+	getBitrixApi: () => Promise<BitrixApi | null>;
+}
+
 /**
  * Отправляет сообщение клиенту из единого инбокса («Клиенты»). В отличие от
  * вкладки CRM (widget-message/send.ts) канал уже надёжно известен — это тот
@@ -296,211 +308,215 @@ async function sendWhatsappPersonal(
  * здесь нет известного contactId, а история и так видна в инбоксе. Но в саму
  * Открытую линию ответ дублируем (см. mirrorOperatorMessageToOpenLine ниже),
  * чтобы оператор, работающий из Открытой линии, видел и эти реплики тоже.
+ *
+ * Вынесено из процедуры, чтобы то же самое делал воркер отложенных сообщений.
  */
-export const send = bitrixProcedure
-	.input(sendClientMessageSchema)
-	.handler(
-		async ({ input, context }): Promise<SendClientMessageProcedureResult> => {
-			const text = input.text.trim();
-			if (!text && !input.attachment) {
-				return {
-					ok: false,
-					error: "Введите текст сообщения или прикрепите файл",
-				};
-			}
-			// Авторство берём из подписанной Bitrix-сессии, а не из клиентского
-			// payload: профиль оператора в React может ещё не успеть загрузиться.
-			const operatorId = context.bitrixSession.userId;
+export async function sendClientMessage(
+	input: SendClientMessageInput,
+	context: SendClientMessageContext,
+): Promise<SendClientMessageProcedureResult> {
+	const text = input.text.trim();
+	if (!text && !input.attachment) {
+		return {
+			ok: false,
+			error: "Введите текст сообщения или прикрепите файл",
+		};
+	}
+	// Авторство берём из подписанной Bitrix-сессии, а не из клиентского
+	// payload: профиль оператора в React может ещё не успеть загрузиться.
+	const operatorId = context.operatorId;
 
-			// Личный номер MAX работает через собственный бинарный протокол
-			// (packages/max-userbot), в котором опкоды загрузки вложений
-			// (FILE_UPLOAD/PHOTO_UPLOAD) существуют по данным реверс-инжиниринга,
-			// но никогда не реализовывались и не проверялись вживую — в отличие
-			// от MSG_SEND. Слепая реализация протокольной загрузки бинарников без
-			// возможности проверить её на реальном сервере рискует непредсказуемо
-			// сломать соединение воркера, поэтому вложения через этот канал пока
-			// не поддерживаются явной ошибкой, а не тихой попыткой угадать протокол.
-			if (input.messenger === "max-personal" && input.attachment) {
-				return {
-					ok: false,
-					error:
-						"Отправка файлов/изображений через личный номер MAX пока не поддерживается",
-				};
-			}
+	// Личный номер MAX работает через собственный бинарный протокол
+	// (packages/max-userbot), в котором опкоды загрузки вложений
+	// (FILE_UPLOAD/PHOTO_UPLOAD) существуют по данным реверс-инжиниринга,
+	// но никогда не реализовывались и не проверялись вживую — в отличие
+	// от MSG_SEND. Слепая реализация протокольной загрузки бинарников без
+	// возможности проверить её на реальном сервере рискует непредсказуемо
+	// сломать соединение воркера, поэтому вложения через этот канал пока
+	// не поддерживаются явной ошибкой, а не тихой попыткой угадать протокол.
+	if (input.messenger === "max-personal" && input.attachment) {
+		return {
+			ok: false,
+			error:
+				"Отправка файлов/изображений через личный номер MAX пока не поддерживается",
+		};
+	}
 
-			let externalId: string | undefined;
-			let connector: OpenLineConnectorRef | undefined;
-			let canonicalTelegramUserId: string | undefined;
+	let externalId: string | undefined;
+	let connector: OpenLineConnectorRef | undefined;
+	let canonicalTelegramUserId: string | undefined;
 
-			if (input.messenger === "telegram-personal") {
-				const api = await context.getBitrixApi();
-				const result = await sendTelegramPersonal(
-					api,
-					context.memberId,
-					input.userId,
-					input.lineId,
-					input.connectorId,
-					text,
-					input.attachment,
-				);
-				if (result.error) return { ok: false, error: result.error };
-				connector = result.connector;
-				canonicalTelegramUserId = result.telegramUserId;
-				externalId = result.externalId;
+	if (input.messenger === "telegram-personal") {
+		const api = await context.getBitrixApi();
+		const result = await sendTelegramPersonal(
+			api,
+			context.memberId,
+			input.userId,
+			input.lineId,
+			input.connectorId,
+			text,
+			input.attachment,
+		);
+		if (result.error) return { ok: false, error: result.error };
+		connector = result.connector;
+		canonicalTelegramUserId = result.telegramUserId;
+		externalId = result.externalId;
 
-				// Если старый диалог был заведён по телефону, после успешного
-				// резолва сохраняем канонический Telegram ID как второй ключ того же
-				// контакта. Следующее входящее сообщение придёт уже по этому ID.
-				if (
-					canonicalTelegramUserId &&
-					canonicalTelegramUserId !== input.userId
-				) {
-					try {
-						const link = await getBitrixCrmLink(
-							"telegram-personal",
-							input.userId,
-						);
-						const portalKey = await resolveBitrixPortalKey(context.memberId);
-						if (link?.contactId && link.portalKey === portalKey) {
-							await upsertBitrixCrmLink({
-								portalKey,
-								messenger: "telegram-personal",
-								userId: canonicalTelegramUserId,
-								contactId: link.contactId,
-							});
-						}
-					} catch (err) {
-						console.error(
-							`[messages] не удалось сохранить канонический Telegram ID: ${(err as Error).message}`,
-						);
-					}
+		// Если старый диалог был заведён по телефону, после успешного
+		// резолва сохраняем канонический Telegram ID как второй ключ того же
+		// контакта. Следующее входящее сообщение придёт уже по этому ID.
+		if (canonicalTelegramUserId && canonicalTelegramUserId !== input.userId) {
+			try {
+				const link = await getBitrixCrmLink("telegram-personal", input.userId);
+				const portalKey = await resolveBitrixPortalKey(context.memberId);
+				if (link?.contactId && link.portalKey === portalKey) {
+					await upsertBitrixCrmLink({
+						portalKey,
+						messenger: "telegram-personal",
+						userId: canonicalTelegramUserId,
+						contactId: link.contactId,
+					});
 				}
-			} else if (input.messenger === "whatsapp-personal") {
-				const result = await sendWhatsappPersonal(
-					context.memberId,
-					input.userId,
-					input.lineId,
-					input.connectorId,
-					text,
-					input.attachment,
+			} catch (err) {
+				console.error(
+					`[messages] не удалось сохранить канонический Telegram ID: ${(err as Error).message}`,
 				);
-				if (result.error) return { ok: false, error: result.error };
-				externalId = result.externalId;
-				connector = result.connector;
-			} else if (input.messenger === "max-personal") {
-				const result = await sendMaxPersonal(
-					context.memberId,
-					input.userId,
-					input.lineId,
-					input.connectorId,
-					text,
-				);
-				if (result.error) return { ok: false, error: result.error };
-				externalId = result.externalId;
-				connector = result.connector;
-			} else {
-				try {
-					externalId = input.attachment
-						? await sendMessengerMediaMessage(
-								input.messenger,
-								input.userId,
-								{
-									bytes: await downloadOutboundAttachment(
-										input.attachment.s3Key,
-									),
-									fileName: input.attachment.fileName,
-									mimeType: input.attachment.mimeType,
-									kind: input.attachment.kind,
-								},
-								text || undefined,
-							)
-						: await sendMessengerMessage(input.messenger, input.userId, text);
-				} catch (err) {
-					const error = err as Error;
-					// Клиент остановил/заблокировал бота — не сбой, в SigNoz не шлём.
-					(isBotBlockedError(error.message) ? console.warn : console.error)(
-						`[messages] ошибка отправки ${input.messenger}: ${error.message}`,
-						error.cause ?? "",
-					);
-					return {
-						ok: false,
-						error: `Не отправлено: ${formatMessengerError(error.message)}`,
-					};
-				}
-				const botConnector = await getBotConnector(input.messenger).catch(
-					() => null,
-				);
-				if (botConnector) {
-					connector = {
-						connectorId: botConnector.connectorId,
-						openLineId: botConnector.openLineId,
-					};
-				}
 			}
-
-			const persistenceResult = await persistSentMessage(
-				{
-					messenger: input.messenger,
-					userId: input.userId,
-					direction: "out",
-					source: "widget",
-					text:
-						text ||
-						(input.attachment?.kind === "image"
-							? "Фото"
-							: input.attachment?.kind === "voice"
-								? "Голосовое сообщение"
-								: "Файл"),
-					operatorId,
-					operatorName: input.operatorName,
-					externalId,
-					externalChatId:
-						input.messenger === "max-personal"
-							? input.userId
-							: canonicalTelegramUserId,
-					connectorId: connector?.connectorId,
-					...(input.attachment
-						? {
-								kind: input.attachment.kind,
-								mediaS3Key: input.attachment.s3Key,
-								mediaMimeType: input.attachment.mimeType,
-								mediaFileName: input.attachment.fileName,
-							}
-						: {}),
-				},
-				insertBotMessage,
+		}
+	} else if (input.messenger === "whatsapp-personal") {
+		const result = await sendWhatsappPersonal(
+			context.memberId,
+			input.userId,
+			input.lineId,
+			input.connectorId,
+			text,
+			input.attachment,
+		);
+		if (result.error) return { ok: false, error: result.error };
+		externalId = result.externalId;
+		connector = result.connector;
+	} else if (input.messenger === "max-personal") {
+		const result = await sendMaxPersonal(
+			context.memberId,
+			input.userId,
+			input.lineId,
+			input.connectorId,
+			text,
+		);
+		if (result.error) return { ok: false, error: result.error };
+		externalId = result.externalId;
+		connector = result.connector;
+	} else {
+		try {
+			externalId = input.attachment
+				? await sendMessengerMediaMessage(
+						input.messenger,
+						input.userId,
+						{
+							bytes: await downloadOutboundAttachment(input.attachment.s3Key),
+							fileName: input.attachment.fileName,
+							mimeType: input.attachment.mimeType,
+							kind: input.attachment.kind,
+						},
+						text || undefined,
+					)
+				: await sendMessengerMessage(input.messenger, input.userId, text);
+		} catch (err) {
+			const error = err as Error;
+			// Клиент остановил/заблокировал бота — не сбой, в SigNoz не шлём.
+			(isBotBlockedError(error.message) ? console.warn : console.error)(
+				`[messages] ошибка отправки ${input.messenger}: ${error.message}`,
+				error.cause ?? "",
 			);
-			const storedMessageId = persistenceResult.ok
-				? persistenceResult.id
-				: undefined;
+			return {
+				ok: false,
+				error: `Не отправлено: ${formatMessengerError(error.message)}`,
+			};
+		}
+		const botConnector = await getBotConnector(input.messenger).catch(
+			() => null,
+		);
+		if (botConnector) {
+			connector = {
+				connectorId: botConnector.connectorId,
+				openLineId: botConnector.openLineId,
+			};
+		}
+	}
 
-			// Если диалог/коннектор известен, отражаем сообщение в Открытой линии.
-			// operatorId надёжно получен из подписанной Bitrix-сессии выше.
-			if (connector) {
-				const api = resolveBitrixApi(context.memberId ?? undefined);
-				const bitrixExternalId = await mirrorOperatorMessageToOpenLine(
-					api ?? undefined,
-					connector,
-					{
-						messenger: input.messenger,
-						userId: canonicalTelegramUserId ?? input.userId,
-						text,
-						operatorId,
-					},
-					operatorMirrorRedis,
-				);
-				if (storedMessageId && bitrixExternalId) {
-					await setBotMessageBitrixExternalId(
-						storedMessageId,
-						bitrixExternalId,
-					).catch((err) =>
-						console.error(
-							`[messages] не удалось сохранить ID зеркала Bitrix: ${(err as Error).message}`,
-						),
-					);
-				}
-			}
-
-			return persistenceResult;
+	const persistenceResult = await persistSentMessage(
+		{
+			messenger: input.messenger,
+			userId: input.userId,
+			direction: "out",
+			source: "widget",
+			text:
+				text ||
+				(input.attachment?.kind === "image"
+					? "Фото"
+					: input.attachment?.kind === "voice"
+						? "Голосовое сообщение"
+						: "Файл"),
+			operatorId,
+			operatorName: input.operatorName,
+			externalId,
+			externalChatId:
+				input.messenger === "max-personal"
+					? input.userId
+					: canonicalTelegramUserId,
+			connectorId: connector?.connectorId,
+			...(input.attachment
+				? {
+						kind: input.attachment.kind,
+						mediaS3Key: input.attachment.s3Key,
+						mediaMimeType: input.attachment.mimeType,
+						mediaFileName: input.attachment.fileName,
+					}
+				: {}),
 		},
+		insertBotMessage,
 	);
+	const storedMessageId = persistenceResult.ok
+		? persistenceResult.id
+		: undefined;
+
+	// Если диалог/коннектор известен, отражаем сообщение в Открытой линии.
+	// operatorId надёжно получен из подписанной Bitrix-сессии выше.
+	if (connector) {
+		const api = resolveBitrixApi(context.memberId ?? undefined);
+		const bitrixExternalId = await mirrorOperatorMessageToOpenLine(
+			api ?? undefined,
+			connector,
+			{
+				messenger: input.messenger,
+				userId: canonicalTelegramUserId ?? input.userId,
+				text,
+				operatorId,
+			},
+			operatorMirrorRedis,
+		);
+		if (storedMessageId && bitrixExternalId) {
+			await setBotMessageBitrixExternalId(
+				storedMessageId,
+				bitrixExternalId,
+			).catch((err) =>
+				console.error(
+					`[messages] не удалось сохранить ID зеркала Bitrix: ${(err as Error).message}`,
+				),
+			);
+		}
+	}
+
+	return persistenceResult;
+}
+
+export const send = bitrixProcedure.input(sendClientMessageSchema).handler(
+	async ({ input, context }): Promise<SendClientMessageProcedureResult> =>
+		sendClientMessage(input, {
+			memberId: context.memberId,
+			// Авторство берём из подписанной Bitrix-сессии, а не из клиентского
+			// payload.
+			operatorId: context.bitrixSession.userId,
+			getBitrixApi: () => context.getBitrixApi(),
+		}),
+);

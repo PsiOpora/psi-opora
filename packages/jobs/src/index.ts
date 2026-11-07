@@ -75,6 +75,11 @@ export {
 	deliverOutreach,
 } from "./hatchet/outreach";
 export { scenarioReminders } from "./hatchet/scenario-reminders";
+export {
+	type ScheduledMessagesDispatcher,
+	scheduledMessagesDispatch,
+	setScheduledMessagesDispatcher,
+} from "./hatchet/scheduled-messages";
 export { stageConsentOutbox } from "./hatchet/stage-consent";
 export { hatchetTasks, startHatchetWorker } from "./hatchet/worker";
 export {

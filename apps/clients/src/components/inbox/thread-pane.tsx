@@ -1,6 +1,10 @@
 "use client";
 
-import type { ClientListItem, InboxMessenger } from "@psi-opora/api";
+import type {
+	ClientListItem,
+	InboxMessenger,
+	ScheduledMessageItem,
+} from "@psi-opora/api";
 import {
 	MAX_ATTACHMENT_SIZE,
 	messageAttachmentSchema,
@@ -16,6 +20,7 @@ import {
 	Trash2Icon,
 	UserCheckIcon,
 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ClientAvatar } from "@/components/inbox/client-avatar";
@@ -35,6 +40,11 @@ import {
 	type ComposerAttachment,
 	MessageComposer,
 } from "@/components/messaging/message-composer";
+import {
+	formatScheduledAt,
+	SchedulePopover,
+} from "@/components/messaging/schedule-popover";
+import { ScheduledMessagesList } from "@/components/messaging/scheduled-list";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -51,10 +61,13 @@ import {
 } from "@/components/ui/tooltip";
 import { fetchWithSessionRenewal } from "@/lib/bitrix-session";
 import { buildDialogLink, copyText } from "@/lib/dialog-link";
-import { orpcClient } from "@/lib/orpc/client";
+import { orpc, orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
 
 const THREAD_POLL_INTERVAL_MS = 5000;
+/** Как часто перечитываем отложенные сообщения диалога: отправленное воркером
+ * должно пропасть из списка (оно уже появилось в переписке). */
+const SCHEDULED_REFETCH_MS = 15_000;
 
 interface PersonalAccountOption {
 	connectorId: string;
@@ -122,6 +135,10 @@ export function ThreadPane({
 	const [deletingConversation, startDeletingConversation] = useTransition();
 	const [confirmConversationDelete, setConfirmConversationDelete] =
 		useState(false);
+	const queryClient = useQueryClient();
+	const [cancellingScheduledId, setCancellingScheduledId] = useState<
+		string | null
+	>(null);
 	const sinceRef = useRef(new Date().toISOString());
 	const deletionVersionRef = useRef<string | undefined>(undefined);
 	const attachmentUploadRef = useRef<AbortController | null>(null);
@@ -129,6 +146,17 @@ export function ThreadPane({
 	const pendingPreviewUrlsRef = useRef(new Map<string, string>());
 	const selectedMessenger = selected?.messenger;
 	const selectedUserId = selected?.userId;
+	const scheduledQuery = useQuery({
+		...orpc.scheduledMessages.listClient.queryOptions({
+			input: {
+				messenger: selectedMessenger ?? "telegram",
+				userId: selectedUserId ?? "",
+			},
+		}),
+		enabled: Boolean(selectedMessenger && selectedUserId),
+		refetchInterval: SCHEDULED_REFETCH_MS,
+	});
+	const scheduledMessages = scheduledQuery.data?.items ?? [];
 	const revokePendingPreviewUrl = useCallback((messageId: string) => {
 		const previewUrl = pendingPreviewUrlsRef.current.get(messageId);
 		if (!previewUrl) return;
@@ -493,6 +521,64 @@ export function ThreadPane({
 		});
 	};
 
+	const refreshScheduled = () =>
+		queryClient.invalidateQueries({
+			queryKey: orpc.scheduledMessages.listClient.key(),
+		});
+
+	/** Откладывает написанное сообщение; возвращает текст ошибки или null. */
+	const scheduleSend = async (sendAt: Date): Promise<string | null> => {
+		if (!selected) return "Диалог не выбран";
+		const trimmed = text.trim();
+		const readyAttachment =
+			attachment?.status === "done" ? attachment.uploaded : undefined;
+		if (!trimmed && !readyAttachment) {
+			return "Введите текст сообщения или прикрепите файл";
+		}
+		if (attachment?.status === "uploading") {
+			return "Дождитесь окончания загрузки файла";
+		}
+		try {
+			const result = await orpcClient.scheduledMessages.scheduleClient({
+				messenger: selected.messenger,
+				userId: selected.userId,
+				connectorId,
+				text: trimmed,
+				attachment: readyAttachment,
+				operatorName: operator?.name,
+				sendAt: sendAt.toISOString(),
+			});
+			if (!result.ok) return result.error;
+		} catch (err) {
+			return (err as Error).message;
+		}
+		setText("");
+		clearAttachment();
+		setSendError(null);
+		await refreshScheduled();
+		toast.success(`Сообщение уйдёт ${formatScheduledAt(sendAt)}`);
+		return null;
+	};
+
+	const cancelScheduled = async (item: ScheduledMessageItem) => {
+		setCancellingScheduledId(item.id);
+		try {
+			const result = await orpcClient.scheduledMessages.cancel({ id: item.id });
+			if (result.ok) {
+				toast.success(
+					item.status === "failed" ? "Убрано из списка" : "Отправка отменена",
+				);
+			} else {
+				toast.error(result.error ?? "Не удалось отменить отправку");
+			}
+		} catch {
+			toast.error("Не удалось отменить отправку");
+		} finally {
+			setCancellingScheduledId(null);
+			await refreshScheduled();
+		}
+	};
+
 	const assignToMe = () => {
 		if (!selected || !operator) return;
 		startAssigning(async () => {
@@ -747,6 +833,11 @@ export function ThreadPane({
 						))}
 					</div>
 				)}
+				<ScheduledMessagesList
+					items={scheduledMessages}
+					onCancel={cancelScheduled}
+					cancellingId={cancellingScheduledId}
+				/>
 				<MessageComposer
 					text={text}
 					onTextChange={setText}
@@ -769,21 +860,31 @@ export function ThreadPane({
 							<p className="text-sm text-destructive">{sendError}</p>
 						)}
 					</div>
-					<Button
-						onClick={send}
-						disabled={
-							sending ||
-							attachment?.status === "uploading" ||
-							(!text.trim() && attachment?.status !== "done")
-						}
-					>
-						{sending ? (
-							<Loader2Icon className="size-4 animate-spin" />
-						) : (
-							<SendIcon className="size-4" />
-						)}
-						Отправить
-					</Button>
+					<div className="flex items-center gap-2">
+						<SchedulePopover
+							onSchedule={scheduleSend}
+							disabled={
+								sending ||
+								attachment?.status === "uploading" ||
+								(!text.trim() && attachment?.status !== "done")
+							}
+						/>
+						<Button
+							onClick={send}
+							disabled={
+								sending ||
+								attachment?.status === "uploading" ||
+								(!text.trim() && attachment?.status !== "done")
+							}
+						>
+							{sending ? (
+								<Loader2Icon className="size-4 animate-spin" />
+							) : (
+								<SendIcon className="size-4" />
+							)}
+							Отправить
+						</Button>
+					</div>
 				</div>
 			</div>
 
