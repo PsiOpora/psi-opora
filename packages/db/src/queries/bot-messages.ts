@@ -579,10 +579,17 @@ export interface ClientListItem {
  */
 export async function listClientsWithLastMessage(
 	db: Database,
-	options: { limit?: number; offset?: number; search?: string } = {},
+	options: {
+		limit?: number;
+		offset?: number;
+		search?: string;
+		/** Клиенты, найденные вне нашей БД (по телефону/фамилии в CRM): попадают в
+		 * выдачу наравне с совпадением по имени. */
+		identities?: ClientIdentityRef[];
+	} = {},
 ): Promise<ClientListItem[]> {
 	if (!db) return [];
-	const { limit = 50, offset = 0, search } = options;
+	const { limit = 50, offset = 0, search, identities = [] } = options;
 
 	const lastMessage = db
 		.selectDistinctOn([botMessages.messenger, botMessages.userId], {
@@ -603,9 +610,94 @@ export async function listClientsWithLastMessage(
 		)
 		.as("last_message");
 
-	const searchFilter = search?.trim()
-		? sql`(${botUsers.name} ilike ${`%${search.trim()}%`} or ${botUsers.username} ilike ${`%${search.trim()}%`})`
+	// Каждое слово запроса должно встретиться где-то в имени, фамилии или
+	// username («Иванова Мария» находит и «Мария Иванова»). Телефона у нас в
+	// bot_users нет — по нему и по фамилии из CRM приходят identities.
+	const tokens = (search ?? "").split(/\s+/).filter(Boolean);
+	const textFilter =
+		tokens.length > 0
+			? and(
+					...tokens.map(
+						(token) =>
+							sql`concat_ws(' ', ${botUsers.name}, ${botUsers.firstName}, ${botUsers.lastName}, ${botUsers.username}) ilike ${`%${token.replace(/[\\%_]/g, "\\$&")}%`}`,
+					),
+				)
+			: undefined;
+	const identityFilter = identities.length
+		? or(
+				...identities.map((identity) =>
+					and(
+						eq(lastMessage.messenger, identity.messenger),
+						eq(lastMessage.userId, identity.userId),
+					),
+				),
+			)
 		: undefined;
+	const searchFilter =
+		textFilter && identityFilter
+			? or(textFilter, identityFilter)
+			: (textFilter ?? identityFilter);
+
+	// Слитые каналы (см. client-identity-links.ts) схлопываются в одну карточку
+	// ниже. Поэтому совпадение хотя бы по одному каналу должно вернуть ВСЕ
+	// каналы клиента — иначе счётчик непрочитанных, последнее сообщение и
+	// ответственный соберутся из неполного набора строк.
+	const links = await listAllIdentityLinks(db);
+	const primaryOf = new Map<string, ClientIdentityRef>();
+	for (const link of links) {
+		primaryOf.set(`${link.messenger}:${link.userId}`, {
+			messenger: link.primaryMessenger,
+			userId: link.primaryUserId,
+		});
+	}
+
+	let rowFilter: ReturnType<typeof or>;
+	if (searchFilter) {
+		const matched = await db
+			.select({
+				messenger: lastMessage.messenger,
+				userId: lastMessage.userId,
+			})
+			.from(lastMessage)
+			.leftJoin(
+				botUsers,
+				and(
+					eq(botUsers.messenger, lastMessage.messenger),
+					eq(botUsers.userId, lastMessage.userId),
+				),
+			)
+			.where(searchFilter);
+		if (matched.length === 0) return [];
+		const matchedGroups = new Set(
+			matched.map((row) => {
+				const primary = primaryOf.get(`${row.messenger}:${row.userId}`);
+				return `${primary?.messenger ?? row.messenger}:${primary?.userId ?? row.userId}`;
+			}),
+		);
+		const members = new Map<string, ClientIdentityRef>();
+		for (const row of matched)
+			members.set(`${row.messenger}:${row.userId}`, row);
+		for (const link of links) {
+			if (!matchedGroups.has(`${link.primaryMessenger}:${link.primaryUserId}`))
+				continue;
+			members.set(`${link.messenger}:${link.userId}`, {
+				messenger: link.messenger,
+				userId: link.userId,
+			});
+			members.set(`${link.primaryMessenger}:${link.primaryUserId}`, {
+				messenger: link.primaryMessenger,
+				userId: link.primaryUserId,
+			});
+		}
+		rowFilter = or(
+			...[...members.values()].map((identity) =>
+				and(
+					eq(lastMessage.messenger, identity.messenger),
+					eq(lastMessage.userId, identity.userId),
+				),
+			),
+		);
+	}
 
 	const rows = await db
 		.select({
@@ -645,21 +737,13 @@ export async function listClientsWithLastMessage(
 				eq(botConversations.userId, lastMessage.userId),
 			),
 		)
-		.where(searchFilter)
+		.where(rowFilter)
 		.orderBy(desc(lastMessage.createdAt));
 
 	// Схлопываем строки слитых identity (см. client-identity-links.ts) в одну
 	// карточку клиента. Связей всегда единицы, поэтому дешевле собрать их одним
 	// запросом и объединить в приложении, чем городить самосоединение в SQL —
 	// limit/offset поэтому тоже применяются после схлопывания, а не до.
-	const links = await listAllIdentityLinks(db);
-	const primaryOf = new Map<string, ClientIdentityRef>();
-	for (const link of links) {
-		primaryOf.set(`${link.messenger}:${link.userId}`, {
-			messenger: link.primaryMessenger,
-			userId: link.primaryUserId,
-		});
-	}
 
 	type Row = (typeof rows)[number];
 	const groups = new Map<

@@ -1,7 +1,16 @@
 "use client";
 
-import type { ClientListItem, InboxMessenger } from "@psi-opora/api";
-import { Loader2Icon, SearchIcon, UsersIcon } from "lucide-react";
+import type {
+	ClientListItem,
+	CrmContactRef,
+	InboxMessenger,
+} from "@psi-opora/api";
+import {
+	ExternalLinkIcon,
+	Loader2Icon,
+	SearchIcon,
+	UsersIcon,
+} from "lucide-react";
 import { ClientAvatar } from "@/components/inbox/client-avatar";
 import {
 	clientKey,
@@ -19,6 +28,8 @@ interface ClientListProps {
 	items: ClientListItem[];
 	/** Все загруженные диалоги до клиентских фильтров — для счётчиков в чипах. */
 	allItems: ClientListItem[];
+	/** Контакты CRM, найденные поиском, но без диалога у нас (см. messages.list). */
+	crmContacts: CrmContactRef[];
 	loading: boolean;
 	search: string;
 	onSearchChange: (value: string) => void;
@@ -68,6 +79,7 @@ function FilterChip({
 export function ClientList({
 	items,
 	allItems,
+	crmContacts,
 	loading,
 	search,
 	onSearchChange,
@@ -101,7 +113,7 @@ export function ClientList({
 					<Input
 						value={search}
 						onChange={(e) => onSearchChange(e.target.value)}
-						placeholder="Поиск по имени или username…"
+						placeholder="Имя, фамилия, username или телефон…"
 						className="h-9 pl-8"
 					/>
 				</div>
@@ -290,6 +302,32 @@ export function ClientList({
 							</button>
 						);
 					})
+				)}
+				{search.trim() && crmContacts.length > 0 && (
+					<div className="flex flex-col gap-1 border-b bg-muted/30 p-3">
+						<p className="text-xs font-medium text-muted-foreground uppercase">
+							В CRM есть, переписки здесь нет
+						</p>
+						{crmContacts.map((contact) => (
+							<div
+								key={contact.id}
+								className="flex items-center justify-between gap-2 text-sm"
+							>
+								<span className="truncate">{contact.name}</span>
+								{contact.url && (
+									<a
+										href={contact.url}
+										target="_blank"
+										rel="noreferrer"
+										className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+									>
+										Карточка
+										<ExternalLinkIcon className="size-3" />
+									</a>
+								)}
+							</div>
+						))}
+					</div>
 				)}
 			</div>
 		</div>
