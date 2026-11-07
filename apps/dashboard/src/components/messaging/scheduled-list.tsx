@@ -9,7 +9,7 @@ import {
 	Loader2Icon,
 	XIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatScheduledAt } from "./schedule-popover";
@@ -45,6 +45,7 @@ export function ScheduledMessagesList({
 }: ScheduledMessagesListProps) {
 	const hasFailed = items.some((item) => item.status === "failed");
 	// null — пользователь ещё не трогал переключатель, действует значение по умолчанию
+	const listId = useId();
 	const [userOpen, setUserOpen] = useState<boolean | null>(null);
 
 	if (items.length === 0) return null;
@@ -63,6 +64,7 @@ export function ScheduledMessagesList({
 			<button
 				type="button"
 				aria-expanded={open}
+				aria-controls={listId}
 				onClick={() => setUserOpen(!open)}
 				className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
 			>
@@ -87,7 +89,9 @@ export function ScheduledMessagesList({
 				/>
 			</button>
 			{open && (
-				<ul className="flex max-h-40 flex-col divide-y overflow-y-auto border-t">
+				<ul
+					id={listId}
+					className="flex max-h-40 flex-col divide-y overflow-y-auto border-t">
 					{items.map((item) => {
 						const failed = item.status === "failed";
 						const sending = item.status === "sending";

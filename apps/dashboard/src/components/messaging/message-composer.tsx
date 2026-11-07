@@ -107,7 +107,14 @@ export function MessageComposer({
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		// isComposing — Enter внутри IME-ввода не должен отправлять сообщение
-		if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+		// keyCode 229 — Enter, подтверждающий IME-ввод в Safari: keydown приходит уже
+		// после compositionend, когда isComposing снова false
+		if (
+			e.key === "Enter" &&
+			!e.shiftKey &&
+			!e.nativeEvent.isComposing &&
+			e.keyCode !== 229
+		) {
 			e.preventDefault();
 			onSend();
 		}
@@ -140,7 +147,7 @@ export function MessageComposer({
 					aria-label="Текст сообщения"
 					className="block max-h-[40svh] min-h-[3.5rem] w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm leading-relaxed outline-none field-sizing-content placeholder:text-muted-foreground disabled:cursor-not-allowed"
 				/>
-				<div className="flex items-center gap-1 px-2 pb-2">
+				<div className="flex flex-wrap items-center gap-1 px-2 pb-2">
 					<div className="flex items-center gap-0.5">
 						{MARKDOWN_ACTIONS.map(
 							({ label, icon: Icon, before, after, placeholder: ph }) => (
@@ -180,7 +187,9 @@ export function MessageComposer({
 							{length} / {MESSAGE_MAX_LENGTH}
 						</span>
 					)}
-					<div className="ml-auto flex items-center gap-1.5">{actions}</div>
+					<div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+						{actions}
+					</div>
 				</div>
 			</div>
 			<p
@@ -188,7 +197,7 @@ export function MessageComposer({
 					"min-h-4 px-1 text-xs",
 					error || overLimit ? "text-destructive" : "text-muted-foreground",
 				)}
-				role={error ? "alert" : undefined}
+				aria-live="polite"
 			>
 				{error ??
 					(overLimit

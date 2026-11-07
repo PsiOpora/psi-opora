@@ -9,7 +9,13 @@ import {
 	Clock3Icon,
 	MessageSquareTextIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { MessengerIcon } from "@/components/messaging/messenger-icon";
 import { messengerLabel } from "@/components/messaging/messenger-meta";
 import { cn } from "@/lib/utils";
@@ -134,6 +140,9 @@ function sameSeries(a: HistoryEntry, b: HistoryEntry): boolean {
 export function HistoryList({ history }: { history: HistoryEntry[] }) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const stickToBottomRef = useRef(true);
+	// true, пока идёт плавная прокрутка кнопкой «К последним»: промежуточные
+	// события scroll не должны считаться уходом читать историю выше
+	const smoothScrollingRef = useRef(false);
 	const prevLengthRef = useRef(0);
 	const [showJump, setShowJump] = useState(false);
 	const [unseen, setUnseen] = useState(0);
@@ -141,19 +150,22 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 	const scrollToBottom = useCallback((smooth: boolean) => {
 		const el = containerRef.current;
 		if (!el) return;
+		stickToBottomRef.current = true;
+		smoothScrollingRef.current = smooth;
 		el.scrollTo({
 			top: el.scrollHeight,
 			behavior: smooth ? "smooth" : "auto",
 		});
 	}, []);
 
-	useEffect(() => {
+	// useLayoutEffect — прокрутка до отрисовки, без мерцания первой загрузки
+	useLayoutEffect(() => {
 		const added = history.length - prevLengthRef.current;
-		const firstRender = prevLengthRef.current === 0;
 		prevLengthRef.current = history.length;
 		if (added <= 0) return;
 		if (stickToBottomRef.current) {
-			scrollToBottom(!firstRender);
+			// мгновенно: плавная анимация конфликтует с приходом следующего сообщения
+			scrollToBottom(false);
 		} else {
 			// Менеджер читает историю выше — не дёргаем вниз, а подсказываем кнопкой.
 			setUnseen((n) => n + added);
@@ -179,6 +191,10 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 		if (!el) return;
 		const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
 		const atBottom = distance < STICK_TO_BOTTOM_THRESHOLD_PX;
+		if (smoothScrollingRef.current) {
+			if (!atBottom) return;
+			smoothScrollingRef.current = false;
+		}
 		stickToBottomRef.current = atBottom;
 		setShowJump(!atBottom);
 		if (atBottom) setUnseen(0);
@@ -205,6 +221,12 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 			<div
 				ref={containerRef}
 				onScroll={handleScroll}
+				onWheel={() => {
+					smoothScrollingRef.current = false;
+				}}
+				onTouchStart={() => {
+					smoothScrollingRef.current = false;
+				}}
 				className="h-full overflow-y-auto overscroll-contain px-4 pt-2 pb-4 sm:px-6"
 			>
 				<div className="mx-auto flex w-full max-w-4xl flex-col">
