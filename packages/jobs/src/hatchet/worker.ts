@@ -39,10 +39,11 @@ export async function startHatchetWorker(): Promise<void> {
 		slots: 10,
 		handleKill: true,
 	});
-	await worker.registerWorkflows(hatchetTasks);
+	const workflows = [...hatchetTasks, scheduledMessagesDispatch];
+	await worker.registerWorkflows(workflows);
 
 	console.info(
-		`[hatchet] worker запускается, зарегистрировано задач: ${hatchetTasks.length}`,
+		`[hatchet] worker запускается, зарегистрировано задач: ${workflows.length}`,
 	);
 	await worker.start();
 }

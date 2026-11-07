@@ -194,7 +194,12 @@ export async function finishScheduledMessage(
 			sentAt: result.status === "sent" ? now : null,
 			updatedAt: now,
 		})
-		.where(eq(scheduledMessages.id, id));
+		.where(
+			and(
+				eq(scheduledMessages.id, id),
+				eq(scheduledMessages.status, "sending"),
+			),
+		);
 }
 
 /**
