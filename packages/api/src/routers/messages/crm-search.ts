@@ -3,13 +3,21 @@ import { listBitrixCrmLinksByContactIds } from "@psi-opora/db/queries";
 import { jidFromPhone } from "@psi-opora/waha";
 import { z } from "zod";
 import { normalizePhone } from "../../schemas/phone";
-import { findContactIdsByPhone } from "./client-phone-crm";
+import {
+	type CrmContactRef,
+	findContactIdsByPhone,
+	loadContactRefs,
+} from "./client-phone-crm";
 
-/** Токенов имени/фамилии в запросе: «Иванова Мария» → 2; лишние отбрасываем. */
-const MAX_NAME_TOKENS = 3;
-/** Контактов CRM на один токен — crm.contact.list всё равно отдаёт страницу в 50. */
-const CONTACTS_PER_TOKEN = 30;
+/**
+ * Слов имени/фамилии в запросе: «фамилия имя» в любом порядке. Больше двух не
+ * поддерживаем — пару слов Bitrix умеет искать одним AND-фильтром, а для трёх
+ * пришлось бы пересекать усечённые страницы выдачи и терять контакты.
+ */
+const MAX_NAME_TOKENS = 2;
 const MAX_CONTACT_IDS = 30;
+/** Сколько контактов без диалога показываем (и подгружаем карточками). */
+const MAX_UNLINKED_CONTACTS = 5;
 const CACHE_TTL_MS = 60_000;
 const CACHE_MAX_ENTRIES = 200;
 
@@ -17,10 +25,8 @@ export interface CrmSearchResult {
 	/** Каналы клиентов, привязанные к найденным контактам (и личный WhatsApp с найденным номером). */
 	identities: { messenger: string; userId: string }[];
 	/** Найденные контакты CRM, у которых нет привязанного диалога в нашей БД. */
-	unlinkedContactIds: string[];
+	unlinkedContacts: CrmContactRef[];
 }
-
-const EMPTY: CrmSearchResult = { identities: [], unlinkedContactIds: [] };
 
 const contactRowsSchema = z.array(
 	z.object({ ID: z.union([z.string(), z.number()]) }).passthrough(),
@@ -46,69 +52,90 @@ export function parseCrmSearchQuery(search: string): {
 	return { phone: null, nameTokens };
 }
 
-/** Контакты, у которых хотя бы в NAME или LAST_NAME есть подстрока. */
-async function findContactIdsByNameToken(
-	api: BitrixApi,
-	token: string,
-): Promise<Set<string>> {
-	const ids = new Set<string>();
-	// Один OR-фильтр в crm.contact.list не выразить, поэтому два запроса.
-	for (const field of ["%LAST_NAME", "%NAME"]) {
-		const raw = await api
-			.call<unknown>("crm.contact.list", {
-				filter: { [field]: token },
-				select: ["ID"],
-				order: { ID: "DESC" },
-			})
-			.catch(() => []);
-		const parsed = contactRowsSchema.safeParse(raw);
-		if (!parsed.success) continue;
-		for (const row of parsed.data.slice(0, CONTACTS_PER_TOKEN)) {
-			ids.add(String(row.ID));
-		}
+/**
+ * Фильтры crm.contact.list под слова запроса. Одно слово — в фамилии или в
+ * имени (два запроса: OR в одном фильтре не выразить). Два слова — «фамилия
+ * имя» и «имя фамилия», каждый вариант одним AND-фильтром, поэтому выдача
+ * содержит ровно подходящие контакты, а не пересечение усечённых страниц.
+ */
+export function buildContactNameFilters(
+	tokens: string[],
+): Record<string, string>[] {
+	const [first, second] = tokens;
+	if (first === undefined) return [];
+	if (second === undefined) {
+		return [{ "%LAST_NAME": first }, { "%NAME": first }];
 	}
-	return ids;
+	return [
+		{ "%LAST_NAME": first, "%NAME": second },
+		{ "%LAST_NAME": second, "%NAME": first },
+	];
 }
 
 /**
  * Поиск клиента по данным из CRM: по полному телефону (crm.duplicate.findbycomm
  * сам нормализует формат записи) или по фамилии/имени контакта. Находит то,
  * чего нет в наших bot_users: у нас имя — это имя в мессенджере, а телефон и
- * фамилия живут только в карточке контакта. Результат кэшируется на минуту:
- * список в инбоксе опрашивается поллингом, а Bitrix отдаёт ~2 запроса/сек.
+ * фамилия живут только в карточке контакта. Результат (вместе с карточками
+ * контактов без диалога) кэшируется на минуту: список в инбоксе опрашивается
+ * поллингом, а Bitrix отдаёт ~2 запроса/сек. Результат с ошибкой CRM или БД не
+ * кэшируется — иначе после сбоя клиент пропадал бы из поиска ещё на минуту.
  */
 export async function searchCrmIdentities(
 	api: BitrixApi,
 	portalKey: string,
 	search: string,
+	resolveDomain: () => Promise<string | null>,
 ): Promise<CrmSearchResult> {
 	const { phone, nameTokens } = parseCrmSearchQuery(search);
-	if (!phone && nameTokens.length === 0) return EMPTY;
+	if (!phone && nameTokens.length === 0) {
+		return { identities: [], unlinkedContacts: [] };
+	}
 
 	const cacheKey = `${portalKey}\u0000${phone ?? nameTokens.join(" ").toLowerCase()}`;
 	const cached = cache.get(cacheKey);
 	if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.value;
 
-	let contactIds: Set<string>;
+	let failed = false;
+	const safe = <T>(fallback: T) => {
+		return (): T => {
+			failed = true;
+			return fallback;
+		};
+	};
+
+	const contactIds = new Set<string>();
 	if (phone) {
-		contactIds = new Set(
-			await findContactIdsByPhone(api, phone).catch(() => []),
-		);
-	} else {
-		// Несколько слов — контакт должен подойти под каждое («Иванова Мария»).
-		const perToken: Set<string>[] = [];
-		for (const token of nameTokens) {
-			perToken.push(await findContactIdsByNameToken(api, token));
+		for (const id of await findContactIdsByPhone(api, phone).catch(
+			safe<string[]>([]),
+		)) {
+			contactIds.add(id);
 		}
-		const [first, ...rest] = perToken;
-		contactIds = new Set(
-			[...(first ?? [])].filter((id) => rest.every((set) => set.has(id))),
+	} else {
+		const results = await Promise.all(
+			buildContactNameFilters(nameTokens).map((filter) =>
+				api
+					.call<unknown>("crm.contact.list", {
+						filter,
+						select: ["ID"],
+						order: { ID: "DESC" },
+					})
+					.catch(safe<unknown>([])),
+			),
 		);
+		for (const raw of results) {
+			const parsed = contactRowsSchema.safeParse(raw);
+			if (!parsed.success) {
+				failed = true;
+				continue;
+			}
+			for (const row of parsed.data) contactIds.add(String(row.ID));
+		}
 	}
 	const ids = [...contactIds].slice(0, MAX_CONTACT_IDS);
 
 	const links = await listBitrixCrmLinksByContactIds(portalKey, ids).catch(
-		() => [],
+		safe<Awaited<ReturnType<typeof listBitrixCrmLinksByContactIds>>>([]),
 	);
 	const linked = new Set(links.map((link) => link.contactId));
 	const identities = links.map((link) => ({
@@ -123,11 +150,23 @@ export async function searchCrmIdentities(
 		});
 	}
 
+	// Не вышло прочитать привязки — не выдаём контакты за «без диалога».
+	const unlinkedIds = failed
+		? []
+		: ids.filter((id) => !linked.has(id)).slice(0, MAX_UNLINKED_CONTACTS);
 	const value: CrmSearchResult = {
 		identities,
-		unlinkedContactIds: ids.filter((id) => !linked.has(id)),
+		unlinkedContacts: unlinkedIds.length
+			? await loadContactRefs(
+					api,
+					await resolveDomain().catch(() => null),
+					unlinkedIds,
+				)
+			: [],
 	};
-	if (cache.size >= CACHE_MAX_ENTRIES) cache.clear();
-	cache.set(cacheKey, { at: Date.now(), value });
+	if (!failed) {
+		if (cache.size >= CACHE_MAX_ENTRIES) cache.clear();
+		cache.set(cacheKey, { at: Date.now(), value });
+	}
 	return value;
 }

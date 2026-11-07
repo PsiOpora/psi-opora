@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseCrmSearchQuery } from "./crm-search";
+import { buildContactNameFilters, parseCrmSearchQuery } from "./crm-search";
 
 describe("parseCrmSearchQuery", () => {
 	test("полный телефон в любом формате нормализуется", () => {
@@ -31,10 +31,30 @@ describe("parseCrmSearchQuery", () => {
 		]);
 		expect(
 			parseCrmSearchQuery("Анна Мария Петрова Сидорова").nameTokens,
-		).toEqual(["Анна", "Мария", "Петрова"]);
+		).toEqual(["Анна", "Мария"]);
 	});
 
 	test("пустой запрос", () => {
 		expect(parseCrmSearchQuery("   ")).toEqual({ phone: null, nameTokens: [] });
+	});
+});
+
+describe("buildContactNameFilters", () => {
+	test("одно слово — фамилия или имя, два отдельных запроса", () => {
+		expect(buildContactNameFilters(["Иванова"])).toEqual([
+			{ "%LAST_NAME": "Иванова" },
+			{ "%NAME": "Иванова" },
+		]);
+	});
+
+	test("два слова — оба порядка одним AND-фильтром каждый", () => {
+		expect(buildContactNameFilters(["Иванова", "Мария"])).toEqual([
+			{ "%LAST_NAME": "Иванова", "%NAME": "Мария" },
+			{ "%LAST_NAME": "Мария", "%NAME": "Иванова" },
+		]);
+	});
+
+	test("нет слов — нет запросов", () => {
+		expect(buildContactNameFilters([])).toEqual([]);
 	});
 });

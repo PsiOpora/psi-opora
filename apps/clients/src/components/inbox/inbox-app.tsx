@@ -106,9 +106,14 @@ export function InboxApp() {
 		}),
 	);
 	const allItems = useMemo(() => listQuery.data?.items ?? [], [listQuery.data]);
+	// Контакты CRM относятся к конкретному поиску: пока идёт debounce или
+	// грузится новый запрос (keepPreviousData держит старый ответ), их прячем.
 	const crmContacts = useMemo(
-		() => listQuery.data?.crmContacts ?? [],
-		[listQuery.data],
+		() =>
+			search === debouncedSearch && !listQuery.isPlaceholderData
+				? (listQuery.data?.crmContacts ?? [])
+				: [],
+		[search, debouncedSearch, listQuery.isPlaceholderData, listQuery.data],
 	);
 
 	const items = useMemo(
