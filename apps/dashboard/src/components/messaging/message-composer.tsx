@@ -5,7 +5,6 @@ import { BoldIcon, CodeIcon, ItalicIcon, Link2Icon } from "lucide-react";
 import type * as React from "react";
 import { useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,23 +36,37 @@ const MARKDOWN_ACTIONS: Array<{
 	{ label: "Код", icon: CodeIcon, before: "`", after: "`", placeholder: "код" },
 ];
 
+/** Счётчик символов появляется, только когда лимит уже близко. */
+const COUNTER_VISIBLE_RATIO = 0.8;
+
 export interface MessageComposerProps {
 	text: string;
 	onTextChange: (text: string) => void;
 	onSend: () => void;
 	placeholder?: string;
 	className?: string;
+	disabled?: boolean;
+	/** Верхняя полоса карточки — например, выбор канала отправки. */
+	header?: React.ReactNode;
+	/** Кнопки справа в нижней строке (отложить, отправить). */
+	actions?: React.ReactNode;
+	/** Подсказка под карточкой; ошибка отправки заменяет её. */
+	error?: string | null;
 }
 
-/** Тулбар разметки + textarea с автоотправкой по Enter (Shift+Enter — перенос
- * строки) и счётчиком символов — общая часть вкладки CRM (widget-message) и
- * единого инбокса дашборда («Клиенты»). */
+/** Карточка ввода: textarea растёт вместе с текстом, под ней — разметка слева
+ * и действия справа. Enter отправляет, Shift+Enter — перенос строки. Общая
+ * часть вкладки CRM «Мессенджер» (widget-message). */
 export function MessageComposer({
 	text,
 	onTextChange,
 	onSend,
 	placeholder,
 	className,
+	disabled,
+	header,
+	actions,
+	error,
 }: MessageComposerProps) {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -93,61 +106,95 @@ export function MessageComposer({
 	}, [text, onTextChange]);
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if (e.key === "Enter" && !e.shiftKey) {
+		// isComposing — Enter внутри IME-ввода не должен отправлять сообщение
+		if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
 			e.preventDefault();
 			onSend();
 		}
 	};
 
-	const trimmedText = text.trim();
-	const overLimit = trimmedText.length > MESSAGE_MAX_LENGTH;
+	const length = text.trim().length;
+	const overLimit = length > MESSAGE_MAX_LENGTH;
+	const showCounter = length >= MESSAGE_MAX_LENGTH * COUNTER_VISIBLE_RATIO;
 
 	return (
 		<div className={cn("flex flex-col gap-1.5", className)}>
-			<div className="flex gap-1 rounded-t-md border border-b-0 bg-muted/40 p-1">
-				{MARKDOWN_ACTIONS.map(
-					({ label, icon: Icon, before, after, placeholder: ph }) => (
+			<div
+				className={cn(
+					"overflow-hidden rounded-2xl border bg-background shadow-sm transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30",
+					disabled && "opacity-60",
+					overLimit && "border-destructive focus-within:border-destructive",
+				)}
+			>
+				{header && (
+					<div className="border-b bg-muted/40 px-3 py-2">{header}</div>
+				)}
+				<textarea
+					ref={textareaRef}
+					value={text}
+					disabled={disabled}
+					onChange={(e) => onTextChange(e.target.value)}
+					onKeyDown={handleKeyDown}
+					placeholder={placeholder}
+					rows={2}
+					aria-label="Текст сообщения"
+					className="block max-h-[40svh] min-h-[3.5rem] w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm leading-relaxed outline-none field-sizing-content placeholder:text-muted-foreground disabled:cursor-not-allowed"
+				/>
+				<div className="flex items-center gap-1 px-2 pb-2">
+					<div className="flex items-center gap-0.5">
+						{MARKDOWN_ACTIONS.map(
+							({ label, icon: Icon, before, after, placeholder: ph }) => (
+								<Button
+									key={label}
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									title={label}
+									aria-label={label}
+									disabled={disabled}
+									onClick={() => wrapSelection(before, after, ph)}
+								>
+									<Icon className="size-4 text-muted-foreground" />
+								</Button>
+							),
+						)}
 						<Button
-							key={label}
 							type="button"
 							variant="ghost"
 							size="icon-sm"
-							title={label}
-							aria-label={label}
-							onClick={() => wrapSelection(before, after, ph)}
+							title="Ссылка"
+							aria-label="Ссылка"
+							disabled={disabled}
+							onClick={insertLink}
 						>
-							<Icon className="size-3.5" />
+							<Link2Icon className="size-4 text-muted-foreground" />
 						</Button>
-					),
-				)}
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon-sm"
-					title="Ссылка"
-					aria-label="Ссылка"
-					onClick={insertLink}
-				>
-					<Link2Icon className="size-3.5" />
-				</Button>
+					</div>
+					{showCounter && (
+						<span
+							className={cn(
+								"ml-2 text-xs tabular-nums",
+								overLimit ? "text-destructive" : "text-muted-foreground",
+							)}
+						>
+							{length} / {MESSAGE_MAX_LENGTH}
+						</span>
+					)}
+					<div className="ml-auto flex items-center gap-1.5">{actions}</div>
+				</div>
 			</div>
-			<Textarea
-				ref={textareaRef}
-				value={text}
-				onChange={(e) => onTextChange(e.target.value)}
-				onKeyDown={handleKeyDown}
-				placeholder={placeholder}
-				className="min-h-28 rounded-t-none text-sm"
-			/>
-			<span
+			<p
 				className={cn(
-					"self-end text-xs",
-					overLimit ? "text-destructive" : "text-muted-foreground",
+					"min-h-4 px-1 text-xs",
+					error || overLimit ? "text-destructive" : "text-muted-foreground",
 				)}
+				role={error ? "alert" : undefined}
 			>
-				{trimmedText.length} / {MESSAGE_MAX_LENGTH}
-				{overLimit && " — мессенджеры не примут такое длинное сообщение"}
-			</span>
+				{error ??
+					(overLimit
+						? "Мессенджеры не примут такое длинное сообщение — сократите текст"
+						: "Enter — отправить, Shift+Enter — новая строка")}
+			</p>
 		</div>
 	);
 }

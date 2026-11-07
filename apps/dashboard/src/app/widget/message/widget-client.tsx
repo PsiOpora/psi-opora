@@ -9,7 +9,13 @@ import type {
 } from "@psi-opora/api";
 import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2Icon, SendIcon } from "lucide-react";
+import {
+	CircleAlertIcon,
+	InfoIcon,
+	Loader2Icon,
+	RefreshCwIcon,
+	SendIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useB24Frame } from "@/components/bitrix/frame-provider";
@@ -27,11 +33,7 @@ import {
 } from "@/components/messaging/schedule-popover";
 import { ScheduledMessagesList } from "@/components/messaging/scheduled-list";
 import { Button } from "@/components/ui/button";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
 import { orpc, orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
 
@@ -43,10 +45,21 @@ const SCHEDULED_REFETCH_MS = 15_000;
  * подтвердил запись в БД (сама отправка клиенту при этом уже прошла успешно). */
 const PENDING_LABEL_TIMEOUT_MS = 8000;
 
-/** Целевая высота вкладки в портале — как у полноразмерного окна мессенджера
- * (Wazzup и т.п.), а не узкой формы на пол-экрана. Ширину не трогаем, чтобы
- * не спорить с шириной, которую уже выделил Битрикс под область вкладки. */
-const WIDGET_TARGET_HEIGHT_PX = 640;
+/** Битрикс24 не сообщает приложению высоту области вкладки, а iframe
+ * CRM_DEAL_DETAIL_TAB по умолчанию — узкая форма. Поэтому просим высоту «на всё
+ * окно»: высота экрана за вычетом шапки портала, заголовка карточки, вкладок и
+ * панели браузера. Ширину не трогаем — её уже выделил Битрикс. */
+const WIDGET_MIN_HEIGHT_PX = 600;
+const WIDGET_MAX_HEIGHT_PX = 1400;
+const PORTAL_CHROME_HEIGHT_PX = 320;
+
+function computeWidgetHeight(): number {
+	const available = window.screen.availHeight - PORTAL_CHROME_HEIGHT_PX;
+	return Math.min(
+		WIDGET_MAX_HEIGHT_PX,
+		Math.max(WIDGET_MIN_HEIGHT_PX, available),
+	);
+}
 
 function draftStorageKey(entity: WidgetEntity, entityId: string): string {
 	return `psi-opora:widget-draft:${entity}:${entityId}`;
@@ -143,17 +156,12 @@ export function MessageWidget({
 	// Момент последнего известного сообщения — поллинг запрашивает только то, что новее.
 	const sinceRef = useRef(new Date().toISOString());
 
-	// Просим Битрикс выделить вкладке высоту полноценного окна мессенджера —
-	// без этого CRM_DEAL_DETAIL_TAB даёт лишь узкую форму, куда переписка не
-	// помещается. Ширину не запрашиваем явно — берём текущую, чтобы не
-	// спорить с раскладкой самой карточки сделки.
+	// Просим Битрикс выделить вкладке всю доступную высоту (см. computeWidgetHeight) —
+	// без этого CRM_DEAL_DETAIL_TAB даёт лишь узкую форму, куда переписка не помещается.
 	useEffect(() => {
 		if (!b24) return;
 		b24.parent
-			.resizeWindow(
-				document.documentElement.clientWidth,
-				WIDGET_TARGET_HEIGHT_PX,
-			)
+			.resizeWindow(document.documentElement.clientWidth, computeWidgetHeight())
 			.catch(() => {
 				// Согласно b24jssdk может не сработать при первом открытии — тогда
 				// просто останется размер по умолчанию, без падения виджета.
@@ -337,116 +345,189 @@ export function MessageWidget({
 		}
 	};
 
+	const canSend = Boolean(channel) && !sending && !overLimit;
+	const composerDisabled = !channel;
+
 	return (
-		<div className="flex h-full min-h-0 flex-1 flex-col">
+		<div className="flex h-full min-h-0 flex-1 flex-col bg-background">
 			{loading ? (
-				<div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
-					<Loader2Icon className="size-4 animate-spin" />
-					Загружаем данные контакта…
-				</div>
+				<WidgetSkeleton />
 			) : loadError ? (
-				<div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
-					<p className="text-sm text-destructive">{loadError}</p>
-					<Button variant="outline" size="sm" onClick={load}>
+				<div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+					<div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+						<CircleAlertIcon className="size-6" />
+					</div>
+					<div className="space-y-1">
+						<p className="text-sm font-medium">Не удалось открыть переписку</p>
+						<p className="max-w-sm text-sm text-muted-foreground">
+							{loadError}
+						</p>
+					</div>
+					<Button variant="outline" onClick={load}>
+						<RefreshCwIcon className="size-4" />
 						Повторить
 					</Button>
 				</div>
 			) : recipient ? (
 				<>
-					<div className="flex items-center gap-3 border-b px-4 py-3">
+					<header className="flex items-center gap-3 border-b px-4 py-3 sm:px-6">
 						<ContactAvatar name={recipient.contactName} />
 						<div className="min-w-0 flex-1">
-							<p className="truncate text-sm font-semibold">
+							<h1 className="truncate text-sm leading-tight font-semibold">
 								{recipient.contactName}
-							</p>
-							<p className="truncate text-xs text-muted-foreground">
-								Сообщение уйдёт через выбранный канал
+							</h1>
+							<p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+								{channel ? (
+									<>
+										<MessengerIcon
+											messenger={channel.messenger}
+											className="size-3.5 shrink-0"
+										/>
+										<span className="truncate">
+											Ответ уйдёт в {channel.label}
+										</span>
+									</>
+								) : (
+									<span>Нет доступных каналов</span>
+								)}
 							</p>
 						</div>
-					</div>
+					</header>
 
-					{recipient.channels.length > 0 && (
-						<div className="flex flex-wrap items-center gap-1.5 border-b bg-muted/30 px-4 py-2">
-							<span className="text-xs text-muted-foreground">Канал:</span>
-							{recipient.channels.map((c) => {
-								const selected =
-									channel && channelKey(channel) === channelKey(c);
-								return (
-									<Tooltip key={channelKey(c)}>
-										<TooltipTrigger asChild>
-											<button
-												type="button"
-												aria-pressed={Boolean(selected)}
-												onClick={() => setChannel(c)}
-												className={cn(
-													"inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-													selected
-														? "border-primary bg-primary text-primary-foreground"
-														: "bg-background hover:bg-muted",
-												)}
-											>
-												<MessengerIcon
-													messenger={c.messenger}
-													className="size-3.5"
-												/>
-												{c.label}
-											</button>
-										</TooltipTrigger>
-										<TooltipContent>Отправить через {c.label}</TooltipContent>
-									</Tooltip>
-								);
-							})}
-						</div>
-					)}
-
-					<div className="min-h-0 flex-1 bg-muted/10">
+					<main className="min-h-0 flex-1 bg-muted/30">
 						<HistoryList history={history} />
-					</div>
+					</main>
 
-					{recipient.channels.length === 0 && (
-						<div className="border-t bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
-							{recipient.note ??
-								"У контакта не найден Telegram/MAX и нет телефона. Мессенджер появляется в полях контакта, когда клиент пишет нашему боту, либо станут доступны личные номера Telegram/WhatsApp, если указан телефон."}
-						</div>
-					)}
-
-					<div className="border-t p-3">
-						<ScheduledMessagesList
-							items={scheduledMessages}
-							onCancel={cancelScheduled}
-							cancellingId={cancellingScheduledId}
-						/>
-						<MessageComposer
-							text={text}
-							onTextChange={setText}
-							onSend={send}
-							placeholder="Здравствуйте! Это Психологический центр «Опора»… (Enter — отправить, Shift+Enter — новая строка)"
-						/>
-						<div className="mt-1.5 flex items-center justify-between gap-2">
-							{sendError && (
-								<p className="text-sm text-destructive">{sendError}</p>
+					<footer className="flex flex-col gap-2 bg-muted/30 px-4 pt-1 pb-3 sm:px-6">
+						<div className="mx-auto flex w-full max-w-4xl flex-col gap-2">
+							{recipient.channels.length === 0 && (
+								<div className="flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-sm text-amber-900 dark:text-amber-200">
+									<InfoIcon className="mt-0.5 size-4 shrink-0" />
+									<p>
+										{recipient.note ??
+											"У контакта не найден Telegram/MAX и нет телефона. Мессенджер появляется в полях контакта, когда клиент пишет нашему боту, либо станут доступны личные номера Telegram/WhatsApp, если указан телефон."}
+									</p>
+								</div>
 							)}
-							<div className="ml-auto flex items-center gap-2">
-								<SchedulePopover
-									onSchedule={scheduleSend}
-									disabled={sending || !trimmedText || !channel || overLimit}
-								/>
-								<Button
-									onClick={send}
-									disabled={sending || !trimmedText || !channel || overLimit}
-								>
-									{sending ? (
-										<Loader2Icon className="size-4 animate-spin" />
-									) : (
-										<SendIcon className="size-4" />
-									)}
-									Отправить
-								</Button>
-							</div>
+							<ScheduledMessagesList
+								items={scheduledMessages}
+								onCancel={cancelScheduled}
+								cancellingId={cancellingScheduledId}
+							/>
+							<MessageComposer
+								text={text}
+								onTextChange={setText}
+								onSend={send}
+								disabled={composerDisabled}
+								error={sendError}
+								placeholder={
+									composerDisabled
+										? "Отправка недоступна — нет канала связи с клиентом"
+										: "Напишите сообщение клиенту…"
+								}
+								header={
+									recipient.channels.length > 0 ? (
+										<ChannelPicker
+											channels={recipient.channels}
+											selected={channel}
+											onSelect={setChannel}
+										/>
+									) : null
+								}
+								actions={
+									<>
+										<SchedulePopover
+											onSchedule={scheduleSend}
+											disabled={!canSend || !trimmedText}
+										/>
+										<Button
+											size="lg"
+											onClick={send}
+											disabled={!canSend || !trimmedText}
+											className="px-3.5"
+										>
+											{sending ? (
+												<Loader2Icon className="size-4 animate-spin" />
+											) : (
+												<SendIcon className="size-4" />
+											)}
+											Отправить
+										</Button>
+									</>
+								}
+							/>
 						</div>
-					</div>
+					</footer>
 				</>
 			) : null}
 		</div>
+	);
+}
+
+/** Выбор канала отправки — в самой карточке ввода, рядом с тем, что пишет
+ * менеджер: канал определяет, куда реально уйдёт сообщение. */
+function ChannelPicker({
+	channels,
+	selected,
+	onSelect,
+}: {
+	channels: WidgetChannel[];
+	selected: WidgetChannel | null;
+	onSelect: (channel: WidgetChannel) => void;
+}) {
+	return (
+		<fieldset
+			aria-label="Канал отправки"
+			className="m-0 flex min-w-0 flex-wrap items-center gap-1.5 border-0 p-0"
+		>
+			<span className="mr-0.5 text-xs text-muted-foreground">
+				Отправить через
+			</span>
+			{channels.map((c) => {
+				const isSelected = selected && channelKey(selected) === channelKey(c);
+				return (
+					<button
+						key={channelKey(c)}
+						type="button"
+						aria-pressed={Boolean(isSelected)}
+						title={`Отправить через ${c.label}`}
+						onClick={() => onSelect(c)}
+						className={cn(
+							"inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+							isSelected
+								? "border-primary bg-primary text-primary-foreground"
+								: "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+						)}
+					>
+						<MessengerIcon messenger={c.messenger} className="size-4" />
+						{c.label}
+					</button>
+				);
+			})}
+		</fieldset>
+	);
+}
+
+/** Скелет вместо спиннера: шапка, несколько пузырей и поле ввода — экран не
+ * «прыгает», когда данные контакта приходят. */
+function WidgetSkeleton() {
+	return (
+		<>
+			<div className="flex items-center gap-3 border-b px-4 py-3 sm:px-6">
+				<Skeleton className="size-10 rounded-full" />
+				<div className="space-y-2">
+					<Skeleton className="h-3.5 w-40" />
+					<Skeleton className="h-3 w-28" />
+				</div>
+			</div>
+			<div className="flex min-h-0 flex-1 flex-col justify-end gap-3 bg-muted/30 px-4 py-4 sm:px-6">
+				<Skeleton className="h-12 w-2/5 rounded-2xl" />
+				<Skeleton className="ml-auto h-16 w-1/2 rounded-2xl" />
+				<Skeleton className="h-10 w-1/3 rounded-2xl" />
+			</div>
+			<div className="bg-muted/30 px-4 pb-4 sm:px-6">
+				<Skeleton className="h-28 w-full rounded-2xl" />
+			</div>
+		</>
 	);
 }
