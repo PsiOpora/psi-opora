@@ -1,14 +1,17 @@
 "use client";
 
 import type {
+	ScheduledMessageItem,
 	WidgetChannel,
 	WidgetEntity,
 	WidgetHistoryItem,
 	WidgetRecipient,
 } from "@psi-opora/api";
 import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2Icon, SendIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { useB24Frame } from "@/components/bitrix/frame-provider";
 import { ContactAvatar } from "@/components/messaging/contact-avatar";
 import {
@@ -18,16 +21,24 @@ import {
 } from "@/components/messaging/history-list";
 import { MessageComposer } from "@/components/messaging/message-composer";
 import { MessengerIcon } from "@/components/messaging/messenger-icon";
+import {
+	formatScheduledAt,
+	SchedulePopover,
+} from "@/components/messaging/schedule-popover";
+import { ScheduledMessagesList } from "@/components/messaging/scheduled-list";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { orpcClient } from "@/lib/orpc/client";
+import { orpc, orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
 
 const POLL_INTERVAL_MS = 5000;
+/** Как часто перечитываем отложенные сообщения: отправленное воркером должно
+ * пропасть из списка (оно уже появилось в переписке). */
+const SCHEDULED_REFETCH_MS = 15_000;
 /** Через сколько снимать надпись «отправляется…», даже если поллинг ещё не
  * подтвердил запись в БД (сама отправка клиенту при этом уже прошла успешно). */
 const PENDING_LABEL_TIMEOUT_MS = 8000;
@@ -116,6 +127,18 @@ export function MessageWidget({
 	const [text, setText] = useState("");
 	const [sendError, setSendError] = useState<string | null>(null);
 	const [sending, startSending] = useTransition();
+	const queryClient = useQueryClient();
+	const [cancellingScheduledId, setCancellingScheduledId] = useState<
+		string | null
+	>(null);
+	const scheduledQuery = useQuery({
+		...orpc.scheduledMessages.listWidget.queryOptions({
+			input: { entity, entityId },
+		}),
+		enabled: Boolean(entityId) && Boolean(recipient),
+		refetchInterval: SCHEDULED_REFETCH_MS,
+	});
+	const scheduledMessages = scheduledQuery.data?.items ?? [];
 
 	// Момент последнего известного сообщения — поллинг запрашивает только то, что новее.
 	const sinceRef = useRef(new Date().toISOString());
@@ -264,6 +287,56 @@ export function MessageWidget({
 		});
 	};
 
+	const refreshScheduled = () =>
+		queryClient.invalidateQueries({
+			queryKey: orpc.scheduledMessages.listWidget.key(),
+		});
+
+	/** Откладывает написанное сообщение; возвращает текст ошибки или null. */
+	const scheduleSend = async (sendAt: Date): Promise<string | null> => {
+		if (!recipient || !channel) return "Выберите канал отправки";
+		if (!trimmedText) return "Введите текст сообщения";
+		if (overLimit) return "Сообщение слишком длинное";
+		try {
+			const result = await orpcClient.scheduledMessages.scheduleWidget({
+				entity,
+				entityId,
+				messenger: channel.messenger,
+				lineId: channel.lineId,
+				connectorId: channel.connectorId,
+				text: trimmedText,
+				sendAt: sendAt.toISOString(),
+			});
+			if (!result.ok) return result.error;
+		} catch (err) {
+			return (err as Error).message;
+		}
+		setText("");
+		setSendError(null);
+		await refreshScheduled();
+		toast.success(`Сообщение уйдёт ${formatScheduledAt(sendAt)}`);
+		return null;
+	};
+
+	const cancelScheduled = async (item: ScheduledMessageItem) => {
+		setCancellingScheduledId(item.id);
+		try {
+			const result = await orpcClient.scheduledMessages.cancel({ id: item.id });
+			if (result.ok) {
+				toast.success(
+					item.status === "failed" ? "Убрано из списка" : "Отправка отменена",
+				);
+			} else {
+				toast.error(result.error ?? "Не удалось отменить отправку");
+			}
+		} catch {
+			toast.error("Не удалось отменить отправку");
+		} finally {
+			setCancellingScheduledId(null);
+			await refreshScheduled();
+		}
+	};
+
 	return (
 		<div className="flex h-full min-h-0 flex-1 flex-col">
 			{loading ? (
@@ -338,6 +411,11 @@ export function MessageWidget({
 					)}
 
 					<div className="border-t p-3">
+						<ScheduledMessagesList
+							items={scheduledMessages}
+							onCancel={cancelScheduled}
+							cancellingId={cancellingScheduledId}
+						/>
 						<MessageComposer
 							text={text}
 							onTextChange={setText}
@@ -348,18 +426,23 @@ export function MessageWidget({
 							{sendError && (
 								<p className="text-sm text-destructive">{sendError}</p>
 							)}
-							<Button
-								onClick={send}
-								disabled={sending || !trimmedText || !channel || overLimit}
-								className="ml-auto"
-							>
-								{sending ? (
-									<Loader2Icon className="size-4 animate-spin" />
-								) : (
-									<SendIcon className="size-4" />
-								)}
-								Отправить
-							</Button>
+							<div className="ml-auto flex items-center gap-2">
+								<SchedulePopover
+									onSchedule={scheduleSend}
+									disabled={sending || !trimmedText || !channel || overLimit}
+								/>
+								<Button
+									onClick={send}
+									disabled={sending || !trimmedText || !channel || overLimit}
+								>
+									{sending ? (
+										<Loader2Icon className="size-4 animate-spin" />
+									) : (
+										<SendIcon className="size-4" />
+									)}
+									Отправить
+								</Button>
+							</div>
 						</div>
 					</div>
 				</>

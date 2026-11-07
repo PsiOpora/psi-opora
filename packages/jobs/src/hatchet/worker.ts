@@ -12,6 +12,7 @@ import { hourlyDrips } from "./hourly-drips";
 import { maxWebhookHealthcheck } from "./max-webhook-healthcheck";
 import { deliverOutreach } from "./outreach";
 import { scenarioReminders } from "./scenario-reminders";
+import { scheduledMessagesDispatch } from "./scheduled-messages";
 import { stageConsentOutbox } from "./stage-consent";
 
 export const hatchetTasks = [

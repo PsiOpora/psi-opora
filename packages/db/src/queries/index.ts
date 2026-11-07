@@ -225,6 +225,7 @@ export * from "./postbox";
 export type { QuickReply } from "./quick-replies";
 export * from "./resend";
 export * from "./rusender";
+export * from "./scheduled-messages";
 export * from "./smtp-bz";
 export * from "./telegram-personal";
 export * from "./unisender";
