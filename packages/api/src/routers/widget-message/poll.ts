@@ -1,13 +1,13 @@
 import { listBotMessagesSince } from "@psi-opora/db/queries";
 import { bitrixProcedure } from "../../orpc";
 import { widgetPollSchema } from "../../schemas/broadcast";
-import { resolveContact } from "./helpers";
+import { resolveWidgetContact, toWidgetHistoryItem } from "./helpers";
 import type { WidgetHistoryItem } from "./types";
 
 /**
  * Новые сообщения диалога после `sinceIso` — для поллинга истории в открытой
  * вкладке. Как и в send, каналы не принимаются от клиента: они каждый раз
- * пересчитываются из актуальных данных CRM (resolveContact), иначе можно
+ * пересчитываются из актуальных данных CRM (resolveWidgetContact), иначе можно
  * было бы подставить чужие messenger/userId и читать чужую переписку.
  */
 export const poll = bitrixProcedure
@@ -17,29 +17,18 @@ export const poll = bitrixProcedure
 			input,
 			context,
 		}): Promise<{ messages?: WidgetHistoryItem[]; error?: string }> => {
-			if (!/^\d+$/.test(input.id)) {
-				return { error: "Некорректный ID элемента CRM" };
-			}
-
 			const since = new Date(input.sinceIso);
 			if (Number.isNaN(since.getTime())) return { error: "Некорректная дата" };
 
-			const api = await context.getBitrixApi();
-			if (!api) {
-				return { error: "Нет подключения к Битрикс24 — обновите страницу" };
-			}
+			const resolved = await resolveWidgetContact(input, {
+				memberId: context.memberId,
+				getBitrixApi: () => context.getBitrixApi(),
+			});
+			if ("error" in resolved) return { error: resolved.error };
 
 			try {
-				const { contact, error } = await resolveContact(
-					api,
-					input.entity,
-					input.id,
-					context.memberId,
-				);
-				if (error || !contact) return { error };
-
 				const perChannel = await Promise.all(
-					contact.channels.map(async (channel) => {
+					resolved.contact.channels.map(async (channel) => {
 						const userIds = [channel.userId, ...(channel.historyUserIds ?? [])];
 						const rows = (
 							await Promise.all(
@@ -54,17 +43,9 @@ export const poll = bitrixProcedure
 								),
 							)
 						).flat();
-						return rows.map((row) => ({
-							id: row.id,
-							messenger: channel.messenger,
-							connectorId: row.connectorId ?? undefined,
-							direction:
-								row.direction === "in" ? ("in" as const) : ("out" as const),
-							source: row.source,
-							text: row.text,
-							status: row.status,
-							createdAt: row.createdAt.toISOString(),
-						}));
+						return rows.map((row) =>
+							toWidgetHistoryItem(row, channel.messenger),
+						);
 					}),
 				);
 

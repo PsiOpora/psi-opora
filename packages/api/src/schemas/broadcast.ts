@@ -88,6 +88,41 @@ export const widgetPollSchema = z.object({
 	sinceIso: z.string(),
 });
 
+export const widgetOlderSchema = z.object({
+	entity: widgetEntitySchema,
+	id: z.string(),
+	/** createdAt самого старого из уже загруженных сообщений. */
+	beforeIso: z.string(),
+});
+
+export const widgetSearchSchema = z.object({
+	entity: widgetEntitySchema,
+	id: z.string(),
+	query: z.string().trim().min(2).max(200),
+});
+
+export const widgetNotesSchema = z.object({
+	entity: widgetEntitySchema,
+	id: z.string(),
+});
+
+export const addWidgetNoteSchema = z.object({
+	entity: widgetEntitySchema,
+	id: z.string(),
+	text: z.string().trim().min(1).max(2000),
+	operatorId: z.string().optional(),
+	operatorName: z.string().optional(),
+});
+
+/** Вложение, заранее загруженное оператором через apps/dashboard/api/attachments. */
+const widgetAttachmentSchema = z.object({
+	s3Key: z.string().min(1),
+	fileName: z.string().min(1).max(200),
+	mimeType: z.string().min(1).max(200),
+	size: z.number().int().positive(),
+	kind: z.enum(["image", "file", "voice"]),
+});
+
 export const sendWidgetMessageSchema = z.object({
 	entity: widgetEntitySchema,
 	entityId: z.string(),
@@ -99,5 +134,9 @@ export const sendWidgetMessageSchema = z.object({
 	 * (см. connectorId в WidgetChannel). */
 	connectorId: z.string().optional(),
 	text: z.string(),
+	/** Фото/файл; text становится подписью. */
+	attachment: widgetAttachmentSchema.optional(),
+	/** Имя оператора из Bitrix user.current — для подписи в истории. */
+	operatorName: z.string().max(200).optional(),
 });
 export type SendWidgetMessageInput = z.infer<typeof sendWidgetMessageSchema>;

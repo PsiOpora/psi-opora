@@ -7,7 +7,12 @@ import {
 	CheckIcon,
 	CircleAlertIcon,
 	Clock3Icon,
+	DownloadIcon,
+	FileIcon,
+	Loader2Icon,
 	MessageSquareTextIcon,
+	QuoteIcon,
+	RotateCcwIcon,
 } from "lucide-react";
 import {
 	useCallback,
@@ -18,6 +23,8 @@ import {
 } from "react";
 import { MessengerIcon } from "@/components/messaging/messenger-icon";
 import { messengerLabel } from "@/components/messaging/messenger-meta";
+import { RichText } from "@/components/messaging/rich-text";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /** Оптимистично добавленное сообщение до подтверждения записи в БД поллингом. */
@@ -65,6 +72,10 @@ const BUBBLE_TAIL = { in: "rounded-bl-md", out: "rounded-br-md" } as const;
 /** Насколько близко к низу нужно быть, чтобы новое сообщение автоскроллило —
  * иначе менеджер, читающий историю выше, не будет «дёрнут» вниз поллингом. */
 const STICK_TO_BOTTOM_THRESHOLD_PX = 60;
+/** Ближе к верху — подгружаем более старые сообщения. */
+const LOAD_MORE_THRESHOLD_PX = 120;
+/** Сообщения без подписи хранятся с текстом-заглушкой — под вложением его не дублируем. */
+const MEDIA_PLACEHOLDERS = new Set(["Фото", "Файл", "Голосовое сообщение", ""]);
 
 /** Вливает новые сообщения с поллинга в локальную историю: уже известный id —
  * обновляет запись на месте (так долетают статусные апдейты sent → delivered
@@ -105,6 +116,16 @@ export function mergeHistory(
 	return next;
 }
 
+/** Добавляет в начало более старую страницу истории, пропуская уже известные id. */
+export function prependHistory(
+	prev: HistoryEntry[],
+	older: WidgetHistoryItem[],
+): HistoryEntry[] {
+	const known = new Set(prev.map((item) => item.id));
+	const fresh = older.filter((item) => !known.has(item.id));
+	return fresh.length === 0 ? prev : [...fresh, ...prev];
+}
+
 function dayKey(iso: string): string {
 	return new Date(iso).toDateString();
 }
@@ -133,19 +154,110 @@ function sameSeries(a: HistoryEntry, b: HistoryEntry): boolean {
 		dayKey(a.createdAt) === dayKey(b.createdAt) &&
 		a.direction === b.direction &&
 		a.source === b.source &&
-		a.messenger === b.messenger
+		a.messenger === b.messenger &&
+		(a.operatorName ?? null) === (b.operatorName ?? null)
 	);
 }
 
-export function HistoryList({ history }: { history: HistoryEntry[] }) {
+function MessageMedia({ item }: { item: HistoryEntry }) {
+	if (!item.mediaUrl) {
+		// Файл удалён или ещё не сохранён — оставляем хотя бы подпись.
+		return item.kind !== "text" ? (
+			<p className="mb-1 flex items-center gap-1.5 text-xs opacity-70">
+				<FileIcon className="size-3.5" />
+				{item.mediaFileName ?? "Вложение недоступно"}
+			</p>
+		) : null;
+	}
+	if (item.kind === "image") {
+		return (
+			<a
+				href={item.mediaUrl}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="mb-1 block"
+			>
+				{/* biome-ignore lint/performance/noImgElement: подписанная внешняя ссылка, next/image не нужен */}
+				<img
+					src={item.mediaUrl}
+					alt={item.mediaFileName ?? "Изображение"}
+					loading="lazy"
+					className="max-h-72 max-w-full rounded-lg object-cover"
+				/>
+			</a>
+		);
+	}
+	if (item.kind === "voice") {
+		return (
+			// biome-ignore lint/a11y/useMediaCaption: голосовое сообщение, субтитров нет
+			<audio
+				controls
+				preload="none"
+				src={item.mediaUrl}
+				className="mb-1 h-9 w-60 max-w-full"
+			/>
+		);
+	}
+	return (
+		<a
+			href={item.mediaUrl}
+			target="_blank"
+			rel="noopener noreferrer"
+			download={item.mediaFileName ?? undefined}
+			className="mb-1 flex items-center gap-2 rounded-lg bg-foreground/5 px-2.5 py-2 text-xs transition-colors hover:bg-foreground/10"
+		>
+			<FileIcon className="size-4 shrink-0" />
+			<span className="min-w-0 flex-1 truncate font-medium">
+				{item.mediaFileName ?? "Файл"}
+			</span>
+			<DownloadIcon className="size-3.5 shrink-0 opacity-70" />
+		</a>
+	);
+}
+
+export interface HistoryListProps {
+	history: HistoryEntry[];
+	/** Есть ли в журнале сообщения старше загруженных. */
+	hasMore?: boolean;
+	loadingMore?: boolean;
+	onLoadMore?: () => void;
+	/** Повторить отправку неудавшегося текстового сообщения. */
+	onRetry?: (item: HistoryEntry) => void;
+	/** id неудавшихся сообщений, уже отправленных повторно. */
+	retriedIds?: ReadonlySet<string>;
+	/** Процитировать сообщение в поле ввода. */
+	onQuote?: (item: HistoryEntry) => void;
+	/** id первого непрочитанного входящего — над ним рисуется разделитель. */
+	unreadFromId?: string | null;
+	/** Прокрутить к сообщению и подсветить (nonce позволяет повторить тот же id). */
+	focusRequest?: { id: string; nonce: number } | null;
+}
+
+export function HistoryList({
+	history,
+	hasMore,
+	loadingMore,
+	onLoadMore,
+	onRetry,
+	retriedIds,
+	onQuote,
+	unreadFromId,
+	focusRequest,
+}: HistoryListProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
+	const contentRef = useRef<HTMLDivElement>(null);
 	const stickToBottomRef = useRef(true);
 	// true, пока идёт плавная прокрутка кнопкой «К последним»: промежуточные
 	// события scroll не должны считаться уходом читать историю выше
 	const smoothScrollingRef = useRef(false);
-	const prevLengthRef = useRef(0);
+	const lastIdRef = useRef<string | null>(null);
+	const firstIdRef = useRef<string | null>(null);
+	// Положение до подгрузки старых сообщений — чтобы после вставки сверху
+	// остаться на том же сообщении, а не улететь к началу.
+	const prependAnchorRef = useRef<{ height: number; top: number } | null>(null);
 	const [showJump, setShowJump] = useState(false);
 	const [unseen, setUnseen] = useState(0);
+	const [highlightId, setHighlightId] = useState<string | null>(null);
 
 	const scrollToBottom = useCallback((smooth: boolean) => {
 		const el = containerRef.current;
@@ -160,17 +272,49 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 
 	// useLayoutEffect — прокрутка до отрисовки, без мерцания первой загрузки
 	useLayoutEffect(() => {
-		const added = history.length - prevLengthRef.current;
-		prevLengthRef.current = history.length;
+		const el = containerRef.current;
+		const firstId = history[0]?.id ?? null;
+		const lastId = history[history.length - 1]?.id ?? null;
+
+		if (
+			el &&
+			prependAnchorRef.current &&
+			firstId !== firstIdRef.current &&
+			lastId === lastIdRef.current
+		) {
+			el.scrollTop =
+				prependAnchorRef.current.top +
+				(el.scrollHeight - prependAnchorRef.current.height);
+			prependAnchorRef.current = null;
+		}
+		firstIdRef.current = firstId;
+
+		if (lastId === lastIdRef.current) return;
+		const prevLastId = lastIdRef.current;
+		lastIdRef.current = lastId;
+		if (!lastId) return;
+
+		const prevIdx = prevLastId
+			? history.findIndex((item) => item.id === prevLastId)
+			: -1;
+		const added =
+			prevLastId === null
+				? history.length
+				: prevIdx === -1
+					? 1
+					: history.length - 1 - prevIdx;
 		if (added <= 0) return;
-		if (stickToBottomRef.current) {
+
+		const newest = history[history.length - 1];
+		// Своё сообщение оператор всегда видит сразу, независимо от прокрутки.
+		if (stickToBottomRef.current || newest?.direction === "out") {
 			// мгновенно: плавная анимация конфликтует с приходом следующего сообщения
 			scrollToBottom(false);
 		} else {
 			// Менеджер читает историю выше — не дёргаем вниз, а подсказываем кнопкой.
 			setUnseen((n) => n + added);
 		}
-	}, [history.length, scrollToBottom]);
+	}, [history, scrollToBottom]);
 
 	// Область переписки меняет высоту, когда внизу появляется/сворачивается
 	// список отложенных, растёт поле ввода или окно меняет размер — если были
@@ -183,14 +327,46 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 			if (stickToBottomRef.current) scrollToBottom(false);
 		});
 		observer.observe(el);
+		// Содержимое растёт и без смены размера контейнера — например, когда
+		// догружаются картинки: остаёмся у конца ленты и тогда.
+		if (contentRef.current) observer.observe(contentRef.current);
 		return () => observer.disconnect();
 	}, [scrollToBottom, isEmpty]);
+
+	const loadMore = useCallback(() => {
+		const el = containerRef.current;
+		if (!el || !onLoadMore || loadingMore || !hasMore) return;
+		prependAnchorRef.current = { height: el.scrollHeight, top: el.scrollTop };
+		onLoadMore();
+	}, [onLoadMore, loadingMore, hasMore]);
+
+	// Короткая история не заполняет экран — подгружать по прокрутке нечем,
+	// поэтому докачиваем сами, пока лента не станет прокручиваемой.
+	useEffect(() => {
+		const el = containerRef.current;
+		if (!el || isEmpty || !hasMore || loadingMore) return;
+		if (el.scrollHeight <= el.clientHeight + LOAD_MORE_THRESHOLD_PX) loadMore();
+	}, [isEmpty, hasMore, loadingMore, loadMore]);
+
+	// Переход к найденному сообщению (поиск по переписке)
+	useEffect(() => {
+		if (!focusRequest) return;
+		const el = containerRef.current?.querySelector(
+			`[data-msg-id="${CSS.escape(focusRequest.id)}"]`,
+		);
+		if (!el) return;
+		el.scrollIntoView({ block: "center", behavior: "smooth" });
+		setHighlightId(focusRequest.id);
+		const timer = setTimeout(() => setHighlightId(null), 2200);
+		return () => clearTimeout(timer);
+	}, [focusRequest]);
 
 	const handleScroll = () => {
 		const el = containerRef.current;
 		if (!el) return;
 		const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
 		const atBottom = distance < STICK_TO_BOTTOM_THRESHOLD_PX;
+		if (el.scrollTop < LOAD_MORE_THRESHOLD_PX) loadMore();
 		if (smoothScrollingRef.current) {
 			if (!atBottom) return;
 			smoothScrollingRef.current = false;
@@ -229,7 +405,24 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 				}}
 				className="h-full overflow-y-auto overscroll-contain px-4 pt-2 pb-4 sm:px-6"
 			>
-				<div className="mx-auto flex w-full max-w-4xl flex-col">
+				<div
+					ref={contentRef}
+					className="mx-auto flex w-full max-w-4xl flex-col"
+				>
+					{(hasMore || loadingMore) && (
+						<div className="flex justify-center py-2">
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								disabled={loadingMore}
+								onClick={loadMore}
+							>
+								{loadingMore && <Loader2Icon className="animate-spin" />}
+								{loadingMore ? "Загружаем…" : "Показать более ранние сообщения"}
+							</Button>
+						</div>
+					)}
 					{history.map((item, index) => {
 						const prev = history[index - 1];
 						const next = history[index + 1];
@@ -252,10 +445,23 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 							? "отправляется"
 							: statusMeta?.label;
 						const sourceLabel = SOURCE_LABELS[item.source];
+						const authorLabel =
+							isOut && !BOT_SOURCES.has(item.source) && item.operatorName
+								? item.operatorName
+								: sourceLabel;
+						const showText =
+							item.kind === "text" || !MEDIA_PLACEHOLDERS.has(item.text);
+						const canRetry =
+							failed &&
+							item.kind === "text" &&
+							!item.id.startsWith("pending-") &&
+							Boolean(onRetry);
+						const retried = retriedIds?.has(item.id) ?? false;
 
 						return (
 							<div
 								key={item.id}
+								data-msg-id={item.id}
 								className={cn(
 									"flex flex-col",
 									!showDay && (startsSeries ? "mt-4" : "mt-1"),
@@ -266,6 +472,13 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 										<span className="rounded-full border bg-background/90 px-3 py-1 text-xs font-medium text-muted-foreground shadow-xs backdrop-blur">
 											{formatDayLabel(item.createdAt)}
 										</span>
+									</div>
+								)}
+								{unreadFromId === item.id && (
+									<div className="my-3 flex items-center gap-3 text-xs font-medium text-primary">
+										<div className="h-px flex-1 bg-primary/30" />
+										Новые сообщения
+										<div className="h-px flex-1 bg-primary/30" />
 									</div>
 								)}
 								{startsSeries && (
@@ -281,29 +494,36 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 										/>
 										<span>
 											{messengerLabel(item.messenger)}
-											{sourceLabel ? ` · ${sourceLabel}` : ""}
+											{authorLabel ? ` · ${authorLabel}` : ""}
 										</span>
 									</div>
 								)}
 								<div
 									className={cn(
-										"flex",
-										isOut ? "justify-end" : "justify-start",
+										"group flex items-center gap-1.5",
+										isOut ? "flex-row-reverse justify-start" : "justify-start",
 									)}
 								>
 									<div
 										className={cn(
-											"max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed shadow-xs sm:max-w-[75%]",
+											"max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed shadow-xs transition-shadow sm:max-w-[75%]",
 											BUBBLE_STYLES[bubbleKind],
 											endsSeries && BUBBLE_TAIL[isOut ? "out" : "in"],
 											item.pending && "opacity-70",
 											failed && "ring-1 ring-destructive/50",
+											highlightId === item.id && "ring-2 ring-primary",
 										)}
 									>
+										<MessageMedia item={item} />
 										<div className="flex flex-wrap items-end justify-end gap-x-3">
-											<span className="min-w-0 flex-1 basis-auto whitespace-pre-wrap [overflow-wrap:anywhere]">
-												{item.text}
-											</span>
+											{showText && (
+												<span className="min-w-0 flex-1 basis-auto whitespace-pre-wrap [overflow-wrap:anywhere]">
+													<RichText
+														text={item.text}
+														markup={isOut && item.kind === "text"}
+													/>
+												</span>
+											)}
 											<span
 												className={cn(
 													"ml-auto inline-flex shrink-0 translate-y-px items-center gap-1 text-[11px] leading-none tabular-nums opacity-70",
@@ -327,7 +547,39 @@ export function HistoryList({ history }: { history: HistoryEntry[] }) {
 												)}
 											</span>
 										</div>
+										{canRetry && (
+											<div className="mt-1.5 flex justify-end">
+												{retried ? (
+													<span className="text-[11px] text-muted-foreground">
+														Отправлено повторно
+													</span>
+												) : (
+													<Button
+														type="button"
+														variant="outline"
+														size="xs"
+														onClick={() => onRetry?.(item)}
+													>
+														<RotateCcwIcon />
+														Повторить отправку
+													</Button>
+												)}
+											</div>
+										)}
 									</div>
+									{onQuote && item.kind === "text" && !item.pending && (
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon-xs"
+											title="Процитировать в ответе"
+											aria-label="Процитировать в ответе"
+											className="shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+											onClick={() => onQuote(item)}
+										>
+											<QuoteIcon />
+										</Button>
+									)}
 								</div>
 							</div>
 						);

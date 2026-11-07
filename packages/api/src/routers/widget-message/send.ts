@@ -6,8 +6,10 @@ import { insertBotMessage } from "@psi-opora/db/queries";
 import {
 	formatMessengerError,
 	isBotBlockedError,
+	sendMessengerMediaMessage,
 	sendMessengerMessage,
 } from "@psi-opora/jobs";
+import { downloadOutboundAttachment } from "../../message-attachment-storage";
 import { bitrixProcedure } from "../../orpc";
 import {
 	MESSAGE_MAX_LENGTH,
@@ -33,10 +35,21 @@ function needsLineMatch(messenger: string): boolean {
 	);
 }
 
+/** Подпись к сообщению без текста — в журнале и таймлайне CRM. */
+function attachmentCaption(
+	attachment: SendWidgetMessageInput["attachment"],
+): string {
+	if (attachment?.kind === "image") return "Фото";
+	if (attachment?.kind === "voice") return "Голосовое сообщение";
+	return attachment ? `Файл: ${attachment.fileName}` : "";
+}
+
 /** Что нужно отправке от запроса: из живой сессии (процедура send) или
  * восстановленное воркером отложенных сообщений. */
 export interface SendWidgetMessageContext {
 	memberId: string | null;
+	/** Bitrix-ID автора — из подписанной сессии; у отложенных его нет. */
+	operatorId?: string;
 	getBitrixApi: () => Promise<BitrixApi | null>;
 }
 
@@ -56,7 +69,10 @@ export async function sendWidgetMessage(
 	context: SendWidgetMessageContext,
 ): Promise<{ ok?: true; error?: string }> {
 	const text = input.text.trim();
-	if (!text) return { error: "Введите текст сообщения" };
+	const attachment = input.attachment;
+	if (!text && !attachment) {
+		return { error: "Введите текст сообщения или прикрепите файл" };
+	}
 	if (text.length > MESSAGE_MAX_LENGTH) {
 		return { error: `Сообщение длиннее ${MESSAGE_MAX_LENGTH} символов` };
 	}
@@ -91,6 +107,15 @@ export async function sendWidgetMessage(
 		return { error: "У контакта нет такого канала — обновите страницу" };
 	}
 
+	// Личный MAX общается по реверс-инжиниринговому протоколу, где загрузка
+	// файлов не реализована (см. messages/send.ts) — честная ошибка, а не попытка угадать.
+	if (attachment && channel.messenger === "max-personal") {
+		return {
+			error:
+				"Отправка файлов/изображений через личный номер MAX пока не поддерживается",
+		};
+	}
+
 	let externalId: string | undefined;
 	let canonicalTelegramUserId: string | undefined;
 	let canonicalMaxChatId: string | undefined;
@@ -108,6 +133,7 @@ export async function sendWidgetMessage(
 				value: channel.userId,
 			},
 			text,
+			attachment,
 		});
 		if (result.error) return result;
 		canonicalTelegramUserId = result.telegramUserId;
@@ -122,6 +148,7 @@ export async function sendWidgetMessage(
 			connectorId: channel.connectorId,
 			jid: channel.userId,
 			text,
+			attachment,
 		});
 		if (result.error) return result;
 		externalId = result.externalId;
@@ -141,11 +168,19 @@ export async function sendWidgetMessage(
 		externalId = result.externalId;
 	} else {
 		try {
-			externalId = await sendMessengerMessage(
-				channel.messenger,
-				channel.userId,
-				text,
-			);
+			externalId = attachment
+				? await sendMessengerMediaMessage(
+						channel.messenger,
+						channel.userId,
+						{
+							bytes: await downloadOutboundAttachment(attachment.s3Key),
+							fileName: attachment.fileName,
+							mimeType: attachment.mimeType,
+							kind: attachment.kind,
+						},
+						text || undefined,
+					)
+				: await sendMessengerMessage(channel.messenger, channel.userId, text);
 		} catch (err) {
 			const error = err as Error;
 			// Клиент остановил/заблокировал бота — не сбой, в SigNoz не шлём.
@@ -190,10 +225,20 @@ export async function sendWidgetMessage(
 			userId: canonicalMaxChatId ?? channel.userId,
 			direction: "out",
 			source: "widget",
-			text,
+			text: text || attachmentCaption(attachment),
+			operatorId: context.operatorId,
+			operatorName: input.operatorName,
 			externalId,
 			externalChatId: canonicalMaxChatId ?? canonicalTelegramUserId,
 			connectorId: channel.connectorId,
+			...(attachment
+				? {
+						kind: attachment.kind,
+						mediaS3Key: attachment.s3Key,
+						mediaMimeType: attachment.mimeType,
+						mediaFileName: attachment.fileName,
+					}
+				: {}),
 		});
 	} catch (err) {
 		const error = err as Error;
@@ -211,7 +256,7 @@ export async function sendWidgetMessage(
 			fields: {
 				ENTITY_ID: Number(contact.contactId),
 				ENTITY_TYPE: "contact",
-				COMMENT: `🤖 Отправлено ботом (${channel.label}):\n${text}`,
+				COMMENT: `🤖 Отправлено ботом (${channel.label}):\n${text || attachmentCaption(attachment)}`,
 			},
 		});
 	} catch (err) {
@@ -227,6 +272,7 @@ export const send = bitrixProcedure.input(sendWidgetMessageSchema).handler(
 	async ({ input, context }): Promise<{ ok?: true; error?: string }> =>
 		sendWidgetMessage(input, {
 			memberId: context.memberId,
+			operatorId: context.bitrixSession.userId,
 			getBitrixApi: () => context.getBitrixApi(),
 		}),
 );

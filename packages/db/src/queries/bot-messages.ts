@@ -4,9 +4,11 @@ import {
 	desc,
 	eq,
 	gt,
+	ilike,
 	inArray,
 	isNotNull,
 	isNull,
+	lt,
 	or,
 	sql,
 } from "drizzle-orm";
@@ -397,6 +399,61 @@ export async function listBotMessages(
 			and(
 				eq(botMessages.messenger, messenger),
 				eq(botMessages.userId, userId),
+				...(connectorId ? [eq(botMessages.connectorId, connectorId)] : []),
+			),
+		)
+		.orderBy(desc(botMessages.createdAt))
+		.limit(limit);
+}
+
+/** Страница более старых сообщений диалога (новые первыми): всё, что создано
+ * строго до `before`. Для подгрузки истории вверх в виджете CRM. */
+export async function listBotMessagesBefore(
+	db: Database,
+	messenger: string,
+	userId: string,
+	before: Date,
+	limit = 30,
+	connectorId?: string,
+): Promise<BotMessage[]> {
+	if (!db) return [];
+	return db
+		.select()
+		.from(botMessages)
+		.where(
+			and(
+				eq(botMessages.messenger, messenger),
+				eq(botMessages.userId, userId),
+				lt(botMessages.createdAt, before),
+				...(connectorId ? [eq(botMessages.connectorId, connectorId)] : []),
+			),
+		)
+		.orderBy(desc(botMessages.createdAt))
+		.limit(limit);
+}
+
+/** Поиск по тексту сообщений диалога (регистронезависимо, новые первыми).
+ * Удалённые сообщения не ищем — их текст оператору уже не показывается. */
+export async function searchBotMessages(
+	db: Database,
+	messenger: string,
+	userId: string,
+	query: string,
+	limit = 50,
+	connectorId?: string,
+): Promise<BotMessage[]> {
+	if (!db) return [];
+	const needle = query.trim().replace(/[\\%_]/g, "\\$&");
+	if (!needle) return [];
+	return db
+		.select()
+		.from(botMessages)
+		.where(
+			and(
+				eq(botMessages.messenger, messenger),
+				eq(botMessages.userId, userId),
+				isNull(botMessages.deletedAt),
+				ilike(botMessages.text, `%${needle}%`),
 				...(connectorId ? [eq(botMessages.connectorId, connectorId)] : []),
 			),
 		)
