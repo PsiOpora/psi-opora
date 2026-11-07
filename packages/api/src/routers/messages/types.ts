@@ -245,7 +245,7 @@ export function toClientMessageItem(
 	};
 }
 
-function signedMediaUrl(messageId: string): string {
+export function signedMediaUrl(messageId: string): string {
 	const { expires, signature } = createMessageMediaSignature(messageId);
 	const url = new URL(`/api/message-media/${messageId}`, env.APP_URL);
 	url.searchParams.set("expires", String(expires));

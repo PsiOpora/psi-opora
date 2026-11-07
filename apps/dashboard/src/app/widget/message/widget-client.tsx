@@ -2,40 +2,82 @@
 
 import type {
 	ScheduledMessageItem,
+	UploadedAttachment,
 	WidgetChannel,
 	WidgetEntity,
 	WidgetHistoryItem,
 	WidgetRecipient,
 } from "@psi-opora/api";
 import { MESSAGE_MAX_LENGTH } from "@psi-opora/api/schemas";
+import { Text } from "@bitrix24/b24jssdk";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+	BellIcon,
+	BellOffIcon,
 	CircleAlertIcon,
 	InfoIcon,
 	Loader2Icon,
 	RefreshCwIcon,
 	SendIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	useTransition,
+} from "react";
 import { toast } from "sonner";
 import { useB24Frame } from "@/components/bitrix/frame-provider";
+import {
+	AttachmentPreview,
+	type PendingAttachment,
+} from "@/components/messaging/attachment-preview";
 import { ContactAvatar } from "@/components/messaging/contact-avatar";
 import {
 	type HistoryEntry,
 	HistoryList,
 	mergeHistory,
+	prependHistory,
 } from "@/components/messaging/history-list";
 import { MessageComposer } from "@/components/messaging/message-composer";
 import { MessengerIcon } from "@/components/messaging/messenger-icon";
+import {
+	type CurrentOperator,
+	NotesPopover,
+} from "@/components/messaging/notes-popover";
 import {
 	formatScheduledAt,
 	SchedulePopover,
 } from "@/components/messaging/schedule-popover";
 import { ScheduledMessagesList } from "@/components/messaging/scheduled-list";
+import { SearchPopover } from "@/components/messaging/search-popover";
+import { applyTemplateVariables } from "@/components/messaging/template-variables";
+import {
+	type TemplateItem,
+	TemplatesPopover,
+} from "@/components/messaging/templates-popover";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { orpc, orpcClient } from "@/lib/orpc/client";
-import { cn } from "@/lib/utils";
+import {
+	channelKey,
+	computeWidgetHeight,
+	draftStorageKey,
+	findChannelForMessage,
+	pickDefaultChannel,
+	playIncomingSound,
+	readSoundEnabled,
+	readStored,
+	uploadAttachment,
+	writeSoundEnabled,
+	writeStored,
+} from "./widget-helpers";
+import {
+	ChannelMismatchWarning,
+	ChannelPicker,
+	WidgetSkeleton,
+} from "./widget-parts";
 
 const POLL_INTERVAL_MS = 5000;
 /** Как часто перечитываем отложенные сообщения: отправленное воркером должно
@@ -44,84 +86,20 @@ const SCHEDULED_REFETCH_MS = 15_000;
 /** Через сколько снимать надпись «отправляется…», даже если поллинг ещё не
  * подтвердил запись в БД (сама отправка клиенту при этом уже прошла успешно). */
 const PENDING_LABEL_TIMEOUT_MS = 8000;
-
-/** Битрикс24 не сообщает приложению высоту области вкладки, а iframe
- * CRM_DEAL_DETAIL_TAB по умолчанию — узкая форма. Поэтому просим высоту «на всё
- * окно»: высота экрана за вычетом шапки портала, заголовка карточки, вкладок и
- * панели браузера. Ширину не трогаем — её уже выделил Битрикс. */
-const WIDGET_MIN_HEIGHT_PX = 600;
-const WIDGET_MAX_HEIGHT_PX = 1400;
-const PORTAL_CHROME_HEIGHT_PX = 320;
-
-function computeWidgetHeight(): number {
-	const available = window.screen.availHeight - PORTAL_CHROME_HEIGHT_PX;
-	return Math.min(
-		WIDGET_MAX_HEIGHT_PX,
-		Math.max(WIDGET_MIN_HEIGHT_PX, available),
-	);
-}
-
-function draftStorageKey(entity: WidgetEntity, entityId: string): string {
-	return `psi-opora:widget-draft:${entity}:${entityId}`;
-}
-
-/** localStorage может быть недоступен в iframe виджета (Safari ITP и т.п.) —
- * тогда черновик просто не сохраняется, без падения виджета. */
-function readDraft(key: string): string {
-	try {
-		return localStorage.getItem(key) ?? "";
-	} catch {
-		return "";
-	}
-}
-
-function writeDraft(key: string, value: string): void {
-	try {
-		if (value) localStorage.setItem(key, value);
-		else localStorage.removeItem(key);
-	} catch {
-		// недоступно — черновик не сохранится, отправка сообщений при этом не страдает
-	}
-}
-
-function channelKey(
-	channel: Pick<WidgetChannel, "messenger" | "lineId" | "connectorId">,
-): string {
-	return `${channel.messenger}:${channel.lineId ?? ""}:${channel.connectorId ?? ""}`;
-}
-
-/**
- * Канал по умолчанию — тот, через который уже идёт переписка с клиентом:
- * ищем канал последнего сообщения истории (свежие — в конце, см.
- * WidgetRecipient.history), сначала точным совпадением messenger+connectorId
- * (различает несколько личных номеров одного мессенджера), затем только по
- * messenger. Если истории ещё нет (новый контакт) — первый доступный канал.
- */
-function pickDefaultChannel(
-	channels: WidgetChannel[],
-	history: WidgetHistoryItem[],
-): WidgetChannel | null {
-	for (let i = history.length - 1; i >= 0; i--) {
-		const item = history[i];
-		if (!item) continue;
-		const match =
-			channels.find(
-				(c) =>
-					c.messenger === item.messenger && c.connectorId === item.connectorId,
-			) ?? channels.find((c) => c.messenger === item.messenger);
-		if (match) return match;
-	}
-	return channels[0] ?? null;
-}
+/** Предупреждение о смене канала не показываем, если клиент писал давно. */
+const MISMATCH_WARNING_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+/** Сколько страниц истории дозагружаем ради перехода к найденному сообщению. */
+const MAX_JUMP_PAGES = 40;
+const QUOTE_MAX_LENGTH = 160;
 
 /**
  * Вкладка «Мессенджер» в карточке сделки/контакта: полноразмерная переписка
  * с клиентом (как в едином инбоксе дашборда «Клиенты» или у Wazzup) — шапка
- * с контактом и выбором канала, лента сообщений на всю высоту и поле ввода
- * снизу. Список каналов — динамический (recipient.channels): боты — только
- * если контакт уже писал (поля контакта), личный(е) номер(а) Telegram —
- * всегда, если у контакта есть телефон (можно писать первым, см.
- * packages/tg-userbot).
+ * с контактом, поиском и заметками, лента сообщений на всю высоту и поле
+ * ввода с выбором канала, шаблонами и вложениями. Список каналов —
+ * динамический (recipient.channels): боты — только если контакт уже писал
+ * (поля контакта), личный(е) номер(а) Telegram — всегда, если у контакта есть
+ * телефон (можно писать первым, см. packages/tg-userbot).
  */
 export function MessageWidget({
 	entity,
@@ -133,17 +111,32 @@ export function MessageWidget({
 	const { b24 } = useB24Frame();
 	const [recipient, setRecipient] = useState<WidgetRecipient | null>(null);
 	const [history, setHistory] = useState<HistoryEntry[]>([]);
+	const [hasMore, setHasMore] = useState(false);
+	const [loadingMore, setLoadingMore] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 
 	const [channel, setChannel] = useState<WidgetChannel | null>(null);
 	const [text, setText] = useState("");
+	const [attachment, setAttachment] = useState<PendingAttachment | null>(null);
+	const [uploaded, setUploaded] = useState<UploadedAttachment | null>(null);
+	const uploadAbortRef = useRef<AbortController | null>(null);
 	const [sendError, setSendError] = useState<string | null>(null);
 	const [sending, startSending] = useTransition();
+	const [retriedIds, setRetriedIds] = useState<ReadonlySet<string>>(new Set());
+	const [operator, setOperator] = useState<CurrentOperator | null>(null);
+	const [soundOn, setSoundOn] = useState(true);
+	const [unreadFromId, setUnreadFromId] = useState<string | null>(null);
+	const [focusRequest, setFocusRequest] = useState<{
+		id: string;
+		nonce: number;
+	} | null>(null);
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const queryClient = useQueryClient();
 	const [cancellingScheduledId, setCancellingScheduledId] = useState<
 		string | null
 	>(null);
+
 	const scheduledQuery = useQuery({
 		...orpc.scheduledMessages.listWidget.queryOptions({
 			input: { entity, entityId },
@@ -152,6 +145,16 @@ export function MessageWidget({
 		refetchInterval: SCHEDULED_REFETCH_MS,
 	});
 	const scheduledMessages = scheduledQuery.data?.items ?? [];
+
+	const templatesQuery = useQuery(orpc.messages.quickReplies.queryOptions());
+	const templates: TemplateItem[] = templatesQuery.data?.items ?? [];
+
+	// Актуальные история и признак «есть ещё» нужны асинхронным функциям
+	// (поллинг, переход к найденному сообщению) без пересоздания замыканий.
+	const historyRef = useRef<HistoryEntry[]>([]);
+	historyRef.current = history;
+	const hasMoreRef = useRef(false);
+	hasMoreRef.current = hasMore;
 
 	// Момент последнего известного сообщения — поллинг запрашивает только то, что новее.
 	const sinceRef = useRef(new Date().toISOString());
@@ -167,6 +170,39 @@ export function MessageWidget({
 				// просто останется размер по умолчанию, без падения виджета.
 			});
 	}, [b24]);
+
+	// Текущий оператор — для подписи исходящих и заметок (как в инбоксе «Клиенты»).
+	useEffect(() => {
+		if (!b24) return;
+		b24.actions.v2.call
+			.make({
+				method: "user.current",
+				params: {},
+				requestId: Text.getUuidRfc4122(),
+			})
+			.then((res) => {
+				if (!res.isSuccess) return;
+				const data = (
+					res.getData() as
+						| { result?: { ID?: string; NAME?: string; LAST_NAME?: string } }
+						| undefined
+				)?.result;
+				if (!data?.ID) return;
+				setOperator({
+					id: data.ID,
+					name:
+						[data.NAME, data.LAST_NAME].filter(Boolean).join(" ") ||
+						`#${data.ID}`,
+				});
+			})
+			.catch(() => {
+				// не критично — сообщения просто уйдут без имени оператора
+			});
+	}, [b24]);
+
+	useEffect(() => {
+		setSoundOn(readSoundEnabled());
+	}, []);
 
 	const load = useCallback(() => {
 		if (!entityId) {
@@ -185,10 +221,17 @@ export function MessageWidget({
 				}
 				setRecipient(loaded);
 				setHistory(loaded.history);
+				setHasMore(loaded.hasMoreHistory);
 				sinceRef.current =
 					loaded.history[loaded.history.length - 1]?.createdAt ??
 					new Date().toISOString();
 				setChannel(pickDefaultChannel(loaded.channels, loaded.history));
+				// Открытая вкладка = переписка просмотрена: гасим бейдж в инбоксе.
+				if (loaded.channels.length > 0) {
+					orpcClient.widgetMessage
+						.markRead({ entity, id: entityId })
+						.catch(() => {});
+				}
 			})
 			.catch((err) => setLoadError((err as Error).message))
 			.finally(() => setLoading(false));
@@ -202,13 +245,13 @@ export function MessageWidget({
 	// восстанавливается один раз на элемент CRM, если поле ещё пустое.
 	useEffect(() => {
 		if (!entityId) return;
-		const saved = readDraft(draftStorageKey(entity, entityId));
+		const saved = readStored(draftStorageKey(entity, entityId));
 		if (saved) setText(saved);
 	}, [entity, entityId]);
 
 	useEffect(() => {
 		if (!entityId) return;
-		writeDraft(draftStorageKey(entity, entityId), text);
+		writeStored(draftStorageKey(entity, entityId), text);
 	}, [entity, entityId, text]);
 
 	// Поллинг: новые сообщения клиента (и отправленные из других мест — сценарий,
@@ -225,11 +268,28 @@ export function MessageWidget({
 				id: entityId,
 				sinceIso: sinceRef.current,
 			});
-			if (!result.messages || result.messages.length === 0) return;
+			const messages = result.messages;
+			if (!messages || messages.length === 0) return;
 			sinceRef.current =
-				result.messages[result.messages.length - 1]?.createdAt ??
-				sinceRef.current;
-			setHistory((prev) => mergeHistory(prev, result.messages ?? []));
+				messages[messages.length - 1]?.createdAt ?? sinceRef.current;
+
+			// Новые входящие: звук и разделитель «Новые сообщения», если оператор
+			// сейчас смотрит не в эту вкладку (фокус в другой части карточки CRM).
+			const known = new Set(historyRef.current.map((item) => item.id));
+			const freshIncoming = messages.filter(
+				(m) => m.direction === "in" && !known.has(m.id),
+			);
+			if (freshIncoming.length > 0) {
+				if (readSoundEnabled()) playIncomingSound();
+				if (!document.hasFocus()) {
+					setUnreadFromId((current) => current ?? freshIncoming[0]?.id ?? null);
+				} else {
+					orpcClient.widgetMessage
+						.markRead({ entity, id: entityId })
+						.catch(() => {});
+				}
+			}
+			setHistory((prev) => mergeHistory(prev, messages));
 		};
 
 		const interval = setInterval(poll, POLL_INTERVAL_MS);
@@ -244,55 +304,236 @@ export function MessageWidget({
 		};
 	}, [entity, entityId, loading, loadError, recipient]);
 
+	// Оператор вернулся во вкладку — прочитал: сбрасываем счётчик в инбоксе, а
+	// разделитель «Новые сообщения» оставляем ещё ненадолго, чтобы успеть увидеть.
+	useEffect(() => {
+		if (!entityId || !recipient || recipient.channels.length === 0) return;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const onFocus = () => {
+			orpcClient.widgetMessage
+				.markRead({ entity, id: entityId })
+				.catch(() => {});
+			timer = setTimeout(() => setUnreadFromId(null), 6000);
+		};
+		window.addEventListener("focus", onFocus);
+		return () => {
+			window.removeEventListener("focus", onFocus);
+			if (timer) clearTimeout(timer);
+		};
+	}, [entity, entityId, recipient]);
+
 	const trimmedText = text.trim();
 	const overLimit = trimmedText.length > MESSAGE_MAX_LENGTH;
+	const attachmentReady = attachment?.status === "ready" && uploaded;
+	const attachmentBlocked = attachment?.status === "uploading";
+	const hasPayload = Boolean(trimmedText) || Boolean(attachmentReady);
+	const attachmentUnsupported =
+		Boolean(attachment) && channel?.messenger === "max-personal";
+	const canSend =
+		Boolean(channel) &&
+		!sending &&
+		!overLimit &&
+		hasPayload &&
+		!attachmentBlocked &&
+		!attachmentUnsupported;
+
+	const clearAttachment = useCallback(() => {
+		uploadAbortRef.current?.abort();
+		uploadAbortRef.current = null;
+		setAttachment(null);
+		setUploaded(null);
+	}, []);
+
+	const pickFile = useCallback((file: File) => {
+		uploadAbortRef.current?.abort();
+		const controller = new AbortController();
+		uploadAbortRef.current = controller;
+		setUploaded(null);
+		setAttachment({ file, status: "uploading" });
+		setSendError(null);
+		uploadAttachment(file, controller.signal)
+			.then((result) => {
+				if (controller.signal.aborted) return;
+				setUploaded(result);
+				setAttachment({ file, status: "ready" });
+			})
+			.catch((err) => {
+				if (controller.signal.aborted) return;
+				setAttachment({
+					file,
+					status: "error",
+					error: (err as Error).message,
+				});
+			});
+	}, []);
+
+	/** Отправляет сообщение выбранным каналом и добавляет его в ленту сразу, не
+	 * дожидаясь поллинга: он позже заменит эту запись подтверждённой (mergeHistory).
+	 * Возвращает true при успехе. */
+	const dispatchMessage = async (params: {
+		channel: WidgetChannel;
+		text: string;
+		attachment?: UploadedAttachment;
+	}): Promise<boolean> => {
+		const result = await orpcClient.widgetMessage.send({
+			entity,
+			entityId,
+			messenger: params.channel.messenger,
+			lineId: params.channel.lineId,
+			connectorId: params.channel.connectorId,
+			text: params.text,
+			attachment: params.attachment,
+			operatorName: operator?.name,
+		});
+		if (result.error) {
+			setSendError(result.error);
+			return false;
+		}
+		const pendingId = `pending-${crypto.randomUUID()}`;
+		setHistory((prev) => [
+			...prev,
+			{
+				id: pendingId,
+				messenger: params.channel.messenger,
+				connectorId: params.channel.connectorId,
+				direction: "out",
+				source: "widget",
+				text:
+					params.text ||
+					(params.attachment?.kind === "image" ? "Фото" : "Файл"),
+				kind: params.attachment?.kind ?? "text",
+				mediaFileName: params.attachment?.fileName,
+				operatorName: operator?.name,
+				status: "sent",
+				createdAt: new Date().toISOString(),
+				pending: true,
+			},
+		]);
+		// Сама отправка клиенту уже прошла успешно — если запись в журнал БД
+		// почему-то подвиснет и поллинг её не подтвердит, не держим надпись
+		// «отправляется…» вечно (mergeHistory всё равно бесшовно заменит эту
+		// запись подтверждённой, когда/если она подтянется позже).
+		setTimeout(() => {
+			setHistory((prev) =>
+				prev.map((item) =>
+					item.id === pendingId ? { ...item, pending: false } : item,
+				),
+			);
+		}, PENDING_LABEL_TIMEOUT_MS);
+		return true;
+	};
 
 	const send = () => {
-		if (!recipient || !channel || !trimmedText || overLimit || sending) return;
+		if (!recipient || !channel || !canSend) return;
+		setSendError(null);
+		const payload = {
+			channel,
+			text: trimmedText,
+			attachment: attachmentReady ? (uploaded ?? undefined) : undefined,
+		};
+		startSending(async () => {
+			const ok = await dispatchMessage(payload);
+			if (!ok) return;
+			setText("");
+			clearAttachment();
+		});
+	};
 
+	/** Повторяет неудавшееся текстовое сообщение тем же каналом, которым оно
+	 * уходило (канал определяется по самому сообщению, а не по выбору в поле). */
+	const retryMessage = (item: HistoryEntry) => {
+		if (!recipient || sending) return;
+		const target = findChannelForMessage(recipient.channels, item);
+		if (!target) {
+			toast.error("Канал этого сообщения больше недоступен у контакта");
+			return;
+		}
 		setSendError(null);
 		startSending(async () => {
-			const result = await orpcClient.widgetMessage.send({
-				entity,
-				entityId,
-				messenger: channel.messenger,
-				lineId: channel.lineId,
-				connectorId: channel.connectorId,
-				text: trimmedText,
-			});
-			if (result.error) {
-				setSendError(result.error);
-				return;
+			const ok = await dispatchMessage({ channel: target, text: item.text });
+			if (ok) {
+				setRetriedIds((prev) => new Set(prev).add(item.id));
+				toast.success("Сообщение отправлено повторно");
+			} else {
+				toast.error("Повторная отправка не удалась");
 			}
-			setText("");
-			// Показываем сообщение сразу же, не дожидаясь ближайшего поллинга —
-			// он позже заменит эту запись подтверждённой (см. mergeHistory).
-			const pendingId = `pending-${crypto.randomUUID()}`;
-			setHistory((prev) => [
-				...prev,
-				{
-					id: pendingId,
-					messenger: channel.messenger,
-					direction: "out",
-					source: "widget",
-					text: trimmedText,
-					status: "sent",
-					createdAt: new Date().toISOString(),
-					pending: true,
-				},
-			]);
-			// Сама отправка клиенту уже прошла успешно — если запись в журнал БД
-			// почему-то подвиснет и поллинг её не подтвердит, не держим надпись
-			// «отправляется…» вечно (mergeHistory всё равно бесшовно заменит эту
-			// запись подтверждённой, когда/если она подтянется позже).
-			setTimeout(() => {
-				setHistory((prev) =>
-					prev.map((item) =>
-						item.id === pendingId ? { ...item, pending: false } : item,
-					),
-				);
-			}, PENDING_LABEL_TIMEOUT_MS);
 		});
+	};
+
+	const quoteMessage = (item: HistoryEntry) => {
+		const snippet = item.text.replace(/\s+/g, " ").trim();
+		const short =
+			snippet.length > QUOTE_MAX_LENGTH
+				? `${snippet.slice(0, QUOTE_MAX_LENGTH)}…`
+				: snippet;
+		setText((prev) => `«${short}»\n${prev}`);
+		requestAnimationFrame(() => {
+			const el = textareaRef.current;
+			el?.focus();
+			el?.setSelectionRange(el.value.length, el.value.length);
+		});
+	};
+
+	const insertTemplate = (template: TemplateItem, replace: boolean) => {
+		const filled = applyTemplateVariables(
+			template.text,
+			recipient?.contactName ?? "",
+		);
+		setText((prev) =>
+			replace || !prev.trim() ? filled : `${prev.trimEnd()}\n\n${filled}`,
+		);
+		requestAnimationFrame(() => textareaRef.current?.focus());
+	};
+
+	const loadOlder = useCallback(async (): Promise<boolean> => {
+		const oldest = historyRef.current[0];
+		if (!oldest || !hasMoreRef.current) return false;
+		const result = await orpcClient.widgetMessage.loadOlder({
+			entity,
+			id: entityId,
+			beforeIso: oldest.createdAt,
+		});
+		if (result.error || !result.messages) {
+			toast.error(result.error ?? "Не удалось загрузить историю");
+			return false;
+		}
+		const next = prependHistory(historyRef.current, result.messages);
+		historyRef.current = next;
+		hasMoreRef.current = result.hasMore ?? false;
+		setHistory(next);
+		setHasMore(result.hasMore ?? false);
+		return true;
+	}, [entity, entityId]);
+
+	const handleLoadMore = () => {
+		setLoadingMore(true);
+		loadOlder()
+			.catch(() => toast.error("Не удалось загрузить историю"))
+			.finally(() => setLoadingMore(false));
+	};
+
+	/** Переход к найденному сообщению: если оно старше загруженных — докачиваем
+	 * историю страницами, пока оно не появится в ленте. */
+	const jumpToMessage = async (item: WidgetHistoryItem) => {
+		setLoadingMore(true);
+		try {
+			let pages = 0;
+			while (
+				!historyRef.current.some((m) => m.id === item.id) &&
+				hasMoreRef.current &&
+				pages < MAX_JUMP_PAGES
+			) {
+				pages++;
+				if (!(await loadOlder())) break;
+			}
+		} finally {
+			setLoadingMore(false);
+		}
+		if (historyRef.current.some((m) => m.id === item.id)) {
+			setFocusRequest({ id: item.id, nonce: Date.now() });
+		} else {
+			toast.error("Не удалось найти это сообщение в ленте");
+		}
 	};
 
 	const refreshScheduled = () =>
@@ -345,7 +586,31 @@ export function MessageWidget({
 		}
 	};
 
-	const canSend = Boolean(channel) && !sending && !overLimit;
+	const toggleSound = () => {
+		const next = !soundOn;
+		setSoundOn(next);
+		writeSoundEnabled(next);
+		if (next) playIncomingSound();
+	};
+
+	// Клиент последний раз писал не в тот канал, куда сейчас уйдёт ответ
+	const mismatch = useMemo(() => {
+		if (!recipient || !channel) return null;
+		const lastIncoming = [...history]
+			.reverse()
+			.find((item) => item.direction === "in");
+		if (!lastIncoming) return null;
+		if (
+			Date.now() - new Date(lastIncoming.createdAt).getTime() >
+			MISMATCH_WARNING_MAX_AGE_MS
+		) {
+			return null;
+		}
+		const target = findChannelForMessage(recipient.channels, lastIncoming);
+		if (!target || channelKey(target) === channelKey(channel)) return null;
+		return { lastIncoming, target };
+	}, [history, recipient, channel]);
+
 	const composerDisabled = !channel;
 
 	return (
@@ -392,10 +657,57 @@ export function MessageWidget({
 								)}
 							</p>
 						</div>
+						<div className="flex shrink-0 items-center gap-0.5">
+							<SearchPopover
+								entity={entity}
+								entityId={entityId}
+								disabled={recipient.channels.length === 0}
+								onJump={(item) => void jumpToMessage(item)}
+							/>
+							<NotesPopover
+								entity={entity}
+								entityId={entityId}
+								operator={operator}
+								disabled={recipient.channels.length === 0}
+							/>
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								onClick={toggleSound}
+								title={
+									soundOn
+										? "Звук о новых сообщениях включён"
+										: "Звук о новых сообщениях выключен"
+								}
+								aria-label={
+									soundOn
+										? "Выключить звук сообщений"
+										: "Включить звук сообщений"
+								}
+								aria-pressed={soundOn}
+							>
+								{soundOn ? (
+									<BellIcon className="size-4" />
+								) : (
+									<BellOffIcon className="size-4" />
+								)}
+							</Button>
+						</div>
 					</header>
 
 					<main className="min-h-0 flex-1 bg-muted/30">
-						<HistoryList history={history} />
+						<HistoryList
+							history={history}
+							hasMore={hasMore}
+							loadingMore={loadingMore}
+							onLoadMore={handleLoadMore}
+							onRetry={retryMessage}
+							retriedIds={retriedIds}
+							onQuote={quoteMessage}
+							unreadFromId={unreadFromId}
+							focusRequest={focusRequest}
+						/>
 					</main>
 
 					<footer className="flex flex-col gap-2 bg-muted/30 px-4 pt-1 pb-3 sm:px-6">
@@ -409,6 +721,13 @@ export function MessageWidget({
 									</p>
 								</div>
 							)}
+							{mismatch && (
+								<ChannelMismatchWarning
+									lastIncoming={mismatch.lastIncoming}
+									target={mismatch.target}
+									onSwitch={() => setChannel(mismatch.target)}
+								/>
+							)}
 							<ScheduledMessagesList
 								items={scheduledMessages}
 								onCancel={cancelScheduled}
@@ -419,11 +738,44 @@ export function MessageWidget({
 								onTextChange={setText}
 								onSend={send}
 								disabled={composerDisabled}
-								error={sendError}
+								error={
+									sendError ??
+									(attachmentUnsupported
+										? "Через личный номер MAX файлы пока не отправляются — выберите другой канал или уберите вложение"
+										: null)
+								}
 								placeholder={
 									composerDisabled
 										? "Отправка недоступна — нет канала связи с клиентом"
-										: "Напишите сообщение клиенту…"
+										: attachment
+											? "Подпись к файлу (необязательно)"
+											: "Напишите сообщение клиенту…"
+								}
+								textareaRef={textareaRef}
+								onPickFile={composerDisabled ? undefined : pickFile}
+								attachmentPreview={
+									attachment ? (
+										<AttachmentPreview
+											attachment={attachment}
+											onRemove={clearAttachment}
+										/>
+									) : null
+								}
+								slashItems={templates}
+								onSlashPick={(item) => insertTemplate(item, true)}
+								toolbarExtra={
+									<TemplatesPopover
+										templates={templates}
+										loading={templatesQuery.isLoading}
+										currentText={text}
+										disabled={composerDisabled}
+										onInsert={(item) => insertTemplate(item, false)}
+										onChanged={() =>
+											queryClient.invalidateQueries({
+												queryKey: orpc.messages.quickReplies.key(),
+											})
+										}
+									/>
 								}
 								header={
 									recipient.channels.length > 0 ? (
@@ -438,12 +790,12 @@ export function MessageWidget({
 									<>
 										<SchedulePopover
 											onSchedule={scheduleSend}
-											disabled={!canSend || !trimmedText}
+											disabled={!canSend || !trimmedText || Boolean(attachment)}
 										/>
 										<Button
 											size="lg"
 											onClick={send}
-											disabled={!canSend || !trimmedText}
+											disabled={!canSend}
 											className="px-3.5"
 										>
 											{sending ? (
@@ -461,73 +813,5 @@ export function MessageWidget({
 				</>
 			) : null}
 		</div>
-	);
-}
-
-/** Выбор канала отправки — в самой карточке ввода, рядом с тем, что пишет
- * менеджер: канал определяет, куда реально уйдёт сообщение. */
-function ChannelPicker({
-	channels,
-	selected,
-	onSelect,
-}: {
-	channels: WidgetChannel[];
-	selected: WidgetChannel | null;
-	onSelect: (channel: WidgetChannel) => void;
-}) {
-	return (
-		<fieldset
-			aria-label="Канал отправки"
-			className="m-0 flex min-w-0 flex-wrap items-center gap-1.5 border-0 p-0"
-		>
-			<span className="mr-0.5 text-xs text-muted-foreground">
-				Отправить через
-			</span>
-			{channels.map((c) => {
-				const isSelected = selected && channelKey(selected) === channelKey(c);
-				return (
-					<button
-						key={channelKey(c)}
-						type="button"
-						aria-pressed={Boolean(isSelected)}
-						title={`Отправить через ${c.label}`}
-						onClick={() => onSelect(c)}
-						className={cn(
-							"inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-							isSelected
-								? "border-primary bg-primary text-primary-foreground"
-								: "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
-						)}
-					>
-						<MessengerIcon messenger={c.messenger} className="size-4" />
-						{c.label}
-					</button>
-				);
-			})}
-		</fieldset>
-	);
-}
-
-/** Скелет вместо спиннера: шапка, несколько пузырей и поле ввода — экран не
- * «прыгает», когда данные контакта приходят. */
-function WidgetSkeleton() {
-	return (
-		<>
-			<div className="flex items-center gap-3 border-b px-4 py-3 sm:px-6">
-				<Skeleton className="size-10 rounded-full" />
-				<div className="space-y-2">
-					<Skeleton className="h-3.5 w-40" />
-					<Skeleton className="h-3 w-28" />
-				</div>
-			</div>
-			<div className="flex min-h-0 flex-1 flex-col justify-end gap-3 bg-muted/30 px-4 py-4 sm:px-6">
-				<Skeleton className="h-12 w-2/5 rounded-2xl" />
-				<Skeleton className="ml-auto h-16 w-1/2 rounded-2xl" />
-				<Skeleton className="h-10 w-1/3 rounded-2xl" />
-			</div>
-			<div className="bg-muted/30 px-4 pb-4 sm:px-6">
-				<Skeleton className="h-28 w-full rounded-2xl" />
-			</div>
-		</>
 	);
 }

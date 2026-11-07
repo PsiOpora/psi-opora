@@ -91,6 +91,8 @@ import {
 	listAllBotMessages as _listAllBotMessages,
 	listAllBotMessagesForGroup as _listAllBotMessagesForGroup,
 	listBotMessages as _listBotMessages,
+	listBotMessagesBefore as _listBotMessagesBefore,
+	searchBotMessages as _searchBotMessages,
 	listBotMessagesSince as _listBotMessagesSince,
 	listBotMessagesSinceForGroup as _listBotMessagesSinceForGroup,
 	listClientsWithLastMessage as _listClientsWithLastMessage,
@@ -342,6 +344,33 @@ export async function listBotMessages(
 	connectorId?: string,
 ) {
 	return _listBotMessages(db, messenger, userId, limit, connectorId);
+}
+
+export async function listBotMessagesBefore(
+	messenger: string,
+	userId: string,
+	before: Date,
+	limit?: number,
+	connectorId?: string,
+) {
+	return _listBotMessagesBefore(
+		db,
+		messenger,
+		userId,
+		before,
+		limit,
+		connectorId,
+	);
+}
+
+export async function searchBotMessages(
+	messenger: string,
+	userId: string,
+	query: string,
+	limit?: number,
+	connectorId?: string,
+) {
+	return _searchBotMessages(db, messenger, userId, query, limit, connectorId);
 }
 
 export async function listAllBotMessages(messenger: string, userId: string) {

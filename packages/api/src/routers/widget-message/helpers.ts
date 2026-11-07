@@ -1,12 +1,15 @@
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import { resolveBitrixPortalKey } from "@psi-opora/bitrix-client";
 import {
+	type BotMessage,
 	getWhatsappPersonalAccountByConnector,
 	listBitrixCrmLinksByContactIds,
 	listBotMessages,
+	listBotMessagesBefore,
 	listMaxPersonalAccounts,
 	listTelegramPersonalAccounts,
 	listWhatsappPersonalAccounts,
+	searchBotMessages,
 	setWhatsappPersonalAccountStateBySession,
 	upsertBotUserPresence,
 } from "@psi-opora/db/queries";
@@ -20,6 +23,7 @@ import {
 	jidFromPhone,
 	wahaGetChatPresence,
 	wahaGetSession,
+	wahaSendFile,
 	wahaSendText,
 	wahaSessionHealth,
 } from "@psi-opora/waha";
@@ -31,7 +35,14 @@ import {
 	type MessengerFieldCodes,
 	type RawContact,
 } from "../../broadcast-send";
-import type { WidgetChannel, WidgetEntity, WidgetHistoryItem } from "./types";
+import { downloadOutboundAttachment } from "../../message-attachment-storage";
+import { signedMediaUrl } from "../messages/types";
+import type {
+	WidgetChannel,
+	WidgetEntity,
+	WidgetHistoryItem,
+	WidgetMessenger,
+} from "./types";
 
 export async function captureWhatsappPresence(
 	session: string,
@@ -120,6 +131,12 @@ export async function sendViaWhatsappPersonal(params: {
 	connectorId: string;
 	jid: string;
 	text: string;
+	attachment?: {
+		s3Key: string;
+		fileName: string;
+		mimeType: string;
+		kind: "image" | "file" | "voice";
+	};
 }): Promise<{ ok?: true; error?: string; externalId?: string }> {
 	const account = await getWhatsappPersonalAccountByConnector(
 		params.connectorId,
@@ -128,11 +145,19 @@ export async function sendViaWhatsappPersonal(params: {
 	if (!account) return { error: "Личный номер WhatsApp не подключён" };
 
 	try {
-		const { id } = await wahaSendText(
-			account.sessionName,
-			params.jid,
-			params.text,
-		);
+		const { id } = params.attachment
+			? await wahaSendFile(
+					account.sessionName,
+					params.jid,
+					{
+						bytes: await downloadOutboundAttachment(params.attachment.s3Key),
+						fileName: params.attachment.fileName,
+						mimeType: params.attachment.mimeType,
+						kind: params.attachment.kind,
+					},
+					params.text || undefined,
+				)
+			: await wahaSendText(account.sessionName, params.jid, params.text);
 		await captureWhatsappPresence(account.sessionName, params.jid).catch(
 			(err) =>
 				console.error(
@@ -213,40 +238,141 @@ export async function sendViaMaxPersonal(params: {
 
 export const HISTORY_LIMIT = 30;
 
+/** Строка журнала → элемент истории вкладки. Медиа раздаются по подписанной
+ * ссылке на лету (сырой S3-ключ наружу не уходит), удалённое сообщение
+ * показывается заглушкой, как в едином инбоксе. */
+export function toWidgetHistoryItem(
+	row: BotMessage,
+	messenger: WidgetMessenger,
+): WidgetHistoryItem {
+	const hasMedia = !row.deletedAt && Boolean(row.mediaS3Key);
+	return {
+		id: row.id,
+		messenger,
+		connectorId: row.connectorId ?? undefined,
+		direction: row.direction === "in" ? "in" : "out",
+		source: row.source,
+		text: row.deletedAt ? "Сообщение удалено" : row.text,
+		kind: row.kind as WidgetHistoryItem["kind"],
+		mediaUrl: hasMedia ? signedMediaUrl(row.id) : undefined,
+		mediaMimeType: row.mediaMimeType,
+		mediaDurationSec: row.mediaDurationSec,
+		mediaFileName: row.mediaFileName,
+		operatorName: row.operatorName,
+		status: row.status,
+		createdAt: row.createdAt.toISOString(),
+	};
+}
+
+/** Все пары (канал, userId диалога) контакта: у личного MAX переписка лежит
+ * не под телефоном, а под ID чата (historyUserIds). */
+function channelDialogs(
+	channels: WidgetChannel[],
+): { channel: WidgetChannel; userId: string }[] {
+	return channels.flatMap((channel) =>
+		[channel.userId, ...(channel.historyUserIds ?? [])].map((userId) => ({
+			channel,
+			userId,
+		})),
+	);
+}
+
+/**
+ * Страница истории по всем каналам контакта (старые выше). Без `before` —
+ * последние сообщения, с ним — более старые, чем `before`. hasMore — есть ли
+ * ещё что подгружать: либо канал вернул полную страницу, либо после слияния
+ * каналов часть строк не поместилась.
+ */
 export async function loadHistory(
 	channels: WidgetChannel[],
-): Promise<WidgetHistoryItem[]> {
-	const perChannel = await Promise.all(
-		channels.map(async (channel) => {
-			const userIds = [channel.userId, ...(channel.historyUserIds ?? [])];
-			const rows = (
-				await Promise.all(
-					userIds.map((userId) =>
-						listBotMessages(
-							channel.messenger,
-							userId,
-							HISTORY_LIMIT,
-							channel.connectorId,
-						).catch(() => []),
-					),
-				)
-			).flat();
-			return rows.map((row) => ({
-				id: row.id,
-				messenger: channel.messenger,
-				connectorId: row.connectorId ?? undefined,
-				direction: row.direction === "in" ? ("in" as const) : ("out" as const),
-				source: row.source,
-				text: row.text,
-				status: row.status,
-				createdAt: row.createdAt.toISOString(),
-			}));
+	before?: Date,
+): Promise<{ items: WidgetHistoryItem[]; hasMore: boolean }> {
+	let anyFull = false;
+	const perDialog = await Promise.all(
+		channelDialogs(channels).map(async ({ channel, userId }) => {
+			const rows = await (before
+				? listBotMessagesBefore(
+						channel.messenger,
+						userId,
+						before,
+						HISTORY_LIMIT,
+						channel.connectorId,
+					)
+				: listBotMessages(
+						channel.messenger,
+						userId,
+						HISTORY_LIMIT,
+						channel.connectorId,
+					)
+			).catch(() => []);
+			if (rows.length >= HISTORY_LIMIT) anyFull = true;
+			return rows.map((row) => toWidgetHistoryItem(row, channel.messenger));
 		}),
 	);
-	return perChannel
+	const merged = perDialog
 		.flat()
-		.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-		.slice(-HISTORY_LIMIT);
+		.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+	return {
+		items: merged.slice(-HISTORY_LIMIT),
+		hasMore: anyFull || merged.length > HISTORY_LIMIT,
+	};
+}
+
+const SEARCH_LIMIT = 50;
+
+/** Поиск по тексту переписки со всеми каналами контакта — новые первыми. */
+export async function searchHistory(
+	channels: WidgetChannel[],
+	query: string,
+): Promise<WidgetHistoryItem[]> {
+	const perDialog = await Promise.all(
+		channelDialogs(channels).map(async ({ channel, userId }) => {
+			const rows = await searchBotMessages(
+				channel.messenger,
+				userId,
+				query,
+				SEARCH_LIMIT,
+				channel.connectorId,
+			).catch(() => []);
+			return rows.map((row) => toWidgetHistoryItem(row, channel.messenger));
+		}),
+	);
+	return perDialog
+		.flat()
+		.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+		.slice(0, SEARCH_LIMIT);
+}
+
+/** Запрос от вкладки к одному элементу CRM: проверка ID, подключение к
+ * Битрикс24 и пересчёт каналов контакта. Каналы никогда не принимаются от
+ * клиента — иначе можно было бы подставить чужие messenger/userId и прочитать
+ * или изменить чужую переписку. */
+export async function resolveWidgetContact(
+	input: { entity: WidgetEntity; id: string },
+	context: {
+		memberId: string | null;
+		getBitrixApi: () => Promise<BitrixApi | null>;
+	},
+): Promise<{ contact: ResolvedContact } | { error: string }> {
+	if (!/^d+$/.test(input.id)) return { error: "Некорректный ID элемента CRM" };
+	const api = await context.getBitrixApi();
+	if (!api) {
+		return { error: "Нет подключения к Битрикс24 — обновите страницу" };
+	}
+	try {
+		const { contact, error } = await resolveContact(
+			api,
+			input.entity,
+			input.id,
+			context.memberId,
+		);
+		if (error || !contact) {
+			return { error: error ?? "Не удалось определить контакт" };
+		}
+		return { contact };
+	} catch (err) {
+		return { error: (err as Error).message };
+	}
 }
 
 export interface ResolvedContact {

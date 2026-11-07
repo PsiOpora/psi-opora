@@ -53,6 +53,14 @@ export interface WidgetHistoryItem {
 	direction: "in" | "out";
 	source: string;
 	text: string;
+	/** "voice"/"image"/"file" — mediaUrl ведёт на раздающий роут message-media. */
+	kind: "text" | "voice" | "image" | "file";
+	mediaUrl?: string;
+	mediaMimeType?: string | null;
+	mediaDurationSec?: number | null;
+	mediaFileName?: string | null;
+	/** Кто из операторов отправил (для исходящих из вкладки/инбокса). */
+	operatorName?: string | null;
 	/** Статус доставки исходящего: sent | delivered | read | failed. Выше "sent"
 	 * поднимается только WhatsApp (ack WAHA); "failed" ставят пути автоотправки,
 	 * когда мессенджер отклонил сообщение. */
@@ -67,6 +75,8 @@ export interface WidgetRecipient {
 	channels: WidgetChannel[];
 	/** Последние сообщения диалога (старые выше). */
 	history: WidgetHistoryItem[];
+	/** Есть ли в журнале сообщения старше загруженных — для подгрузки вверх. */
+	hasMoreHistory: boolean;
 	/** Пояснение, почему отправка недоступна (например, только username). */
 	note?: string;
 }

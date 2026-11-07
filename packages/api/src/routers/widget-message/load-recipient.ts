@@ -33,12 +33,15 @@ export const loadRecipient = bitrixProcedure
 						? `У контакта только Telegram-username (@${contact.telegramUsername}). Бот может писать лишь тем, кто сам открывал диалог с ботом — нужен числовой ID.`
 						: undefined;
 
+				const history = await loadHistory(contact.channels);
+
 				return {
 					recipient: {
 						contactId: contact.contactId,
 						contactName: contact.contactName,
 						channels: contact.channels,
-						history: await loadHistory(contact.channels),
+						history: history.items,
+						hasMoreHistory: history.hasMore,
 						note,
 					},
 				};
