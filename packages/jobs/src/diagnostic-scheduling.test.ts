@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it } from "bun:test";
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
 import {
-	RECHECK_LOCKED_RETRY_SECONDS,
+	RECHECK_FAST_RETRIES,
+	RECHECK_FAST_RETRY_SECONDS,
 	RECHECK_MAX_LOCKED_ATTEMPTS,
+	RECHECK_SLOW_RETRY_SECONDS,
 	runDiagnosticRecheck,
 } from "./diagnostic-recheck-run";
 import {
@@ -574,23 +576,32 @@ describe("повторная проверка при занятой блокир
 		};
 		const memory = new MemoryRedis();
 		const scheduled: Array<{ seconds: number; attempt: number }> = [];
+		let sends = 0;
+		// Медленная отправка: даёт параллельному обработчику шанс вклиниться.
+		const sendBot = async () => {
+			await new Promise((resolve) => setTimeout(resolve, 20));
+			sends++;
+			return { status: "sent" as const, messenger: "telegram" as const };
+		};
 		const run = (attempt?: number) =>
 			runDiagnosticRecheck({
 				api,
 				redis: memory as unknown as RedisClient,
 				dealId: 42,
 				attempt,
+				handlerOptions: { sendBot },
 				schedule: async (_id, seconds, nextAttempt) => {
 					scheduled.push({ seconds, attempt: nextAttempt });
 				},
 			});
-		const sentStage = () =>
-			(
-				memory.values.get("diagnostic-schedule:deal:42") as
-					| { lastChatStageId?: string }
-					| undefined
-			)?.lastChatStageId;
-		return { memory, scheduled, run, sentStage };
+		return {
+			api,
+			memory,
+			scheduled,
+			run,
+			sendBot,
+			sends: () => sends,
+		};
 	}
 
 	it("ставит новую проверку через 5 секунд, если блокировка занята", async () => {
@@ -601,12 +612,12 @@ describe("повторная проверка при занятой блокир
 
 		expect(result.reason).toBe("locked");
 		expect(t.scheduled).toEqual([
-			{ seconds: RECHECK_LOCKED_RETRY_SECONDS, attempt: 1 },
+			{ seconds: RECHECK_FAST_RETRY_SECONDS, attempt: 1 },
 		]);
-		expect(t.sentStage()).toBeUndefined();
+		expect(t.sends()).toBe(0);
 	});
 
-	it("отправляет, когда блокировка освободилась", async () => {
+	it("отправляет ровно одно сообщение, когда блокировка освободилась", async () => {
 		const t = setup();
 		t.memory.values.set(lockKey, "other-handler");
 		await t.run();
@@ -616,28 +627,73 @@ describe("повторная проверка при занятой блокир
 
 		expect(result.reason).toBeUndefined();
 		expect(t.scheduled).toHaveLength(1);
-		expect(t.sentStage()).toBe(PAYMENT_PENDING_STAGE_ID);
+		expect(t.sends()).toBe(1);
 	});
 
-	it("не повторяет бесконечно: после лимита обрабатывает сделку без блокировки", async () => {
+	it("два параллельных обработчика отправляют сообщение один раз", async () => {
+		const t = setup();
+		const redis = t.memory as unknown as RedisClient;
+
+		const results = await Promise.all([
+			handleDiagnosticDealUpdate(t.api, redis, 42, { sendBot: t.sendBot }),
+			handleDiagnosticDealUpdate(t.api, redis, 42, { sendBot: t.sendBot }),
+		]);
+
+		expect(results.filter((r) => r.reason === "locked")).toHaveLength(1);
+		expect(t.sends()).toBe(1);
+	});
+
+	it("повторы при занятой блокировке конечны, блокировка не обходится", async () => {
 		const t = setup();
 		// Блокировку каждый раз занимают заново — как при потоке событий сделки.
 		t.memory.values.set(lockKey, "other-handler");
 
 		let attempt: number | undefined;
+		let failure: Error | undefined;
 		let runs = 0;
 		while (runs < RECHECK_MAX_LOCKED_ATTEMPTS + 5) {
 			runs++;
-			const scheduledBefore = t.scheduled.length;
-			await t.run(attempt);
+			try {
+				await t.run(attempt);
+			} catch (error) {
+				failure = error as Error;
+				break;
+			}
 			t.memory.values.set(lockKey, "other-handler");
-			if (t.scheduled.length === scheduledBefore) break;
 			attempt = t.scheduled[t.scheduled.length - 1]?.attempt;
 		}
 
-		expect(runs).toBe(RECHECK_MAX_LOCKED_ATTEMPTS + 1);
-		expect(t.scheduled).toHaveLength(RECHECK_MAX_LOCKED_ATTEMPTS);
-		// Сообщение не потеряно: последняя попытка отработала без блокировки.
-		expect(t.sentStage()).toBe(PAYMENT_PENDING_STAGE_ID);
+		// Последняя попытка падает с ошибкой, а не бесконечно ставит новые.
+		expect(runs).toBe(RECHECK_MAX_LOCKED_ATTEMPTS);
+		expect(failure?.message).toContain("не отправлено");
+		expect(t.scheduled).toHaveLength(RECHECK_MAX_LOCKED_ATTEMPTS - 1);
+		// Сначала часто, потом реже.
+		expect(t.scheduled.map((s) => s.seconds)).toEqual(
+			t.scheduled.map((s) =>
+				s.attempt <= RECHECK_FAST_RETRIES
+					? RECHECK_FAST_RETRY_SECONDS
+					: RECHECK_SLOW_RETRY_SECONDS,
+			),
+		);
+		// Блокировка не обходилась — ни одной отправки в обход.
+		expect(t.sends()).toBe(0);
+	});
+
+	it("после исчерпания повторов следующее событие доставляет сообщение", async () => {
+		const t = setup();
+		t.memory.values.set(lockKey, "other-handler");
+		await expect(t.run(RECHECK_MAX_LOCKED_ATTEMPTS - 1)).rejects.toThrow();
+		expect(t.sends()).toBe(0);
+
+		// Блокировка наконец свободна, приходит обычное событие по сделке.
+		t.memory.values.delete(lockKey);
+		await handleDiagnosticDealUpdate(
+			t.api,
+			t.memory as unknown as RedisClient,
+			42,
+			{ sendBot: t.sendBot },
+		);
+
+		expect(t.sends()).toBe(1);
 	});
 });

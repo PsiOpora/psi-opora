@@ -99,12 +99,8 @@ export interface DiagnosticDealUpdateOptions {
 	 */
 	scheduleRecheck?: (dealId: number, delaySeconds: number) => Promise<void>;
 	now?: () => number;
-	/**
-	 * Обработать сделку, даже если блокировка занята. Только для повторной
-	 * проверки, исчерпавшей попытки: отправка всё равно защищена состоянием в
-	 * Redis (lastChatStageId), а блокировка, занятая дольше минуты, — зависшая.
-	 */
-	skipLock?: boolean;
+	/** Подмена отправки в чат — для тестов (подсчёт фактических отправок). */
+	sendBot?: typeof sendBot;
 }
 
 function stateKey(dealId: number): string {
@@ -326,7 +322,7 @@ export async function handleDiagnosticDealUpdate(
 	const token = crypto.randomUUID();
 	const key = lockKey(dealId);
 	const acquired = await redis.set(key, token, { px: LOCK_TTL_MS, nx: true });
-	if (!acquired && !options.skipLock) {
+	if (!acquired) {
 		return {
 			action: "skip",
 			reason: "locked",
@@ -549,7 +545,11 @@ export async function handleDiagnosticDealUpdate(
 				chat = "error";
 				chatReason = "payment_url_not_configured";
 			} else {
-				const result = await sendBot({ deal, contact, message });
+				const result = await (options.sendBot ?? sendBot)({
+					deal,
+					contact,
+					message,
+				});
 				chat = result.status;
 				chatReason = result.reason;
 				botMessenger = result.messenger;
