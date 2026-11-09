@@ -36,6 +36,12 @@ export const DIAGNOSTIC_DISCOUNT_COUPON = "dia5000";
 const DIAGNOSTIC_DURATION_MS = 90 * 60 * 1000;
 const STATE_TTL_SECONDS = 366 * 24 * 60 * 60;
 const LOCK_TTL_MS = 60_000;
+/**
+ * Сообщение клиенту на стадии «ждем оплату» уходит не сразу, а через минуту
+ * после перехода сделки в эту стадию — если стадия за это время не сменилась.
+ * Так менеджер успевает исправить ошибочный перенос, пока клиент ничего не получил.
+ */
+export const PAYMENT_MESSAGE_GRACE_MS = 60_000;
 const calendarEventIdSchema = z
 	.union([z.number(), z.string()])
 	.pipe(z.coerce.number<string | number>().int().positive());
@@ -86,8 +92,47 @@ export interface DiagnosticDealUpdateResult {
 	emailReason?: string;
 }
 
+export interface DiagnosticDealUpdateOptions {
+	/**
+	 * Ставит повторную обработку сделки через `delaySeconds`. Без неё отправка
+	 * сообщения на стадии оплаты не откладывается (иначе оно бы потерялось).
+	 */
+	scheduleRecheck?: (dealId: number, delaySeconds: number) => Promise<void>;
+	now?: () => number;
+}
+
 function stateKey(dealId: number): string {
 	return `diagnostic-schedule:deal:${dealId}`;
+}
+
+function recheckKey(dealId: number, deadlineMs: number): string {
+	return `diagnostic-schedule:recheck:${dealId}:${deadlineMs}`;
+}
+
+/**
+ * Момент (мс), раньше которого сообщение на стадии оплаты слать нельзя.
+ * Отсчёт идёт от MOVED_TIME (момент смены стадии в Bitrix24), а не от прихода
+ * события — иначе запоздавшее событие добавило бы к задержке ещё минуту.
+ * Без валидного MOVED_TIME не откладываем (возвращаем 0): лучше отправить
+ * сразу, чем потерять сообщение.
+ */
+function paymentGraceDeadlineMs(
+	deal: Record<string, unknown>,
+	nowMs: number,
+): number {
+	const movedAt =
+		typeof deal.MOVED_TIME === "string"
+			? Date.parse(deal.MOVED_TIME)
+			: Number.NaN;
+	if (!Number.isFinite(movedAt)) {
+		console.warn(
+			`[diagnostic-schedule] у сделки ${String(deal.ID)} нет корректного MOVED_TIME — отправляем без задержки`,
+		);
+		return 0;
+	}
+	// min — защита от расхождения часов с Bitrix24 (MOVED_TIME «в будущем»):
+	// ждём не дольше одной минуты от текущего момента.
+	return Math.min(movedAt, nowMs) + PAYMENT_MESSAGE_GRACE_MS;
 }
 
 function lockKey(dealId: number): string {
@@ -270,6 +315,7 @@ export async function handleDiagnosticDealUpdate(
 	api: BitrixApi,
 	redis: RedisClient,
 	dealId: number,
+	options: DiagnosticDealUpdateOptions = {},
 ): Promise<DiagnosticDealUpdateResult> {
 	const token = crypto.randomUUID();
 	const key = lockKey(dealId);
@@ -431,8 +477,47 @@ export async function handleDiagnosticDealUpdate(
 		};
 		await redis.set(stateKey(dealId), state, { ex: STATE_TTL_SECONDS });
 
+		// Отложенная отправка: если сделка только что перешла на «ждем оплату»,
+		// клиенту пока ничего не шлём, а ставим повторную обработку на момент
+		// окончания минуты. Она заново прочитает сделку — и если менеджер за это
+		// время вернул стадию, сообщение не уйдёт (stage_mismatch выше).
+		let deliveryDeferred = false;
+		if (
+			options.scheduleRecheck &&
+			stageId === PAYMENT_PENDING_STAGE_ID &&
+			(state.lastChatStageId !== stageId || state.lastEmailStageId !== stageId)
+		) {
+			const nowMs = (options.now ?? Date.now)();
+			const deadlineMs = paymentGraceDeadlineMs(deal, nowMs);
+			const remainingMs = deadlineMs - nowMs;
+			if (deadlineMs > 0 && remainingMs > 0) {
+				deliveryDeferred = true;
+				// События по одной сделке приходят пачкой (в т.ч. от нашего же
+				// комментария в таймлайне) — одного перезапуска на срок достаточно.
+				const reserved = await redis.set(recheckKey(dealId, deadlineMs), true, {
+					px: remainingMs + 5 * 60_000,
+					nx: true,
+				});
+				if (reserved) {
+					try {
+						await options.scheduleRecheck(
+							dealId,
+							Math.ceil(remainingMs / 1000) + 1,
+						);
+					} catch (error) {
+						// Не смогли поставить перезапуск — не теряем сообщение, шлём сразу.
+						console.error(
+							`[diagnostic-schedule] не удалось отложить отправку для сделки ${dealId}: ${(error as Error).message}`,
+						);
+						await redis.del(recheckKey(dealId, deadlineMs));
+						deliveryDeferred = false;
+					}
+				}
+			}
+		}
+
 		let paymentUrl = "";
-		if (stageId === PAYMENT_PENDING_STAGE_ID) {
+		if (stageId === PAYMENT_PENDING_STAGE_ID && !deliveryDeferred) {
 			const dealFields =
 				await api.call<Record<string, unknown>>("crm.deal.fields");
 			paymentUrl = resolvePaymentUrl(deal, dealFields);
@@ -444,10 +529,15 @@ export async function handleDiagnosticDealUpdate(
 			paymentUrl,
 		});
 
-		let chat: DiagnosticDealUpdateResult["chat"] = "already_sent";
-		let chatReason: string | undefined;
+		let chat: DiagnosticDealUpdateResult["chat"] = deliveryDeferred
+			? "skipped"
+			: "already_sent";
+		let chatReason: string | undefined = deliveryDeferred
+			? "grace_period"
+			: undefined;
 		let botMessenger: Messenger | "whatsapp-personal" | undefined;
-		const chatDeliveryNeeded = state.lastChatStageId !== stageId;
+		const chatDeliveryNeeded =
+			!deliveryDeferred && state.lastChatStageId !== stageId;
 		if (chatDeliveryNeeded) {
 			if (stageId === PAYMENT_PENDING_STAGE_ID && !paymentUrl) {
 				chat = "error";
@@ -480,9 +570,14 @@ export async function handleDiagnosticDealUpdate(
 			await redis.set(stateKey(dealId), state, { ex: STATE_TTL_SECONDS });
 		}
 
-		let emailStatus: DiagnosticDealUpdateResult["email"] = "already_sent";
-		let emailReason: string | undefined;
-		const emailDeliveryNeeded = state.lastEmailStageId !== stageId;
+		let emailStatus: DiagnosticDealUpdateResult["email"] = deliveryDeferred
+			? "skipped"
+			: "already_sent";
+		let emailReason: string | undefined = deliveryDeferred
+			? "grace_period"
+			: undefined;
+		const emailDeliveryNeeded =
+			!deliveryDeferred && state.lastEmailStageId !== stageId;
 		if (emailDeliveryNeeded) {
 			if (!email) {
 				emailStatus = "skipped";

@@ -4,6 +4,7 @@ import { deliverBroadcast } from "./broadcast";
 import { calendarReminders } from "./calendar-reminders";
 import { getHatchetClient } from "./client";
 import { crmBackup, crmBackupSchedule } from "./crm-backup";
+import { diagnosticDealRecheck } from "./diagnostic-recheck";
 import { dealStageHistorySync } from "./deal-stage-history-sync";
 import { dealsSync } from "./deals-sync";
 import { deliverEmailCampaign, pollEmailCampaigns } from "./email-campaign";
@@ -27,6 +28,7 @@ export const hatchetTasks = [
 	adsSync,
 	pollEmailCampaigns,
 	calendarReminders,
+	diagnosticDealRecheck,
 	scenarioReminders,
 	hourlyDrips,
 	maxWebhookHealthcheck,

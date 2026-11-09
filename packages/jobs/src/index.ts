@@ -30,6 +30,7 @@ export {
 	sendDiagnosticReminders,
 } from "./diagnostic-reminders";
 export {
+	type DiagnosticDealUpdateOptions,
 	type DiagnosticDealUpdateResult,
 	handleDiagnosticDealUpdate,
 } from "./diagnostic-scheduling";
@@ -49,6 +50,11 @@ export {
 	crmBackupSchedule,
 } from "./hatchet/crm-backup";
 export { dealStageHistorySync } from "./hatchet/deal-stage-history-sync";
+export {
+	type DiagnosticRecheckPayload,
+	diagnosticDealRecheck,
+	scheduleDiagnosticRecheck,
+} from "./hatchet/diagnostic-recheck";
 export { dealsSync } from "./hatchet/deals-sync";
 export {
 	type DeliverEmailCampaignPayload,

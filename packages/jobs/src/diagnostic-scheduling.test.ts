@@ -28,6 +28,10 @@ class MemoryRedis {
 		return "OK";
 	}
 
+	async del(...keys: string[]): Promise<number> {
+		return keys.filter((key) => this.values.delete(key)).length;
+	}
+
 	async eval(_script: string, keys: string[], args: unknown[]) {
 		const key = keys[0];
 		if (key && this.values.get(key) === args[0]) {
@@ -333,5 +337,203 @@ describe("handleDiagnosticDealUpdate", () => {
 				}
 			).calendarEventId,
 		).toBeUndefined();
+	});
+});
+
+describe("задержка сообщения на стадии «ждем оплату»", () => {
+	const STAGE_NEW = "NEW";
+	const MOVED_AT = Date.parse("2026-08-01T12:00:00+03:00");
+
+	function setup(initial: { stageId: string; movedTime?: string }) {
+		const deal = {
+			ID: "42",
+			CATEGORY_ID: "0",
+			STAGE_ID: initial.stageId,
+			MOVED_TIME: initial.movedTime ?? new Date(MOVED_AT).toISOString(),
+			CONTACT_ID: "9",
+			UF_CRM_1779871551489: "2026-08-05T10:00:00+03:00",
+		};
+		const methods: string[] = [];
+		const api: BitrixApi = {
+			async call<T>(method: string) {
+				methods.push(method);
+				if (method === "crm.deal.get") return { ...deal } as T;
+				if (method === "crm.contact.get") {
+					return { ID: "9", NAME: "Анна", EMAIL: [] } as T;
+				}
+				if (method === "crm.deal.fields") return {} as T;
+				if (method === "calendar.event.get") return [] as T;
+				if (method === "calendar.event.add") return 501 as T;
+				if (method === "crm.timeline.comment.add") return 1 as T;
+				throw new Error(`Unexpected method ${method}`);
+			},
+			async list<T>() {
+				return [] as T[];
+			},
+		};
+		const memory = new MemoryRedis();
+		const scheduled: number[] = [];
+		let nowMs = MOVED_AT;
+		const run = (scheduleRecheck?: (id: number, s: number) => Promise<void>) =>
+			handleDiagnosticDealUpdate(api, memory as unknown as RedisClient, 42, {
+				scheduleRecheck:
+					scheduleRecheck ??
+					(async (_id, seconds) => {
+						scheduled.push(seconds);
+					}),
+				now: () => nowMs,
+			});
+		return {
+			deal,
+			memory,
+			methods,
+			scheduled,
+			run,
+			setNow: (ms: number) => {
+				nowMs = ms;
+			},
+		};
+	}
+
+	const savedState = (memory: MemoryRedis) =>
+		memory.values.get("diagnostic-schedule:deal:42") as
+			| { lastChatStageId?: string; lastEmailStageId?: string }
+			| undefined;
+
+	it("не отправляет сразу, а ставит перезапуск на конец минуты", async () => {
+		const t = setup({ stageId: PAYMENT_PENDING_STAGE_ID });
+		t.setNow(MOVED_AT + 5_000);
+
+		const result = await t.run();
+
+		expect(result.chat).toBe("skipped");
+		expect(result.chatReason).toBe("grace_period");
+		expect(result.email).toBe("skipped");
+		// Осталось 55 с до конца минуты + 1 с запаса.
+		expect(t.scheduled).toEqual([56]);
+		expect(savedState(t.memory)?.lastChatStageId).toBeUndefined();
+		expect(savedState(t.memory)?.lastEmailStageId).toBeUndefined();
+		// Ссылка на оплату не запрашивалась — сообщение не готовилось к отправке.
+		expect(t.methods).not.toContain("crm.deal.fields");
+	});
+
+	it("отправляет после минуты, если стадия не менялась", async () => {
+		const t = setup({ stageId: PAYMENT_PENDING_STAGE_ID });
+		t.setNow(MOVED_AT + 5_000);
+		await t.run();
+
+		t.setNow(MOVED_AT + 61_000);
+		const result = await t.run();
+
+		expect(result.chatReason).not.toBe("grace_period");
+		expect(t.scheduled).toHaveLength(1);
+		expect(t.methods).toContain("crm.deal.fields");
+		expect(savedState(t.memory)?.lastChatStageId).toBe(
+			PAYMENT_PENDING_STAGE_ID,
+		);
+		expect(savedState(t.memory)?.lastEmailStageId).toBe(
+			PAYMENT_PENDING_STAGE_ID,
+		);
+	});
+
+	it("не отправляет, если стадию вернули за минуту", async () => {
+		const t = setup({ stageId: PAYMENT_PENDING_STAGE_ID });
+		t.setNow(MOVED_AT + 5_000);
+		await t.run();
+
+		t.deal.STAGE_ID = STAGE_NEW;
+		t.setNow(MOVED_AT + 61_000);
+		const result = await t.run();
+
+		expect(result.action).toBe("skip");
+		expect(result.reason).toBe("stage_mismatch");
+		expect(result.chat).toBe("skipped");
+		expect(savedState(t.memory)?.lastChatStageId).toBeUndefined();
+		expect(t.methods).not.toContain("crm.deal.fields");
+	});
+
+	it("после возврата на стадию ждёт новую минуту от нового MOVED_TIME", async () => {
+		const t = setup({ stageId: PAYMENT_PENDING_STAGE_ID });
+		t.setNow(MOVED_AT + 5_000);
+		await t.run();
+
+		// Стадию сменили и вернули: MOVED_TIME обновился.
+		t.deal.MOVED_TIME = new Date(MOVED_AT + 40_000).toISOString();
+		t.setNow(MOVED_AT + 61_000);
+		const result = await t.run();
+
+		expect(result.chatReason).toBe("grace_period");
+		expect(t.scheduled).toEqual([56, 40]);
+		expect(savedState(t.memory)?.lastChatStageId).toBeUndefined();
+	});
+
+	it("не считает минуту заново, если событие Bitrix24 запоздало", async () => {
+		const t = setup({ stageId: PAYMENT_PENDING_STAGE_ID });
+		t.setNow(MOVED_AT + 7 * 60_000);
+
+		const result = await t.run();
+
+		expect(result.chatReason).not.toBe("grace_period");
+		expect(t.scheduled).toHaveLength(0);
+		expect(savedState(t.memory)?.lastChatStageId).toBe(
+			PAYMENT_PENDING_STAGE_ID,
+		);
+	});
+
+	it("ставит только один перезапуск на пачку событий одной сделки", async () => {
+		const t = setup({ stageId: PAYMENT_PENDING_STAGE_ID });
+		t.setNow(MOVED_AT + 5_000);
+		await t.run();
+		t.setNow(MOVED_AT + 8_000);
+		const second = await t.run();
+
+		expect(second.chatReason).toBe("grace_period");
+		expect(t.scheduled).toHaveLength(1);
+	});
+
+	it("отправляет сразу, если перезапуск поставить не удалось", async () => {
+		const t = setup({ stageId: PAYMENT_PENDING_STAGE_ID });
+		t.setNow(MOVED_AT + 5_000);
+
+		const result = await t.run(async () => {
+			throw new Error("hatchet недоступен");
+		});
+
+		expect(result.chatReason).not.toBe("grace_period");
+		expect(savedState(t.memory)?.lastChatStageId).toBe(
+			PAYMENT_PENDING_STAGE_ID,
+		);
+		// Ключ дедупликации освобождён — следующая попытка не будет считать, что
+		// перезапуск уже стоит.
+		expect(
+			[...t.memory.values.keys()].some((key) =>
+				key.startsWith("diagnostic-schedule:recheck:"),
+			),
+		).toBe(false);
+	});
+
+	it("не откладывает без корректного MOVED_TIME", async () => {
+		const t = setup({
+			stageId: PAYMENT_PENDING_STAGE_ID,
+			movedTime: "не дата",
+		});
+
+		const result = await t.run();
+
+		expect(result.chatReason).not.toBe("grace_period");
+		expect(t.scheduled).toHaveLength(0);
+	});
+
+	it("не откладывает сообщение об успешной оплате", async () => {
+		const t = setup({ stageId: PAID_DIAGNOSTIC_STAGE_ID });
+		t.setNow(MOVED_AT + 5_000);
+
+		const result = await t.run();
+
+		expect(result.chatReason).not.toBe("grace_period");
+		expect(t.scheduled).toHaveLength(0);
+		expect(savedState(t.memory)?.lastChatStageId).toBe(
+			PAID_DIAGNOSTIC_STAGE_ID,
+		);
 	});
 });
