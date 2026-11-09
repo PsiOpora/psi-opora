@@ -99,6 +99,12 @@ export interface DiagnosticDealUpdateOptions {
 	 */
 	scheduleRecheck?: (dealId: number, delaySeconds: number) => Promise<void>;
 	now?: () => number;
+	/**
+	 * Обработать сделку, даже если блокировка занята. Только для повторной
+	 * проверки, исчерпавшей попытки: отправка всё равно защищена состоянием в
+	 * Redis (lastChatStageId), а блокировка, занятая дольше минуты, — зависшая.
+	 */
+	skipLock?: boolean;
 }
 
 function stateKey(dealId: number): string {
@@ -320,7 +326,7 @@ export async function handleDiagnosticDealUpdate(
 	const token = crypto.randomUUID();
 	const key = lockKey(dealId);
 	const acquired = await redis.set(key, token, { px: LOCK_TTL_MS, nx: true });
-	if (!acquired) {
+	if (!acquired && !options.skipLock) {
 		return {
 			action: "skip",
 			reason: "locked",

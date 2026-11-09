@@ -2,15 +2,16 @@ import { CreateTaskWorkflow } from "@hatchet-dev/typescript-sdk/v1";
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import { createRedisClient } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
-import { handleDiagnosticDealUpdate } from "../diagnostic-scheduling";
+import { runDiagnosticRecheck } from "../diagnostic-recheck-run";
 import { getHatchetClient } from "./client";
 
 export type DiagnosticRecheckPayload = {
 	dealId: number;
+	/** Сколько раз проверка уже упёрлась в занятую блокировку сделки. */
+	attempt?: number;
 };
 
 const WORKFLOW_NAME = "diagnostic-deal-recheck";
-const LOCKED_RETRY_SECONDS = 5;
 
 /**
  * Ставит отложенную повторную обработку сделки диагностики (см.
@@ -20,10 +21,11 @@ const LOCKED_RETRY_SECONDS = 5;
 export async function scheduleDiagnosticRecheck(
 	dealId: number,
 	delaySeconds: number,
+	attempt = 0,
 ): Promise<void> {
 	await getHatchetClient().schedules.create(WORKFLOW_NAME, {
 		triggerAt: new Date(Date.now() + delaySeconds * 1000),
-		input: { dealId },
+		input: { dealId, attempt },
 	});
 }
 
@@ -40,20 +42,13 @@ export const diagnosticDealRecheck = CreateTaskWorkflow({
 	fn: async (payload: DiagnosticRecheckPayload) => {
 		const api = resolveBitrixApi(env.BITRIX_MEMBER_ID);
 		if (!api) throw new Error("Bitrix24 не подключён");
-		const result = await handleDiagnosticDealUpdate(
+		const result = await runDiagnosticRecheck({
 			api,
-			createRedisClient(),
-			payload.dealId,
-			// Если MOVED_TIME ещё в пределах минуты (расхождение часов) —
-			// обработчик сам поставит следующий перезапуск.
-			{ scheduleRecheck: scheduleDiagnosticRecheck },
-		);
-		if (result.reason === "locked") {
-			// Сделку обрабатывает другое событие и, скорее всего, уже отложило
-			// отправку (его перезапуск мы же и есть) — само оно не отправит.
-			// Блокировка живёт максимум 60 с, так что цепочка повторов конечна.
-			await scheduleDiagnosticRecheck(payload.dealId, LOCKED_RETRY_SECONDS);
-		}
+			redis: createRedisClient(),
+			dealId: payload.dealId,
+			attempt: payload.attempt,
+			schedule: scheduleDiagnosticRecheck,
+		});
 		console.info(
 			`[diagnostic-recheck] сделка ${payload.dealId}: ${result.action}, чат: ${result.chat}${result.chatReason ? ` (${result.chatReason})` : ""}, email: ${result.email}`,
 		);

@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it } from "bun:test";
 import type { BitrixApi } from "@psi-opora/bitrix-client";
 import type { RedisClient } from "@psi-opora/bot-core";
 import {
+	RECHECK_LOCKED_RETRY_SECONDS,
+	RECHECK_MAX_LOCKED_ATTEMPTS,
+	runDiagnosticRecheck,
+} from "./diagnostic-recheck-run";
+import {
 	buildImmediateDiagnosticMessage,
 	DIAGNOSTIC_JOIN_URL,
 	findContactEmail,
@@ -535,5 +540,104 @@ describe("задержка сообщения на стадии «ждем оп�
 		expect(savedState(t.memory)?.lastChatStageId).toBe(
 			PAID_DIAGNOSTIC_STAGE_ID,
 		);
+	});
+});
+
+describe("повторная проверка при занятой блокировке", () => {
+	const lockKey = "diagnostic-schedule:lock:42";
+
+	function setup() {
+		const deal = {
+			ID: "42",
+			CATEGORY_ID: "0",
+			STAGE_ID: PAYMENT_PENDING_STAGE_ID,
+			// Минута давно прошла — отправка не откладывается.
+			MOVED_TIME: new Date(Date.now() - 10 * 60_000).toISOString(),
+			CONTACT_ID: "9",
+			UF_CRM_1779871551489: "2026-08-05T10:00:00+03:00",
+		};
+		const api: BitrixApi = {
+			async call<T>(method: string) {
+				if (method === "crm.deal.get") return { ...deal } as T;
+				if (method === "crm.contact.get") {
+					return { ID: "9", NAME: "Анна", EMAIL: [] } as T;
+				}
+				if (method === "crm.deal.fields") return {} as T;
+				if (method === "calendar.event.get") return [] as T;
+				if (method === "calendar.event.add") return 501 as T;
+				if (method === "crm.timeline.comment.add") return 1 as T;
+				throw new Error(`Unexpected method ${method}`);
+			},
+			async list<T>() {
+				return [] as T[];
+			},
+		};
+		const memory = new MemoryRedis();
+		const scheduled: Array<{ seconds: number; attempt: number }> = [];
+		const run = (attempt?: number) =>
+			runDiagnosticRecheck({
+				api,
+				redis: memory as unknown as RedisClient,
+				dealId: 42,
+				attempt,
+				schedule: async (_id, seconds, nextAttempt) => {
+					scheduled.push({ seconds, attempt: nextAttempt });
+				},
+			});
+		const sentStage = () =>
+			(
+				memory.values.get("diagnostic-schedule:deal:42") as
+					| { lastChatStageId?: string }
+					| undefined
+			)?.lastChatStageId;
+		return { memory, scheduled, run, sentStage };
+	}
+
+	it("ставит новую проверку через 5 секунд, если блокировка занята", async () => {
+		const t = setup();
+		t.memory.values.set(lockKey, "other-handler");
+
+		const result = await t.run();
+
+		expect(result.reason).toBe("locked");
+		expect(t.scheduled).toEqual([
+			{ seconds: RECHECK_LOCKED_RETRY_SECONDS, attempt: 1 },
+		]);
+		expect(t.sentStage()).toBeUndefined();
+	});
+
+	it("отправляет, когда блокировка освободилась", async () => {
+		const t = setup();
+		t.memory.values.set(lockKey, "other-handler");
+		await t.run();
+
+		t.memory.values.delete(lockKey);
+		const result = await t.run(1);
+
+		expect(result.reason).toBeUndefined();
+		expect(t.scheduled).toHaveLength(1);
+		expect(t.sentStage()).toBe(PAYMENT_PENDING_STAGE_ID);
+	});
+
+	it("не повторяет бесконечно: после лимита обрабатывает сделку без блокировки", async () => {
+		const t = setup();
+		// Блокировку каждый раз занимают заново — как при потоке событий сделки.
+		t.memory.values.set(lockKey, "other-handler");
+
+		let attempt: number | undefined;
+		let runs = 0;
+		while (runs < RECHECK_MAX_LOCKED_ATTEMPTS + 5) {
+			runs++;
+			const scheduledBefore = t.scheduled.length;
+			await t.run(attempt);
+			t.memory.values.set(lockKey, "other-handler");
+			if (t.scheduled.length === scheduledBefore) break;
+			attempt = t.scheduled[t.scheduled.length - 1]?.attempt;
+		}
+
+		expect(runs).toBe(RECHECK_MAX_LOCKED_ATTEMPTS + 1);
+		expect(t.scheduled).toHaveLength(RECHECK_MAX_LOCKED_ATTEMPTS);
+		// Сообщение не потеряно: последняя попытка отработала без блокировки.
+		expect(t.sentStage()).toBe(PAYMENT_PENDING_STAGE_ID);
 	});
 });
