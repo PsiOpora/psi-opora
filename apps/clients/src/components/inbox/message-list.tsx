@@ -57,9 +57,9 @@ export interface ThreadMessage {
 	guideEmailSentAt?: string | null;
 }
 
-/** Доставку/прочтение сейчас отдаёт только WAHA (WhatsApp) — для остальных
- * каналов статус никогда не станет "delivered"/"read", это ограничение
- * внешних API, не баг. */
+/** Доставку/прочтение отдают WAHA (WhatsApp) и личные Telegram/MAX. У
+ * официальных ботов API этого не даёт: "read" ставится косвенно, когда клиент
+ * ответил после сообщения; "delivered" там не бывает. */
 const STATUS_META: Record<
 	MessageDeliveryStatus,
 	{ icon: typeof CheckIcon; className?: string; label?: string }

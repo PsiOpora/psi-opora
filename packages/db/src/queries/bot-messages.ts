@@ -16,6 +16,7 @@ import type { Database } from "../client.types";
 import { botConversations } from "../schema/bot-conversations";
 import { botMessages } from "../schema/bot-messages";
 import { botUsers } from "../schema/bot-users";
+import { markOutgoingReadByClientReply } from "./bot-messages-reply-read";
 import { listAllIdentityLinks } from "./client-identity-links";
 
 export interface ClientIdentityRef {
@@ -54,8 +55,9 @@ const UNOWNED_EDITABLE_SOURCES = ["widget", "reminder"] as const;
 export type BotMessage = typeof botMessages.$inferSelect;
 export type NewBotMessage = typeof botMessages.$inferInsert;
 
-/** Доставку/прочтение отдаёт сейчас только WAHA (WhatsApp) — для остальных
- * каналов статус не поднимается выше "sent". */
+/** Доставку/прочтение отдают WAHA (WhatsApp) и личные Telegram/MAX; у
+ * официальных ботов «read» выводится из ответа клиента (см.
+ * bot-messages-reply-read.ts), «delivered» там не бывает. */
 export type MessageDeliveryStatus =
 	| "queued"
 	| "sent"
@@ -130,6 +132,18 @@ export async function insertBotMessage(
 		createdAt: now,
 		updatedAt: now,
 	});
+	// Ответ клиента официальному боту = он прочитал всё, что мы слали раньше.
+	if (entry.direction === "in") {
+		await markOutgoingReadByClientReply(db, {
+			messenger: entry.messenger,
+			userId: entry.userId,
+			repliedAt: now,
+		}).catch((err) =>
+			console.error(
+				`[bot-messages] не удалось отметить прочтение по ответу клиента: ${(err as Error).message}`,
+			),
+		);
+	}
 	return id;
 }
 
