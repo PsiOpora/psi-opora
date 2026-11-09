@@ -1,5 +1,5 @@
 {
-  "id": "b5e38053-b36b-4f4c-80eb-f2dcfef7096a",
+  "id": "defe2d25-0461-49cb-8e03-54cf2f430b48",
   "prevId": "4e032d47-44d4-490b-b63a-35d3d124492a",
   "version": "7",
   "dialect": "postgresql",
@@ -4068,18 +4068,26 @@
           "default": "now()"
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "marketing_campaigns_code_unique": {
-          "name": "marketing_campaigns_code_unique",
-          "nullsNotDistinct": false,
+      "indexes": {
+        "marketing_campaigns_code_lower_unique": {
+          "name": "marketing_campaigns_code_lower_unique",
           "columns": [
-            "code"
-          ]
+            {
+              "expression": "lower(\"code\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

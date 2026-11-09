@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AD_SOURCE_PRESETS } from "../settings/bot/bot-links";
 
-const SOURCE_RE = /^[A-Za-z0-9_-]{1,40}$/;
+const SOURCE_RE = /^[A-Za-z0-9_-]{1,39}$/;
 
 /** Площадки кампании: быстрые кнопки с пресетами + свой код (vk, b17, dzen…). */
 export function CampaignSourcesField({

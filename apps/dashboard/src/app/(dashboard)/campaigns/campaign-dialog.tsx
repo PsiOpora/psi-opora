@@ -41,7 +41,7 @@ const EMPTY_FORM: FormState = {
 	active: true,
 };
 
-const CODE_RE = /^[A-Za-z0-9-]{1,40}$/;
+const CODE_RE = /^[A-Za-z0-9-]{1,24}$/;
 
 function toForm(campaign?: MarketingCampaignView): FormState {
 	if (!campaign) return EMPTY_FORM;

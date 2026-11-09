@@ -5,6 +5,7 @@ CREATE TABLE "marketing_campaigns" (
 	"sources" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "marketing_campaigns_code_unique" UNIQUE("code")
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
+--> statement-breakpoint
+CREATE UNIQUE INDEX "marketing_campaigns_code_lower_unique" ON "marketing_campaigns" USING btree (lower("code"));

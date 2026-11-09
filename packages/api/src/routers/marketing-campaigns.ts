@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import {
 	createMarketingCampaign,
 	deleteMarketingCampaign,
@@ -21,7 +22,10 @@ const RESERVED_CODES = new Set(["TELO", "TELOPAY", "TELOBOOK", "CONSULT"]);
 
 /** Postgres: unique_violation — см. code UNIQUE в marketing_campaigns. */
 function isDuplicateCodeError(err: unknown): boolean {
-	return (err as { code?: string } | null)?.code === "23505";
+	// drizzle-orm оборачивает ошибку драйвера в DrizzleQueryError — SQLSTATE
+	// лежит в cause.code, у «голой» ошибки pg — в code.
+	const e = err as { code?: string; cause?: { code?: string } } | null;
+	return e?.code === "23505" || e?.cause?.code === "23505";
 }
 
 function uniqueSources(sources: string[]): string[] {
@@ -38,14 +42,14 @@ function uniqueSources(sources: string[]): string[] {
 
 async function assertCodeAvailable(code: string): Promise<void> {
 	if (RESERVED_CODES.has(code.toUpperCase())) {
-		throw new Error(
-			`Слово «${code}» зарезервировано под отдельный сценарий бота — выберите другое`,
-		);
+		throw new ORPCError("BAD_REQUEST", {
+			message: `Слово «${code}» зарезервировано под отдельный сценарий бота — выберите другое`,
+		});
 	}
 	if (await isGuideCampaignKeywordTaken(code)) {
-		throw new Error(
-			`Слово «${code}» уже занято кампанией по кодовому слову (Сценарий бота) — выберите другое`,
-		);
+		throw new ORPCError("CONFLICT", {
+			message: `Слово «${code}» уже занято кампанией по кодовому слову (Сценарий бота) — выберите другое`,
+		});
 	}
 }
 
@@ -69,9 +73,9 @@ export const marketingCampaignsRouter = router({
 				});
 			} catch (err) {
 				if (isDuplicateCodeError(err)) {
-					throw new Error(
-						`Кодовое слово «${input.code}» уже занято другой кампанией`,
-					);
+					throw new ORPCError("CONFLICT", {
+						message: `Кодовое слово «${input.code}» уже занято другой кампанией`,
+					});
 				}
 				throw err;
 			}
@@ -90,9 +94,9 @@ export const marketingCampaignsRouter = router({
 				});
 			} catch (err) {
 				if (isDuplicateCodeError(err)) {
-					throw new Error(
-						`Кодовое слово «${patch.code}» уже занято другой кампанией`,
-					);
+					throw new ORPCError("CONFLICT", {
+						message: `Кодовое слово «${patch.code}» уже занято другой кампанией`,
+					});
 				}
 				throw err;
 			}
