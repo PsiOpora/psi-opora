@@ -7,6 +7,7 @@ import {
 	RECHECK_MAX_LOCKED_ATTEMPTS,
 	RECHECK_SLOW_RETRY_SECONDS,
 	runDiagnosticRecheck,
+	sweepPendingDiagnosticDeals,
 } from "./diagnostic-recheck-run";
 import {
 	buildImmediateDiagnosticMessage,
@@ -15,6 +16,7 @@ import {
 	handleDiagnosticDealUpdate,
 	PAID_DIAGNOSTIC_STAGE_ID,
 	PAYMENT_PENDING_STAGE_ID,
+	PENDING_DELIVERY_SET,
 	resolvePaymentUrl,
 } from "./diagnostic-scheduling";
 
@@ -33,6 +35,26 @@ class MemoryRedis {
 		if (options?.nx && this.values.has(key)) return null;
 		this.values.set(key, value);
 		return "OK";
+	}
+
+	sets = new Map<string, Set<string>>();
+
+	async sadd(key: string, ...members: unknown[]): Promise<number> {
+		const set = this.sets.get(key) ?? new Set<string>();
+		this.sets.set(key, set);
+		const before = set.size;
+		for (const member of members) set.add(String(member));
+		return set.size - before;
+	}
+
+	async srem(key: string, ...members: unknown[]): Promise<number> {
+		const set = this.sets.get(key);
+		if (!set) return 0;
+		return members.filter((member) => set.delete(String(member))).length;
+	}
+
+	async smembers<T = string>(key: string): Promise<T[]> {
+		return [...(this.sets.get(key) ?? [])] as T[];
 	}
 
 	async del(...keys: string[]): Promise<number> {
@@ -679,21 +701,83 @@ describe("повторная проверка при занятой блокир
 		expect(t.sends()).toBe(0);
 	});
 
-	it("после исчерпания повторов следующее событие доставляет сообщение", async () => {
-		const t = setup();
-		t.memory.values.set(lockKey, "other-handler");
-		await expect(t.run(RECHECK_MAX_LOCKED_ATTEMPTS - 1)).rejects.toThrow();
-		expect(t.sends()).toBe(0);
-
-		// Блокировка наконец свободна, приходит обычное событие по сделке.
-		t.memory.values.delete(lockKey);
+	// Первый проход на 5-й секунде после смены стадии: сообщение откладывается,
+	// сделка попадает в набор ожидающих. Время сделки — относительно реального now.
+	const deferFirst = async (t: ReturnType<typeof setup>) => {
+		const movedAt = Date.now() - 10 * 60_000;
 		await handleDiagnosticDealUpdate(
 			t.api,
 			t.memory as unknown as RedisClient,
 			42,
+			{
+				scheduleRecheck: async () => {},
+				now: () => movedAt + 5_000,
+				sendBot: t.sendBot,
+			},
+		);
+	};
+
+	it("откладывание кладёт сделку в набор ожидающих отправки", async () => {
+		const t = setup();
+		await deferFirst(t);
+
+		expect(await t.memory.smembers(PENDING_DELIVERY_SET)).toEqual(["42"]);
+		expect(t.sends()).toBe(0);
+	});
+
+	it("после исчерпания повторов сообщение доберёт крон без новых событий", async () => {
+		const t = setup();
+		await deferFirst(t);
+		t.memory.values.set(lockKey, "other-handler");
+		await expect(t.run(RECHECK_MAX_LOCKED_ATTEMPTS - 1)).rejects.toThrow();
+		expect(t.sends()).toBe(0);
+
+		// Пока блокировка занята — крон ничего не отправляет и не теряет сделку.
+		const redis = t.memory as unknown as RedisClient;
+		const busy = await sweepPendingDiagnosticDeals(t.api, redis, {
+			sendBot: t.sendBot,
+		});
+		expect(busy).toMatchObject({ checked: 1, stillPending: 1, resolved: 0 });
+		expect(await t.memory.smembers(PENDING_DELIVERY_SET)).toEqual(["42"]);
+		expect(t.sends()).toBe(0);
+
+		// Блокировка освободилась — следующий прогон крона отправляет ровно раз.
+		t.memory.values.delete(lockKey);
+		const done = await sweepPendingDiagnosticDeals(t.api, redis, {
+			sendBot: t.sendBot,
+		});
+		expect(done).toMatchObject({ checked: 1, resolved: 1, stillPending: 0 });
+		expect(t.sends()).toBe(1);
+		expect(await t.memory.smembers(PENDING_DELIVERY_SET)).toEqual([]);
+
+		const again = await sweepPendingDiagnosticDeals(t.api, redis, {
+			sendBot: t.sendBot,
+		});
+		expect(again.checked).toBe(0);
+		expect(t.sends()).toBe(1);
+	});
+
+	it("крон снимает сделку с ожидания, если стадию вернули", async () => {
+		const t = setup();
+		await deferFirst(t);
+		const api: BitrixApi = {
+			...t.api,
+			async call<T>(method: string, params?: Record<string, unknown>) {
+				const value = await t.api.call<Record<string, unknown>>(method, params);
+				return (
+					method === "crm.deal.get" ? { ...value, STAGE_ID: "NEW" } : value
+				) as T;
+			},
+		};
+
+		const result = await sweepPendingDiagnosticDeals(
+			api,
+			t.memory as unknown as RedisClient,
 			{ sendBot: t.sendBot },
 		);
 
-		expect(t.sends()).toBe(1);
+		expect(result).toMatchObject({ checked: 1, resolved: 1 });
+		expect(t.sends()).toBe(0);
+		expect(await t.memory.smembers(PENDING_DELIVERY_SET)).toEqual([]);
 	});
 });

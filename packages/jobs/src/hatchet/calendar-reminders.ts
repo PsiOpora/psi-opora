@@ -3,7 +3,9 @@ import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import { createRedisClient } from "@psi-opora/bot-core";
 import { env } from "@psi-opora/config";
 import { sendConsultationReminders } from "../consultation-reminders";
+import { sweepPendingDiagnosticDeals } from "../diagnostic-recheck-run";
 import { sendDiagnosticReminders } from "../diagnostic-reminders";
+import { scheduleDiagnosticRecheck } from "./diagnostic-recheck";
 import { runSteps } from "./run-steps";
 
 /**
@@ -34,6 +36,13 @@ export const calendarReminders = CreateTaskWorkflow({
 			}),
 			diagnostic: async () => ({
 				...(await sendDiagnosticReminders(api, redis)),
+			}),
+			// Страховка отложенного сообщения на стадии оплаты: добирает сделки,
+			// у которых перезапуск Hatchet потерялся или упёрся в блокировку.
+			diagnosticPending: async () => ({
+				...(await sweepPendingDiagnosticDeals(api, redis, {
+					scheduleRecheck: scheduleDiagnosticRecheck,
+				})),
 			}),
 		});
 	},
