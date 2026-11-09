@@ -107,6 +107,9 @@ function stateKey(dealId: number): string {
 	return `diagnostic-schedule:deal:${dealId}`;
 }
 
+/** id сделок, у которых отправка отложена и ещё не выполнена. */
+export const PENDING_DELIVERY_SET = "diagnostic-schedule:pending";
+
 function recheckKey(dealId: number, deadlineMs: number): string {
 	return `diagnostic-schedule:recheck:${dealId}:${deadlineMs}`;
 }
@@ -494,6 +497,9 @@ export async function handleDiagnosticDealUpdate(
 			const remainingMs = deadlineMs - nowMs;
 			if (deadlineMs > 0 && remainingMs > 0) {
 				deliveryDeferred = true;
+				// Сделка ждёт отправки: если перезапуск Hatchet не сработает или
+				// упрётся в блокировку, её добирает крон (см. diagnostic-recheck-run.ts).
+				await redis.sadd(PENDING_DELIVERY_SET, String(dealId));
 				// События по одной сделке приходят пачкой (в т.ч. от нашего же
 				// комментария в таймлайне) — одного перезапуска на срок достаточно.
 				const reserved = await redis.set(recheckKey(dealId, deadlineMs), true, {
@@ -512,6 +518,7 @@ export async function handleDiagnosticDealUpdate(
 							`[diagnostic-schedule] не удалось отложить отправку для сделки ${dealId}: ${(error as Error).message}`,
 						);
 						await redis.del(recheckKey(dealId, deadlineMs));
+						await redis.srem(PENDING_DELIVERY_SET, String(dealId));
 						deliveryDeferred = false;
 					}
 				}

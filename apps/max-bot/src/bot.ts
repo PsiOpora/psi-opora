@@ -31,11 +31,11 @@ import {
 	matchesConsultStartParam,
 	parseDripCallback,
 	parseStageConsentPayload,
-	parseUtmParams,
 	rememberYandexMetrikaVisitor,
 	resolveGuideCampaignStart,
 	resolveGuideFile,
 	resolveKnownContact,
+	resolveStartUtm,
 	resumeBookPreorder,
 	SCENARIO_ACTIONS,
 	type ScenarioMessage,
@@ -592,7 +592,7 @@ export function createMaxBot({
 			return;
 		}
 
-		const utm = parseUtmParams(startParam);
+		const utm = await resolveStartUtm(startParam);
 		if (utm.campaign) ctx.session.campaign = utm.campaign;
 		if (utm.source) ctx.session.source = utm.source;
 

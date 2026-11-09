@@ -29,7 +29,7 @@ export function isStartParamSafe(keyword: string): boolean {
 	return START_PARAM_RE.test(keyword.trim());
 }
 
-function stripAt(value: string): string {
+export function stripAt(value: string): string {
 	return value.trim().replace(/^@/, "");
 }
 
@@ -131,7 +131,7 @@ export function CampaignStartLinks({ keyword }: { keyword: string }) {
 	);
 }
 
-function LinkRow({ label, url }: { label: string; url: string }) {
+export function LinkRow({ label, url }: { label: string; url: string }) {
 	return (
 		<div className="flex items-center gap-1">
 			<code className="min-w-0 flex-1 truncate rounded bg-muted px-1.5 py-0.5 text-xs">
@@ -168,13 +168,14 @@ function LinkRow({ label, url }: { label: string; url: string }) {
 }
 
 /** Площадки-подсказки — источник в ссылке не ограничен этим списком, можно ввести свой код. */
-const AD_SOURCE_PRESETS = [
+export const AD_SOURCE_PRESETS = [
 	{ code: "vk", label: "ВКонтакте" },
 	{ code: "instagram", label: "Instagram" },
 	{ code: "youtube", label: "YouTube" },
 	{ code: "tg_ads", label: "Реклама в Telegram" },
 	{ code: "max_ads", label: "Реклама в MAX" },
 	{ code: "yandex", label: "Яндекс.Директ" },
+	{ code: "dzen", label: "Яндекс Дзен" },
 ] as const;
 
 /**

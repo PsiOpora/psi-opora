@@ -142,6 +142,20 @@ line/connector ID и никакого ручного запуска скрипт
    `OnImConnectorStatusDelete` и `OnImConnectorLineDelete` вручную и укажите
    URL `apps/bitrix-webhook` с путём `/api/bitrix-webhook`.
 
+#### Маркетинговые кампании: ссылки на бота по площадкам
+
+Страница дашборда «Кампании и ссылки» (`/campaigns`, таблица
+`marketing_campaigns`): кодовое слово (`FREE`) + список площадок (`vk`, `b17`,
+`dzen`…). Для каждой площадки дашборд собирает ссылки
+`https://t.me/<bot>?start=FREE_vk` и `https://max.ru/<bot>?start=FREE_vk`
+(username ботов задаются там же). Человек видит **обычный сценарий** бота —
+отдельного сценария нет; `resolveStartUtm` (`packages/bot-core`) только
+размечает трафик: `UTM_CAMPAIGN = FREE`, `UTM_SOURCE = vk`. Порядок разбора
+`/start`: предзаказ книги → `CONSULT` → кампании гайда → `SITE_CODES`
+(точное совпадение) → маркетинговые кампании → параметр как есть. Поэтому кодовое слово
+маркетинговой кампании не может совпадать с гайд-кампанией или
+`TELO`/`TELOPAY`/`TELOBOOK`/`CONSULT` (API это отклоняет) и не содержит `_`.
+
 ### 2. Личный номер Telegram (MTProto, `packages/tg-userbot`)
 
 Отдельный коннектор Открытых линий: реальный номер телефона (не бот) — можно

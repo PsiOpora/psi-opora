@@ -34,6 +34,7 @@ import {
 	looksLikeDiagnosticConsent,
 	resolveGuideCampaignStart,
 } from "./scenario/guide-campaign";
+import { resolveStartUtm } from "./scenario/marketing-campaign";
 import {
 	getScenarioTexts,
 	resolveGuideFile,
@@ -67,7 +68,6 @@ import {
 	extractYmClientId,
 	formatUtmLog,
 	matchesBookPreorderStartParam,
-	parseUtmParams,
 } from "./utils/utm";
 import { rememberYandexMetrikaVisitor } from "./utils/yandex-metrika";
 
@@ -667,7 +667,7 @@ export function createBot({
 			return;
 		}
 
-		const utm = parseUtmParams(startParam);
+		const utm = await resolveStartUtm(startParam);
 		if (utm.campaign) {
 			ctx.session.campaign = utm.campaign;
 		}
