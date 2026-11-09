@@ -10,6 +10,7 @@ export type DiagnosticRecheckPayload = {
 };
 
 const WORKFLOW_NAME = "diagnostic-deal-recheck";
+const LOCKED_RETRY_SECONDS = 5;
 
 /**
  * Ставит отложенную повторную обработку сделки диагностики (см.
@@ -47,6 +48,12 @@ export const diagnosticDealRecheck = CreateTaskWorkflow({
 			// обработчик сам поставит следующий перезапуск.
 			{ scheduleRecheck: scheduleDiagnosticRecheck },
 		);
+		if (result.reason === "locked") {
+			// Сделку обрабатывает другое событие и, скорее всего, уже отложило
+			// отправку (его перезапуск мы же и есть) — само оно не отправит.
+			// Блокировка живёт максимум 60 с, так что цепочка повторов конечна.
+			await scheduleDiagnosticRecheck(payload.dealId, LOCKED_RETRY_SECONDS);
+		}
 		console.info(
 			`[diagnostic-recheck] сделка ${payload.dealId}: ${result.action}, чат: ${result.chat}${result.chatReason ? ` (${result.chatReason})` : ""}, email: ${result.email}`,
 		);
