@@ -64,6 +64,14 @@ import {
 	updateBotGuideCampaign as _updateBotGuideCampaign,
 } from "./bot-guide-campaigns";
 import {
+	createMarketingCampaign as _createMarketingCampaign,
+	deleteMarketingCampaign as _deleteMarketingCampaign,
+	getMarketingCampaignByCode as _getMarketingCampaignByCode,
+	isGuideCampaignKeywordTaken as _isGuideCampaignKeywordTaken,
+	listMarketingCampaigns as _listMarketingCampaigns,
+	updateMarketingCampaign as _updateMarketingCampaign,
+} from "./marketing-campaigns";
+import {
 	getBotGuideDelivery as _getBotGuideDelivery,
 	getPendingGuideDiagnosticDelivery as _getPendingGuideDiagnosticDelivery,
 	listClientGuideActivity as _listClientGuideActivity,
@@ -177,6 +185,10 @@ export type {
 	BotGuideCampaign,
 	NewBotGuideCampaign,
 } from "./bot-guide-campaigns";
+export type {
+	MarketingCampaign,
+	NewMarketingCampaign,
+} from "./marketing-campaigns";
 export type {
 	BotGuideDelivery,
 	ClientGuideActivity,
@@ -664,6 +676,37 @@ export async function updateBotGuideCampaign(
 
 export async function deleteBotGuideCampaign(id: string): Promise<void> {
 	return _deleteBotGuideCampaign(db, id);
+}
+
+export async function listMarketingCampaigns() {
+	return _listMarketingCampaigns(db);
+}
+
+export async function getMarketingCampaignByCode(code: string) {
+	return _getMarketingCampaignByCode(db, code);
+}
+
+export async function isGuideCampaignKeywordTaken(
+	code: string,
+): Promise<boolean> {
+	return _isGuideCampaignKeywordTaken(db, code);
+}
+
+export async function createMarketingCampaign(
+	campaign: Parameters<typeof _createMarketingCampaign>[1],
+): Promise<void> {
+	return _createMarketingCampaign(db, campaign);
+}
+
+export async function updateMarketingCampaign(
+	id: string,
+	patch: Parameters<typeof _updateMarketingCampaign>[2],
+): Promise<void> {
+	return _updateMarketingCampaign(db, id, patch);
+}
+
+export async function deleteMarketingCampaign(id: string): Promise<void> {
+	return _deleteMarketingCampaign(db, id);
 }
 
 export async function upsertBotGuideDelivery(

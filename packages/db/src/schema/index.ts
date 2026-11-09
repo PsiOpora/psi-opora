@@ -26,6 +26,7 @@ export * from "./email-lists";
 export * from "./email-provider";
 export * from "./email-suppressions";
 export * from "./email-templates";
+export * from "./marketing-campaigns";
 export * from "./max-personal";
 export * from "./outreach";
 export * from "./postbox";

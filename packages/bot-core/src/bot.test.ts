@@ -71,6 +71,7 @@ mock.module("@psi-opora/db/queries", () => ({
 				: null,
 		),
 	getBotGuideCampaignByKeyword: () => Promise.resolve(null),
+	getMarketingCampaignByCode: () => Promise.resolve(null),
 	getPendingGuideDiagnosticDelivery: () => Promise.resolve(null),
 	markGuideDiagnosticRequested: () => Promise.resolve(),
 	upsertBotGuideDelivery: () => Promise.resolve(),

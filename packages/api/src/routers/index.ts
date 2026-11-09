@@ -28,6 +28,7 @@ import { emailCampaignsRouter } from "./email-campaigns";
 import { emailListsRouter } from "./email-lists";
 import { emailTemplatesRouter } from "./email-templates";
 import { guideCampaignsRouter } from "./guide-campaigns";
+import { marketingCampaignsRouter } from "./marketing-campaigns";
 import { maxPersonalRouter } from "./max-personal";
 import { messagesRouter } from "./messages";
 import { outreachRouter } from "./outreach";
@@ -50,6 +51,7 @@ export {
 	emailRouter,
 	emailTemplatesRouter,
 	guideCampaignsRouter,
+	marketingCampaignsRouter,
 	maxPersonalRouter,
 	messagesRouter,
 	outreachRouter,
@@ -72,6 +74,7 @@ export const appRouter = {
 	emailLists: emailListsRouter,
 	emailTemplates: emailTemplatesRouter,
 	guideCampaigns: guideCampaignsRouter,
+	marketingCampaigns: marketingCampaignsRouter,
 	messages: messagesRouter,
 	maxPersonal: maxPersonalRouter,
 	outreach: outreachRouter,

@@ -73,6 +73,7 @@ export {
 	looksLikeDiagnosticConsent,
 	resolveGuideCampaignStart,
 } from "./scenario/guide-campaign";
+export { resolveStartUtm } from "./scenario/marketing-campaign";
 export {
 	clearScenarioAwaiting,
 	markScenarioAwaiting,
