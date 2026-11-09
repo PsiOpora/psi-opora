@@ -38,6 +38,7 @@ import {
 	handleYandexMetrikaStageGoals,
 	type Messenger,
 	removeSyncedDeal,
+	scheduleDiagnosticRecheck,
 	sendMessengerMessage,
 	syncOneDeal,
 } from "@psi-opora/jobs";
@@ -810,7 +811,9 @@ async function handleConsultationReminderDealUpdate(
 		const [consultation, diagnostic, stageConsent, metrikaStageGoals] =
 			await Promise.all([
 				handleConsultationDealUpdate(api, redis, dealId),
-				handleDiagnosticDealUpdate(api, redis, dealId),
+				handleDiagnosticDealUpdate(api, redis, dealId, {
+					scheduleRecheck: scheduleDiagnosticRecheck,
+				}),
 				handleStageConsentTrigger(api, redis, dealId),
 				// Ошибка Метрики не должна ломать остальные обработчики события.
 				handleYandexMetrikaStageGoals(api, dealId).catch((err) => {
