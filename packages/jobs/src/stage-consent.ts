@@ -58,6 +58,8 @@ async function sendAndLog(
  * сообщения — оповещение, согласие с офертой (1 кнопка) и согласие на
  * рекламную рассылку (2 кнопки). Повторно на ту же сделку не срабатывает —
  * отмечается флагом в Redis, а не таймингом, в отличие от напоминаний.
+ * Если вебхук о смене стадии потерялся, сделку добирает крон
+ * (sweepMissedStageConsents в stage-consent-sweep.ts).
  */
 export async function handleStageConsentTrigger(
 	api: BitrixApi,

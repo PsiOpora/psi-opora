@@ -5,6 +5,7 @@ import { env } from "@psi-opora/config";
 import { sendConsultationReminders } from "../consultation-reminders";
 import { sweepPendingDiagnosticDeals } from "../diagnostic-recheck-run";
 import { sendDiagnosticReminders } from "../diagnostic-reminders";
+import { sweepMissedStageConsents } from "../stage-consent-sweep";
 import { scheduleDiagnosticRecheck } from "./diagnostic-recheck";
 import { runSteps } from "./run-steps";
 
@@ -13,7 +14,8 @@ import { runSteps } from "./run-steps";
  * встречи. Состояние сделок наполняется вебхуком ONCRMDEALUPDATE
  * (apps/bitrix-webhook), здесь только рассылка. См. sendConsultationReminders
  * в consultation-reminders.ts и sendDiagnosticReminders в
- * diagnostic-reminders.ts.
+ * diagnostic-reminders.ts. Заодно страхует триггеры, которые зависят от того
+ * же вебхука и молчат, если событие потерялось.
  *
  * Один крон на оба вида напоминаний — из-за лимита Hatchet на число
  * cron-триггеров; шаги идут последовательно, так что лимит Bitrix REST
@@ -43,6 +45,11 @@ export const calendarReminders = CreateTaskWorkflow({
 				...(await sweepPendingDiagnosticDeals(api, redis, {
 					scheduleRecheck: scheduleDiagnosticRecheck,
 				})),
+			}),
+			// Страховка согласий стадии «Б/п консультация»: досылает их, если
+			// вебхук о смене стадии потерялся (см. stage-consent-sweep.ts).
+			stageConsent: async () => ({
+				...(await sweepMissedStageConsents(api, redis)),
 			}),
 		});
 	},
