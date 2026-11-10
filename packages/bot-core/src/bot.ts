@@ -22,6 +22,7 @@ import {
 	applyScenarioText,
 	type GuideCampaignContext,
 	isScenarioAction,
+	needsKnownContact,
 	type ScenarioMessage,
 	type ScenarioOutput,
 	startConsultation,
@@ -503,9 +504,27 @@ export function createBot({
 
 	// Контакт ищется и по диалогу Открытой линии — он появляется в Bitrix с
 	// первым пересланным сообщением, поэтому сначала дожидаемся пересылки.
-	const lookupKnownContact = async (userId: number, chatId: number) => {
-		await background.waitForOpenLine(chatKeyOf(chatId));
-		return resolveKnownContact({ messenger: "telegram", userId, chatId });
+	// Вызывается перед экраном согласия на ПДн (если оно уже отмечено в
+	// карточке CRM — экран пропускается, см. hasRecordedConsent) и на самом
+	// согласии в флоу консультации (подстановка имени/телефона/email). Сбой
+	// поиска не должен ронять сценарий — тогда просто спрашиваем как обычно.
+	const lookupKnownContact = async (ctx: AppContext) => {
+		const userId = ctx.from?.id;
+		const chatId = ctx.chatId;
+		if (!userId || !chatId) return null;
+		try {
+			await background.waitForOpenLine(chatKeyOf(chatId));
+			return await resolveKnownContact({
+				messenger: "telegram",
+				userId,
+				chatId,
+			});
+		} catch (err) {
+			log(
+				`[WARN] поиск известного контакта user=${userId}: ${describeError(err)}`,
+			);
+			return null;
+		}
 	};
 
 	const dispatch = async (
@@ -636,7 +655,12 @@ export function createBot({
 			await dispatchBookPreorder(
 				ctx,
 				resumed ??
-					startBookPreorder(texts, bookPreorder.source, bookPreorder.intent),
+					startBookPreorder(
+						texts,
+						bookPreorder.source,
+						bookPreorder.intent,
+						await lookupKnownContact(ctx),
+					),
 				texts,
 			);
 			return;
@@ -663,7 +687,12 @@ export function createBot({
 			if (source) ctx.session.source = source;
 			collectProfileInBackground(ctx);
 			const texts = await getScenarioTexts();
-			await dispatch(ctx, startGuideCampaign(campaign, texts), texts, campaign);
+			await dispatch(
+				ctx,
+				startGuideCampaign(campaign, texts, await lookupKnownContact(ctx)),
+				texts,
+				campaign,
+			);
 			return;
 		}
 
@@ -876,7 +905,13 @@ export function createBot({
 			ctx.session.scenario = undefined;
 			await dispatchBookPreorder(
 				ctx,
-				resumed ?? startBookPreorder(texts),
+				resumed ??
+					startBookPreorder(
+						texts,
+						undefined,
+						undefined,
+						await lookupKnownContact(ctx),
+					),
 				texts,
 			);
 			return;
@@ -884,30 +919,27 @@ export function createBot({
 
 		if (action === "start_consultation") {
 			// Кнопка «Записаться» из сообщений старого бота — сразу в флоу записи
-			out = startConsultation(texts);
+			out = startConsultation(texts, await lookupKnownContact(ctx));
 		} else if (isScenarioAction(action)) {
 			const state = ctx.session.scenario;
 			guideCampaign = state?.campaignId
 				? await loadGuideCampaignContext(state.campaignId)
 				: null;
-			// Ищем клиента в CRM только на шаге согласия флоу консультации —
-			// там его данные (если найдутся) подставятся вместо повторных
-			// вопросов об имени/телефоне/email (см. scenario/engine.ts).
-			const knownContact =
-				action === "consent_agree" &&
-				state?.flow === "consult" &&
-				state.step === "consent" &&
-				ctx.from &&
-				ctx.chatId
-					? await lookupKnownContact(ctx.from.id, ctx.chatId)
-					: null;
+			// Ищем клиента в CRM только там, где это что-то меняет (см.
+			// needsKnownContact): перед экраном согласия — если оно уже отмечено
+			// в карточке, экран пропускается; на согласии флоу консультации —
+			// известные имя/телефон/email подставятся вместо повторных вопросов.
+			const knownContact = needsKnownContact(state, action)
+				? await lookupKnownContact(ctx)
+				: null;
 			out = state
 				? applyScenarioAction(state, action, texts, guideCampaign, knownContact)
 				: null;
 			// Согласие из старого сообщения без активного сценария —
-			// начинаем запись заново (показываем актуальное согласие)
+			// начинаем запись заново (показываем актуальное согласие, если оно
+			// ещё не отмечено в CRM)
 			if (!out && action === "consent_agree") {
-				out = startConsultation(texts);
+				out = startConsultation(texts, await lookupKnownContact(ctx));
 			}
 		}
 
@@ -1012,7 +1044,7 @@ export function createBot({
 				const texts = await getScenarioTexts();
 				await dispatch(
 					ctx,
-					startGuideCampaign(campaign, texts),
+					startGuideCampaign(campaign, texts, await lookupKnownContact(ctx)),
 					texts,
 					campaign,
 				);

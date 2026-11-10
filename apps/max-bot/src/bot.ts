@@ -29,6 +29,7 @@ import {
 	looksLikeDiagnosticConsent,
 	matchesBookPreorderStartParam,
 	matchesConsultStartParam,
+	needsKnownContact,
 	parseDripCallback,
 	parseStageConsentPayload,
 	rememberYandexMetrikaVisitor,
@@ -496,6 +497,30 @@ export function createMaxBot({
 		);
 	};
 
+	// Вызывается перед экраном согласия на ПДн (если оно уже отмечено в
+	// карточке CRM — экран пропускается, см. hasRecordedConsent в bot-core) и
+	// на самом согласии в флоу консультации (подстановка имени/телефона/email).
+	// Контакт ищется и по диалогу Открытой линии — он появляется с первым
+	// пересланным сообщением, поэтому ждём пересылки. Сбой поиска не должен
+	// ронять сценарий — тогда просто спрашиваем как обычно.
+	const lookupKnownContact = async (ctx: AppContext) => {
+		const userId = ctx.user?.user_id;
+		if (!userId) return null;
+		try {
+			await background.waitForOpenLine(chatKeyOf(userId));
+			return await resolveKnownContact({
+				messenger: "max",
+				userId,
+				chatId: userId,
+			});
+		} catch (err) {
+			log(
+				`[WARN] поиск известного контакта user=${userId}: ${describeError(err)}`,
+			);
+			return null;
+		}
+	};
+
 	/** Обрабатывает /start, включая возобновление активного предзаказа книги. */
 	async function handleStart(
 		ctx: AppContext,
@@ -550,7 +575,12 @@ export function createMaxBot({
 			await dispatchBookPreorder(
 				ctx,
 				resumed ??
-					startBookPreorder(texts, bookPreorder.source, bookPreorder.intent),
+					startBookPreorder(
+						texts,
+						bookPreorder.source,
+						bookPreorder.intent,
+						await lookupKnownContact(ctx),
+					),
 				texts,
 			);
 			return;
@@ -572,7 +602,11 @@ export function createMaxBot({
 			);
 			collectProfileInBackground(ctx);
 			const texts = await getScenarioTexts();
-			await dispatch(ctx, startConsultation(texts), texts);
+			await dispatch(
+				ctx,
+				startConsultation(texts, await lookupKnownContact(ctx)),
+				texts,
+			);
 			return;
 		}
 
@@ -588,7 +622,12 @@ export function createMaxBot({
 			if (source) ctx.session.source = source;
 			collectProfileInBackground(ctx);
 			const texts = await getScenarioTexts();
-			await dispatch(ctx, startGuideCampaign(campaign, texts), texts, campaign);
+			await dispatch(
+				ctx,
+				startGuideCampaign(campaign, texts, await lookupKnownContact(ctx)),
+				texts,
+				campaign,
+			);
 			return;
 		}
 
@@ -626,7 +665,11 @@ export function createMaxBot({
 			source: "scenario",
 			text: texts.btn_consult,
 		});
-		await dispatch(appCtx, startConsultation(texts), texts);
+		await dispatch(
+			appCtx,
+			startConsultation(texts, await lookupKnownContact(appCtx)),
+			texts,
+		);
 	});
 
 	// Кнопка из follow-up-сообщения кампании гайда (packages/jobs) — не часть
@@ -846,7 +889,13 @@ export function createMaxBot({
 		appCtx.session.scenario = undefined;
 		await dispatchBookPreorder(
 			appCtx,
-			resumed ?? startBookPreorder(texts),
+			resumed ??
+				startBookPreorder(
+					texts,
+					undefined,
+					undefined,
+					await lookupKnownContact(appCtx),
+				),
 			texts,
 		);
 	});
@@ -862,32 +911,21 @@ export function createMaxBot({
 			const guideCampaign = state?.campaignId
 				? await loadGuideCampaignContext(state.campaignId)
 				: null;
-			// Ищем клиента в CRM только на шаге согласия флоу консультации —
-			// там его данные (если найдутся) подставятся вместо повторных
-			// вопросов об имени/телефоне/email (см. scenario/engine.ts).
-			const userId = appCtx.user?.user_id;
-			const knownContact =
-				action === "consent_agree" &&
-				state?.flow === "consult" &&
-				state.step === "consent" &&
-				userId
-					? // Контакт ищется и по диалогу Открытой линии — он появляется с
-						// первым пересланным сообщением, поэтому ждём пересылки.
-						await background.waitForOpenLine(chatKeyOf(userId)).then(() =>
-							resolveKnownContact({
-								messenger: "max",
-								userId,
-								chatId: userId,
-							}),
-						)
-					: null;
+			// Ищем клиента в CRM только там, где это что-то меняет (см.
+			// needsKnownContact): перед экраном согласия — если оно уже отмечено
+			// в карточке, экран пропускается; на согласии флоу консультации —
+			// известные имя/телефон/email подставятся вместо повторных вопросов.
+			const knownContact = needsKnownContact(state, action)
+				? await lookupKnownContact(appCtx)
+				: null;
 			let out = state
 				? applyScenarioAction(state, action, texts, guideCampaign, knownContact)
 				: null;
 			// Согласие из старого сообщения без активного сценария —
-			// начинаем запись заново (показываем актуальное согласие)
+			// начинаем запись заново (показываем актуальное согласие, если оно
+			// ещё не отмечено в CRM)
 			if (!out && action === "consent_agree") {
-				out = startConsultation(texts);
+				out = startConsultation(texts, await lookupKnownContact(appCtx));
 			}
 			// null — кнопка от прошлого шага (устаревшее сообщение), игнорируем
 			if (!out) return;
@@ -1085,7 +1123,7 @@ export function createMaxBot({
 				const texts = await getScenarioTexts();
 				await dispatch(
 					appCtx,
-					startGuideCampaign(campaign, texts),
+					startGuideCampaign(campaign, texts, await lookupKnownContact(appCtx)),
 					texts,
 					campaign,
 				);

@@ -1,4 +1,8 @@
 import { bitrixPost, getSourceId } from "./client";
+import {
+	CONSENT_PDN_DATE_FIELD,
+	CONSENT_PDN_FLAG_FIELD,
+} from "./consent-fields";
 import type { ContactData } from "./types";
 
 // Привязка мессенджера в карточке контакта — мультиполе IM с типом OPENLINE
@@ -53,17 +57,21 @@ function buildProfileComment(data: ContactData): string | undefined {
 // владельца вебхука, которым сейчас является техническая учётка Максима.
 export const DEFAULT_ASSIGNED_BY_ID = 18;
 
-/** Поля согласия на ПДн — пишутся и в свой контакт, и в контакт Wazzup. */
+/**
+ * Поля согласия на ПДн — пишутся и в свой контакт, и в контакт Wazzup.
+ * Читаются обратно в resolveKnownContact (known-contact.ts): по ним бот
+ * решает, показывать ли экран согласия уже известному клиенту.
+ */
 export function buildConsentFields(data: ContactData) {
 	return {
 		// Сценарий бота всегда передаёт consentGranted=true после экрана
 		// согласия. Контакт, созданный из произвольного входящего телефона/email,
 		// не получает этот флаг автоматически.
-		...(data.consentGranted ? { UF_CRM_CONTACT_1779910236669: 1 } : {}),
+		...(data.consentGranted ? { [CONSENT_PDN_FLAG_FIELD]: 1 } : {}),
 		// Дата/время согласия на ПДн — фиксируется автоматически в момент нажатия
 		// кнопки в боте, без ручного редактирования оператором.
 		...(data.consentGranted && data.consentAt
-			? { UF_CRM_CONTACT_CONSENT_PDN_DT: data.consentAt }
+			? { [CONSENT_PDN_DATE_FIELD]: data.consentAt }
 			: {}),
 	};
 }

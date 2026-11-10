@@ -1,6 +1,7 @@
 import type { FunnelStep } from "../utils/funnel";
 import { extractContactInfo } from "../utils/llm-extract";
 import { hasPhoneNumber, isValidEmail } from "../utils/validation";
+import { hasRecordedConsent } from "./consent";
 import {
 	categoryQuestion,
 	consentQuestion,
@@ -53,6 +54,7 @@ import type {
  * ./questions; здесь только переходы между шагами.
  */
 
+export { hasRecordedConsent, needsKnownContact } from "./consent";
 export { stepQuestion, withFields, withName } from "./questions";
 export {
 	isScenarioAction,
@@ -133,23 +135,124 @@ export interface GuideCampaignContext {
 export function startGuideCampaign(
 	campaign: GuideCampaignContext,
 	t: ScenarioTexts,
+	knownContact?: KnownContact | null,
 ): ScenarioOutput {
 	const welcome = campaign.welcomeMessage?.trim();
-	return output(
-		{ step: "consent", flow: "guide", campaignId: campaign.id },
-		[...(welcome ? [{ text: welcome }] : []), consentQuestion(t)],
-		{ track: ["guide_click"] },
-	);
+	const leading = welcome ? [{ text: welcome }] : [];
+	const state: ScenarioState = {
+		step: "consent",
+		flow: "guide",
+		campaignId: campaign.id,
+	};
+	if (hasRecordedConsent(knownContact)) {
+		return proceedAfterConsent(state, t, {
+			consentAt: knownContact.consentAt,
+			campaign,
+			leading,
+			track: ["guide_click", "consent"],
+		});
+	}
+	return output(state, [...leading, consentQuestion(t)], {
+		track: ["guide_click"],
+	});
 }
 
 /**
  * Вход в флоу записи на консультацию: согласие на обработку ПДн.
  * Используется и для кнопки «Записаться» из сообщений старого бота.
+ * knownContact с отметкой о согласии (hasRecordedConsent) — экран согласия
+ * пропускается, сразу анкета (или заявка, если имя и телефон уже известны).
  */
-export function startConsultation(t: ScenarioTexts): ScenarioOutput {
-	return output({ step: "consent", flow: "consult" }, [consentQuestion(t)], {
-		track: ["consult_click"],
-	});
+export function startConsultation(
+	t: ScenarioTexts,
+	knownContact?: KnownContact | null,
+): ScenarioOutput {
+	const state: ScenarioState = { step: "consent", flow: "consult" };
+	if (hasRecordedConsent(knownContact)) {
+		return proceedAfterConsent(state, t, {
+			consentAt: knownContact.consentAt,
+			knownContact,
+			track: ["consult_click", "consent"],
+		});
+	}
+	return output(state, [consentQuestion(t)], { track: ["consult_click"] });
+}
+
+/**
+ * Переход с шага согласия дальше: и по кнопке «Согласен(а)», и когда экран
+ * согласия пропущен, потому что оно уже отмечено в CRM (hasRecordedConsent).
+ * state — состояние на шаге "consent" (flow/campaignId уже выбраны).
+ * Шаг воронки "consent" засчитывается в обоих случаях — иначе распознанные
+ * клиенты выглядели бы в дашборде как отвалившиеся на согласии.
+ */
+function proceedAfterConsent(
+	state: ScenarioState,
+	t: ScenarioTexts,
+	options: {
+		/** Момент согласия: «сейчас» при нажатии кнопки либо дата из карточки
+		 * CRM (может отсутствовать — тогда дату в контакте не трогаем). */
+		consentAt?: string;
+		campaign?: GuideCampaignContext | null;
+		knownContact?: KnownContact | null;
+		/** Сообщения перед следующим вопросом (ответ на согласие, приветствие). */
+		leading?: ScenarioMessage[];
+		track: FunnelStep[];
+	},
+): ScenarioOutput {
+	const { consentAt, campaign, knownContact, leading = [], track } = options;
+
+	// Вход по кодовому слову кампании — тема уже известна, category/issue
+	// не спрашиваем, сразу переходим к email (ветка «ребёнок»: email →
+	// гайд → телефон → done, см. submitGuidePhone).
+	if (state.campaignId) {
+		return output(
+			{ ...fresh(state), step: "email", consentAt, audience: "child" },
+			[
+				...leading,
+				campaign ? { text: campaign.emailQuestion } : emailQuestion(t),
+			],
+			{ track },
+		);
+	}
+	if (state.flow === "guide") {
+		return output(
+			{ ...fresh(state), step: "category", consentAt },
+			[...leading, categoryQuestion(t)],
+			{ track },
+		);
+	}
+
+	// Клиент уже есть в CRM (найден по мессенджеру, см. resolveKnownContact) —
+	// не переспрашиваем то, что там уже заполнено; чего не хватает, спрашиваем
+	// как обычно дальше по цепочке (см. правки для этого же случая в шагах
+	// "name"/"phone" ниже — телефон/email могут стать известны только здесь,
+	// но понадобиться на следующих шагах).
+	const prefilled: ScenarioState = {
+		...fresh(state),
+		consentAt,
+		...(knownContact?.name ? { name: knownContact.name } : {}),
+		...(knownContact?.phone ? { phone: knownContact.phone } : {}),
+		...(knownContact?.email ? { email: knownContact.email } : {}),
+	};
+
+	if (prefilled.name && prefilled.phone) {
+		return submitConsultLead(prefilled, prefilled.email, t, leading, track);
+	}
+	if (prefilled.name) {
+		return output(
+			{ ...prefilled, step: "phone" },
+			[
+				...leading,
+				{ text: withName(t.consult_phone_question, prefilled.name) },
+			],
+			{ track },
+		);
+	}
+	return output(
+		{ ...prefilled, step: "name" },
+		[...leading, { text: t.name_question }],
+		{ track },
+	);
 }
 
 function askForPhone(
@@ -263,6 +366,7 @@ function submitConsultLead(
 	email: string | undefined,
 	t: ScenarioTexts,
 	precedingMessages: ScenarioMessage[] = [],
+	track: FunnelStep[] = [],
 ): ScenarioOutput {
 	const lead: ScenarioLead = {
 		flow: "consult",
@@ -274,7 +378,7 @@ function submitConsultLead(
 	return output(
 		{ ...state, email, step: "done" },
 		[...precedingMessages, { text: withName(t.consult_success, state.name) }],
-		{ lead },
+		{ lead, track },
 	);
 }
 
@@ -288,9 +392,10 @@ export function applyScenarioAction(
 	t: ScenarioTexts,
 	campaign?: GuideCampaignContext | null,
 	/** Клиент, уже найденный в CRM по мессенджеру (см.
-	 * utils/bitrix/known-contact.ts) — используется только на шаге "consent"
-	 * флоу консультации, чтобы не переспрашивать уже известные имя/телефон/
-	 * email. */
+	 * utils/bitrix/known-contact.ts) — нужен на шаге "entry" (пропуск экрана
+	 * согласия, если оно уже отмечено в карточке) и на шаге "consent" флоу
+	 * консультации (не переспрашивать известные имя/телефон/email). Когда
+	 * адаптеру его искать — см. needsKnownContact. */
 	knownContact?: KnownContact | null,
 ): ScenarioOutput | null {
 	// Клиент нажал кнопку в сообщении после таймаута (см. ScenarioState.expired) —
@@ -307,82 +412,35 @@ export function applyScenarioAction(
 
 	switch (state.step) {
 		case "entry": {
-			if (action === "sc_consult") return startConsultation(t);
+			if (action === "sc_consult") return startConsultation(t, knownContact);
 			if (action === "sc_guide") {
-				return output(
-					{ ...fresh(state), step: "consent", flow: "guide" },
-					[consentQuestion(t)],
-					{ track: ["guide_click"] },
-				);
+				const next: ScenarioState = {
+					...fresh(state),
+					step: "consent",
+					flow: "guide",
+				};
+				if (hasRecordedConsent(knownContact)) {
+					return proceedAfterConsent(next, t, {
+						consentAt: knownContact.consentAt,
+						track: ["guide_click", "consent"],
+					});
+				}
+				return output(next, [consentQuestion(t)], {
+					track: ["guide_click"],
+				});
 			}
 			return null;
 		}
 
 		case "consent": {
 			if (action === "consent_agree") {
-				const consentAt = new Date().toISOString();
-				const consentReply = { text: t.consent_agreed };
-				// Вход по кодовому слову кампании — тема уже известна, category/issue
-				// не спрашиваем, сразу переходим к email (ветка «ребёнок»: email →
-				// гайд → телефон → done, см. submitGuidePhone).
-				if (state.campaignId) {
-					return output(
-						{
-							...fresh(state),
-							step: "email",
-							consentAt,
-							audience: "child",
-						},
-						[
-							consentReply,
-							campaign ? { text: campaign.emailQuestion } : emailQuestion(t),
-						],
-						{ track: ["consent"] },
-					);
-				}
-				const isGuide = state.flow === "guide";
-				if (isGuide) {
-					return output(
-						{ ...fresh(state), step: "category", consentAt },
-						[consentReply, categoryQuestion(t)],
-						{ track: ["consent"] },
-					);
-				}
-
-				// Клиент уже есть в CRM (найден по мессенджеру, см.
-				// resolveKnownContact) — не переспрашиваем то, что там уже
-				// заполнено; чего не хватает, спрашиваем как обычно дальше по
-				// цепочке (см. правки для этого же случая в шагах "name"/"phone"
-				// ниже — телефон/email могут стать известны только на consent,
-				// но понадобиться на следующих шагах).
-				const prefilled: ScenarioState = {
-					...fresh(state),
-					consentAt,
-					...(knownContact?.name ? { name: knownContact.name } : {}),
-					...(knownContact?.phone ? { phone: knownContact.phone } : {}),
-					...(knownContact?.email ? { email: knownContact.email } : {}),
-				};
-
-				if (prefilled.name && prefilled.phone) {
-					return submitConsultLead(prefilled, prefilled.email, t, [
-						consentReply,
-					]);
-				}
-				if (prefilled.name) {
-					return output(
-						{ ...prefilled, step: "phone" },
-						[
-							consentReply,
-							{ text: withName(t.consult_phone_question, prefilled.name) },
-						],
-						{ track: ["consent"] },
-					);
-				}
-				return output(
-					{ ...prefilled, step: "name" },
-					[consentReply, { text: t.name_question }],
-					{ track: ["consent"] },
-				);
+				return proceedAfterConsent(state, t, {
+					consentAt: new Date().toISOString(),
+					campaign,
+					knownContact,
+					leading: [{ text: t.consent_agreed }],
+					track: ["consent"],
+				});
 			}
 			if (action === "consent_decline") {
 				return output(
@@ -520,7 +578,7 @@ export async function applyScenarioText(
 			// его на поля; если это не удалось (нет ключа, ошибка, распознать
 			// не получилось), ведём себя как раньше — весь текст = имя.
 			// state.phone/state.email здесь могут быть уже известны из CRM
-			// (подставлены на consent_agree, см. resolveKnownContact) — тогда
+			// (подставлены в proceedAfterConsent, см. resolveKnownContact) — тогда
 			// повторно их не спрашиваем.
 			const extracted = await extractContactInfo(text);
 			if (!extracted) {
@@ -651,7 +709,7 @@ export async function applyScenarioText(
 			if (hasPhoneNumber(text)) {
 				const phone = text.trim();
 				if (state.flow === "consult") {
-					// Email уже известен из CRM (см. consent_agree/prefilled выше) —
+					// Email уже известен из CRM (см. prefilled в proceedAfterConsent) —
 					// сразу отправляем заявку, а не спрашиваем его ещё раз.
 					if (state.email) {
 						return submitConsultLead(
