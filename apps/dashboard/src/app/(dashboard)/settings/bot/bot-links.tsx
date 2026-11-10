@@ -176,6 +176,7 @@ export const AD_SOURCE_PRESETS = [
 	{ code: "max_ads", label: "Реклама в MAX" },
 	{ code: "yandex", label: "Яндекс.Директ" },
 	{ code: "dzen", label: "Яндекс Дзен" },
+	{ code: "b17", label: "Б17 (b17.ru)" },
 ] as const;
 
 /**
