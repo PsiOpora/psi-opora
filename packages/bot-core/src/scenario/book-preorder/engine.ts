@@ -1,5 +1,7 @@
 import { isValidEmail, parsePhoneNumber } from "../../utils/validation";
+import { hasRecordedConsent } from "../consent";
 import type { ScenarioTexts } from "../texts";
+import type { KnownContact } from "../types";
 import {
 	bpAboutBookInfoMessage,
 	bpAboutBookQuestion,
@@ -169,7 +171,23 @@ export function startBookPreorder(
 	t: ScenarioTexts,
 	source?: string,
 	intent?: BookPreorderIntent,
+	/** Клиент, найденный в CRM по мессенджеру: если согласие на ПДн уже
+	 * отмечено в его карточке (hasRecordedConsent), экран согласия пропускаем
+	 * и сразу спрашиваем имя. */
+	knownContact?: KnownContact | null,
 ): BookPreorderOutput {
+	if (hasRecordedConsent(knownContact)) {
+		return output(
+			{
+				step: "name",
+				source,
+				intent,
+				consentAt: knownContact.consentAt,
+				nudged: 0,
+			},
+			[{ text: t.bp_name_question }],
+		);
+	}
 	return output({ step: "consent", source, intent }, [bpConsentQuestion(t)]);
 }
 

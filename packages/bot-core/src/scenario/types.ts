@@ -95,7 +95,7 @@ export interface ScenarioState {
 
 /**
  * Данные клиента, уже найденные в CRM (Bitrix24) по мессенджеру до начала
- * сценария — см. ветку consent_agree в engine.ts и resolveKnownContact в
+ * сценария — см. proceedAfterConsent в engine.ts и resolveKnownContact в
  * utils/bitrix/known-contact.ts. Что уже известно, сценарий повторно не
  * спрашивает.
  */
@@ -103,6 +103,11 @@ export interface KnownContact {
 	name?: string;
 	phone?: string;
 	email?: string;
+	/** Согласие на ПДн уже отмечено в карточке контакта — экран согласия
+	 * не показываем (см. hasRecordedConsent в engine.ts). */
+	consentGranted?: boolean;
+	/** Дата согласия из карточки (ISO), если заполнена. */
+	consentAt?: string;
 }
 
 export interface ScenarioButton {
