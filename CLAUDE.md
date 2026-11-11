@@ -62,7 +62,7 @@ docker compose up -d waha
   - `clients` — operator inbox (Next.js): message history/reply UI outside Bitrix24 itself.
   - `bitrix-webhook` — receives Bitrix24 outgoing webhooks (operator replies, deal updates) and WAHA webhooks; serverless-friendly (no persistent connections).
   - `tg-userbot-worker`, `max-userbot-worker` — always-on processes holding persistent protocol connections (MTProto / reverse-engineered MAX protocol) for personal-number channels. Cannot be serverless functions; deployed as long-running containers.
-  - `hatchet-worker` — runs the Hatchet job worker (thin wrapper calling `startHatchetWorker()` from `packages/jobs`).
+  - `hatchet-worker` — runs the Hatchet job worker (thin wrapper calling `startHatchetWorker()` from `packages/jobs`) plus the in-process once-a-minute scheduled-messages ticker (`startScheduledMessagesTicker`). Hatchet Cloud has a daily run limit — don't add high-frequency crons there; poll in-process instead.
   - `tg-vercel-proxy` — Hono app on Vercel, reverse-proxying `api.telegram.org` while direct calls from the RU-hosted k3s cluster are unreliable. See `apps/tg-vercel-proxy/README.md`.
 - `packages/*` — shared libraries, workspace-referenced as `@psi-opora/*`.
   - `bot-core` — shared bot scenario engine and CRM helper logic used by both `tg-bot` and `max-bot`.
