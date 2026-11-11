@@ -1,52 +1,52 @@
 {
-	"name": "@psi-opora/jobs",
-	"version": "0.0.1",
-	"type": "module",
-	"private": true,
-	"main": "./dist/index.mjs",
-	"types": "./dist/index.d.mts",
-	"exports": {
-		"./bot-background": {
-			"types": "./dist/bot-background.d.mts",
-			"default": "./dist/bot-background.mjs"
-		},
-		".": {
-			"types": "./dist/index.d.mts",
-			"default": "./dist/index.mjs"
-		}
-	},
-	"files": [
-		"dist"
-	],
-	"scripts": {
-		"build": "tsdown",
-		"clean": "git clean -xdf .cache .turbo dist node_modules",
-		"dev": "bun --env-file=../../.env --watch src/worker.ts",
-		"start": "bun --env-file=../../.env src/worker.ts",
-		"typecheck": "tsc --noEmit --emitDeclarationOnly false"
-	},
-	"dependencies": {
-		"@psi-opora/storage": "workspace:*",
-		"@psi-opora/bitrix-client": "workspace:*",
-		"@psi-opora/bot-core": "workspace:*",
-		"@psi-opora/config": "workspace:*",
-		"@psi-opora/db": "workspace:*",
-		"@psi-opora/emails": "workspace:*",
-		"@psi-opora/max-userbot": "workspace:*",
-		"@psi-opora/rusender-client": "workspace:*",
-		"@psi-opora/tg-userbot": "workspace:*",
-		"@psi-opora/unisender-client": "workspace:*",
-		"@psi-opora/waha": "workspace:*",
-		"@aws-sdk/client-s3": "^3.1149.0",
-		"@hatchet-dev/typescript-sdk": "1.37.0",
-		"zod": "^4.6.7"
-	},
-	"devDependencies": {
-		"@psi-opora/tsconfig": "workspace:*",
-		"@types/node": "26.6.5",
-		"dotenv": "^17.4.2",
-		"esbuild": "^0.28.2",
-		"tsdown": "^0.23.1",
-		"typescript": "7.0.2"
-	}
+  "name": "@psi-opora/jobs",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    "./bot-background": {
+      "types": "./dist/bot-background.d.mts",
+      "default": "./dist/bot-background.mjs"
+    },
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "bun --env-file=../../.env --watch src/worker.ts",
+    "start": "bun --env-file=../../.env src/worker.ts",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@psi-opora/storage": "workspace:*",
+    "@psi-opora/bitrix-client": "workspace:*",
+    "@psi-opora/bot-core": "workspace:*",
+    "@psi-opora/config": "workspace:*",
+    "@psi-opora/db": "workspace:*",
+    "@psi-opora/emails": "workspace:*",
+    "@psi-opora/max-userbot": "workspace:*",
+    "@psi-opora/rusender-client": "workspace:*",
+    "@psi-opora/tg-userbot": "workspace:*",
+    "@psi-opora/unisender-client": "workspace:*",
+    "@psi-opora/waha": "workspace:*",
+    "@aws-sdk/client-s3": "^3.1149.0",
+    "@hatchet-dev/typescript-sdk": "1.37.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@psi-opora/tsconfig": "workspace:*",
+    "@types/node": "26.6.6",
+    "dotenv": "^17.4.2",
+    "esbuild": "^0.28.2",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
+  }
 }
