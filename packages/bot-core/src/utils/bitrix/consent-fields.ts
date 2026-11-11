@@ -7,5 +7,9 @@
 
 /** Флажок «согласие на ПДн получено». */
 export const CONSENT_PDN_FLAG_FIELD = "UF_CRM_CONTACT_1779910236669";
-/** Дата/время согласия на ПДн. */
-export const CONSENT_PDN_DATE_FIELD = "UF_CRM_CONTACT_CONSENT_PDN_DT";
+/**
+ * Дата/время согласия на ПДн. Имя — как его отдаёт портал
+ * (crm.contact.userfield.list): без «CONTACT_», в отличие от флажка выше.
+ * Запись в несуществующее поле Bitrix молча игнорирует.
+ */
+export const CONSENT_PDN_DATE_FIELD = "UF_CRM_CONSENT_PDN_DT";

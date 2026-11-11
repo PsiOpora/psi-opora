@@ -34,10 +34,16 @@ const emailSchema = firstCommValueSchema
 	.refine(isValidEmail);
 
 // Пользовательское поле-флажок Bitrix отдаёт как "1"/"0" (в некоторых
-// ответах — числом/boolean/"Y"); всё остальное считаем «не отмечено».
-const consentFlagSchema = z
-	.union([z.literal("1"), z.literal(1), z.literal(true), z.literal("Y")])
-	.transform(() => true as const);
+// ответах — числом/boolean/"Y"/"N"). Снятый флажок (false) отличаем от
+// отсутствующего поля (undefined): явно снятый перевешивает дату согласия.
+const consentFlagSchema = z.union([
+	z
+		.union([z.literal("1"), z.literal(1), z.literal(true), z.literal("Y")])
+		.transform(() => true),
+	z
+		.union([z.literal("0"), z.literal(0), z.literal(false), z.literal("N")])
+		.transform(() => false),
+]);
 
 // Дата-время согласия: Bitrix отдаёт ISO со смещением ("…+03:00") либо
 // пустую строку, если поле не заполнено.
@@ -77,11 +83,14 @@ async function fetchKnownContact(
 	const parsed = BitrixContactSchema.safeParse(contact);
 	if (!parsed.success) return null;
 	const { NAME: name, PHONE: phone, EMAIL: email } = parsed.data;
-	const consentAt = parsed.data[CONSENT_PDN_DATE_FIELD];
-	// Отметкой считаем и флажок, и заполненную дату согласия: бот пишет их
-	// вместе (см. buildConsentFields), но оператор мог заполнить только одно.
-	const consentGranted =
-		parsed.data[CONSENT_PDN_FLAG_FIELD] === true || Boolean(consentAt);
+	const flag = parsed.data[CONSENT_PDN_FLAG_FIELD];
+	// Решает флажок: бот пишет его вместе с датой (см. buildConsentFields), и
+	// если оператор снял флажок (отзыв согласия), оставшаяся дата согласием не
+	// считается. Только когда флажка в ответе нет вовсе, смотрим на дату.
+	const consentGranted = flag ?? Boolean(parsed.data[CONSENT_PDN_DATE_FIELD]);
+	const consentAt = consentGranted
+		? parsed.data[CONSENT_PDN_DATE_FIELD]
+		: undefined;
 	if (!name && !phone && !email && !consentGranted) return null;
 	return {
 		name,

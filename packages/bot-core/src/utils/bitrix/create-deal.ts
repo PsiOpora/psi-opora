@@ -80,7 +80,11 @@ async function ensureBitrixContact(data: ContactData): Promise<{
 		console.log(`[bitrix] используем контакт Wazzup id=${contactId}`);
 		await updateWazzupContact(messenger, contactId, data, dialog?.imol);
 	} else {
-		contactId = await findExistingContactId(data);
+		// Совпадение введённого телефона/email не подтверждает владельца.
+		// Согласие сохраняем в отдельной карточке пользователя, не связывая
+		// его мессенджер с потенциально чужим контактом. Подтверждённые
+		// контакты диалога/Wazzup обрабатываются выше.
+		contactId = data.consentGranted ? null : await findExistingContactId(data);
 		if (contactId) {
 			console.log(
 				`[bitrix] используем существующий контакт id=${contactId} вместо создания нового (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,

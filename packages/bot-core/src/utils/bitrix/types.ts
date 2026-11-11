@@ -29,7 +29,7 @@ export interface ContactData {
 	 * сам факт отправки телефона/email не равен согласию на рассылку.
 	 */
 	consentGranted?: boolean;
-	/** Момент нажатия «Согласен(а)» (ISO) — пишется в UF_CRM_CONTACT_CONSENT_PDN_DT,
+	/** Момент нажатия «Согласен(а)» (ISO) — пишется в UF_CRM_CONSENT_PDN_DT,
 	 * без ручного заполнения оператором. См. scenario/types.ts ScenarioState.consentAt. */
 	consentAt?: string;
 	campaign?: string;

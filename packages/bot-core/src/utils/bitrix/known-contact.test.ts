@@ -178,7 +178,7 @@ describe("resolveKnownContact", () => {
 		contact = {
 			NAME: "Иван",
 			UF_CRM_CONTACT_1779910236669: "1",
-			UF_CRM_CONTACT_CONSENT_PDN_DT: "2026-10-17T13:00:00+03:00",
+			UF_CRM_CONSENT_PDN_DT: "2026-10-17T13:00:00+03:00",
 		};
 
 		const known = await resolveKnownContact({
@@ -197,7 +197,7 @@ describe("resolveKnownContact", () => {
 		crmLink = { contactId: "1", dealId: null };
 		contact = {
 			UF_CRM_CONTACT_1779910236669: "1",
-			UF_CRM_CONTACT_CONSENT_PDN_DT: "",
+			UF_CRM_CONSENT_PDN_DT: "",
 		};
 
 		const known = await resolveKnownContact({
@@ -214,7 +214,7 @@ describe("resolveKnownContact", () => {
 		contact = {
 			NAME: "Иван",
 			UF_CRM_CONTACT_1779910236669: "0",
-			UF_CRM_CONTACT_CONSENT_PDN_DT: "",
+			UF_CRM_CONSENT_PDN_DT: "",
 		};
 
 		const known = await resolveKnownContact({
@@ -224,6 +224,37 @@ describe("resolveKnownContact", () => {
 
 		expect(known?.name).toBe("Иван");
 		expect(known?.consentGranted).toBeUndefined();
+	});
+
+	test("флажок снят, а дата согласия осталась — согласия нет (отзыв перевешивает дату)", async () => {
+		crmLink = { contactId: "1", dealId: null };
+		contact = {
+			NAME: "Иван",
+			UF_CRM_CONTACT_1779910236669: "0",
+			UF_CRM_CONSENT_PDN_DT: "2026-10-17T13:00:00+03:00",
+		};
+
+		const known = await resolveKnownContact({
+			messenger: "telegram",
+			userId: 100,
+		});
+
+		expect(known?.name).toBe("Иван");
+		expect(known?.consentGranted).toBeUndefined();
+		expect(known?.consentAt).toBeUndefined();
+	});
+
+	test("флажка в ответе нет вовсе — согласие определяется по дате", async () => {
+		crmLink = { contactId: "1", dealId: null };
+		contact = { UF_CRM_CONSENT_PDN_DT: "2026-10-17T13:00:00+03:00" };
+
+		const known = await resolveKnownContact({
+			messenger: "telegram",
+			userId: 100,
+		});
+
+		expect(known?.consentGranted).toBe(true);
+		expect(known?.consentAt).toBe("2026-10-17T10:00:00.000Z");
 	});
 
 	test("ошибка Bitrix не ломает сценарий — просто нет данных для подстановки", async () => {
