@@ -11,8 +11,8 @@ initTelemetry("hatchet-worker");
 // (см. scheduled-messages-ticker.ts в packages/jobs). Отправляет их код из
 // @psi-opora/api (тот же, что и у обычной отправки из инбокса/вкладки CRM) —
 // jobs сам api импортировать не может: api зависит от jobs.
-const scheduledMessages = startScheduledMessagesTicker(async () => ({
-	...(await dispatchDueScheduledMessages()),
+const scheduledMessages = startScheduledMessagesTicker(async (signal) => ({
+	...(await dispatchDueScheduledMessages(undefined, undefined, signal)),
 }));
 
 await startHatchetWorker({ onShutdown: () => scheduledMessages.stop() });

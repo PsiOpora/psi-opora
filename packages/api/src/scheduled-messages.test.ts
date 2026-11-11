@@ -244,6 +244,48 @@ describe("dispatchDueScheduledMessages", () => {
 		expect(h.finished[1]).toEqual({ id: "ok", result: { status: "sent" } });
 	});
 
+	test("an aborted run finishes the send in flight but starts no new ones", async () => {
+		const abort = new AbortController();
+		const sent: string[] = [];
+		const h = harness([row({ id: "first" }), row({ id: "second" })], {
+			sendClient: async (input) => {
+				sent.push(input.text);
+				// Запуск признали зависшим, пока шла первая отправка.
+				abort.abort();
+				return { ok: true, id: "journal" };
+			},
+		});
+		const result = await dispatchDueScheduledMessages(
+			new Date(),
+			h.deps,
+			abort.signal,
+		);
+
+		expect(sent).toHaveLength(1);
+		expect(result).toMatchObject({ sent: 1, failed: 1 });
+		expect(h.finished[0]).toEqual({ id: "first", result: { status: "sent" } });
+		expect(h.finished[1]).toMatchObject({
+			id: "second",
+			result: { status: "failed" },
+		});
+		expect(h.finished[1]?.result.error).toContain("Отправьте сообщение заново");
+	});
+
+	test("an already aborted run claims nothing", async () => {
+		const abort = new AbortController();
+		abort.abort();
+		const h = harness([row()]);
+		const result = await dispatchDueScheduledMessages(
+			new Date(),
+			h.deps,
+			abort.signal,
+		);
+
+		expect(result).toMatchObject({ sent: 0, failed: 0 });
+		expect(h.clientCalls).toHaveLength(0);
+		expect(h.finished).toHaveLength(0);
+	});
+
 	test("fails a message that lost its author without sending", async () => {
 		const h = harness([row({ operatorId: null })]);
 		await dispatchDueScheduledMessages(new Date(), h.deps);

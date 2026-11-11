@@ -336,7 +336,10 @@ CRM, и в инбоксе «Клиенты», `apps/clients`): сообщени�
 `scheduled_messages` и уходит в выбранное время. Рассылает их таймер внутри процесса
 `apps/hatchet-worker` (раз в минуту, `packages/jobs/src/scheduled-messages-ticker.ts`) —
 не крон Hatchet: ежеминутный крон один съедал 1440 запусков из суточного лимита
-Hatchet Cloud, а от самого Hatchet рассылка теперь не зависит. Таймер
+Hatchet Cloud, а от самого Hatchet рассылка теперь не зависит. При переходе с
+крона сначала разверните воркер с таймером, затем вручную удалите старый workflow
+`scheduled-messages-dispatch` в интерфейсе Hatchet Cloud: воркер его больше не
+регистрирует, но сам workflow с крон-триггером остаётся на стороне Hatchet. Таймер
 забирает созревшие записи атомарно (`FOR UPDATE SKIP LOCKED`) и отправляет тем же
 кодом, что и обычная отправка (`sendClientMessage` / `sendWidgetMessage` в
 `packages/api`), поэтому результат попадает в тот же журнал `bot_messages`, а

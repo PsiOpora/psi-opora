@@ -8,11 +8,23 @@
  * отправки из инбокса и вкладки CRM), а api зависит от jobs — поэтому
  * обработчик передаёт процесс воркера при старте.
  */
-export type ScheduledMessagesDispatcher = () => Promise<Record<string, number>>;
+/**
+ * Обработчик одного запуска. signal срабатывает, когда запуск признан зависшим
+ * и заменён следующим: новые отправки после этого начинать нельзя.
+ */
+export type ScheduledMessagesDispatcher = (
+	signal: AbortSignal,
+) => Promise<Record<string, number>>;
 
 export type ScheduledMessagesTicker = {
-	/** Останавливает таймер и дожидается текущей отправки. */
+	/** Останавливает таймер и дожидается всех незавершённых отправок. */
 	stop: () => Promise<void>;
+};
+
+type Run = {
+	startedAt: number;
+	abort: AbortController;
+	promise: Promise<void>;
 };
 
 const TICK_INTERVAL_MS = 60 * 1000;
@@ -21,13 +33,21 @@ const TICK_INTERVAL_MS = 60 * 1000;
 // рассылку навсегда (сообщения не задвоятся: claim атомарный).
 const STUCK_AFTER_MS = 10 * 60 * 1000;
 
+/**
+ * Запускает таймер рассылки: первый запуск сразу, дальше раз в intervalMs.
+ * Один запуск за раз; запуск дольше stuckAfterMs получает сигнал отмены и
+ * уступает место следующему.
+ */
 export function startScheduledMessagesTicker(
 	dispatch: ScheduledMessagesDispatcher,
 	options: { intervalMs?: number; stuckAfterMs?: number } = {},
 ): ScheduledMessagesTicker {
 	const intervalMs = options.intervalMs ?? TICK_INTERVAL_MS;
 	const stuckAfterMs = options.stuckAfterMs ?? STUCK_AFTER_MS;
-	let current: { promise: Promise<void>; startedAt: number } | null = null;
+	let current: Run | null = null;
+	// Все незавершённые запуски, включая заменённые после зависания: stop()
+	// должен дождаться и их, иначе process.exit оборвёт отправку на полпути.
+	const active = new Set<Run>();
 
 	const tick = () => {
 		if (current) {
@@ -38,11 +58,16 @@ export function startScheduledMessagesTicker(
 			console.error(
 				`[scheduled-messages] отправка не завершилась за ${Math.round(stuckAfterMs / 60000)} мин — запускаем следующую`,
 			);
+			// Зависший запуск, очнувшись, не должен досылать остаток пачки:
+			// следующий запуск мог уже пометить эти сообщения ошибкой.
+			current.abort.abort();
 		}
-		const run = {
+		const abort = new AbortController();
+		const run: Run = {
 			startedAt: Date.now(),
+			abort,
 			promise: Promise.resolve()
-				.then(dispatch)
+				.then(() => dispatch(abort.signal))
 				.then(
 					(result) => {
 						if (Object.values(result).some((count) => count > 0)) {
@@ -56,9 +81,11 @@ export function startScheduledMessagesTicker(
 					},
 				)
 				.finally(() => {
+					active.delete(run);
 					if (current === run) current = null;
 				}),
 		};
+		active.add(run);
 		current = run;
 	};
 
@@ -69,7 +96,7 @@ export function startScheduledMessagesTicker(
 	return {
 		stop: async () => {
 			clearInterval(timer);
-			await current?.promise;
+			await Promise.all([...active].map((run) => run.promise));
 		},
 	};
 }

@@ -21,6 +21,9 @@ const CLAIM_BATCH_SIZE = 5;
 /** Бюджет одного запуска: за ним оставшиеся сообщения заберёт следующий
  * запуск таймера (каждую минуту), а не растянет этот сверх порога зависания. */
 const RUN_BUDGET_MS = 4 * 60 * 1000;
+/** Причина для сообщений пачки, до которых отменённый запуск не дошёл. */
+const ABORTED_ERROR =
+	"Не отправлено: отправка прервана, потому что предыдущее сообщение зависло. Отправьте сообщение заново";
 
 export interface DispatchScheduledMessagesResult {
 	sent: number;
@@ -119,10 +122,16 @@ async function sendOne(
  * автоматически: ошибка мессенджера чаще всего постоянна (клиент заблокировал
  * бота), а повтор после неоднозначного сбоя рискует дублем — оператор увидит
  * причину в списке и решит сам.
+ *
+ * signal — отмена от таймера: запуск признан зависшим и заменён следующим.
+ * Уже начатую отправку не прерываем, но новых не начинаем: следующий запуск
+ * мог пометить остаток пачки ошибкой (failStale), и досланное после этого
+ * сообщение оператор отправил бы повторно.
  */
 export async function dispatchDueScheduledMessages(
 	now: Date = new Date(),
 	deps: DispatchDeps = defaultDeps,
+	signal?: AbortSignal,
 ): Promise<DispatchScheduledMessagesResult> {
 	const result: DispatchScheduledMessagesResult = {
 		sent: 0,
@@ -141,19 +150,25 @@ export async function dispatchDueScheduledMessages(
 	);
 
 	const deadline = Date.now() + RUN_BUDGET_MS;
-	while (Date.now() < deadline) {
+	while (Date.now() < deadline && !signal?.aborted) {
 		const batch = await deps.claimDue(new Date(), CLAIM_BATCH_SIZE);
 		if (batch.length === 0) break;
 
 		for (const message of batch) {
 			let error: string | null;
-			try {
-				error = await sendOne(message, deps);
-			} catch (err) {
-				console.error(
-					`[scheduled-messages] ошибка отправки ${message.id}: ${describeError(err)}`,
-				);
-				error = `Ошибка при отправке: ${describeError(err)}`;
+			if (signal?.aborted) {
+				// Сообщение забрано, но точно не отправлено. finish меняет только
+				// записи в sending, так что уже помеченные failStale не тронет.
+				error = ABORTED_ERROR;
+			} else {
+				try {
+					error = await sendOne(message, deps);
+				} catch (err) {
+					console.error(
+						`[scheduled-messages] ошибка отправки ${message.id}: ${describeError(err)}`,
+					);
+					error = `Ошибка при отправке: ${describeError(err)}`;
+				}
 			}
 			if (error === null) {
 				await deps.finish(message.id, { status: "sent" });
