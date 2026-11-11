@@ -3,7 +3,6 @@ import { getBitrixCrmLink, upsertBitrixCrmLink } from "@psi-opora/db/queries";
 import { z } from "zod";
 import { bitrixPost, getBotId, getEnv, getWebhookBase } from "./client";
 import {
-	buildConsentFields,
 	buildContactFields,
 	buildMessengerLinkFields,
 	findExistingContactId,
@@ -81,24 +80,23 @@ async function ensureBitrixContact(data: ContactData): Promise<{
 		console.log(`[bitrix] используем контакт Wazzup id=${contactId}`);
 		await updateWazzupContact(messenger, contactId, data, dialog?.imol);
 	} else {
-		contactId = await findExistingContactId(data);
+		// Совпадение введённого телефона/email не подтверждает владельца.
+		// Согласие сохраняем в отдельной карточке пользователя, не связывая
+		// его мессенджер с потенциально чужим контактом. Подтверждённые
+		// контакты диалога/Wazzup обрабатываются выше.
+		contactId = data.consentGranted ? null : await findExistingContactId(data);
 		if (contactId) {
 			console.log(
 				`[bitrix] используем существующий контакт id=${contactId} вместо создания нового (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
 			);
 			const messengerLink = buildMessengerLinkFields(data, dialog?.imol);
-			// Согласие клиент дал только что в боте — отмечаем его и в уже
-			// существующей карточке, иначе при следующем обращении бот не
-			// узнает о нём и спросит снова (см. resolveKnownContact).
-			const consent = buildConsentFields(data);
-			if (messengerLink || data.phone || Object.keys(consent).length > 0) {
+			if (messengerLink || data.phone) {
 				const updated = await bitrixPost<boolean>(
 					"crm.contact.update",
 					{
 						id: contactId,
 						fields: {
 							...messengerLink,
-							...consent,
 							...(data.phone
 								? { PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }] }
 								: {}),
