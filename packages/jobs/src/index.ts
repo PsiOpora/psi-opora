@@ -81,13 +81,12 @@ export {
 	deliverOutreach,
 } from "./hatchet/outreach";
 export { scenarioReminders } from "./hatchet/scenario-reminders";
-export {
-	type ScheduledMessagesDispatcher,
-	scheduledMessagesDispatch,
-	setScheduledMessagesDispatcher,
-} from "./hatchet/scheduled-messages";
 export { stageConsentOutbox } from "./hatchet/stage-consent";
-export { hatchetTasks, startHatchetWorker } from "./hatchet/worker";
+export {
+	hatchetTasks,
+	type StartHatchetWorkerOptions,
+	startHatchetWorker,
+} from "./hatchet/worker";
 export {
 	deleteMessengerMessage,
 	editMessengerMessage,
@@ -100,5 +99,10 @@ export {
 	setMessengerWebhook,
 } from "./messenger";
 export { formatMessengerError } from "./messenger-errors";
+export {
+	type ScheduledMessagesDispatcher,
+	type ScheduledMessagesTicker,
+	startScheduledMessagesTicker,
+} from "./scheduled-messages-ticker";
 export { handleStageConsentTrigger } from "./stage-consent";
 export { handleYandexMetrikaStageGoals } from "./yandex-metrika-stage-goals";

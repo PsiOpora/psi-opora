@@ -14,11 +14,12 @@ import { inboxMessengerSchema } from "./schemas/messages";
  * уже неуместно — «напишу завтра в 10:00» к вечеру теряет смысл. */
 export const SCHEDULED_MAX_OVERDUE_MS = 6 * 60 * 60 * 1000;
 /** Дольше этого сообщение не может быть «в отправке» — воркер упал. Больше
- * таймаута задачи Hatchet, чтобы не принять работающий запуск за упавший. */
+ * порога зависшего запуска у таймера (STUCK_AFTER_MS в packages/jobs
+ * scheduled-messages-ticker.ts), чтобы не принять работающий запуск за упавший. */
 const STALE_SENDING_MS = 15 * 60 * 1000;
 const CLAIM_BATCH_SIZE = 5;
 /** Бюджет одного запуска: за ним оставшиеся сообщения заберёт следующий
- * запуск крона (каждую минуту), а не растянет этот сверх таймаута задачи. */
+ * запуск таймера (каждую минуту), а не растянет этот сверх порога зависания. */
 const RUN_BUDGET_MS = 4 * 60 * 1000;
 
 export interface DispatchScheduledMessagesResult {
@@ -110,8 +111,8 @@ async function sendOne(
 }
 
 /**
- * Отправляет созревшие отложенные сообщения. Вызывается кроном Hatchet раз в
- * минуту (packages/jobs hatchet/scheduled-messages.ts).
+ * Отправляет созревшие отложенные сообщения. Вызывается раз в минуту таймером
+ * в процессе apps/hatchet-worker (packages/jobs scheduled-messages-ticker.ts).
  *
  * Сообщение переводится в sending атомарно (см. claimDueScheduledMessages),
  * поэтому параллельные запуски не пошлют его дважды. Сбой не повторяем

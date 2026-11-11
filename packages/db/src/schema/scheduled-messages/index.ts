@@ -32,8 +32,8 @@ export interface ScheduledMessageAttachment {
 
 /**
  * Отложенные сообщения клиентам: оператор пишет сообщение сейчас, а уйдёт оно
- * в указанное время. Рассылает крон Hatchet (packages/jobs
- * hatchet/scheduled-messages.ts) тем же кодом, что и обычную отправку, —
+ * в указанное время. Рассылает таймер в apps/hatchet-worker (packages/jobs
+ * scheduled-messages-ticker.ts) тем же кодом, что и обычную отправку, —
  * результат попадает в тот же журнал bot_messages.
  */
 export const scheduledMessages = pgTable(
