@@ -177,6 +177,7 @@ export const AD_SOURCE_PRESETS = [
 	{ code: "yandex", label: "Яндекс.Директ" },
 	{ code: "dzen", label: "Яндекс Дзен" },
 	{ code: "b17", label: "Б17 (b17.ru)" },
+	{ code: "rutube", label: "RuTube" },
 ] as const;
 
 /**
