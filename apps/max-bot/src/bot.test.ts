@@ -9,10 +9,11 @@ const saveYandexMetrikaMessengerVisitor = mock(
 // Keep database-backed side effects out of this handler test. The MAX adapter
 // imports the same scenario graph as the Telegram bot, so all statically
 // imported query functions must be available before importing the adapter.
+const getBitrixCrmLink = mock((): Promise<null> => Promise.resolve(null));
 mock.module("@psi-opora/db/queries", () => ({
 	withBookPreorderOrderLock: <T>(_id: string, fn: () => Promise<T>) => fn(),
 	insertBotMessage: () => Promise.resolve(null),
-	getBitrixCrmLink: () => Promise.resolve(null),
+	getBitrixCrmLink,
 	getBotTextsRecord: () => Promise.resolve({}),
 	getBotConnector: () => Promise.resolve(null),
 	getBotUserProfile: () => Promise.resolve(null),
@@ -173,13 +174,16 @@ describe("MAX-бот: сброс предзаказа книги", () => {
 });
 
 describe("MAX-бот: кнопка «Заказать книгу»", () => {
-	function makeBotWithSessions(sessions: Map<string, ConsultationSession>) {
+	function makeBotWithSessions(
+		sessions: Map<string, ConsultationSession>,
+		background?: import("@psi-opora/bot-core").BotBackgroundQueue,
+	) {
 		const storage: StorageAdapter<ConsultationSession> = {
 			read: (key) => sessions.get(key),
 			write: (key, value) => void sessions.set(key, value),
 			delete: (key) => void sessions.delete(key),
 		};
-		const bot = createMaxBot({ storage, token: "test-token" });
+		const bot = createMaxBot({ storage, token: "test-token", background });
 		const sent: string[] = [];
 		bot.api.getChat = mock(() => Promise.resolve({ icon: null })) as never;
 		bot.api.sendMessageToChat = mock((_chatId: number, text: string) => {
@@ -189,6 +193,59 @@ describe("MAX-бот: кнопка «Заказать книгу»", () => {
 		bot.api.answerOnCallback = mock(() => Promise.resolve({})) as never;
 		return { bot, sent };
 	}
+
+	test("поиск контакта: общий срок при зависании forwarding", async () => {
+		const background = {
+			mirrorToOpenLine: () => {},
+			analyze: () => {},
+			waitForOpenLine: () => new Promise<void>(() => {}),
+			drain: async () => {},
+		};
+		getBitrixCrmLink.mockClear();
+		getBitrixCrmLink.mockImplementation(() => new Promise<null>(() => {}));
+		try {
+			const { bot, sent } = makeBotWithSessions(new Map(), background);
+			const started = Date.now();
+			await dispatch(bot, botStartedUpdate());
+			await dispatch(bot, callbackUpdate("sc_consult", 2));
+			expect(Date.now() - started).toBeLessThan(2_100);
+			expect(sent.at(-1)).toBe(t.consent_text);
+			expect(getBitrixCrmLink.mock.calls.length).toBe(0);
+		} finally {
+			getBitrixCrmLink.mockImplementation(() => Promise.resolve(null));
+		}
+	});
+
+	test("поиск контакта: общий срок при зависании crm", async () => {
+		const background = {
+			mirrorToOpenLine: () => {},
+			analyze: () => {},
+			waitForOpenLine: () =>
+				new Promise<void>((resolve) => setTimeout(resolve, 800)),
+			drain: async () => {},
+		};
+		getBitrixCrmLink.mockClear();
+		getBitrixCrmLink.mockImplementation(() => new Promise<null>(() => {}));
+		try {
+			const { bot, sent } = makeBotWithSessions(new Map(), background);
+			const started = Date.now();
+			await dispatch(bot, botStartedUpdate());
+			await dispatch(bot, callbackUpdate("sc_consult", 2));
+			expect(Date.now() - started).toBeLessThan(2_100);
+			expect(sent.at(-1)).toBe(t.consent_text);
+			expect(getBitrixCrmLink.mock.calls.length).toBe(1);
+		} finally {
+			getBitrixCrmLink.mockImplementation(() => Promise.resolve(null));
+		}
+	});
+
+	test("старое согласие заново спрашивает согласие без поиска в CRM", async () => {
+		const { bot, sent } = makeBotWithSessions(new Map());
+		getBitrixCrmLink.mockClear();
+		await dispatch(bot, callbackUpdate("consent_agree", 1));
+		expect(sent).toEqual([t.consent_text]);
+		expect(getBitrixCrmLink).not.toHaveBeenCalled();
+	});
 
 	test("сохраняет время события bot_started из MAX в миллисекундах", async () => {
 		const { bot } = makeBotWithSessions(new Map());

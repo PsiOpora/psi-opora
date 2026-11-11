@@ -508,17 +508,24 @@ export function createBot({
 	// карточке CRM — экран пропускается, см. hasRecordedConsent) и на самом
 	// согласии в флоу консультации (подстановка имени/телефона/email). Сбой
 	// поиска не должен ронять сценарий — тогда просто спрашиваем как обычно.
+	// Общий срок включает ожидание пересылки и все запросы поиска в CRM.
 	const lookupKnownContact = async (ctx: AppContext) => {
 		const userId = ctx.from?.id;
 		const chatId = ctx.chatId;
 		if (!userId || !chatId) return null;
 		try {
-			await background.waitForOpenLine(chatKeyOf(chatId));
-			return await resolveKnownContact({
-				messenger: "telegram",
-				userId,
-				chatId,
-			});
+			return await withTimeout(
+				(async () => {
+					await background.waitForOpenLine(chatKeyOf(chatId));
+					return resolveKnownContact({
+						messenger: "telegram",
+						userId,
+						chatId,
+					});
+				})(),
+				1_500,
+				"поиск известного контакта",
+			);
 		} catch (err) {
 			log(
 				`[WARN] поиск известного контакта user=${userId}: ${describeError(err)}`,
@@ -936,10 +943,9 @@ export function createBot({
 				? applyScenarioAction(state, action, texts, guideCampaign, knownContact)
 				: null;
 			// Согласие из старого сообщения без активного сценария —
-			// начинаем запись заново (показываем актуальное согласие, если оно
-			// ещё не отмечено в CRM)
+			// начинаем запись заново с актуального вопроса о согласии.
 			if (!out && action === "consent_agree") {
-				out = startConsultation(texts, await lookupKnownContact(ctx));
+				out = startConsultation(texts);
 			}
 		}
 

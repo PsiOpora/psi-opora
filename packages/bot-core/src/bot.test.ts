@@ -20,10 +20,11 @@ const insertBotMessage = mock((entry: LoggedMessage) => Promise.resolve(entry));
 const saveYandexMetrikaMessengerVisitor = mock(
 	async (..._args: unknown[]) => {},
 );
+const getBitrixCrmLink = mock((): Promise<null> => Promise.resolve(null));
 mock.module("@psi-opora/db/queries", () => ({
 	withBookPreorderOrderLock: <T>(_id: string, fn: () => Promise<T>) => fn(),
 	insertBotMessage,
-	getBitrixCrmLink: () => Promise.resolve(null),
+	getBitrixCrmLink,
 	getBotTextsRecord: () => Promise.resolve({}),
 	getBotConnector: () => Promise.resolve(null),
 	getBotUserProfile: () => Promise.resolve(null),
@@ -93,6 +94,7 @@ const { DEFAULT_SCENARIO_TEXTS: t } = await import("./scenario/texts");
 
 beforeEach(() => {
 	insertBotMessage.mockClear();
+	getBitrixCrmLink.mockClear();
 });
 
 interface SentCall {
@@ -376,6 +378,53 @@ describe("телеграм-бот: кнопка «Заказать книгу»"
 });
 
 describe("телеграм-бот: кнопки старого сценария", () => {
+	test("поиск контакта: общий срок при зависании forwarding", async () => {
+		const background = {
+			mirrorToOpenLine: () => {},
+			analyze: () => {},
+			waitForOpenLine: () => new Promise<void>(() => {}),
+			drain: async () => {},
+		};
+		getBitrixCrmLink.mockClear();
+		getBitrixCrmLink.mockImplementation(() => new Promise<null>(() => {}));
+		try {
+			const { bot, sent } = makeBot(undefined, background);
+			const started = Date.now();
+			await bot.handleUpdate(callbackUpdate("start_consultation"));
+			expect(Date.now() - started).toBeLessThan(2_100);
+			expect(sentMessages(sent).map((m) => m.payload.text)).toEqual([
+				t.consent_text,
+			]);
+			expect(getBitrixCrmLink.mock.calls.length).toBe(0);
+		} finally {
+			getBitrixCrmLink.mockImplementation(() => Promise.resolve(null));
+		}
+	});
+
+	test("поиск контакта: общий срок при зависании crm", async () => {
+		const background = {
+			mirrorToOpenLine: () => {},
+			analyze: () => {},
+			waitForOpenLine: () =>
+				new Promise<void>((resolve) => setTimeout(resolve, 800)),
+			drain: async () => {},
+		};
+		getBitrixCrmLink.mockClear();
+		getBitrixCrmLink.mockImplementation(() => new Promise<null>(() => {}));
+		try {
+			const { bot, sent } = makeBot(undefined, background);
+			const started = Date.now();
+			await bot.handleUpdate(callbackUpdate("start_consultation"));
+			expect(Date.now() - started).toBeLessThan(2_100);
+			expect(sentMessages(sent).map((m) => m.payload.text)).toEqual([
+				t.consent_text,
+			]);
+			expect(getBitrixCrmLink.mock.calls.length).toBe(1);
+		} finally {
+			getBitrixCrmLink.mockImplementation(() => Promise.resolve(null));
+		}
+	});
+
 	test("«Записаться на консультацию» открывает согласие на ПДн", async () => {
 		const { bot, sent } = makeBot();
 		await bot.handleUpdate(callbackUpdate("start_consultation"));
@@ -388,7 +437,9 @@ describe("телеграм-бот: кнопки старого сценария"
 
 	test("старое согласие без активного сценария показывает согласие заново", async () => {
 		const { bot, sent } = makeBot();
+		getBitrixCrmLink.mockClear();
 		await bot.handleUpdate(callbackUpdate("consent_agree"));
+		expect(getBitrixCrmLink).not.toHaveBeenCalled();
 		expect(sentMessages(sent).map((m) => m.payload.text)).toEqual([
 			t.consent_text,
 		]);
