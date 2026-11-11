@@ -31,6 +31,7 @@ mock.module("./client", () => ({
 
 const { createBitrixContact } = await import("./create-deal");
 
+/** Параметры единственного вызова crm.contact.update в тесте. */
 function contactUpdate() {
 	const call = bitrixPost.mock.calls.find((c) => c[0] === "crm.contact.update");
 	return call?.[1] as { id: number; fields: Record<string, unknown> };
