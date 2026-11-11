@@ -503,16 +503,23 @@ export function createMaxBot({
 	// Контакт ищется и по диалогу Открытой линии — он появляется с первым
 	// пересланным сообщением, поэтому ждём пересылки. Сбой поиска не должен
 	// ронять сценарий — тогда просто спрашиваем как обычно.
+	// Общий срок включает ожидание пересылки и все запросы поиска в CRM.
 	const lookupKnownContact = async (ctx: AppContext) => {
 		const userId = ctx.user?.user_id;
 		if (!userId) return null;
 		try {
-			await background.waitForOpenLine(chatKeyOf(userId));
-			return await resolveKnownContact({
-				messenger: "max",
-				userId,
-				chatId: userId,
-			});
+			return await withTimeout(
+				(async () => {
+					await background.waitForOpenLine(chatKeyOf(userId));
+					return resolveKnownContact({
+						messenger: "max",
+						userId,
+						chatId: userId,
+					});
+				})(),
+				1_500,
+				"поиск известного контакта",
+			);
 		} catch (err) {
 			log(
 				`[WARN] поиск известного контакта user=${userId}: ${describeError(err)}`,
@@ -922,10 +929,9 @@ export function createMaxBot({
 				? applyScenarioAction(state, action, texts, guideCampaign, knownContact)
 				: null;
 			// Согласие из старого сообщения без активного сценария —
-			// начинаем запись заново (показываем актуальное согласие, если оно
-			// ещё не отмечено в CRM)
+			// начинаем запись заново с актуального вопроса о согласии.
 			if (!out && action === "consent_agree") {
-				out = startConsultation(texts, await lookupKnownContact(appCtx));
+				out = startConsultation(texts);
 			}
 			// null — кнопка от прошлого шага (устаревшее сообщение), игнорируем
 			if (!out) return;
