@@ -161,7 +161,7 @@ describe("buildWazzupContactUpdate", () => {
 			PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
 			EMAIL: [{ VALUE: data.email, VALUE_TYPE: "WORK" }],
 			UF_CRM_CONTACT_1779910236669: 1,
-			UF_CRM_CONTACT_CONSENT_PDN_DT: "2026-10-17T10:00:00Z",
+			UF_CRM_CONSENT_PDN_DT: "2026-10-17T10:00:00Z",
 			IM: [{ VALUE: "17509641", VALUE_TYPE: "max" }],
 		});
 	});

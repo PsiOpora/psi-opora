@@ -3,6 +3,7 @@ import { getBitrixCrmLink, upsertBitrixCrmLink } from "@psi-opora/db/queries";
 import { z } from "zod";
 import { bitrixPost, getBotId, getEnv, getWebhookBase } from "./client";
 import {
+	buildConsentFields,
 	buildContactFields,
 	buildMessengerLinkFields,
 	findExistingContactId,
@@ -86,13 +87,18 @@ async function ensureBitrixContact(data: ContactData): Promise<{
 				`[bitrix] используем существующий контакт id=${contactId} вместо создания нового (phone=${data.phone}${data.email ? ` email=${data.email}` : ""})`,
 			);
 			const messengerLink = buildMessengerLinkFields(data, dialog?.imol);
-			if (messengerLink || data.phone) {
+			// Согласие клиент дал только что в боте — отмечаем его и в уже
+			// существующей карточке, иначе при следующем обращении бот не
+			// узнает о нём и спросит снова (см. resolveKnownContact).
+			const consent = buildConsentFields(data);
+			if (messengerLink || data.phone || Object.keys(consent).length > 0) {
 				const updated = await bitrixPost<boolean>(
 					"crm.contact.update",
 					{
 						id: contactId,
 						fields: {
 							...messengerLink,
+							...consent,
 							...(data.phone
 								? { PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }] }
 								: {}),
