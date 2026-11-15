@@ -5,6 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import {
+	ExportReportButtons,
+	type ReportTable,
+} from "@/components/export-report-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -108,6 +112,32 @@ export default function BroadcastDetailsPage() {
 	const { broadcast } = data;
 	const isRunning = broadcast.status === "running";
 
+	// Все получатели уже загружены на клиент — выгрузка не ходит на сервер.
+	const loadReport = async (): Promise<ReportTable> => ({
+		headers: [
+			"Контакт",
+			"ID контакта",
+			"Сделка",
+			"Мессенджер",
+			"Статус",
+			"Ошибка",
+			"Отправлено",
+		],
+		rows: recipients.map((r) => [
+			r.contactName ?? "",
+			r.contactId ?? "",
+			r.dealTitle ?? r.dealId ?? "",
+			r.messenger === "telegram"
+				? "Telegram"
+				: r.messenger === "max"
+					? "MAX"
+					: "",
+			STATUS_BADGE[r.status]?.label ?? r.status,
+			r.error ?? "",
+			r.sentAt ? formatDateTime(r.sentAt) : "",
+		]),
+	});
+
 	return (
 		<div className="flex w-full flex-col gap-6">
 			<AutoRefresh enabled={isRunning} id={id} />
@@ -156,12 +186,19 @@ export default function BroadcastDetailsPage() {
 							Telegram и MAX не сообщают ботам о прочтении, поэтому статус
 							«Просмотрено» недоступен.
 						</CardDescription>
-						{counts.failed > 0 && !isRunning && (
-							<ResendFailed
-								broadcastId={broadcast.id}
-								failedCount={counts.failed}
+						<div className="flex flex-wrap items-center gap-2">
+							<ExportReportButtons
+								fileName={`broadcast-${id.slice(0, 8)}`}
+								sheetName="Рассылка по стадии"
+								load={loadReport}
 							/>
-						)}
+							{counts.failed > 0 && !isRunning && (
+								<ResendFailed
+									broadcastId={broadcast.id}
+									failedCount={counts.failed}
+								/>
+							)}
+						</div>
 					</CardHeader>
 					<CardContent>
 						{recipients.length === 0 ? (

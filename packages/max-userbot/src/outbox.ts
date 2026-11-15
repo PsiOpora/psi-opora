@@ -11,6 +11,10 @@ export interface MaxOutboundMessage {
 	chatId?: string;
 	/** Телефон в E.164 — «написать первым» (массовая рассылка по спискам). */
 	phone?: string;
+	/** ID пользователя MAX из карточки контакта в CRM — запасной вариант, когда
+	 * по телефону контакт не нашёлся: воркер вычисляет ID личного чата как
+	 * XOR своего и его userId (dialogChatId), без поиска по номеру. */
+	maxUserId?: string;
 	text?: string;
 	externalId?: string;
 	journalMessageId?: string;
