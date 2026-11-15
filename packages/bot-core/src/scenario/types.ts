@@ -73,6 +73,12 @@ export interface ScenarioState {
 	 * передал обращение оператору, повторно не отвечаем (см. applyScenarioText).
 	 */
 	consentRevoked?: boolean;
+	/**
+	 * Заметка/тег для оператора об отзыве согласия не записались (сбой БД) —
+	 * следующее сообщение клиента повторит только это уведомление, без нового
+	 * ответа (см. dispatchScenarioOutput, applyScenarioText).
+	 */
+	consentFlagPending?: boolean;
 	/** ID созданной сделки Bitrix — для комментария об ответе на рассылку. */
 	dealId?: number;
 	/**

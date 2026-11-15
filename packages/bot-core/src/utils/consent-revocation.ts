@@ -10,10 +10,13 @@ export async function flagConsentRevocation(
 	messenger: string,
 	userId: string,
 ): Promise<void> {
+	// Сначала тег: он идемпотентен (distinct в addConversationTag), поэтому
+	// повтор после частичного сбоя не плодит дубликаты — заметка пишется
+	// последней и только один раз.
+	await addConversationTag(messenger, userId, ATTENTION_TAG);
 	await addClientNote({
 		messenger,
 		userId,
 		text: "🤖 Авто-заметка: клиент просит отозвать согласие на обработку персональных данных — нужно обработать обращение.",
 	});
-	await addConversationTag(messenger, userId, ATTENTION_TAG);
 }

@@ -26,6 +26,7 @@ function setup(session: ConsultationSession) {
 			return 1;
 		},
 		zadd: async () => 1,
+		zscore: async () => 100,
 	} as unknown as RedisClient;
 	const storage = {
 		read: async () => structuredClone(session),
@@ -131,5 +132,72 @@ describe("clearReminderOnOffScriptText", () => {
 			step: "consent",
 			nudged: true,
 		});
+	});
+});
+
+describe("runScenarioReminders: гонка с отзывом согласия", () => {
+	function raceSetup(opts: { queued: () => number | null }) {
+		const sent: string[] = [];
+		const written: ConsultationSession[] = [];
+		const redis = {
+			zrange: async () => ["100"],
+			zrem: async () => 1,
+			zadd: async () => 1,
+			zscore: async () => opts.queued(),
+		} as unknown as RedisClient;
+		let session = { scenario: { step: "category", flow: "guide" } } as ConsultationSession;
+		const storage = {
+			read: async () => structuredClone(session),
+			write: async (_k: string, v: ConsultationSession) => {
+				written.push(v);
+				session = v;
+			},
+		} as unknown as StorageAdapter<ConsultationSession>;
+		return { redis, storage, sent, written };
+	}
+
+	test("сессию уже сняли с очереди — напоминание не уходит", async () => {
+		const s = raceSetup({ queued: () => null });
+		const result = await runScenarioReminders({
+			redis: s.redis,
+			storage: s.storage,
+			messenger: "telegram",
+			send: async (key) => {
+				s.sent.push(key);
+			},
+		});
+		expect(s.sent).toEqual([]);
+		expect(result.reminded).toBe(0);
+		expect(s.written).toEqual([]);
+	});
+
+	test("сессию сняли во время отправки — устаревшая копия не записывается", async () => {
+		let calls = 0;
+		const s = raceSetup({ queued: () => (++calls === 1 ? 100 : null) });
+		const result = await runScenarioReminders({
+			redis: s.redis,
+			storage: s.storage,
+			messenger: "telegram",
+			send: async (key) => {
+				s.sent.push(key);
+			},
+		});
+		expect(s.sent).toEqual(["100"]);
+		expect(result.reminded).toBe(1);
+		expect(s.written).toEqual([]);
+	});
+
+	test("штатный случай — отправлено, reminded записан", async () => {
+		const s = raceSetup({ queued: () => 100 });
+		await runScenarioReminders({
+			redis: s.redis,
+			storage: s.storage,
+			messenger: "telegram",
+			send: async (key) => {
+				s.sent.push(key);
+			},
+		});
+		expect(s.sent).toEqual(["100"]);
+		expect(s.written[0]?.scenario?.reminded).toBe(true);
 	});
 });

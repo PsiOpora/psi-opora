@@ -17,6 +17,7 @@ import {
 	dispatchBookPreorderOutput,
 	clearReminderOnOffScriptText,
 	dispatchScenarioOutput,
+	looksLikeConsentRevocation,
 	extractYmClientId,
 	formatUtmLog,
 	type GuideCampaignContext,
@@ -1100,6 +1101,20 @@ export function createMaxBot({
 				message: { messenger: "max", userId: String(userId), text },
 			});
 		};
+
+		// Отзыв согласия на ПДн — раньше любых сценариев (включая предзаказ книги),
+		// см. такую же ветку в packages/bot-core/src/bot.ts.
+		if (looksLikeConsentRevocation(text)) {
+			const texts = await getScenarioTexts();
+			const out = await applyScenarioText(
+				appCtx.session.scenario ?? { step: "done" },
+				text,
+				texts,
+			);
+			if (out) await dispatch(appCtx, out, texts);
+			else triageInBackground();
+			return;
+		}
 
 		// Активный сценарий предзаказа книги — раньше основного движка (см.
 		// такую же ветку в packages/bot-core/src/bot.ts).

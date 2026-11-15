@@ -35,6 +35,7 @@ import {
 	looksLikeDiagnosticConsent,
 	resolveGuideCampaignStart,
 } from "./scenario/guide-campaign";
+import { looksLikeConsentRevocation } from "./scenario/consent";
 import { resolveStartUtm } from "./scenario/marketing-campaign";
 import { clearReminderOnOffScriptText } from "./scenario/reminders";
 import {
@@ -1020,6 +1021,22 @@ export function createBot({
 				chatKey,
 				message: { messenger: "telegram", userId: String(from.id), text },
 			});
+
+		// Отзыв согласия на ПДн — раньше любых сценариев (включая предзаказ книги,
+		// где текст иначе мог сохраниться, например, как имя): останавливаем
+		// сценарий, отвечаем и оставляем оператору заметку. dispatch заодно
+		// сбрасывает зависший сценарий предзаказа книги.
+		if (looksLikeConsentRevocation(text)) {
+			const texts = await getScenarioTexts();
+			const out = await applyScenarioText(
+				ctx.session.scenario ?? { step: "done" },
+				text,
+				texts,
+			);
+			if (out) await dispatch(ctx, out, texts);
+			else triageInBackground();
+			return;
+		}
 
 		// Активный сценарий предзаказа книги — раньше основного движка, чтобы
 		// текст на его шагах не путался с веткой консультации/гайда (см.

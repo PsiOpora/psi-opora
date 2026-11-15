@@ -727,6 +727,7 @@ describe("отзыв согласия на обработку ПДн", () => {
 			"отзываю своё согласие",
 			"Согласие на обработку данных я отзываю",
 			"Удалите мои персональные данные",
+			"Прошу принять отзыв согласия",
 		]) {
 			expect(looksLikeConsentRevocation(text)).toBe(true);
 		}
@@ -734,6 +735,7 @@ describe("отзыв согласия на обработку ПДн", () => {
 			"Развод с мужем",
 			"Даю согласие",
 			"Оставила отзыв на сайте. Согласна на консультацию",
+			"Оставила отзыв, согласие на обработку данных подтверждаю",
 		]) {
 			expect(looksLikeConsentRevocation(text)).toBe(false);
 		}
@@ -765,6 +767,19 @@ describe("отзыв согласия на обработку ПДн", () => {
 				t,
 			),
 		).toBeNull();
+	});
+
+	test("если заметка оператору не записалась — следующее сообщение повторит только уведомление", async () => {
+		const state = { step: "done", consentRevoked: true, consentFlagPending: true } as const;
+		const retry = await applyScenarioText(state, "отзываю согласие", t);
+		expect(retry?.consentRevoked).toBe(true);
+		expect(retry?.messages).toEqual([]);
+		const done = await applyScenarioText(
+			{ step: "done", consentRevoked: true },
+			"отзываю согласие",
+			t,
+		);
+		expect(done).toBeNull();
 	});
 
 	test("работает и после таймаута на шаге phone", async () => {

@@ -174,6 +174,11 @@ export async function runScenarioReminders({
 				continue;
 			}
 
+			// Сессию могли снять с очереди после zrange (клиент отозвал согласие или
+			// написал оператору) — не шлём напоминание вдогонку. Окно гонки это
+			// сужает, но не закрывает полностью (нет блокировки на сессию).
+			if ((await redis.zscore(key, sessionKey)) === null) continue;
+
 			attemptedText = message.text;
 			await send(sessionKey, message);
 			sendSucceeded = true;
@@ -184,10 +189,19 @@ export async function runScenarioReminders({
 				source: "reminder",
 				text: message.text,
 			});
-			state.reminded = true;
-			await storage.write(sessionKey, session);
-			await redis.zadd(key, { score: Date.now(), member: sessionKey });
 			result.reminded++;
+			// Пока шло напоминание, сессия могла измениться (отзыв согласия) — не
+			// затираем её устаревшей копией и не возвращаем в очередь.
+			const latest = (await storage.read(sessionKey)) ?? session;
+			if (
+				latest.scenario &&
+				latest.scenario.step !== "done" &&
+				(await redis.zscore(key, sessionKey)) !== null
+			) {
+				latest.scenario.reminded = true;
+				await storage.write(sessionKey, latest);
+				await redis.zadd(key, { score: Date.now(), member: sessionKey });
+			}
 		} catch (err) {
 			// Не удалось отправить (бот заблокирован и т.п.) — убираем из очереди,
 			// чтобы не зациклиться на одном пользователе. Сам факт неудачной

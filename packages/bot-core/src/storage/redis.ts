@@ -27,6 +27,8 @@ export interface RedisClient {
 	expire(key: string, seconds: number): Promise<number>;
 	zadd(key: string, entry: { score: number; member: unknown }): Promise<number>;
 	zrem(key: string, ...members: unknown[]): Promise<number>;
+	/** Score элемента sorted set; null — элемента в наборе нет. */
+	zscore(key: string, member: unknown): Promise<number | null>;
 	zrange<T>(
 		key: string,
 		start: number,
@@ -149,6 +151,11 @@ class IoredisClient implements RedisClient {
 
 	zrem(key: string, ...members: unknown[]): Promise<number> {
 		return this.client.zrem(key, ...members.map(encode));
+	}
+
+	async zscore(key: string, member: unknown): Promise<number | null> {
+		const score = await this.client.zscore(key, encode(member));
+		return score === null ? null : Number(score);
 	}
 
 	async zrange<T>(

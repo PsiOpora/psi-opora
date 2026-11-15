@@ -46,6 +46,7 @@ export {
 	type GuideCampaignContext,
 	hasRecordedConsent,
 	isScenarioAction,
+	looksLikeConsentRevocation,
 	type KnownContact,
 	needsKnownContact,
 	SCENARIO_ACTIONS,

@@ -54,7 +54,11 @@ import type {
  * ./questions; здесь только переходы между шагами.
  */
 
-export { hasRecordedConsent, needsKnownContact } from "./consent";
+export {
+	hasRecordedConsent,
+	looksLikeConsentRevocation,
+	needsKnownContact,
+} from "./consent";
 export { stepQuestion, withFields, withName } from "./questions";
 export {
 	isScenarioAction,
@@ -548,7 +552,13 @@ export async function applyScenarioText(
 	// таймауту и завершённого): останавливаем сценарий, снимаем напоминания и
 	// один раз отвечаем. Повторные такие сообщения — уже диалог с оператором.
 	if (looksLikeConsentRevocation(text)) {
-		if (state.consentRevoked) return null;
+		if (state.consentRevoked) {
+			// Клиенту уже ответили. Если тогда не записалась заметка/тег для
+			// оператора — повторяем только их (без нового ответа), иначе молчим.
+			return state.consentFlagPending
+				? { ...output(state, []), consentRevoked: true }
+				: null;
+		}
 		const stopped: ScenarioState = {
 			...state,
 			step: "done",
