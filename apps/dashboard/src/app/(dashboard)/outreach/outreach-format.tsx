@@ -106,14 +106,22 @@ export function RecipientOutcomeBadge({
 	}
 }
 
-/** «MAX ✗ → Telegram ✓» — цепочка попыток по каналам; «⏸» — пропущен из-за лимита. */
+/**
+ * «MAX ✗ → Telegram ✓» — цепочка попыток по каналам; «⏸» — пропущен из-за
+ * лимита; «(карточка)» — по номеру не нашли, написали по аккаунту из карточки CRM.
+ */
 export function formatAttempts(
-	attempts: Array<{ channel: string; ok: boolean; skipped?: boolean }>,
+	attempts: Array<{
+		channel: string;
+		ok: boolean;
+		skipped?: boolean;
+		viaCard?: boolean;
+	}>,
 ): string {
 	return attempts
 		.map(
 			(a) =>
-				`${CHANNEL_LABELS[a.channel] ?? a.channel} ${a.ok ? "✓" : a.skipped ? "⏸" : "✗"}`,
+				`${CHANNEL_LABELS[a.channel] ?? a.channel} ${a.ok ? "✓" : a.skipped ? "⏸" : "✗"}${a.viaCard ? " (карточка)" : ""}`,
 		)
 		.join(" → ");
 }
