@@ -15,7 +15,9 @@ import {
 	createBotBackgroundQueue,
 	decodeStartParam,
 	dispatchBookPreorderOutput,
+	clearReminderOnOffScriptText,
 	dispatchScenarioOutput,
+	looksLikeConsentRevocation,
 	extractYmClientId,
 	formatUtmLog,
 	type GuideCampaignContext,
@@ -1100,6 +1102,20 @@ export function createMaxBot({
 			});
 		};
 
+		// Отзыв согласия на ПДн — раньше любых сценариев (включая предзаказ книги),
+		// см. такую же ветку в packages/bot-core/src/bot.ts.
+		if (looksLikeConsentRevocation(text)) {
+			const texts = await getScenarioTexts();
+			const out = await applyScenarioText(
+				appCtx.session.scenario ?? { step: "done" },
+				text,
+				texts,
+			);
+			if (out) await dispatch(appCtx, out, texts);
+			else triageInBackground();
+			return;
+		}
+
 		// Активный сценарий предзаказа книги — раньше основного движка (см.
 		// такую же ветку в packages/bot-core/src/bot.ts).
 		const bookPreorderState = appCtx.session.bookPreorder;
@@ -1172,6 +1188,12 @@ export function createMaxBot({
 			// пишет что-то своё, а не то, что просит сценарий) — бот здесь не
 			// пытается сам помочь/ответить, только тихо решает, стоит ли передать
 			// его оператору с пометкой (см. triageOffScriptMessage).
+			await clearReminderOnOffScriptText(
+				redis,
+				"max",
+				sessionKeyOf(appCtx),
+				state,
+			);
 			triageInBackground();
 			return;
 		}

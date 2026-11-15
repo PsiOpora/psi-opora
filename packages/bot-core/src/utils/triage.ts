@@ -18,7 +18,7 @@ const TRIAGE_TIMEOUT_MS = 8_000;
 /** Совсем короткие реплики ("да", "спасибо", "хорошо", время встречи) почти
  * всегда рутинные — не тратим на них вызов LLM. */
 const MIN_LENGTH = 20;
-const ATTENTION_TAG = "⚠️ Требует внимания";
+export const ATTENTION_TAG = "⚠️ Требует внимания";
 
 type OpenAiClient = ReturnType<typeof createOpenAI>;
 type OpenAiModel = ReturnType<OpenAiClient["chat"]>;
