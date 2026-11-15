@@ -15,6 +15,7 @@ import {
 	startBookPreorder,
 } from "./scenario/book-preorder/engine";
 import { resumeBookPreorder } from "./scenario/book-preorder/resume";
+import { looksLikeConsentRevocation } from "./scenario/consent";
 import { dispatchScenarioOutput } from "./scenario/dispatch";
 import {
 	actionLabel,
@@ -35,7 +36,6 @@ import {
 	looksLikeDiagnosticConsent,
 	resolveGuideCampaignStart,
 } from "./scenario/guide-campaign";
-import { looksLikeConsentRevocation } from "./scenario/consent";
 import { resolveStartUtm } from "./scenario/marketing-campaign";
 import { clearReminderOnOffScriptText } from "./scenario/reminders";
 import {
@@ -50,6 +50,10 @@ import {
 	createBotBackgroundQueue,
 } from "./utils/background-tasks";
 import { type BitrixApiLike, resolveKnownContact } from "./utils/bitrix";
+import {
+	claimCallbackClick,
+	releaseCallbackClick,
+} from "./utils/callback-dedupe";
 import { enrichCrmFromClientMessage } from "./utils/crm-enrichment";
 import { describeError, isGrammyNetworkError } from "./utils/describe-error";
 import { withUserLock } from "./utils/lock";
@@ -477,6 +481,25 @@ export function createBot({
 				`update=${ctx.update.update_id} chat=${chatId}`,
 				startedAt,
 			);
+		}
+	});
+
+	// Случайные повторные нажатия по кнопкам одного сообщения: считаем только
+	// первое. Стоит под локом (см. выше) и до чтения сессии.
+	bot.use(async (ctx, next) => {
+		const chatId = ctx.chat?.id;
+		const messageId = ctx.callbackQuery?.message?.message_id;
+		if (chatId === undefined || messageId === undefined) return next();
+		if (!(await claimCallbackClick(redis, "telegram", chatId, messageId))) {
+			log(`[dedupe] повторное нажатие chat=${chatId} message=${messageId}`);
+			await ctx.answerCallbackQuery().catch(() => {});
+			return;
+		}
+		try {
+			await next();
+		} catch (err) {
+			await releaseCallbackClick(redis, "telegram", chatId, messageId);
+			throw err;
 		}
 	});
 
@@ -945,8 +968,15 @@ export function createBot({
 				? applyScenarioAction(state, action, texts, guideCampaign, knownContact)
 				: null;
 			// Согласие из старого сообщения без активного сценария —
-			// начинаем запись заново с актуального вопроса о согласии.
-			if (!out && action === "consent_agree") {
+			// начинаем запись заново с актуального вопроса о согласии. Если
+			// сценарий идёт и просто ушёл дальше шага согласия (повторный тап по
+			// старой кнопке) — игнорируем, иначе клиента перебрасывает на экран
+			// согласия и ломает выбранную ветку (гайд → запись).
+			if (
+				!out &&
+				action === "consent_agree" &&
+				(!state || state.step === "done")
+			) {
 				out = startConsultation(texts);
 			}
 		}

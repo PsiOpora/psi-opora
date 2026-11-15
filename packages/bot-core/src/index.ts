@@ -222,6 +222,10 @@ export {
 } from "./utils/guide-link";
 export { withUserLock } from "./utils/lock";
 export {
+	claimCallbackClick,
+	releaseCallbackClick,
+} from "./utils/callback-dedupe";
+export {
 	type BotMessageDirection,
 	type BotMessageLogEntry,
 	type BotMessageSource,
