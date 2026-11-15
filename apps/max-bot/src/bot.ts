@@ -15,6 +15,7 @@ import {
 	createBotBackgroundQueue,
 	decodeStartParam,
 	dispatchBookPreorderOutput,
+	clearReminderOnOffScriptText,
 	dispatchScenarioOutput,
 	extractYmClientId,
 	formatUtmLog,
@@ -1172,6 +1173,12 @@ export function createMaxBot({
 			// пишет что-то своё, а не то, что просит сценарий) — бот здесь не
 			// пытается сам помочь/ответить, только тихо решает, стоит ли передать
 			// его оператору с пометкой (см. triageOffScriptMessage).
+			await clearReminderOnOffScriptText(
+				redis,
+				"max",
+				sessionKeyOf(appCtx),
+				state,
+			);
 			triageInBackground();
 			return;
 		}

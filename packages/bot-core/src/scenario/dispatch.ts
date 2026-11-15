@@ -8,6 +8,7 @@ import {
 	submitBitrixContact,
 	submitConsultationDeal,
 } from "../utils/consultation-deal";
+import { flagConsentRevocation } from "../utils/consent-revocation";
 import { sendGuideEmail } from "../utils/email";
 import { trackFunnelStep } from "../utils/funnel";
 import { logBotMessage } from "../utils/message-log";
@@ -204,6 +205,16 @@ export async function dispatchScenarioOutput(
 			flow: out.state.flow,
 			reason: out.dropReason.reason,
 		});
+	}
+
+	if (out.consentRevoked && deps.userId !== undefined) {
+		try {
+			await flagConsentRevocation(deps.messenger, String(deps.userId));
+		} catch (err) {
+			console.error(
+				`[scenario] не удалось пометить отзыв согласия: ${(err as Error).message}`,
+			);
+		}
 	}
 
 	if (out.lead) {

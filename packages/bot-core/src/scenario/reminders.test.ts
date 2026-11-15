@@ -12,7 +12,9 @@ import type { RedisClient, StorageAdapter } from "../storage/redis";
 import type { ConsultationSession } from "../types/context";
 
 const { setFunnelUpsert } = await import("../utils/funnel");
-const { runScenarioReminders } = await import("./reminders");
+const { clearReminderOnOffScriptText, runScenarioReminders } = await import(
+	"./reminders"
+);
 
 function setup(session: ConsultationSession) {
 	const written = new Map<string, ConsultationSession>();
@@ -81,5 +83,53 @@ describe("runScenarioReminders: таймаут после напоминания
 		expect(result.expired).toBe(0);
 		expect(s.funnel).toEqual([]);
 		expect(s.removed).toEqual(["100"]);
+	});
+});
+
+describe("clearReminderOnOffScriptText", () => {
+
+	function redisSpy() {
+		const removed: string[] = [];
+		const redis = {
+			zrem: async (_key: string, member: string) => {
+				removed.push(member);
+				return 1;
+			},
+		} as unknown as RedisClient;
+		return { redis, removed };
+	}
+
+	test("кнопочный шаг после повторённого вопроса — напоминание снимается", async () => {
+		const { redis, removed } = redisSpy();
+		await clearReminderOnOffScriptText(redis, "max", "205883908", {
+			step: "category",
+			nudged: true,
+		});
+		expect(removed).toEqual(["205883908"]);
+	});
+
+	test("вопрос ещё не повторяли — очередь не трогаем", async () => {
+		const { redis, removed } = redisSpy();
+		await clearReminderOnOffScriptText(redis, "max", "1", {
+			step: "category",
+			nudged: false,
+		});
+		expect(removed).toEqual([]);
+	});
+
+	test("шаги phone/email не трогаем — напоминание ещё может довести заявку", async () => {
+		const { redis, removed } = redisSpy();
+		await clearReminderOnOffScriptText(redis, "max", "1", {
+			step: "phone",
+			nudged: true,
+		});
+		expect(removed).toEqual([]);
+	});
+
+	test("без redis ничего не падает", async () => {
+		await clearReminderOnOffScriptText(null, "max", "1", {
+			step: "consent",
+			nudged: true,
+		});
 	});
 });

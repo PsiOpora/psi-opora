@@ -77,6 +77,7 @@ export {
 } from "./scenario/guide-campaign";
 export { resolveStartUtm } from "./scenario/marketing-campaign";
 export {
+	clearReminderOnOffScriptText,
 	clearScenarioAwaiting,
 	markScenarioAwaiting,
 	REMINDER_DELAY_MS,
