@@ -171,7 +171,16 @@ function textUpdate(text: string, updateId = 1) {
 	};
 }
 
-function callbackUpdate(data: string, updateId = 2) {
+let nextCallbackMessageId = 1000;
+
+/** По умолчанию каждое нажатие — на новое сообщение: повторные нажатия на то
+ * же сообщение отсекаются (см. callback-dedupe), для их проверки messageId
+ * передаётся явно. */
+function callbackUpdate(
+	data: string,
+	updateId = 2,
+	messageId = nextCallbackMessageId++,
+) {
 	return {
 		update_id: updateId,
 		callback_query: {
@@ -179,7 +188,7 @@ function callbackUpdate(data: string, updateId = 2) {
 			from,
 			chat_instance: "ci",
 			data,
-			message: { message_id: 5, date: 0, chat, from },
+			message: { message_id: messageId, date: 0, chat, from },
 		},
 	};
 }
@@ -443,6 +452,32 @@ describe("телеграм-бот: кнопки старого сценария"
 		expect(sentMessages(sent).map((m) => m.payload.text)).toEqual([
 			t.consent_text,
 		]);
+	});
+
+	test("повторный тап по старому согласию не сбрасывает ушедший вперёд сценарий", async () => {
+		const { bot, sent } = makeBot();
+		await bot.handleUpdate(commandUpdate("/start"));
+		await bot.handleUpdate(callbackUpdate("sc_guide", 2));
+		await bot.handleUpdate(callbackUpdate("consent_agree", 3, 777));
+		const before = sentMessages(sent).length;
+		// клиент снова жмёт кнопку из нового сообщения (другой message_id) —
+		// сценарий уже на следующем шаге, экран согласия показывать нельзя
+		await bot.handleUpdate(callbackUpdate("consent_agree", 4));
+		expect(sentMessages(sent).length).toBe(before);
+	});
+
+	test("несколько нажатий по кнопкам одного сообщения — засчитано только первое", async () => {
+		const { bot, sent } = makeBot();
+		await bot.handleUpdate(commandUpdate("/start"));
+		await bot.handleUpdate(callbackUpdate("sc_consult", 2, 4242));
+		const afterFirst = sentMessages(sent).length;
+		await bot.handleUpdate(callbackUpdate("sc_consult", 3, 4242));
+		await bot.handleUpdate(callbackUpdate("sc_guide", 4, 4242));
+		expect(sentMessages(sent).length).toBe(afterFirst);
+		// но на повторный тап приходит ответ на callback — «часики» гаснут
+		expect(
+			sent.filter((c) => c.method === "answerCallbackQuery").length,
+		).toBeGreaterThanOrEqual(3);
 	});
 
 	test("отказ от согласия без активного сценария молча игнорируется", async () => {
