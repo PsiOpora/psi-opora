@@ -32,6 +32,17 @@ services:
     environment:
       WAHA_URL: http://waha:3000
 
+  # Учёт оплат Т-Банка и купленных пакетов/курсов (apps/payments).
+  payments:
+    build:
+      context: .
+      dockerfile: apps/payments/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${PAYMENTS_PORT:-3030}:3000"
+    env_file:
+      - .env
+
   # Bitrix24 Local App — CRM/маркетинговая аналитика (apps/dashboard).
   dashboard:
     build:

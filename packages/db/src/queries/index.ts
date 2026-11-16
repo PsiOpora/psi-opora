@@ -237,6 +237,7 @@ export * from "./outreach";
 export * from "./outreach-pacing";
 export * from "./postbox";
 export type { QuickReply } from "./quick-replies";
+export * from "./payments-bound";
 export * from "./resend";
 export * from "./rusender";
 export * from "./scheduled-messages";
