@@ -76,6 +76,18 @@ export const env = createEnv({
 		// Ключ подписи вебхука из личного кабинета payform: Настройки →
 		// Оповещения → ключ для подписи (apps/bitrix-webhook/src/payform-webhook.ts).
 		PRODAMUS_SECRET_KEY: z.string().optional(),
+
+		// Т-Банк (apps/payments). Терминал эквайринга (Т-Касса): ключ и пароль
+		// из ЛК терминала — пароль подписывает уведомления (Token) и запросы.
+		TBANK_TERMINAL_KEY: z.string().optional(),
+		TBANK_TERMINAL_PASSWORD: z.string().optional(),
+		// Bearer-токен, который Т-Банк присылает в вебхуке «Операция по счету»
+		// (задаётся в письме openapi@tbank.ru при подключении вебхука).
+		TBANK_ACCOUNT_WEBHOOK_TOKEN: z.string().optional(),
+		// Bearer-токен админ-API apps/payments (создание покупок, разбор оплат).
+		PAYMENTS_ADMIN_TOKEN: z.string().optional(),
+		// Публичный URL apps/payments — для NotificationURL в Init эквайринга.
+		PAYMENTS_PUBLIC_URL: z.string().optional(),
 		DASHBOARD_BITRIX_CLIENT_SECRET: z.string().optional(),
 		DASHBOARD_BITRIX_WEBHOOK_URL: z.string().optional(),
 		CLIENTS_BITRIX_CLIENT_ID: z.string().optional(),
@@ -220,6 +232,11 @@ export const env = createEnv({
 		BITRIX_CRM_WEBHOOK_TOKEN: process.env.BITRIX_CRM_WEBHOOK_TOKEN,
 		DASHBOARD_BITRIX_CLIENT_ID: process.env.DASHBOARD_BITRIX_CLIENT_ID,
 		PRODAMUS_SECRET_KEY: process.env.PRODAMUS_SECRET_KEY,
+		TBANK_TERMINAL_KEY: process.env.TBANK_TERMINAL_KEY,
+		TBANK_TERMINAL_PASSWORD: process.env.TBANK_TERMINAL_PASSWORD,
+		TBANK_ACCOUNT_WEBHOOK_TOKEN: process.env.TBANK_ACCOUNT_WEBHOOK_TOKEN,
+		PAYMENTS_ADMIN_TOKEN: process.env.PAYMENTS_ADMIN_TOKEN,
+		PAYMENTS_PUBLIC_URL: process.env.PAYMENTS_PUBLIC_URL,
 		DASHBOARD_BITRIX_CLIENT_SECRET: process.env.DASHBOARD_BITRIX_CLIENT_SECRET,
 		DASHBOARD_BITRIX_WEBHOOK_URL: process.env.DASHBOARD_BITRIX_WEBHOOK_URL,
 		CLIENTS_BITRIX_CLIENT_ID: process.env.CLIENTS_BITRIX_CLIENT_ID,

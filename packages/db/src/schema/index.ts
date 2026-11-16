@@ -29,6 +29,7 @@ export * from "./email-templates";
 export * from "./marketing-campaigns";
 export * from "./max-personal";
 export * from "./outreach";
+export * from "./payments";
 export * from "./postbox";
 export * from "./quick-replies";
 export * from "./resend";
