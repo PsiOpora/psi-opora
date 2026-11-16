@@ -215,6 +215,31 @@ describe("MAX-бот: кнопка «Заказать книгу»", () => {
 		return { bot, sent, edits };
 	}
 
+	for (const action of ["sc_consult", "sc_book", "start_consultation"]) {
+		test(`${action}: failed send preserves buttons and permits retry`, async () => {
+			const { bot, edits } = makeBotWithSessions(new Map());
+			await dispatch(bot, botStartedUpdate());
+			const send = bot.api.sendMessageToChat;
+			bot.api.sendMessageToChat = mock(() =>
+				Promise.reject(new Error("send failed")),
+			) as never;
+			const update = callbackUpdate(
+				action,
+				2,
+				{ text: "Question" },
+				`retry-${action}`,
+			);
+			await expect(dispatch(bot, update)).rejects.toThrow("send failed");
+			expect(edits).toHaveLength(0);
+			bot.api.sendMessageToChat = mock((...args: Parameters<typeof send>) => {
+				expect(edits).toHaveLength(0);
+				return send(...args);
+			}) as never;
+			await dispatch(bot, update);
+			expect(edits).toHaveLength(1);
+		});
+	}
+
 	test("после нажатия кнопки согласия кнопки убираются, ссылки сохраняются", async () => {
 		const { bot, edits } = makeBotWithSessions(new Map());
 		await dispatch(bot, botStartedUpdate());

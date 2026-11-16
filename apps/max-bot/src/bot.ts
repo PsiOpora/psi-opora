@@ -13,6 +13,7 @@ import {
 	bpActionLabel,
 	type ConsultationSession,
 	claimCallbackClick,
+	completeCallbackClick,
 	clearReminderOnOffScriptText,
 	createBotBackgroundQueue,
 	decodeStartParam,
@@ -268,7 +269,8 @@ function sessionMiddleware(
 	return async (ctx, next) => {
 		const key = sessionKeyOf(ctx);
 		const existing = storage ? await storage.read(key) : memory.get(key);
-		ctx.session = existing ?? createInitialSession();
+		// Изолируем изменения до успешного завершения, в том числе для memory storage.
+		ctx.session = existing ? structuredClone(existing) : createInitialSession();
 		await next();
 		if (storage) await storage.write(key, ctx.session);
 		else memory.set(key, ctx.session);
@@ -446,6 +448,7 @@ export function createMaxBot({
 		}
 		try {
 			await next();
+			await completeCallbackClick(redis, "max", userId, messageId);
 		} catch (err) {
 			await releaseCallbackClick(redis, "max", userId, messageId);
 			throw err;
@@ -724,7 +727,6 @@ export function createMaxBot({
 	bot.action("start_consultation", async (ctx) => {
 		const appCtx = ctx as AppContext;
 		await appCtx.answerOnCallback({}).catch(() => {});
-		await removeCallbackButtons(appCtx);
 		const texts = await getScenarioTexts();
 		await logBotMessage({
 			messenger: "max",
@@ -738,6 +740,7 @@ export function createMaxBot({
 			startConsultation(texts, await lookupKnownContact(appCtx)),
 			texts,
 		);
+		await removeCallbackButtons(appCtx);
 	});
 
 	// Кнопка из follow-up-сообщения кампании гайда (packages/jobs) — не часть
@@ -745,7 +748,6 @@ export function createMaxBot({
 	bot.action("sc_guide_diagnostic", async (ctx) => {
 		const appCtx = ctx as AppContext;
 		await appCtx.answerOnCallback({}).catch(() => {});
-		await removeCallbackButtons(appCtx);
 		const userId = appCtx.user?.user_id;
 		if (!userId) return;
 		await logBotMessage({
@@ -763,6 +765,7 @@ export function createMaxBot({
 		);
 		if (!reply) return;
 		await replyWithFallback(appCtx, reply);
+		await removeCallbackButtons(appCtx);
 		await logBotMessage({
 			messenger: "max",
 			userId,
@@ -870,7 +873,6 @@ export function createMaxBot({
 			if (!raw) return;
 			const dripCallback = parseDripCallback(raw);
 			if (!dripCallback) return;
-			await removeCallbackButtons(appCtx);
 			const userId = appCtx.user?.user_id;
 			if (!userId) return;
 			const texts = await getScenarioTexts();
@@ -892,6 +894,7 @@ export function createMaxBot({
 				});
 			}
 			await replyWithFallback(appCtx, reply.text, { format: "markdown" });
+			await removeCallbackButtons(appCtx);
 			await logBotMessage({
 				messenger: "max",
 				userId,
@@ -906,7 +909,6 @@ export function createMaxBot({
 		bot.action(action, async (ctx) => {
 			const appCtx = ctx as AppContext;
 			await appCtx.answerOnCallback({}).catch(() => {});
-			await removeCallbackButtons(appCtx);
 
 			const texts = await getScenarioTexts();
 			const bpState = appCtx.session.bookPreorder;
@@ -926,6 +928,7 @@ export function createMaxBot({
 				text: bpActionLabel(action, texts),
 			});
 			await dispatchBookPreorder(appCtx, bpOut, texts);
+			await removeCallbackButtons(appCtx);
 		});
 	}
 
@@ -937,7 +940,6 @@ export function createMaxBot({
 	bot.action("sc_book", async (ctx) => {
 		const appCtx = ctx as AppContext;
 		await appCtx.answerOnCallback({}).catch(() => {});
-		await removeCallbackButtons(appCtx);
 
 		const texts = await getScenarioTexts();
 		log(
@@ -970,6 +972,7 @@ export function createMaxBot({
 				),
 			texts,
 		);
+		await removeCallbackButtons(appCtx);
 	});
 
 	for (const action of SCENARIO_ACTIONS) {
@@ -977,7 +980,6 @@ export function createMaxBot({
 		bot.action(action, async (ctx) => {
 			const appCtx = ctx as AppContext;
 			await appCtx.answerOnCallback({}).catch(() => {});
-			await removeCallbackButtons(appCtx);
 
 			const texts = await getScenarioTexts();
 			const state = appCtx.session.scenario;
@@ -1020,6 +1022,7 @@ export function createMaxBot({
 				text: actionLabel(action, texts),
 			});
 			await dispatch(appCtx, out, texts, guideCampaign);
+			await removeCallbackButtons(appCtx);
 		});
 	}
 

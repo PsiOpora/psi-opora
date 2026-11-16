@@ -52,6 +52,7 @@ import {
 import { type BitrixApiLike, resolveKnownContact } from "./utils/bitrix";
 import {
 	claimCallbackClick,
+	completeCallbackClick,
 	releaseCallbackClick,
 } from "./utils/callback-dedupe";
 import { enrichCrmFromClientMessage } from "./utils/crm-enrichment";
@@ -497,6 +498,7 @@ export function createBot({
 		}
 		try {
 			await next();
+			await completeCallbackClick(redis, "telegram", chatId, messageId);
 		} catch (err) {
 			await releaseCallbackClick(redis, "telegram", chatId, messageId);
 			throw err;

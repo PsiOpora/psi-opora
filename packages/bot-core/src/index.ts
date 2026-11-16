@@ -223,6 +223,7 @@ export {
 export { withUserLock } from "./utils/lock";
 export {
 	claimCallbackClick,
+	completeCallbackClick,
 	releaseCallbackClick,
 } from "./utils/callback-dedupe";
 export {

@@ -39,3 +39,12 @@ describe("maxTextToMarkdown", () => {
 		).toBe("abc");
 	});
 });
+
+test("literal markdown is escaped before, inside and after original UTF-16 ranges", () => {
+	expect(
+		maxTextToMarkdown("*😀a_b*", [{ type: "strong", from: 3, length: 3 }]),
+	).toBe("\\*😀**a\\_b**\\*");
+	expect(maxTextToMarkdown("_*[]()`~+^#>\\", null)).toBe(
+		"\\_\\*\\[\\]\\(\\)\\`\\~\\+\\^\\#\\>\\\\",
+	);
+});

@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { claimCallbackClick, releaseCallbackClick } from "./callback-dedupe";
+import {
+	claimCallbackClick,
+	completeCallbackClick,
+	releaseCallbackClick,
+} from "./callback-dedupe";
 
 describe("claimCallbackClick (без Redis)", () => {
 	test("засчитывает только первое нажатие на сообщение", async () => {
@@ -41,8 +45,59 @@ describe("claimCallbackClick (без Redis)", () => {
 		} as never;
 		expect(await claimCallbackClick(redis, "max", 1, "x")).toBe(true);
 		expect(await claimCallbackClick(redis, "max", 1, "x")).toBe(false);
-		expect(calls[0]?.opts).toEqual({ nx: true, ex: 30 * 24 * 60 * 60 });
+		expect(calls[0]?.opts).toEqual({ nx: true, ex: 60 });
 		await releaseCallbackClick(redis, "max", 1, "x");
 		expect(await claimCallbackClick(redis, "max", 1, "x")).toBe(true);
 	});
+});
+
+test("failed DEL leaves only a short claim, successful completion lasts 30 days", async () => {
+	let now = 0;
+	let expiresAt = 0;
+	const redis = {
+		set: async (
+			_key: string,
+			_value: unknown,
+			options: { nx?: boolean; ex: number },
+		) => {
+			if (options.nx && expiresAt > now) return null;
+			expiresAt = now + options.ex;
+			return "OK";
+		},
+		del: async () => {
+			throw new Error("offline");
+		},
+	} as never;
+	expect(await claimCallbackClick(redis, "max", 1, "retry")).toBe(true);
+	await releaseCallbackClick(redis, "max", 1, "retry");
+	expect(await claimCallbackClick(redis, "max", 1, "retry")).toBe(false);
+	now = 61;
+	expect(await claimCallbackClick(redis, "max", 1, "retry")).toBe(true);
+	await completeCallbackClick(redis, "max", 1, "retry");
+	now += 29 * 24 * 60 * 60;
+	expect(await claimCallbackClick(redis, "max", 1, "retry")).toBe(false);
+	now += 2 * 24 * 60 * 60;
+	expect(await claimCallbackClick(redis, "max", 1, "retry")).toBe(true);
+});
+
+test("memory claim expires quickly, completion preserves dedupe", async () => {
+	const originalNow = Date.now;
+	let now = originalNow();
+	Date.now = () => now;
+	try {
+		expect(await claimCallbackClick(undefined, "max", 1, "memory-expire")).toBe(
+			true,
+		);
+		now += 61_000;
+		expect(await claimCallbackClick(undefined, "max", 1, "memory-expire")).toBe(
+			true,
+		);
+		await completeCallbackClick(undefined, "max", 1, "memory-expire");
+		now += 24 * 60 * 60 * 1000;
+		expect(await claimCallbackClick(undefined, "max", 1, "memory-expire")).toBe(
+			false,
+		);
+	} finally {
+		Date.now = originalNow;
+	}
 });

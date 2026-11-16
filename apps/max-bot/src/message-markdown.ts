@@ -21,11 +21,15 @@ const WRAPPERS: Record<string, string> = {
 	strikethrough: "~~",
 };
 
+function escapeMarkdown(text: string): string {
+	return text.replace(/[\\`*_[\]()#+>~^]/g, "\\$&");
+}
+
 export function maxTextToMarkdown(
 	text: string,
 	markup: readonly MaxMarkupElement[] | null | undefined,
 ): string {
-	if (!markup?.length) return text;
+	if (!markup?.length) return escapeMarkdown(text);
 
 	const inserts: Insert[] = [];
 	let order = 0;
@@ -50,13 +54,13 @@ export function maxTextToMarkdown(
 		}
 	}
 
-	// Вставляем с конца, чтобы не сдвигать ещё не применённые позиции; при
-	// равной позиции более поздняя вставка оказывается раньше в тексте.
-	inserts.sort((a, b) => b.pos - a.pos || b.order - a.order);
-	let result = text;
+	// Разбиваем исходный текст до экранирования: позиции MAX остаются исходными.
+	inserts.sort((a, b) => a.pos - b.pos || a.order - b.order);
+	let result = "";
+	let cursor = 0;
 	for (const insert of inserts) {
-		result =
-			result.slice(0, insert.pos) + insert.text + result.slice(insert.pos);
+		result += escapeMarkdown(text.slice(cursor, insert.pos)) + insert.text;
+		cursor = insert.pos;
 	}
-	return result;
+	return result + escapeMarkdown(text.slice(cursor));
 }

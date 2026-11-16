@@ -8,6 +8,9 @@ import type { RedisClient } from "../storage/redis";
  */
 const CLICK_TTL_SEC = 30 * 24 * 60 * 60;
 
+// Незавершённый callback можно повторить после сбоя процесса или DEL.
+const PROCESSING_TTL_SEC = 60;
+
 const MEMORY_MAX_ENTRIES = 10_000;
 // Без Redis (локальная разработка/тесты) — тот же контракт в памяти процесса.
 const memory = new Map<string, number>();
@@ -38,7 +41,9 @@ export async function claimCallbackClick(
 ): Promise<boolean> {
 	const key = clickKey(messenger, chatId, messageId);
 	if (redis) {
-		return Boolean(await redis.set(key, 1, { nx: true, ex: CLICK_TTL_SEC }));
+		return Boolean(
+			await redis.set(key, 1, { nx: true, ex: PROCESSING_TTL_SEC }),
+		);
 	}
 	const now = Date.now();
 	const expiresAt = memory.get(key);
@@ -50,7 +55,7 @@ export async function claimCallbackClick(
 			if (oldest !== undefined) memory.delete(oldest);
 		}
 	}
-	memory.set(key, now + CLICK_TTL_SEC * 1000);
+	memory.set(key, now + PROCESSING_TTL_SEC * 1000);
 	return true;
 }
 
@@ -70,4 +75,19 @@ export async function releaseCallbackClick(
 		return;
 	}
 	memory.delete(key);
+}
+
+/** Закрепляет успешное действие на 30 дней; вызывать под тем же локом. */
+export async function completeCallbackClick(
+	redis: RedisClient | undefined,
+	messenger: string,
+	chatId: string | number,
+	messageId: string | number,
+): Promise<void> {
+	const key = clickKey(messenger, chatId, messageId);
+	if (redis) {
+		await redis.set(key, 1, { ex: CLICK_TTL_SEC });
+		return;
+	}
+	memory.set(key, Date.now() + CLICK_TTL_SEC * 1000);
 }
