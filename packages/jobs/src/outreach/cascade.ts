@@ -34,7 +34,7 @@ export function isBotChannel(channel: string): channel is BotChannel {
  *   останавливается, чтобы человек не получил его дважды.
  */
 export type SendOutcome =
-	| { kind: "sent"; userId: string; externalId?: string }
+	| { kind: "sent"; userId: string; externalId?: string; viaCard?: boolean }
 	| { kind: "not_found"; error: string }
 	| { kind: "failed"; error: string }
 	| { kind: "channel_down"; error: string; fatal?: boolean }
@@ -51,6 +51,8 @@ export interface CascadeAttempt {
 	error?: string;
 	/** Канал пропущен без отправки (исчерпан дневной лимит номера). */
 	skipped?: boolean;
+	/** Аккаунт найден по карточке контакта в CRM, а не по телефону. */
+	viaCard?: boolean;
 	at: string;
 }
 
@@ -165,7 +167,12 @@ export async function runCascade(params: {
 				params.breaker.recordAlive(sender.channel);
 			}
 			if (outcome.kind === "sent") {
-				attempts.push({ channel: sender.channel, ok: true, at });
+				attempts.push({
+					channel: sender.channel,
+					ok: true,
+					...(outcome.viaCard ? { viaCard: true } : {}),
+					at,
+				});
 				return {
 					status: "sent",
 					channel: sender.channel,

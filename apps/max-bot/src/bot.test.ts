@@ -83,7 +83,19 @@ function botStartedUpdate(): Update {
 	};
 }
 
-function callbackUpdate(payload: string, timestamp: number): Update {
+let nextCallbackMid = 1000;
+
+/** По умолчанию каждое нажатие — на новое сообщение: повторные нажатия на то
+ * же сообщение отсекаются (см. claimCallbackClick), для их проверки mid
+ * передаётся явно. */
+function callbackUpdate(
+	payload: string,
+	timestamp: number,
+	body: { text: string | null; markup?: Array<Record<string, unknown>> } = {
+		text: null,
+	},
+	mid: string = String(nextCallbackMid++),
+): Update {
 	return {
 		update_type: "message_callback",
 		timestamp,
@@ -102,7 +114,7 @@ function callbackUpdate(payload: string, timestamp: number): Update {
 				user_id: 100,
 				post_id: null,
 			},
-			body: { mid: String(timestamp), seq: timestamp, text: null },
+			body: { mid, seq: timestamp, ...body } as never,
 		},
 	};
 }
@@ -160,6 +172,7 @@ describe("MAX-бот: сброс предзаказа книги", () => {
 			return Promise.resolve({});
 		}) as never;
 		bot.api.answerOnCallback = mock(() => Promise.resolve({})) as never;
+		bot.api.editMessage = mock(() => Promise.resolve({})) as never;
 
 		// A normal MAX start dispatches the ordinary scenario and must clear the
 		// stale book-preorder state before the customer continues this flow.
@@ -191,8 +204,94 @@ describe("MAX-бот: кнопка «Заказать книгу»", () => {
 			return Promise.resolve({});
 		}) as never;
 		bot.api.answerOnCallback = mock(() => Promise.resolve({})) as never;
-		return { bot, sent };
+		const edits: Array<{ messageId: string; extra: Record<string, unknown> }> =
+			[];
+		bot.api.editMessage = mock(
+			(messageId: string, extra: Record<string, unknown>) => {
+				edits.push({ messageId, extra });
+				return Promise.resolve({});
+			},
+		) as never;
+		return { bot, sent, edits };
 	}
+
+	for (const action of ["sc_consult", "sc_book", "start_consultation"]) {
+		test(`${action}: failed send preserves buttons and permits retry`, async () => {
+			const { bot, edits } = makeBotWithSessions(new Map());
+			await dispatch(bot, botStartedUpdate());
+			const send = bot.api.sendMessageToChat;
+			bot.api.sendMessageToChat = mock(() =>
+				Promise.reject(new Error("send failed")),
+			) as never;
+			const update = callbackUpdate(
+				action,
+				2,
+				{ text: "Question" },
+				`retry-${action}`,
+			);
+			await expect(dispatch(bot, update)).rejects.toThrow("send failed");
+			expect(edits).toHaveLength(0);
+			bot.api.sendMessageToChat = mock((...args: Parameters<typeof send>) => {
+				expect(edits).toHaveLength(0);
+				return send(...args);
+			}) as never;
+			await dispatch(bot, update);
+			expect(edits).toHaveLength(1);
+		});
+	}
+
+	test("после нажатия кнопки согласия кнопки убираются, ссылки сохраняются", async () => {
+		const { bot, edits } = makeBotWithSessions(new Map());
+		await dispatch(bot, botStartedUpdate());
+		await dispatch(bot, callbackUpdate("sc_consult", 2));
+		await dispatch(
+			bot,
+			callbackUpdate(
+				"consent_agree",
+				3,
+				{
+					text: "Согласие: https://psi-opora.ru/x",
+					markup: [
+						{
+							type: "link",
+							from: 10,
+							length: 22,
+							url: "https://psi-opora.ru/x",
+						},
+					],
+				},
+				"consent-msg",
+			),
+		);
+
+		const last = edits.at(-1);
+		expect(last?.messageId).toBe("consent-msg");
+		expect(last?.extra.attachments).toEqual([]);
+		expect(last?.extra.format).toBe("markdown");
+		expect(last?.extra.text).toBe(
+			"Согласие: [https://psi-opora.ru/x](https://psi-opora.ru/x)",
+		);
+	});
+
+	test("несколько нажатий по кнопкам одного сообщения — засчитано только первое", async () => {
+		const { bot, sent } = makeBotWithSessions(new Map());
+		await dispatch(bot, botStartedUpdate());
+		await dispatch(bot, callbackUpdate("sc_consult", 2, { text: null }, "dup"));
+		const afterFirst = sent.length;
+		await dispatch(bot, callbackUpdate("sc_consult", 3, { text: null }, "dup"));
+		await dispatch(bot, callbackUpdate("sc_guide", 4, { text: null }, "dup"));
+		expect(sent.length).toBe(afterFirst);
+	});
+
+	test("повторный тап по старому согласию не сбрасывает ушедший вперёд сценарий", async () => {
+		const { bot, sent } = makeBotWithSessions(new Map());
+		await dispatch(bot, botStartedUpdate());
+		await dispatch(bot, callbackUpdate("sc_guide", 2));
+		await dispatch(bot, callbackUpdate("consent_agree", 3));
+		const before = sent.length;
+		await dispatch(bot, callbackUpdate("consent_agree", 4));
+		expect(sent.length).toBe(before);
+	});
 
 	test("поиск контакта: общий срок при зависании forwarding", async () => {
 		const background = {

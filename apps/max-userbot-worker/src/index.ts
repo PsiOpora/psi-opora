@@ -13,6 +13,7 @@ import {
 	claimMaxOutboundMessage,
 	createUserbotClient,
 	decryptSecret,
+	dialogChatId,
 	deleteUserbotMessage,
 	getUserbotSelfId,
 	type MaxIncomingMessage,
@@ -146,13 +147,23 @@ async function runOutbox(
 		const { message, receipt } = claimed;
 		try {
 			// chatId — существующий диалог; phone — «написать первым» (рассылка
-			// по спискам): ID личного чата вычисляется по найденному контакту.
-			const chatId =
-				message.chatId ??
-				(message.phone
-					? await resolveDialogChatId(client, message.phone)
-					: undefined);
-			if (!chatId) throw new Error("В задаче нет ни chatId, ни phone");
+			// по спискам): ID личного чата вычисляется по найденному контакту;
+			// maxUserId — ID из карточки CRM, когда по телефону контакт не нашёлся.
+			let chatId = message.chatId;
+			if (!chatId && message.phone) {
+				chatId = await resolveDialogChatId(client, message.phone);
+			}
+			if (!chatId && message.maxUserId) {
+				const selfId = getUserbotSelfId(client);
+				if (!selfId) {
+					throw new Error(
+						"MAX не вернул профиль аккаунта при входе — ID личного чата не вычислить",
+					);
+				}
+				chatId = dialogChatId(selfId, message.maxUserId);
+			}
+			if (!chatId)
+				throw new Error("В задаче нет ни chatId, ни phone, ни maxUserId");
 			if (message.action === "delete") {
 				if (!message.externalId) throw new Error("Не задан externalId");
 				await deleteUserbotMessage(client, chatId, message.externalId);

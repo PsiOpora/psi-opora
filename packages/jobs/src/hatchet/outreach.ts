@@ -6,6 +6,10 @@ import { sleep } from "../messenger";
 import { createBotSender } from "../outreach/bot-sender";
 import { createBotTargetLookup } from "../outreach/bot-targets";
 import {
+	type CardTargets,
+	createCardTargetLookup,
+} from "../outreach/card-targets";
+import {
 	ChannelBreaker,
 	isBotChannel,
 	type MessengerChannel,
@@ -61,13 +65,21 @@ const JOURNAL_MESSENGER: Record<MessengerChannel, string> = {
 	whatsapp: "whatsapp-personal",
 };
 
+/**
+ * MAX и Telegram, не найдя человека по телефону, смотрят его аккаунт в
+ * карточке контакта CRM (outreach/card-targets.ts); WhatsApp адресуется
+ * только по номеру.
+ */
 const SENDER_FACTORY: Record<
 	PersonalChannel,
-	(account: PersonalAccountRef) => OutreachSender
+	(
+		account: PersonalAccountRef,
+		findCardTargets?: (phone: string) => Promise<CardTargets>,
+	) => OutreachSender
 > = {
 	max: createMaxSender,
 	telegram: createTelegramSender,
-	whatsapp: createWhatsappSender,
+	whatsapp: (account) => createWhatsappSender(account),
 };
 
 /**
@@ -135,10 +147,19 @@ export const deliverOutreach = CreateTaskWorkflow({
 			senders.push(createBotSender("max_bot", findTargets));
 			senders.push(createBotSender("telegram_bot", findTargets));
 		}
+		const needsCardLookup = plan.channels.some(
+			(c) => c.channel === "max" || c.channel === "telegram",
+		);
+		const findCardTargets = needsCardLookup
+			? await createCardTargetLookup(memberId)
+			: undefined;
 		for (const c of plan.channels) {
 			const account = accounts[c.channel];
-			if (account)
-				senders.push(SENDER_FACTORY[c.channel]({ memberId, ...account }));
+			if (account) {
+				senders.push(
+					SENDER_FACTORY[c.channel]({ memberId, ...account }, findCardTargets),
+				);
+			}
 		}
 		// Темп номера — с учётом сегодняшних отправок всех рассылок.
 		const usage = await getOutreachAccountUsage(moscowDayStart(new Date()));

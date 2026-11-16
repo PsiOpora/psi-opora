@@ -2,11 +2,9 @@
 
 import { EMAIL_RECIPIENT_FILTER_VALUES } from "@psi-opora/api/schemas";
 import { useQuery } from "@tanstack/react-query";
-import { DownloadIcon } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
 import {
 	formatDateTime,
 	formatRate,
@@ -14,8 +12,11 @@ import {
 	RECIPIENT_STATUS,
 } from "@/components/email/email-format";
 import { Pager } from "@/components/email/pager";
+import {
+	ExportReportButtons,
+	type ReportTable,
+} from "@/components/export-report-buttons";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -40,7 +41,6 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { downloadCsv } from "@/lib/csv-import";
 import { orpc, orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
 import { CampaignStatusBadge } from "../history";
@@ -108,7 +108,6 @@ export default function EmailCampaignDetailsPage() {
 	const [search, setSearch] = useState("");
 	const [page, setPage] = useState(0);
 	const [openRecipient, setOpenRecipient] = useState<string | null>(null);
-	const [exporting, setExporting] = useState(false);
 	const debouncedSearch = useDebouncedValue(search, 300);
 
 	const { data, isLoading, isError } = useQuery(
@@ -143,50 +142,43 @@ export default function EmailCampaignDetailsPage() {
 		setPage(0);
 	};
 
-	const exportReport = async () => {
-		setExporting(true);
-		try {
-			const rows = await orpcClient.emailCampaigns.exportRecipients({ id });
-			downloadCsv(
-				`email-campaign-${id.slice(0, 8)}.csv`,
-				[
-					"Email",
-					"Имя",
-					"Сделка",
-					"Статус",
-					"Ошибка",
-					"Отправлено",
-					"Доставлено",
-					"Открыто",
-					"Переход",
-					"Открытий",
-					"Переходов",
-					"Bounce",
-					"Жалоба",
-					"Отписка",
-				],
-				rows.map((r) => [
-					r.email ?? "",
-					r.name ?? "",
-					r.deal ?? "",
-					RECIPIENT_STATUS[r.status]?.label ?? r.status,
-					r.error ?? "",
-					formatDateTime(r.sentAt),
-					formatDateTime(r.deliveredAt),
-					formatDateTime(r.openedAt),
-					formatDateTime(r.clickedAt),
-					r.openCount,
-					r.clickCount,
-					formatDateTime(r.bouncedAt),
-					formatDateTime(r.complainedAt),
-					formatDateTime(r.unsubscribedAt),
-				]),
-			);
-		} catch (err) {
-			toast.error(`Не удалось выгрузить отчёт: ${(err as Error).message}`);
-		} finally {
-			setExporting(false);
-		}
+	/** Все получатели рассылки (не только открытая страница) — для CSV и Excel. */
+	const loadReport = async (): Promise<ReportTable> => {
+		const rows = await orpcClient.emailCampaigns.exportRecipients({ id });
+		return {
+			headers: [
+				"Email",
+				"Имя",
+				"Сделка",
+				"Статус",
+				"Ошибка",
+				"Отправлено",
+				"Доставлено",
+				"Открыто",
+				"Переход",
+				"Открытий",
+				"Переходов",
+				"Bounce",
+				"Жалоба",
+				"Отписка",
+			],
+			rows: rows.map((r) => [
+				r.email ?? "",
+				r.name ?? "",
+				r.deal ?? "",
+				RECIPIENT_STATUS[r.status]?.label ?? r.status,
+				r.error ?? "",
+				formatDateTime(r.sentAt),
+				formatDateTime(r.deliveredAt),
+				formatDateTime(r.openedAt),
+				formatDateTime(r.clickedAt),
+				r.openCount,
+				r.clickCount,
+				formatDateTime(r.bouncedAt),
+				formatDateTime(r.complainedAt),
+				formatDateTime(r.unsubscribedAt),
+			]),
+		};
 	};
 
 	if (isLoading) {
@@ -336,10 +328,13 @@ export default function EmailCampaignDetailsPage() {
 							реальное число прочтений обычно выше.
 						</CardDescription>
 					</div>
-					<Button variant="outline" onClick={exportReport} disabled={exporting}>
-						<DownloadIcon />
-						Отчёт CSV
-					</Button>
+					<div className="flex flex-wrap gap-2">
+						<ExportReportButtons
+							fileName={`email-campaign-${id.slice(0, 8)}`}
+							sheetName="Email-рассылка"
+							load={loadReport}
+						/>
+					</div>
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
 					<div className="flex flex-col gap-2 md:flex-row">

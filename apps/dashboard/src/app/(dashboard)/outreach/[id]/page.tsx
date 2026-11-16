@@ -5,7 +5,6 @@ import {
 	type OUTREACH_RECIPIENT_FILTER_VALUES,
 } from "@psi-opora/api/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DownloadIcon } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -15,6 +14,10 @@ import {
 	RECIPIENT_STATUS,
 } from "@/components/email/email-format";
 import { Pager } from "@/components/email/pager";
+import {
+	ExportReportButtons,
+	type ReportTable,
+} from "@/components/export-report-buttons";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -45,7 +48,6 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { downloadCsv } from "@/lib/csv-import";
 import { orpc, orpcClient } from "@/lib/orpc/client";
 import { cn } from "@/lib/utils";
 import {
@@ -117,7 +119,6 @@ export default function OutreachReportPage() {
 	const [filter, setFilter] = useState<Filter>("all");
 	const [search, setSearch] = useState("");
 	const [page, setPage] = useState(0);
-	const [exporting, setExporting] = useState(false);
 	const debouncedSearch = useDebouncedValue(search, 300);
 
 	const {
@@ -159,54 +160,47 @@ export default function OutreachReportPage() {
 		}),
 	);
 
-	const exportReport = async () => {
-		if (!campaign) return;
-		setExporting(true);
-		try {
-			const rows = await orpcClient.outreach.exportRecipients({ id });
-			downloadCsv(
-				`outreach-${id.slice(0, 8)}.csv`,
-				[
-					"Имя",
-					"Телефон",
-					"Email",
-					"Итог",
-					"Канал",
-					"Отправитель",
-					"Статус в мессенджере",
-					"Ответил",
-					"Статус письма",
-					"Попытки",
-					"Ошибка",
-					"Отправлено",
-				],
-				rows.map((r) => [
-					r.name ?? "",
-					r.phone ?? "",
-					r.email ?? "",
-					OUTCOME_LABELS[r.status] ?? r.status,
-					r.channel ? (CHANNEL_LABELS[r.channel] ?? r.channel) : "",
-					senderLabel(r, campaign) ?? "",
-					messageStatusLabel(r) ?? "",
-					r.repliedAt ? formatDateTime(r.repliedAt) : "",
-					r.emailStatus
-						? (RECIPIENT_STATUS[r.emailStatus]?.label ?? r.emailStatus)
-						: "",
-					r.attempts
-						.map(
-							(a) =>
-								`${CHANNEL_LABELS[a.channel] ?? a.channel}: ${a.ok ? "ок" : (a.error ?? "ошибка")}`,
-						)
-						.join("; "),
-					r.error ?? r.emailError ?? "",
-					r.sentAt ? formatDateTime(r.sentAt) : "",
-				]),
-			);
-		} catch (err) {
-			toast.error(`Не удалось выгрузить отчёт: ${(err as Error).message}`);
-		} finally {
-			setExporting(false);
-		}
+	/** Все получатели рассылки (не только открытая страница) — для CSV и Excel. */
+	const loadReport = async (): Promise<ReportTable> => {
+		if (!campaign) return { headers: [], rows: [] };
+		const rows = await orpcClient.outreach.exportRecipients({ id });
+		return {
+			headers: [
+				"Имя",
+				"Телефон",
+				"Email",
+				"Итог",
+				"Канал",
+				"Отправитель",
+				"Статус в мессенджере",
+				"Ответил",
+				"Статус письма",
+				"Попытки",
+				"Ошибка",
+				"Отправлено",
+			],
+			rows: rows.map((r) => [
+				r.name ?? "",
+				r.phone ?? "",
+				r.email ?? "",
+				OUTCOME_LABELS[r.status] ?? r.status,
+				r.channel ? (CHANNEL_LABELS[r.channel] ?? r.channel) : "",
+				senderLabel(r, campaign) ?? "",
+				messageStatusLabel(r) ?? "",
+				r.repliedAt ? formatDateTime(r.repliedAt) : "",
+				r.emailStatus
+					? (RECIPIENT_STATUS[r.emailStatus]?.label ?? r.emailStatus)
+					: "",
+				r.attempts
+					.map(
+						(a) =>
+							`${CHANNEL_LABELS[a.channel] ?? a.channel}${a.viaCard ? " (по карточке CRM)" : ""}: ${a.ok ? "ок" : (a.error ?? "ошибка")}`,
+					)
+					.join("; "),
+				r.error ?? r.emailError ?? "",
+				r.sentAt ? formatDateTime(r.sentAt) : "",
+			]),
+		};
 	};
 
 	if (isLoading) {
@@ -261,14 +255,11 @@ export default function OutreachReportPage() {
 								</Link>
 							</Button>
 						)}
-						<Button
-							variant="outline"
-							onClick={exportReport}
-							disabled={exporting}
-						>
-							<DownloadIcon />
-							Отчёт CSV
-						</Button>
+						<ExportReportButtons
+							fileName={`outreach-${id.slice(0, 8)}`}
+							sheetName="Рассылка по списку"
+							load={loadReport}
+						/>
 						{isRunning && (
 							<AlertDialog>
 								<AlertDialogTrigger asChild>

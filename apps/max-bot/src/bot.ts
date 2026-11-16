@@ -12,6 +12,9 @@ import {
 	type BotBackgroundQueue,
 	bpActionLabel,
 	type ConsultationSession,
+	claimCallbackClick,
+	completeCallbackClick,
+	clearReminderOnOffScriptText,
 	createBotBackgroundQueue,
 	decodeStartParam,
 	dispatchBookPreorderOutput,
@@ -26,12 +29,14 @@ import {
 	loadGuideCampaignContext,
 	logBotMessage,
 	logSlowUpdate,
+	looksLikeConsentRevocation,
 	looksLikeDiagnosticConsent,
 	matchesBookPreorderStartParam,
 	matchesConsultStartParam,
 	needsKnownContact,
 	parseDripCallback,
 	parseStageConsentPayload,
+	releaseCallbackClick,
 	rememberYandexMetrikaVisitor,
 	resolveGuideCampaignStart,
 	resolveGuideFile,
@@ -58,6 +63,7 @@ import {
 import { logger } from "@psi-opora/config";
 import { upsertBotFunnelEvent } from "@psi-opora/db/queries";
 import { uploadMaxAvatar, uploadMaxMedia } from "./avatar-storage";
+import { type MaxMarkupElement, maxTextToMarkdown } from "./message-markdown";
 
 // MAX-бот работает в Node.js-поде k3s и подключается к обычному PostgreSQL.
 setFunnelUpsert(upsertBotFunnelEvent);
@@ -263,7 +269,8 @@ function sessionMiddleware(
 	return async (ctx, next) => {
 		const key = sessionKeyOf(ctx);
 		const existing = storage ? await storage.read(key) : memory.get(key);
-		ctx.session = existing ?? createInitialSession();
+		// Изолируем изменения до успешного завершения, в том числе для memory storage.
+		ctx.session = existing ? structuredClone(existing) : createInitialSession();
 		await next();
 		if (storage) await storage.write(key, ctx.session);
 		else memory.set(key, ctx.session);
@@ -282,6 +289,40 @@ function toMaxKeyboard(message: ScenarioMessage) {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Убирает кнопки у сообщения, под которым нажали callback-кнопку (аналог
+ * editMessageReplyMarkup в Telegram): в MAX они иначе остаются, и клиент жмёт
+ * «Даю согласие» по нескольку раз. Текст пересобираем из body.text + markup,
+ * потому что в документации MAX не описано, что будет с текстом при правке без
+ * него. Если MAX отклонит markdown — повторяем простым текстом. Любая ошибка
+ * проглатывается: сценарий не должен зависеть от удаления кнопок.
+ */
+async function removeCallbackButtons(ctx: AppContext): Promise<void> {
+	const body = ctx.message?.body as
+		| { text?: string | null; markup?: MaxMarkupElement[] | null }
+		| undefined;
+	const plain = body?.text ?? undefined;
+	try {
+		if (plain === undefined) {
+			await ctx.editMessage({ attachments: [] });
+			return;
+		}
+		try {
+			await ctx.editMessage({
+				text: maxTextToMarkdown(plain, body?.markup),
+				format: "markdown",
+				attachments: [],
+			});
+		} catch {
+			await ctx.editMessage({ text: plain, attachments: [] });
+		}
+	} catch (err) {
+		log(
+			`[buttons] не удалось убрать кнопки user=${ctx.user?.user_id}: ${describeError(err)}`,
+		);
+	}
+}
 
 /**
  * Отправка PDF-гайда в MAX: скачиваем файл с дашборда, загружаем через
@@ -389,6 +430,28 @@ export function createMaxBot({
 				`update=${ctx.updateType} user=${sessionKeyOf(ctx)}`,
 				startedAt,
 			);
+		}
+	});
+
+	// Случайные повторные нажатия по кнопкам одного сообщения: считаем только
+	// первое. Стоит под локом, чтобы победитель успел обработаться и записать
+	// сессию, а остальные нажатия отсеялись до чтения сессии.
+	bot.use(async (ctx, next) => {
+		if (ctx.updateType !== "message_callback") return next();
+		const userId = ctx.user?.user_id;
+		const messageId = ctx.messageId;
+		if (!userId || !messageId) return next();
+		if (!(await claimCallbackClick(redis, "max", userId, messageId))) {
+			log(`[dedupe] повторное нажатие user=${userId} message=${messageId}`);
+			await ctx.answerOnCallback({}).catch(() => {});
+			return;
+		}
+		try {
+			await next();
+			await completeCallbackClick(redis, "max", userId, messageId);
+		} catch (err) {
+			await releaseCallbackClick(redis, "max", userId, messageId);
+			throw err;
 		}
 	});
 
@@ -677,6 +740,7 @@ export function createMaxBot({
 			startConsultation(texts, await lookupKnownContact(appCtx)),
 			texts,
 		);
+		await removeCallbackButtons(appCtx);
 	});
 
 	// Кнопка из follow-up-сообщения кампании гайда (packages/jobs) — не часть
@@ -701,6 +765,7 @@ export function createMaxBot({
 		);
 		if (!reply) return;
 		await replyWithFallback(appCtx, reply);
+		await removeCallbackButtons(appCtx);
 		await logBotMessage({
 			messenger: "max",
 			userId,
@@ -829,6 +894,7 @@ export function createMaxBot({
 				});
 			}
 			await replyWithFallback(appCtx, reply.text, { format: "markdown" });
+			await removeCallbackButtons(appCtx);
 			await logBotMessage({
 				messenger: "max",
 				userId,
@@ -862,6 +928,7 @@ export function createMaxBot({
 				text: bpActionLabel(action, texts),
 			});
 			await dispatchBookPreorder(appCtx, bpOut, texts);
+			await removeCallbackButtons(appCtx);
 		});
 	}
 
@@ -905,6 +972,7 @@ export function createMaxBot({
 				),
 			texts,
 		);
+		await removeCallbackButtons(appCtx);
 	});
 
 	for (const action of SCENARIO_ACTIONS) {
@@ -929,8 +997,15 @@ export function createMaxBot({
 				? applyScenarioAction(state, action, texts, guideCampaign, knownContact)
 				: null;
 			// Согласие из старого сообщения без активного сценария —
-			// начинаем запись заново с актуального вопроса о согласии.
-			if (!out && action === "consent_agree") {
+			// начинаем запись заново с актуального вопроса о согласии. Если
+			// сценарий идёт и просто ушёл дальше шага согласия (повторный тап по
+			// старой кнопке) — игнорируем, иначе клиента перебрасывает на экран
+			// согласия и ломает выбранную ветку (гайд → запись).
+			if (
+				!out &&
+				action === "consent_agree" &&
+				(!state || state.step === "done")
+			) {
 				out = startConsultation(texts);
 			}
 			// null — кнопка от прошлого шага (устаревшее сообщение), игнорируем
@@ -947,6 +1022,7 @@ export function createMaxBot({
 				text: actionLabel(action, texts),
 			});
 			await dispatch(appCtx, out, texts, guideCampaign);
+			await removeCallbackButtons(appCtx);
 		});
 	}
 
@@ -1100,6 +1176,20 @@ export function createMaxBot({
 			});
 		};
 
+		// Отзыв согласия на ПДн — раньше любых сценариев (включая предзаказ книги),
+		// см. такую же ветку в packages/bot-core/src/bot.ts.
+		if (looksLikeConsentRevocation(text)) {
+			const texts = await getScenarioTexts();
+			const out = await applyScenarioText(
+				appCtx.session.scenario ?? { step: "done" },
+				text,
+				texts,
+			);
+			if (out) await dispatch(appCtx, out, texts);
+			else triageInBackground();
+			return;
+		}
+
 		// Активный сценарий предзаказа книги — раньше основного движка (см.
 		// такую же ветку в packages/bot-core/src/bot.ts).
 		const bookPreorderState = appCtx.session.bookPreorder;
@@ -1172,6 +1262,12 @@ export function createMaxBot({
 			// пишет что-то своё, а не то, что просит сценарий) — бот здесь не
 			// пытается сам помочь/ответить, только тихо решает, стоит ли передать
 			// его оператору с пометкой (см. triageOffScriptMessage).
+			await clearReminderOnOffScriptText(
+				redis,
+				"max",
+				sessionKeyOf(appCtx),
+				state,
+			);
 			triageInBackground();
 			return;
 		}

@@ -1,3 +1,4 @@
+import type { CardTargets } from "./card-targets";
 import type { OutreachSender, SendOutcome } from "./cascade";
 
 /**
@@ -85,78 +86,163 @@ export function classifyMaxError(error: string): SendOutcome {
 	return { kind: "failed", error };
 }
 
-export function createMaxSender(account: PersonalAccountRef): OutreachSender {
+type NotFoundOutcome = Extract<SendOutcome, { kind: "not_found" }>;
+
+/**
+ * Итог повторной попытки по аккаунту из карточки контакта. Отправилось —
+ * помечаем viaCard. «Могло уйти» и сбой канала возвращаем как есть (каскад
+ * должен остановиться/выключить канал). Остальное — в ошибке обе причины:
+ * и почему не нашёлся по номеру, и почему не вышло по карточке.
+ */
+export function combineCardOutcome(
+	first: NotFoundOutcome,
+	retry: SendOutcome,
+): SendOutcome {
+	if (retry.kind === "sent") return { ...retry, viaCard: true };
+	if (retry.kind === "unknown" || retry.kind === "channel_down") return retry;
+	return {
+		...retry,
+		error: `${first.error}; по аккаунту из карточки контакта: ${retry.error}`,
+	};
+}
+
+/** Ничего не нашлось и в карточке — объясняем в отчёте, что её тоже смотрели. */
+function noCardAccount(
+	first: NotFoundOutcome,
+	cardError: string | undefined,
+): NotFoundOutcome {
+	return {
+		...first,
+		error: `${first.error}; ${cardError ?? "в карточке контакта в CRM аккаунта нет"}`,
+	};
+}
+
+export function createMaxSender(
+	account: PersonalAccountRef,
+	/** Запасной поиск аккаунта в карточке CRM, когда по телефону не нашли. */
+	findCardTargets?: (phone: string) => Promise<CardTargets>,
+): OutreachSender {
+	const dispatch = async (
+		target: { phone: string } | { maxUserId: string },
+		text: string,
+	): Promise<SendOutcome> => {
+		const {
+			cancelMaxOutboundMessage,
+			getMaxSendResult,
+			pushMaxOutboundMessage,
+		} = await import("@psi-opora/max-userbot");
+		const message = {
+			...account,
+			jobId: crypto.randomUUID(),
+			...target,
+			text,
+		};
+		await pushMaxOutboundMessage(message);
+		const waited = await awaitWorker({
+			label: "личного MAX (apps/max-userbot-worker)",
+			read: () => getMaxSendResult(message.jobId),
+			cancel: () => cancelMaxOutboundMessage(message),
+		});
+		if ("outcome" in waited) return waited.outcome;
+		const { result } = waited;
+		if (result.ok && result.chatId) {
+			return {
+				kind: "sent",
+				userId: result.chatId,
+				externalId: result.externalId,
+			};
+		}
+		if (result.ok) {
+			// Воркер старой версии не возвращает chatId — сообщение ушло,
+			// просто без ключа диалога для журнала.
+			const key = "phone" in target ? target.phone : target.maxUserId;
+			return { kind: "sent", userId: key, externalId: result.externalId };
+		}
+		return classifyMaxError(result.error ?? "неизвестная ошибка MAX");
+	};
+
 	return {
 		channel: "max",
 		async send(phone, text) {
-			const {
-				cancelMaxOutboundMessage,
-				getMaxSendResult,
-				pushMaxOutboundMessage,
-			} = await import("@psi-opora/max-userbot");
-			const message = {
-				...account,
-				jobId: crypto.randomUUID(),
-				phone,
-				text,
-			};
-			await pushMaxOutboundMessage(message);
-			const waited = await awaitWorker({
-				label: "личного MAX (apps/max-userbot-worker)",
-				read: () => getMaxSendResult(message.jobId),
-				cancel: () => cancelMaxOutboundMessage(message),
-			});
-			if ("outcome" in waited) return waited.outcome;
-			const { result } = waited;
-			if (result.ok && result.chatId) {
-				return {
-					kind: "sent",
-					userId: result.chatId,
-					externalId: result.externalId,
-				};
-			}
-			if (result.ok) {
-				// Воркер старой версии не возвращает chatId — сообщение ушло,
-				// просто без ключа диалога для журнала.
-				return { kind: "sent", userId: phone, externalId: result.externalId };
-			}
-			return classifyMaxError(result.error ?? "неизвестная ошибка MAX");
+			const outcome = await dispatch({ phone }, text);
+			if (outcome.kind !== "not_found" || !findCardTargets) return outcome;
+
+			const card = await findCardTargets(phone);
+			if (!card.max) return noCardAccount(outcome, card.error);
+			return combineCardOutcome(
+				outcome,
+				await dispatch({ maxUserId: card.max }, text),
+			);
 		},
 	};
 }
 
 export function createTelegramSender(
 	account: PersonalAccountRef,
+	/** Запасной поиск аккаунта в карточке CRM, когда по телефону не нашли. */
+	findCardTargets?: (phone: string) => Promise<CardTargets>,
 ): OutreachSender {
+	const dispatch = async (
+		target:
+			| { phone: string }
+			| { telegramUserId: number }
+			| { telegramUsername: string },
+		text: string,
+		fallbackKey: string,
+	): Promise<SendOutcome> => {
+		const { cancelOutboundMessage, getSendResult, pushOutboundMessage } =
+			await import("@psi-opora/tg-userbot");
+		const message = {
+			...account,
+			jobId: crypto.randomUUID(),
+			...target,
+			text,
+		};
+		await pushOutboundMessage(message);
+		const waited = await awaitWorker({
+			label: "личного Telegram (apps/tg-userbot-worker)",
+			read: () => getSendResult(message.jobId),
+			cancel: () => cancelOutboundMessage(message),
+		});
+		if ("outcome" in waited) return waited.outcome;
+		const { result } = waited;
+		if (result.ok) {
+			return {
+				kind: "sent",
+				userId: result.telegramUserId ?? fallbackKey,
+				externalId: result.externalId,
+			};
+		}
+		return classifyTelegramError(result.error ?? "неизвестная ошибка Telegram");
+	};
+
 	return {
 		channel: "telegram",
 		async send(phone, text) {
-			const { cancelOutboundMessage, getSendResult, pushOutboundMessage } =
-				await import("@psi-opora/tg-userbot");
-			const message = {
-				...account,
-				jobId: crypto.randomUUID(),
-				phone,
-				text,
-			};
-			await pushOutboundMessage(message);
-			const waited = await awaitWorker({
-				label: "личного Telegram (apps/tg-userbot-worker)",
-				read: () => getSendResult(message.jobId),
-				cancel: () => cancelOutboundMessage(message),
-			});
-			if ("outcome" in waited) return waited.outcome;
-			const { result } = waited;
-			if (result.ok) {
-				return {
-					kind: "sent",
-					userId: result.telegramUserId ?? phone,
-					externalId: result.externalId,
-				};
+			const outcome = await dispatch({ phone }, text, phone);
+			if (outcome.kind !== "not_found" || !findCardTargets) return outcome;
+
+			const card = await findCardTargets(phone);
+			const telegram = card.telegram;
+			// Числовой ID надёжнее username: username можно сменить или скрыть.
+			const userId = telegram?.userId ? Number(telegram.userId) : null;
+			if (userId !== null && Number.isSafeInteger(userId)) {
+				return combineCardOutcome(
+					outcome,
+					await dispatch({ telegramUserId: userId }, text, String(userId)),
+				);
 			}
-			return classifyTelegramError(
-				result.error ?? "неизвестная ошибка Telegram",
-			);
+			if (telegram?.username) {
+				return combineCardOutcome(
+					outcome,
+					await dispatch(
+						{ telegramUsername: telegram.username },
+						text,
+						telegram.username,
+					),
+				);
+			}
+			return noCardAccount(outcome, card.error);
 		},
 	};
 }

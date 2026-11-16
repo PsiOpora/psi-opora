@@ -5,7 +5,7 @@ import { logBotMessage } from "../utils/message-log";
 import { isBotBlockedError } from "../utils/messenger-errors";
 import { buildReminder, type ScenarioMessage } from "./engine";
 import { getScenarioTexts } from "./texts";
-import type { ScenarioStep } from "./types";
+import type { ScenarioState, ScenarioStep } from "./types";
 
 /** Шаги сценария, не входящие в воронку напрямую: entry (ещё не выбрал
  * ветку — таймаут здесь считаем несостоявшимся стартом) и done (сценарий уже
@@ -50,6 +50,40 @@ export async function clearScenarioAwaiting(
 	sessionKey: string,
 ): Promise<void> {
 	await redis.zrem(pendingKey(messenger), sessionKey);
+}
+
+/** Шаги с кнопками: свободный текст здесь бот не разбирает (см. applyScenarioText). */
+const BUTTON_STEPS: ReadonlySet<ScenarioStep> = new Set([
+	"entry",
+	"consent",
+	"category",
+	"issue",
+	"subscribe",
+]);
+
+/**
+ * Клиент написал свободный текст на кнопочном шаге, а вопрос мы уже повторяли
+ * (state.nudged), — бот молчит, потому что клиент, скорее всего, переписывается
+ * с оператором. Напоминание «ответьте на вопрос выше» в такой переписке только
+ * мешает (клиентка попросила отозвать согласие — и получила его), поэтому
+ * снимаем сессию с очереди. Нажатие кнопки вернёт её в очередь через
+ * dispatchScenarioOutput. Шаги phone/email не трогаем: там напоминание
+ * ещё может довести заявку до сделки.
+ */
+export async function clearReminderOnOffScriptText(
+	redis: RedisClient | null | undefined,
+	messenger: string,
+	sessionKey: string,
+	state: Pick<ScenarioState, "step" | "nudged">,
+): Promise<void> {
+	if (!redis || !state.nudged || !BUTTON_STEPS.has(state.step)) return;
+	try {
+		await clearScenarioAwaiting(redis, messenger, sessionKey);
+	} catch (err) {
+		console.error(
+			`[reminder] не удалось снять напоминание: ${(err as Error).message}`,
+		);
+	}
 }
 
 export interface ReminderRunOptions {
@@ -140,6 +174,11 @@ export async function runScenarioReminders({
 				continue;
 			}
 
+			// Сессию могли снять с очереди после zrange (клиент отозвал согласие или
+			// написал оператору) — не шлём напоминание вдогонку. Окно гонки это
+			// сужает, но не закрывает полностью (нет блокировки на сессию).
+			if ((await redis.zscore(key, sessionKey)) === null) continue;
+
 			attemptedText = message.text;
 			await send(sessionKey, message);
 			sendSucceeded = true;
@@ -150,10 +189,19 @@ export async function runScenarioReminders({
 				source: "reminder",
 				text: message.text,
 			});
-			state.reminded = true;
-			await storage.write(sessionKey, session);
-			await redis.zadd(key, { score: Date.now(), member: sessionKey });
 			result.reminded++;
+			// Пока шло напоминание, сессия могла измениться (отзыв согласия) — не
+			// затираем её устаревшей копией и не возвращаем в очередь.
+			const latest = (await storage.read(sessionKey)) ?? session;
+			if (
+				latest.scenario &&
+				latest.scenario.step !== "done" &&
+				(await redis.zscore(key, sessionKey)) !== null
+			) {
+				latest.scenario.reminded = true;
+				await storage.write(sessionKey, latest);
+				await redis.zadd(key, { score: Date.now(), member: sessionKey });
+			}
 		} catch (err) {
 			// Не удалось отправить (бот заблокирован и т.п.) — убираем из очереди,
 			// чтобы не зациклиться на одном пользователе. Сам факт неудачной

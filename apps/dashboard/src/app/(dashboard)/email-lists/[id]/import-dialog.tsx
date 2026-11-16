@@ -252,7 +252,9 @@ export function ImportDialog({
 					Импорт контактов
 				</Button>
 			</DialogTrigger>
-			<DialogContent className="sm:max-w-3xl">
+			{/* minmax(0,1fr): иначе неявная колонка grid растягивается под самую
+			    широкую таблицу превью и контент вылезает за границы диалога. */}
+			<DialogContent className="grid-cols-[minmax(0,1fr)] sm:max-w-3xl">
 				<DialogHeader>
 					<DialogTitle>Импорт в «{listName}»</DialogTitle>
 					<DialogDescription>
@@ -403,7 +405,7 @@ export function ImportDialog({
 
 								{file && (
 									<>
-										<div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+										<div className="grid grid-cols-1 gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))]">
 											<div className="flex flex-col gap-1.5">
 												<Label className="text-xs text-muted-foreground">
 													Колонка с email

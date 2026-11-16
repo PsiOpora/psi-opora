@@ -718,3 +718,87 @@ describe("возобновление после таймаута (state.expired)
 		expect(out?.lead).toMatchObject({ flow: "consult", phone: "+7" });
 	});
 });
+
+describe("отзыв согласия на обработку ПДн", () => {
+	test("распознаёт отзыв и просьбу удалить данные", async () => {
+		const { looksLikeConsentRevocation } = await import("./consent");
+		for (const text of [
+			"Прошу отозвать согласие на обработку персональных данных",
+			"отзываю своё согласие",
+			"Согласие на обработку данных я отзываю",
+			"Удалите мои персональные данные",
+			"Прошу принять отзыв согласия",
+		]) {
+			expect(looksLikeConsentRevocation(text)).toBe(true);
+		}
+		for (const text of [
+			"Развод с мужем",
+			"Даю согласие",
+			"Оставила отзыв на сайте. Согласна на консультацию",
+			"Оставила отзыв, согласие на обработку данных подтверждаю",
+		]) {
+			expect(looksLikeConsentRevocation(text)).toBe(false);
+		}
+	});
+
+	test("останавливает сценарий на кнопочном шаге, один раз отвечает и пишет причину отвала", async () => {
+		const start = await run([{ action: "sc_guide" }, { action: "consent_agree" }]);
+		expect(start.state.step).toBe("category");
+		const out = await applyScenarioText(
+			start.state,
+			"Прошу отозвать согласие на обработку персональных данных",
+			t,
+		);
+		expect(out?.state.step).toBe("done");
+		expect(out?.state.consentRevoked).toBe(true);
+		expect(out?.state.consentAt).toBeUndefined();
+		expect(out?.awaitingInput).toBe(false);
+		expect(out?.consentRevoked).toBe(true);
+		expect(out?.messages[0]?.text).toBe(t.consent_revoked);
+		expect(out?.dropReason).toEqual({
+			step: "category",
+			reason: "consent_revoked",
+		});
+		// повторное сообщение — уже диалог с оператором, бот молчит
+		expect(
+			await applyScenarioText(
+				out?.state ?? start.state,
+				"Прошу отозвать согласие",
+				t,
+			),
+		).toBeNull();
+	});
+
+	test("если заметка оператору не записалась — следующее сообщение повторит только уведомление", async () => {
+		const state = { step: "done", consentRevoked: true, consentFlagPending: true } as const;
+		const retry = await applyScenarioText(state, "отзываю согласие", t);
+		expect(retry?.consentRevoked).toBe(true);
+		expect(retry?.messages).toEqual([]);
+		const done = await applyScenarioText(
+			{ step: "done", consentRevoked: true },
+			"отзываю согласие",
+			t,
+		);
+		expect(done).toBeNull();
+	});
+
+	test("работает и после таймаута на шаге phone", async () => {
+		const out = await applyScenarioText(
+			{ step: "phone", flow: "consult", expired: true, reminded: true },
+			"отзываю согласие",
+			t,
+		);
+		expect(out?.state.step).toBe("done");
+		expect(out?.state.expired).toBe(false);
+	});
+
+	test("на завершённом сценарии отвечает, но отвал не пишет", async () => {
+		const out = await applyScenarioText(
+			{ step: "done" },
+			"отзываю согласие",
+			t,
+		);
+		expect(out?.consentRevoked).toBe(true);
+		expect(out?.dropReason).toBeUndefined();
+	});
+});

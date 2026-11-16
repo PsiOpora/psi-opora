@@ -46,6 +46,7 @@ export {
 	type GuideCampaignContext,
 	hasRecordedConsent,
 	isScenarioAction,
+	looksLikeConsentRevocation,
 	type KnownContact,
 	needsKnownContact,
 	SCENARIO_ACTIONS,
@@ -77,6 +78,7 @@ export {
 } from "./scenario/guide-campaign";
 export { resolveStartUtm } from "./scenario/marketing-campaign";
 export {
+	clearReminderOnOffScriptText,
 	clearScenarioAwaiting,
 	markScenarioAwaiting,
 	REMINDER_DELAY_MS,
@@ -219,6 +221,11 @@ export {
 	guideOpenToken,
 } from "./utils/guide-link";
 export { withUserLock } from "./utils/lock";
+export {
+	claimCallbackClick,
+	completeCallbackClick,
+	releaseCallbackClick,
+} from "./utils/callback-dedupe";
 export {
 	type BotMessageDirection,
 	type BotMessageLogEntry,

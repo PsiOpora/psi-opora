@@ -8,6 +8,7 @@ import {
 	submitBitrixContact,
 	submitConsultationDeal,
 } from "../utils/consultation-deal";
+import { flagConsentRevocation } from "../utils/consent-revocation";
 import { sendGuideEmail } from "../utils/email";
 import { trackFunnelStep } from "../utils/funnel";
 import { logBotMessage } from "../utils/message-log";
@@ -111,6 +112,34 @@ async function escalateMissingGuideEmail(
 	});
 }
 
+async function handleConsentRevocation(
+	out: ScenarioOutput,
+	deps: ScenarioDispatchDeps,
+): Promise<void> {
+	if (deps.redis) {
+		try {
+			await clearScenarioAwaiting(deps.redis, deps.messenger, deps.sessionKey);
+		} catch (err) {
+			console.error(
+				`[scenario] не удалось снять напоминание при отзыве согласия: ${(err as Error).message}`,
+			);
+		}
+	}
+	if (deps.userId === undefined) return;
+	try {
+		await flagConsentRevocation(deps.messenger, String(deps.userId));
+		delete out.state.consentFlagPending;
+	} catch (err) {
+		// Состояние сценария уже «отзыв принят», поэтому запоминаем, что
+		// уведомление не записано: следующее сообщение клиента повторит его
+		// (см. applyScenarioText). Адаптер хранит в сессии этот же объект state.
+		out.state.consentFlagPending = true;
+		console.error(
+			`[scenario] не удалось пометить отзыв согласия: ${(err as Error).message}`,
+		);
+	}
+}
+
 /**
  * Исполняет результат шага сценария: отправляет сообщения, трекает воронку,
  * создаёт сделку в Bitrix и управляет очередью напоминаний.
@@ -124,6 +153,11 @@ export async function dispatchScenarioOutput(
 	// телефона), поэтому комментарий формируем здесь, а отправляем ниже —
 	// когда dealId известен.
 	let handout: GuideHandout | null = null;
+
+	// Отзыв согласия: заметку оператору и снятие напоминания делаем до отправки
+	// ответа — сбой доставки (клиент заблокировал бота, сеть) не должен оставить
+	// обращение без оператора и дать напоминанию уйти после отзыва.
+	if (out.consentRevoked) await handleConsentRevocation(out, deps);
 
 	for (const message of out.messages) {
 		const guide = message.guide

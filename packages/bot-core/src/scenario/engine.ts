@@ -1,7 +1,7 @@
 import type { FunnelStep } from "../utils/funnel";
 import { extractContactInfo } from "../utils/llm-extract";
 import { hasPhoneNumber, isValidEmail } from "../utils/validation";
-import { hasRecordedConsent } from "./consent";
+import { hasRecordedConsent, looksLikeConsentRevocation } from "./consent";
 import {
 	categoryQuestion,
 	consentQuestion,
@@ -54,7 +54,11 @@ import type {
  * ./questions; здесь только переходы между шагами.
  */
 
-export { hasRecordedConsent, needsKnownContact } from "./consent";
+export {
+	hasRecordedConsent,
+	looksLikeConsentRevocation,
+	needsKnownContact,
+} from "./consent";
 export { stepQuestion, withFields, withName } from "./questions";
 export {
 	isScenarioAction,
@@ -544,6 +548,39 @@ export async function applyScenarioText(
 	t: ScenarioTexts,
 	campaign?: GuideCampaignContext | null,
 ): Promise<ScenarioOutput | null> {
+	// Отзыв согласия на ПДн важнее любого шага сценария (в т.ч. закрытого по
+	// таймауту и завершённого): останавливаем сценарий, снимаем напоминания и
+	// один раз отвечаем. Повторные такие сообщения — уже диалог с оператором.
+	if (looksLikeConsentRevocation(text)) {
+		if (state.consentRevoked) {
+			// Клиенту уже ответили. Если тогда не записалась заметка/тег для
+			// оператора — повторяем только их (без нового ответа), иначе молчим.
+			return state.consentFlagPending
+				? { ...output(state, []), consentRevoked: true }
+				: null;
+		}
+		const stopped: ScenarioState = {
+			...state,
+			step: "done",
+			expired: false,
+			consentRevoked: true,
+			consentAt: undefined,
+		};
+		const funnelStep =
+			state.step === "done"
+				? null
+				: state.step === "entry"
+					? "start"
+					: state.step;
+		return {
+			...output(stopped, [{ text: t.consent_revoked }]),
+			consentRevoked: true,
+			dropReason: funnelStep
+				? { step: funnelStep, reason: "consent_revoked" }
+				: undefined,
+		};
+	}
+
 	if (state.expired) {
 		// Сценарий закрыт по таймауту. Возобновляем только на ожидаемый ввод
 		// (телефон/email) — любой другой текст может быть перепиской с
