@@ -37,7 +37,7 @@
 		"date-fns": "^4.4.0",
 		"geist": "^1.7.2",
 		"lucide-react": "^1.55.0",
-		"next": "16.4.0",
+		"next": "16.4.6",
 		"radix-ui": "1.7.0",
 		"react": "^19.3.0",
 		"react-day-picker": "^10.0.2",
