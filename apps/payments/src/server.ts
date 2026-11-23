@@ -6,6 +6,7 @@ import { handleAccountWebhook } from "./account-webhook";
 import { handleAcquiringWebhook } from "./acquiring-webhook";
 import { adminApi } from "./admin-api";
 import { processPayment } from "./process-payment";
+import { ui } from "./ui";
 
 initTelemetry("payments");
 
@@ -20,6 +21,8 @@ app.post("/api/tbank/account-operation", (c) =>
 	handleAccountWebhook(c.req.raw),
 );
 app.route("/api/admin", adminApi);
+// Экраны учёта (вход по токену): сводка, оплаты, клиенты, каталог, настройки.
+app.route("/ui", ui);
 
 /**
  * Повтор оплат, которые не удалось отразить в Bitrix (сбой REST, лимиты,

@@ -4,6 +4,15 @@
  */
 import { db } from "../client";
 import * as q from "./payments";
+import * as reports from "./payments-reports";
+
+export type { PaymentListFilter, PaymentStats } from "./payments-reports";
+
+export const listPayments = (filter?: reports.PaymentListFilter) =>
+	reports.listPayments(db, filter);
+export const listRecentPurchases = (limit?: number) =>
+	reports.listRecentPurchases(db, limit);
+export const getPaymentStats = () => reports.getPaymentStats(db);
 
 export type {
 	ContactPaymentTotals,
