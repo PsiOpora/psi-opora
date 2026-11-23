@@ -6,6 +6,10 @@
 				"type": "remote",
 				"url": "https://mcp-dev.bitrix24.tech/mcp",
 				"oauth": false
+			},
+			"postgres": {
+				"type": "local",
+				"command": ["npx", "-y", "@microsoft/postgres-mcp", "run"]
 			}
 		}
 	}

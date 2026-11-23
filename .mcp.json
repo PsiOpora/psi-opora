@@ -3,6 +3,10 @@
 		"bitrix24": {
 			"type": "http",
 			"url": "https://mcp-dev.bitrix24.tech/mcp"
+		},
+		"postgres": {
+			"command": "npx",
+			"args": ["-y", "@microsoft/postgres-mcp", "run"]
 		}
 	}
 }
