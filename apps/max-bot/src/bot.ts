@@ -801,9 +801,11 @@ export function createMaxBot({
 			// и клиент нажимает «Согласен» ещё раз. Текст вопроса тот же; если MAX
 			// отклонит разметку — повторяем без неё, как sendMessengerMessage.
 			const questionText =
-				stageConsent.action === "stage_offer_agree"
-					? texts.stage_consent_offer_text
-					: texts.stage_consent_ads_text;
+				stageConsent.action === "stage_consent_agree"
+					? texts.stage_consent_text
+					: stageConsent.action === "stage_offer_agree"
+						? texts.stage_consent_offer_text
+						: texts.stage_consent_ads_text;
 			await appCtx
 				.editMessage({
 					text: questionText,

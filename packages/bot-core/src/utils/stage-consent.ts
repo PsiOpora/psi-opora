@@ -1,9 +1,14 @@
 /**
- * Согласия (оферта / рекламная рассылка), которые бот запрашивает отдельными
- * сообщениями, когда сделка попадает в стадию «Б/п консультация» — не часть
- * машины состояний сценария (см. scenario/engine.ts), а отдельный триггер по
- * CRM (packages/jobs/src/stage-consent.ts шлёт сообщения, эти хелперы читает
- * и пишет обработчик нажатия кнопки в apps/tg-bot и apps/max-bot).
+ * Согласия (оферта + рекламная рассылка), которые бот запрашивает одним
+ * сообщением с единой кнопкой «Согласен», когда сделка попадает в стадию
+ * «Б/п консультация» — не часть машины состояний сценария (см.
+ * scenario/engine.ts), а отдельный триггер по CRM (packages/jobs/src/
+ * stage-consent.ts шлёт сообщение, эти хелперы читает и пишет обработчик
+ * нажатия кнопки в apps/tg-bot и apps/max-bot).
+ *
+ * Действия stage_offer_agree / stage_ads_agree / stage_ads_decline оставлены
+ * для кнопок из ранее отправленных сообщений (оферта и рассылка спрашивались
+ * отдельными сообщениями) — новым сделкам такие сообщения не уходят.
  *
  * Сделка, которой адресован клик, передаётся в callback_data и одновременно
  * хранится в Redis по ключу мессенджер+userId. Обработчик принимает клик только
@@ -16,6 +21,7 @@ import type { RedisClient } from "../storage/redis";
 import { setDealConsentTimestamp } from "./bitrix/sources";
 
 export const STAGE_CONSENT_ACTIONS = [
+	"stage_consent_agree",
 	"stage_offer_agree",
 	"stage_ads_agree",
 	"stage_ads_decline",
@@ -26,6 +32,7 @@ const STAGE_CONSENT_ACTION_LABEL_KEYS: Record<
 	StageConsentAction,
 	keyof ScenarioTexts
 > = {
+	stage_consent_agree: "btn_stage_consent_agree",
 	stage_offer_agree: "btn_stage_consent_offer_agree",
 	stage_ads_agree: "btn_stage_consent_ads_agree",
 	stage_ads_decline: "btn_stage_consent_ads_decline",
@@ -249,6 +256,38 @@ export async function handleStageConsentClick(
 ): Promise<StageConsentClickResult | null> {
 	const pendingDealId = await getPendingStageDeal(redis, messenger, userId);
 	if (pendingDealId !== dealId) return null;
+
+	// Единая кнопка «Согласен» — пишет оба согласия одним нажатием. Если одно из
+	// них уже было записано (например, раньше нажали старую кнопку оферты),
+	// дописывается только недостающее.
+	if (action === "stage_consent_agree") {
+		const offerClaimed = await claimConsent(redis, dealId, "offer");
+		if (offerClaimed) {
+			await recordClaimedConsent(
+				redis,
+				messenger,
+				dealId,
+				"offer",
+				CONSENT_OFFER_FIELD,
+			);
+		}
+		const adsClaimed = await claimConsent(redis, dealId, "ads");
+		if (adsClaimed) {
+			await recordClaimedConsent(
+				redis,
+				messenger,
+				dealId,
+				"ads",
+				CONSENT_ADS_FIELD,
+			);
+		}
+		if (!offerClaimed && !adsClaimed) return null;
+		await releasePendingIfCompleted(redis, messenger, userId, dealId);
+		return {
+			replyText: texts.stage_consent_agreed,
+			resendAdsQuestion: false,
+		};
+	}
 
 	if (action === "stage_offer_agree" || action === "stage_ads_agree") {
 		const consent = action === "stage_offer_agree" ? "offer" : "ads";
