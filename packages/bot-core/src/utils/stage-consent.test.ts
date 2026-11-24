@@ -304,4 +304,81 @@ describe("stage consent", () => {
 		expect((await decline())?.resendAdsQuestion).toBe(false);
 		expect(memory.outbox).toHaveLength(2);
 	});
+
+	test("единая кнопка записывает оба согласия и отпускает привязку", async () => {
+		const memory = new MemoryRedis();
+		await setPendingStageDeal(redis(memory), "max", 7, 42);
+		const click = () =>
+			handleStageConsentClick(
+				redis(memory),
+				"max",
+				7,
+				42,
+				"stage_consent_agree",
+				DEFAULT_SCENARIO_TEXTS,
+			);
+
+		expect(await click()).toEqual({
+			replyText: DEFAULT_SCENARIO_TEXTS.stage_consent_agreed,
+			resendAdsQuestion: false,
+		});
+		expect(memory.outbox).toEqual([
+			expect.objectContaining({ dealId: 42, field: CONSENT_OFFER_FIELD }),
+			expect.objectContaining({ dealId: 42, field: CONSENT_ADS_FIELD }),
+		]);
+		expect(await getPendingStageDeal(redis(memory), "max", 7)).toBeNull();
+
+		// Повторное нажатие той же кнопки ничего не записывает.
+		expect(await click()).toBeNull();
+		expect(memory.outbox).toHaveLength(2);
+	});
+
+	test("единая кнопка дописывает недостающее согласие после старой кнопки", async () => {
+		const memory = new MemoryRedis();
+		await setPendingStageDeal(redis(memory), "max", 7, 42);
+		await handleStageConsentClick(
+			redis(memory),
+			"max",
+			7,
+			42,
+			"stage_offer_agree",
+			DEFAULT_SCENARIO_TEXTS,
+		);
+
+		const result = await handleStageConsentClick(
+			redis(memory),
+			"max",
+			7,
+			42,
+			"stage_consent_agree",
+			DEFAULT_SCENARIO_TEXTS,
+		);
+
+		expect(result?.replyText).toBe(DEFAULT_SCENARIO_TEXTS.stage_consent_agreed);
+		expect(memory.outbox).toEqual([
+			expect.objectContaining({ dealId: 42, field: CONSENT_OFFER_FIELD }),
+			expect.objectContaining({ dealId: 42, field: CONSENT_ADS_FIELD }),
+		]);
+		expect(await getPendingStageDeal(redis(memory), "max", 7)).toBeNull();
+	});
+
+	test("после сбоя записи единую кнопку можно нажать снова", async () => {
+		const memory = new MemoryRedis();
+		await setPendingStageDeal(redis(memory), "max", 7, 42);
+		const click = () =>
+			handleStageConsentClick(
+				redis(memory),
+				"max",
+				7,
+				42,
+				"stage_consent_agree",
+				DEFAULT_SCENARIO_TEXTS,
+			);
+
+		memory.failOutbox = true;
+		await expect(click()).rejects.toThrow("Redis unavailable");
+		memory.failOutbox = false;
+		expect(await click()).not.toBeNull();
+		expect(memory.outbox).toHaveLength(2);
+	});
 });

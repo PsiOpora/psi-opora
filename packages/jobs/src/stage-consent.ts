@@ -54,10 +54,12 @@ async function sendAndLog(
 
 /**
  * Обработка вебхука ONCRMDEALUPDATE для триггеров Жени: как только сделка
- * попадает в стадию «Б/п консультация», клиенту напрямую от бота уходят три
- * сообщения — оповещение, согласие с офертой (1 кнопка) и согласие на
- * рекламную рассылку (2 кнопки). Повторно на ту же сделку не срабатывает —
- * отмечается флагом в Redis, а не таймингом, в отличие от напоминаний.
+ * попадает в стадию «Б/п консультация», клиенту напрямую от бота уходит одно
+ * сообщение с единой кнопкой «Согласен» — она подтверждает и оферту, и
+ * рекламную рассылку. Детали записи (дата/время) приходят отдельным
+ * уведомлением о записи (consultation-reminders.ts), здесь их не дублируем.
+ * Повторно на ту же сделку не срабатывает — отмечается флагом в Redis, а не
+ * таймингом, в отличие от напоминаний.
  * Если вебхук о смене стадии потерялся, сделку добирает крон
  * (sweepMissedStageConsents в stage-consent-sweep.ts).
  */
@@ -91,15 +93,8 @@ export async function handleStageConsentTrigger(
 	if (!target) return { action: "skip", reason: "bot_target_not_found" };
 
 	const texts = await getScenarioTexts();
-	const offerButtons: MessengerButton[][] = toInlineKeyboard(
-		["stage_offer_agree"],
-		dealId,
-		texts,
-	).map((row) =>
-		row.map((button) => ({ text: button.label, payload: button.action })),
-	);
-	const adsButtons: MessengerButton[][] = toInlineKeyboard(
-		["stage_ads_agree", "stage_ads_decline"],
+	const buttons: MessengerButton[][] = toInlineKeyboard(
+		["stage_consent_agree"],
 		dealId,
 		texts,
 	).map((row) =>
@@ -112,16 +107,9 @@ export async function handleStageConsentTrigger(
 	});
 	if (claimed !== "OK") return { action: "skip", reason: "already_sent" };
 
-	await sendAndLog(target, texts.stage_consent_notice);
-
 	await setPendingStageDeal(redis, target.messenger, target.userId, dealId);
 	try {
-		await sendAndLog(target, texts.stage_consent_offer_text, offerButtons);
-
-		// Согласие на рассылку задаём отдельным сообщением сразу вслед за офертой —
-		// клиент отвечает кнопками в любом порядке, порядок вопросов только
-		// задаёт, что он увидит раньше.
-		await sendAndLog(target, texts.stage_consent_ads_text, adsButtons);
+		await sendAndLog(target, texts.stage_consent_text, buttons);
 	} catch (error) {
 		await removePendingStageDeal(
 			redis,
@@ -143,7 +131,7 @@ export async function handleStageConsentTrigger(
 			fields: {
 				ENTITY_ID: dealId,
 				ENTITY_TYPE: "deal",
-				COMMENT: `📨 Отправлены оповещение и запросы согласий (оферта, реклама) — ${new Date().toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })} МСК`,
+				COMMENT: `📨 Отправлено сообщение с запросом согласий (оферта и реклама) — ${new Date().toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })} МСК`,
 			},
 		})
 		.catch(() => {});
