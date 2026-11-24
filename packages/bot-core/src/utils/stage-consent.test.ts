@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_SCENARIO_TEXTS } from "../scenario/texts";
 import type { RedisClient } from "../storage/redis";
+import type { DealConsentOutboxEntry } from "./bitrix/sources";
 import {
 	CONSENT_ADS_FIELD,
 	CONSENT_OFFER_FIELD,
@@ -14,8 +15,9 @@ import {
 class MemoryRedis {
 	values = new Map<string, unknown>();
 	sets = new Map<string, Set<unknown>>();
-	outbox: unknown[] = [];
+	outbox: DealConsentOutboxEntry[] = [];
 	failOutbox = false;
+	failAdsAt: "claim" | "outbox" | null = null;
 
 	async get<T>(key: string): Promise<T | null> {
 		return (this.values.get(key) as T | undefined) ?? null;
@@ -41,6 +43,9 @@ class MemoryRedis {
 	}
 
 	async sadd(key: string, ...members: unknown[]): Promise<number> {
+		if (this.failAdsAt === "claim" && members.includes("ads")) {
+			throw new Error("Redis unavailable");
+		}
 		const set = this.sets.get(key) ?? new Set();
 		const before = set.size;
 		for (const member of members) set.add(member);
@@ -64,8 +69,16 @@ class MemoryRedis {
 		return 1;
 	}
 
-	async zadd(_key: string, entry: { member: unknown }): Promise<number> {
-		if (this.failOutbox) throw new Error("Redis unavailable");
+	async zadd(
+		_key: string,
+		entry: { member: DealConsentOutboxEntry },
+	): Promise<number> {
+		if (
+			this.failOutbox ||
+			(this.failAdsAt === "outbox" && entry.member.field === CONSENT_ADS_FIELD)
+		) {
+			throw new Error("Redis unavailable");
+		}
 		this.outbox.push(entry.member);
 		return 1;
 	}
@@ -381,4 +394,39 @@ describe("stage consent", () => {
 		expect(await click()).not.toBeNull();
 		expect(memory.outbox).toHaveLength(2);
 	});
+
+	test.each(["claim", "outbox"] as const)(
+		"после сбоя %s для рассылки повтор сохраняет первое время оферты",
+		async (failAdsAt) => {
+			const memory = new MemoryRedis();
+			await setPendingStageDeal(redis(memory), "max", 7, 42);
+			const click = () =>
+				handleStageConsentClick(
+					redis(memory),
+					"max",
+					7,
+					42,
+					"stage_consent_agree",
+					DEFAULT_SCENARIO_TEXTS,
+				);
+
+			memory.failAdsAt = failAdsAt;
+			await expect(click()).rejects.toThrow("Redis unavailable");
+			expect(memory.outbox).toEqual([
+				expect.objectContaining({ dealId: 42, field: CONSENT_OFFER_FIELD }),
+			]);
+			const firstOffer = { ...memory.outbox[0] };
+			expect(await getPendingStageDeal(redis(memory), "max", 7)).toBe(42);
+
+			memory.failAdsAt = null;
+			expect((await click())?.replyText).toBe(
+				DEFAULT_SCENARIO_TEXTS.stage_consent_agreed,
+			);
+			expect(memory.outbox).toEqual([
+				firstOffer,
+				expect.objectContaining({ dealId: 42, field: CONSENT_ADS_FIELD }),
+			]);
+			expect(await getPendingStageDeal(redis(memory), "max", 7)).toBeNull();
+		},
+	);
 });

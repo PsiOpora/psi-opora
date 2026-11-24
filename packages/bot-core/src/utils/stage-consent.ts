@@ -262,21 +262,26 @@ export async function handleStageConsentClick(
 	// дописывается только недостающее.
 	if (action === "stage_consent_agree") {
 		const offerClaimed = await claimConsent(redis, dealId, "offer");
-		const adsClaimed = await claimConsent(redis, dealId, "ads");
-		if (!offerClaimed && !adsClaimed) return null;
-		try {
-			if (offerClaimed) {
-				await recordStageConsent(redis, messenger, dealId, CONSENT_OFFER_FIELD);
-			}
-			if (adsClaimed) {
-				await recordStageConsent(redis, messenger, dealId, CONSENT_ADS_FIELD);
-			}
-		} catch (error) {
-			// Иначе следующее нажатие сочтётся повтором и согласия не запишутся.
-			if (offerClaimed) await redis.srem(completedConsentsKey(dealId), "offer");
-			if (adsClaimed) await redis.srem(completedConsentsKey(dealId), "ads");
-			throw error;
+		if (offerClaimed) {
+			await recordClaimedConsent(
+				redis,
+				messenger,
+				dealId,
+				"offer",
+				CONSENT_OFFER_FIELD,
+			);
 		}
+		const adsClaimed = await claimConsent(redis, dealId, "ads");
+		if (adsClaimed) {
+			await recordClaimedConsent(
+				redis,
+				messenger,
+				dealId,
+				"ads",
+				CONSENT_ADS_FIELD,
+			);
+		}
+		if (!offerClaimed && !adsClaimed) return null;
 		await releasePendingIfCompleted(redis, messenger, userId, dealId);
 		return {
 			replyText: texts.stage_consent_agreed,
