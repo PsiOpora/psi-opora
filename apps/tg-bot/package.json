@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@grammyjs/runner": "2.0.3",
-    "@hono/node-server": "2.1.4",
+    "@hono/node-server": "2.1.11",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
     "@psi-opora/config": "workspace:*",
@@ -19,8 +19,8 @@
     "@psi-opora/jobs": "workspace:*",
     "@psi-opora/storage": "workspace:*",
     "@psi-opora/telemetry": "workspace:*",
-    "grammy": "1.46.0",
-    "hono": "4.13.13"
+    "grammy": "1.48.0",
+    "hono": "4.13.22"
   },
   "devDependencies": {
     "@psi-opora/tsconfig": "workspace:*",

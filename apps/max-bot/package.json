@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hono/node-server": "2.1.4",
+    "@hono/node-server": "2.1.11",
     "@maxhub/max-bot-api": "1.0.2",
     "@psi-opora/bitrix-client": "workspace:*",
     "@psi-opora/bot-core": "workspace:*",
@@ -19,7 +19,7 @@
     "@psi-opora/jobs": "workspace:*",
     "@psi-opora/storage": "workspace:*",
     "@psi-opora/telemetry": "workspace:*",
-    "hono": "4.13.13",
+    "hono": "4.13.22",
     "zod": "4.6.7"
   },
   "devDependencies": {
