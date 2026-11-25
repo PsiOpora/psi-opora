@@ -185,6 +185,24 @@
         "typescript": "7.0.2",
       },
     },
+    "apps/payments": {
+      "name": "@psi-opora/payments",
+      "version": "0.0.1",
+      "dependencies": {
+        "@hono/node-server": "2.1.4",
+        "@psi-opora/bitrix-client": "workspace:*",
+        "@psi-opora/config": "workspace:*",
+        "@psi-opora/db": "workspace:*",
+        "@psi-opora/telemetry": "workspace:*",
+        "hono": "4.13.13",
+        "zod": "4.6.7",
+      },
+      "devDependencies": {
+        "@psi-opora/tsconfig": "workspace:*",
+        "@types/node": "26.6.6",
+        "typescript": "7.0.2",
+      },
+    },
     "apps/tg-bot": {
       "name": "@psi-opora/tg-bot",
       "version": "0.0.1",
@@ -988,6 +1006,8 @@
     "@psi-opora/max-userbot": ["@psi-opora/max-userbot@workspace:packages/max-userbot"],
 
     "@psi-opora/max-userbot-worker": ["@psi-opora/max-userbot-worker@workspace:apps/max-userbot-worker"],
+
+    "@psi-opora/payments": ["@psi-opora/payments@workspace:apps/payments"],
 
     "@psi-opora/rusender-client": ["@psi-opora/rusender-client@workspace:packages/rusender-client"],
 

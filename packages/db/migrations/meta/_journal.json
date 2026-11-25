@@ -511,6 +511,13 @@
       "when": 1794250726444,
       "tag": "0072_marketing_campaigns",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1794855365919,
+      "tag": "0073_payments_accounting",
+      "breakpoints": true
     }
   ]
 }

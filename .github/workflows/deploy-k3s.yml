@@ -26,6 +26,7 @@ on:
           - max-userbot-worker
           - hatchet-worker
           - bitrix-webhook
+          - payments
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -59,7 +60,7 @@ jobs:
       - name: Detect affected services
         id: detect
         run: |
-          ALL='["clients","dashboard","tg-bot","max-bot","tg-userbot-worker","max-userbot-worker","hatchet-worker","bitrix-webhook"]'
+          ALL='["clients","dashboard","tg-bot","max-bot","tg-userbot-worker","max-userbot-worker","hatchet-worker","bitrix-webhook","payments"]'
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             SERVICE="${{ github.event.inputs.service }}"
@@ -101,7 +102,7 @@ jobs:
           bunx turbo run typecheck --filter="...[$FROM]" --dry=json > turbo_out.json
 
           SERVICES=$(node -e "
-            const apps = ['clients','dashboard','tg-bot','max-bot','tg-userbot-worker','max-userbot-worker','hatchet-worker','bitrix-webhook'];
+            const apps = ['clients','dashboard','tg-bot','max-bot','tg-userbot-worker','max-userbot-worker','hatchet-worker','bitrix-webhook','payments'];
             const data = require('./turbo_out.json');
             const changed = (data.packages || [])
               .map(p => p.replace(/^@psi-opora\//, ''))
