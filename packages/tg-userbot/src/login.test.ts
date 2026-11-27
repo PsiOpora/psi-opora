@@ -27,11 +27,18 @@ const constructorMock = mock((_opts: unknown) => {});
 
 mock.module("@mtcute/core", () => ({
 	MemoryStorage: class {},
+	MtPeerNotFoundError: class extends Error {},
 	SentCode: FakeSentCode,
 	tl: { RpcError: FakeRpcError },
 }));
 
 mock.module("@mtcute/node", () => ({
+	InputMedia: {
+		photo: mock(() => ({})),
+		voice: mock(() => ({})),
+		document: mock(() => ({})),
+	},
+	proxyTransportFromUrl: mock(() => undefined),
 	TelegramClient: class {
 		constructor(opts: unknown) {
 			constructorMock(opts);

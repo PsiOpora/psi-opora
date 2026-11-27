@@ -25,6 +25,7 @@ import {
 	type MessageDeliveryStatus,
 	removeBotConnector,
 	removeWhatsappPersonalAccount,
+	resolveTelegramPersonalDialogUserId,
 	setWhatsappPersonalAccountStateBySession,
 	updateBotMessageStatus,
 	upsertBotUser,
@@ -99,9 +100,10 @@ async function logOperatorReply(
 	reply: OperatorReplyMessage,
 	externalId?: string,
 	status?: MessageDeliveryStatus,
-	messageId = crypto.randomUUID(),
+	userId = String(reply.chatId),
 ): Promise<string> {
-	const userId = String(reply.chatId);
+	const canonicalUserId = String(reply.chatId);
+	const messageId = crypto.randomUUID();
 	try {
 		await insertBotMessage({
 			id: messageId,
@@ -117,7 +119,7 @@ async function logOperatorReply(
 			externalId,
 			externalChatId:
 				messenger === "telegram-personal" || messenger === "max-personal"
-					? userId
+					? canonicalUserId
 					: undefined,
 			bitrixMessageId: reply.bitrixMessageId,
 			status,
@@ -172,21 +174,49 @@ async function relayToTelegramPersonal(
 		return false;
 	}
 
-	const journalMessageId = await logOperatorReply(
-		"telegram-personal",
-		reply,
-		undefined,
-		"sent",
-	);
-	await pushOutboundMessage({
+	const canonicalUserId = String(reply.chatId);
+	const job = {
 		memberId: account.memberId,
 		openLineId: account.openLineId,
 		connectorId: account.connectorId,
 		jobId: crypto.randomUUID(),
 		telegramUserId: Number(reply.chatId),
 		text: reply.text,
-		journalMessageId,
+	};
+	const userId = await resolveTelegramPersonalDialogUserId(
+		canonicalUserId,
+		account.connectorId,
+	).catch((error) => {
+		console.error(
+			"[bitrix-webhook] журнал ответа будет записан воркером:",
+			error,
+		);
+		return undefined;
 	});
+	if (userId === undefined) {
+		await pushOutboundMessage({
+			...job,
+			deferredJournal: {
+				externalChatId: canonicalUserId,
+				connectorId: account.connectorId,
+				direction: "out",
+				source: "operator",
+				text: reply.text,
+				operatorId: reply.operatorUserId?.toString(),
+				bitrixMessageId: reply.bitrixMessageId,
+				createdAt: Date.now(),
+			},
+		});
+	} else {
+		const journalMessageId = await logOperatorReply(
+			"telegram-personal",
+			reply,
+			undefined,
+			"sent",
+			userId,
+		);
+		await pushOutboundMessage({ ...job, journalMessageId });
+	}
 	console.log(
 		`[bitrix-webhook] ответ оператора поставлен в очередь личного номера ${account.phone} chat=${reply.chatId}`,
 	);

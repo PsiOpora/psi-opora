@@ -1,13 +1,11 @@
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import {
-	insertBotMessage,
 	listConnectedTelegramPersonalAccounts,
 	markOutgoingBotMessagesRead,
 	markTelegramPersonalAccountError,
 	type TelegramPersonalAccount,
 	updateBotMessageExternalResult,
 	updateExistingBotUserPresence,
-	upsertBotUser,
 	upsertBotUserPresence,
 } from "@psi-opora/db/queries";
 import {
@@ -19,18 +17,28 @@ import { initTelemetry } from "@psi-opora/telemetry";
 import {
 	createUserbotClient,
 	decryptSecret,
+	deferTelegramJournal,
 	deleteUserbotMessage,
 	drainOutboundMessages,
 	getUserPresence,
 	listenForMessages,
 	listenForOutboxRead,
+	listenForOwnMessages,
 	listenForUserPresence,
+	processDeferredTelegramJournal,
 	resolveClientPhoneNumber,
 	resolveClientUsername,
 	sendUserbotMedia,
 	sendUserbotMessage,
 	setSendResult,
 } from "@psi-opora/tg-userbot";
+import { writeTelegramJournal } from "./journal";
+import {
+	applyOutboxReadMark,
+	logOwnDeviceMessage,
+	noteReadMark,
+	rememberSentMessage,
+} from "./own-messages";
 
 initTelemetry("tg-userbot-worker");
 
@@ -111,30 +119,27 @@ async function logInboundMessage(
 		username?: string | null;
 		isPremium?: boolean;
 	},
-	media?: {
-		kind: "image" | "file";
-		mediaS3Key: string;
-		mediaMimeType?: string;
-		mediaFileName?: string;
-	},
+	media:
+		| {
+				kind: "image" | "file";
+				mediaS3Key: string;
+				mediaMimeType?: string;
+				mediaFileName?: string;
+		  }
+		| undefined,
+	externalId: string,
+	createdAt: Date,
 ): Promise<void> {
-	const userId = String(senderId);
 	try {
-		await upsertBotUser({
-			messenger: "telegram-personal",
-			userId,
-			firstName: profile.firstName,
-			lastName: profile.lastName,
-			username: profile.username ?? undefined,
-			isPremium: profile.isPremium,
-		});
-		await insertBotMessage({
-			messenger: "telegram-personal",
-			userId,
+		await writeTelegramJournal({
 			direction: "in",
 			source: "scenario",
 			text,
+			externalId,
+			externalChatId: String(senderId),
 			connectorId,
+			createdAt: createdAt.getTime(),
+			profile,
 			...media,
 		});
 	} catch (err) {
@@ -217,6 +222,7 @@ function startOutboxPolling(
 			account.connectorId,
 		);
 		for (const msg of messages) {
+			let sendResult: Parameters<typeof setSendResult>[1];
 			try {
 				let target:
 					| number
@@ -256,6 +262,19 @@ function startOutboxPolling(
 							msg.text || undefined,
 						)
 					: await sendUserbotMessage(client, target, msg.text ?? "");
+				const telegramUserId =
+					typeof target === "number"
+						? target
+						: "userId" in target && typeof target.userId === "number"
+							? target.userId
+							: undefined;
+				if (telegramUserId !== undefined) {
+					rememberSentMessage(
+						account.connectorId,
+						String(telegramUserId),
+						externalId,
+					);
+				}
 				if (msg.journalMessageId) {
 					await updateBotMessageExternalResult(
 						msg.journalMessageId,
@@ -263,12 +282,6 @@ function startOutboxPolling(
 						"sent",
 					);
 				}
-				const telegramUserId =
-					typeof target === "number"
-						? target
-						: "userId" in target && typeof target.userId === "number"
-							? target.userId
-							: undefined;
 				if (telegramUserId !== undefined) {
 					const presence = await getUserPresence(client, target).catch(
 						() => null,
@@ -293,13 +306,17 @@ function startOutboxPolling(
 						}
 					}
 				}
-				await setSendResult(msg.jobId, {
+				sendResult = {
 					ok: true,
 					...(telegramUserId !== undefined
 						? { telegramUserId: String(telegramUserId) }
 						: {}),
 					externalId,
-				});
+				};
+				if (!msg.deferredJournal) {
+					await setSendResult(msg.jobId, sendResult);
+					continue;
+				}
 			} catch (err) {
 				const message = (err as Error).message;
 				console.error(
@@ -312,8 +329,21 @@ function startOutboxPolling(
 						"failed",
 					).catch(() => {});
 				}
-				await setSendResult(msg.jobId, { ok: false, error: message });
+				sendResult = { ok: false, error: message };
 			}
+			if (msg.deferredJournal) {
+				await deferTelegramJournal({
+					...msg.deferredJournal,
+					externalId: sendResult.externalId,
+					status: sendResult.ok ? "sent" : "failed",
+				}).catch((error) =>
+					console.error(
+						"[tg-userbot-worker] не удалось сохранить журнал ответа:",
+						error,
+					),
+				);
+			}
+			await setSendResult(msg.jobId, sendResult);
 		}
 	}, OUTBOX_POLL_INTERVAL_MS);
 }
@@ -346,8 +376,9 @@ async function startAccountWorker(
 
 		// Клиент прочитал наши сообщения — статус «прочитано» в журнале: его
 		// видят инбокс и отчёт рассылки по списку.
-		listenForOutboxRead(client, ({ chatId, maxReadId }) =>
-			markOutgoingBotMessagesRead({
+		listenForOutboxRead(client, ({ chatId, maxReadId }) => {
+			noteReadMark(account.connectorId, String(chatId), maxReadId);
+			return markOutgoingBotMessagesRead({
 				messenger: "telegram-personal",
 				connectorId: account.connectorId,
 				chatIds: [String(chatId)],
@@ -358,10 +389,37 @@ async function startAccountWorker(
 					console.error(
 						`[tg-userbot-worker] не удалось отметить прочтение в чате ${chatId} (${label}): ${(err as Error).message}`,
 					),
-				),
-		);
+				);
+		});
+
+		listenForOwnMessages(client, (message) => {
+			if (message.chat.type !== "user") return;
+			const mediaKind =
+				message.media?.type === "photo"
+					? "image"
+					: message.media?.type === "document" || message.media?.type === "video"
+						? "file"
+						: undefined;
+			const text =
+				message.text ||
+				(mediaKind ? (mediaKind === "image" ? "Фото" : "Файл") : "");
+			if (!text) return;
+			void logOwnDeviceMessage(account, {
+				chatId: String(message.chat.id),
+				messageId: String(message.id),
+				text,
+				createdAt: message.date,
+				profile: {
+					firstName: message.chat.firstName,
+					lastName: message.chat.lastName ?? undefined,
+					username: message.chat.username,
+					isPremium: message.chat.isPremium,
+				},
+			});
+		});
 
 		listenForMessages(client, async (message) => {
+			if (message.chat.type !== "user") return;
 			const caption = message.text;
 			// Фото/документ/видео — перезаливаем в наше S3, чтобы инбокс «Клиенты»
 			// показывал превью/ссылку на скачивание, а не молчал (голосовые для
@@ -467,6 +525,8 @@ async function startAccountWorker(
 							: undefined,
 				},
 				mediaUpload,
+				String(message.id),
+				message.date,
 			);
 			if (
 				"status" in message.sender &&
@@ -526,7 +586,27 @@ async function main(): Promise<void> {
 		}
 	};
 
+	const replayJournal = async () => {
+		try {
+			await processDeferredTelegramJournal(async ({ id, ...entry }) => {
+				await writeTelegramJournal(entry, id);
+				if (entry.direction === "out" && entry.externalId) {
+					await applyOutboxReadMark(
+						entry.connectorId,
+						entry.externalChatId,
+						entry.externalId,
+					);
+				}
+			});
+		} catch (error) {
+			console.error("[tg-userbot-worker] ошибка очереди журнала:", error);
+		} finally {
+			setTimeout(replayJournal, OUTBOX_POLL_INTERVAL_MS);
+		}
+	};
+
 	await scan();
+	void replayJournal();
 	setInterval(scan, ACCOUNTS_RESCAN_INTERVAL_MS);
 }
 

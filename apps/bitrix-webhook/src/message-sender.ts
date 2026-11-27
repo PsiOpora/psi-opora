@@ -13,10 +13,14 @@ import {
 	listTelegramPersonalAccounts,
 	listWhatsappPersonalAccounts,
 	type MessageDeliveryStatus,
+	resolveTelegramPersonalDialogUserId,
 	setWhatsappPersonalAccountStateBySession,
 	upsertBitrixCrmLink,
 } from "@psi-opora/db/queries";
-import { sendOutboundMessageAndWait } from "@psi-opora/tg-userbot";
+import {
+	deferTelegramJournal,
+	sendOutboundMessageAndWait,
+} from "@psi-opora/tg-userbot";
 import {
 	jidFromPhone,
 	wahaGetSession,
@@ -68,6 +72,7 @@ interface SendOutcome {
 	/** userId диалога в bot_messages (jid / Telegram ID) — чтобы сообщение
 	 * попало в тот же тред, что и будущие входящие от клиента. */
 	userId: string;
+	telegramUserId?: string;
 	connectorId?: string;
 }
 
@@ -155,6 +160,7 @@ async function sendViaTelegram(
 		error: result.error,
 		externalId: result.externalId,
 		userId: result.telegramUserId ?? phone,
+		telegramUserId: result.ok ? result.telegramUserId : undefined,
 		connectorId: account.connectorId,
 	};
 }
@@ -278,24 +284,45 @@ export async function handleMessageSenderPayload(
 		: outcome.ok
 			? "sent"
 			: "failed";
-	await insertBotMessage({
+	const entry = {
 		messenger,
-		userId: outcome.userId,
 		direction: "out",
 		source: "widget",
 		text: payload.text,
 		status,
 		externalId: outcome.externalId,
-		externalChatId:
-			messenger === "telegram-personal" && outcome.userId !== phone
-				? outcome.userId
-				: undefined,
+		externalChatId: outcome.telegramUserId,
 		connectorId: outcome.connectorId,
-	}).catch((err) =>
+		createdAt: new Date(),
+	} as const;
+	try {
+		let userId: string | undefined = outcome.userId;
+		if (outcome.telegramUserId && outcome.connectorId) {
+			try {
+				userId = await resolveTelegramPersonalDialogUserId(
+					outcome.telegramUserId,
+					outcome.connectorId,
+				);
+			} catch (error) {
+				await deferTelegramJournal(
+					{
+						...entry,
+						status: "sent",
+						externalChatId: outcome.telegramUserId,
+						connectorId: outcome.connectorId,
+						createdAt: entry.createdAt.getTime(),
+					},
+					error,
+				);
+				userId = undefined;
+			}
+		}
+		if (userId) await insertBotMessage({ ...entry, userId });
+	} catch (err) {
 		console.error(
 			`[message-sender] не удалось записать сообщение в журнал: ${(err as Error).message}`,
-		),
-	);
+		);
+	}
 
 	// Bitrix уже знает контакт — связываем сразу, чтобы ответ клиента в
 	// Открытой линии открылся в той же карточке (как во вкладке «Мессенджер»).

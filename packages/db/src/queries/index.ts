@@ -123,6 +123,9 @@ import {
 	saveBotTexts as _saveBotTexts,
 } from "./bot-texts";
 import {
+	resolveTelegramPersonalDialogUserId as _resolveTelegramPersonalDialogUserId,
+} from "./telegram-personal-dialog";
+import {
 	getBotUserProfile as _getBotUserProfile,
 	listBotUsersMissingAvatarUpload as _listBotUsersMissingAvatarUpload,
 	updateExistingBotUserPresence as _updateExistingBotUserPresence,
@@ -267,6 +270,17 @@ export async function listBitrixCrmLinksByContactIds(
 	return _listBitrixCrmLinksByContactIds(db, portalKey, contactIds);
 }
 
+export async function resolveTelegramPersonalDialogUserId(
+	canonicalUserId: string,
+	connectorId: string,
+): Promise<string> {
+	return _resolveTelegramPersonalDialogUserId(
+		db,
+		canonicalUserId,
+		connectorId,
+	);
+}
+
 export async function upsertBotConnector(
 	data: Parameters<typeof _upsertBotConnector>[1],
 ): Promise<void> {
@@ -285,8 +299,9 @@ export async function removeBotConnector(messenger: string): Promise<void> {
 
 export async function insertBotMessage(
 	entry: BotMessageEntry,
+	options?: Parameters<typeof _insertBotMessage>[2],
 ): Promise<string | undefined> {
-	return _insertBotMessage(db, entry);
+	return _insertBotMessage(db, entry, options);
 }
 
 export async function getBotMessageMedia(

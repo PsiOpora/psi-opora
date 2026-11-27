@@ -52,6 +52,13 @@ export async function createUserbotClient(
 			: undefined,
 	});
 	await tg.importSession(session);
+	try {
+		const me = await tg.getMe();
+		await tg.notifyLoggedIn(me.raw);
+	} catch (error) {
+		await tg.destroy().catch(() => {});
+		throw error;
+	}
 	return tg;
 }
 
@@ -66,6 +73,16 @@ export function listenForMessages(
 ): void {
 	client.onNewMessage.add((message) => {
 		if (message.isOutgoing) return;
+		void onMessage(message);
+	});
+}
+
+export function listenForOwnMessages(
+	client: TelegramClient,
+	onMessage: (message: Message) => void | Promise<void>,
+): void {
+	client.onNewMessage.add((message) => {
+		if (!message.isOutgoing) return;
 		void onMessage(message);
 	});
 }
