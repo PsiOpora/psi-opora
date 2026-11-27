@@ -37,7 +37,6 @@ import {
 	resolveGuideCampaignStart,
 } from "./scenario/guide-campaign";
 import { resolveStartUtm } from "./scenario/marketing-campaign";
-import { clearReminderOnOffScriptText } from "./scenario/reminders";
 import {
 	getScenarioTexts,
 	resolveGuideFile,
@@ -582,9 +581,7 @@ export function createBot({
 		ctx.session.bookPreorder = undefined;
 		await dispatchScenarioOutput(out, {
 			messenger: "telegram",
-			sessionKey: String(chatId),
 			chatId,
-			redis,
 			texts,
 			sendMessage: (message) =>
 				sendTelegramScenarioMessage(ctx.api, chatId, message),
@@ -1146,12 +1143,6 @@ export function createBot({
 			// пишет что-то своё, а не то, что просит сценарий) — бот здесь не
 			// пытается сам помочь/ответить, только тихо решает, стоит ли передать
 			// его оператору с пометкой (см. triageOffScriptMessage).
-			await clearReminderOnOffScriptText(
-				redis,
-				"telegram",
-				String(ctx.chatId),
-				state,
-			);
 			triageInBackground();
 			return;
 		}

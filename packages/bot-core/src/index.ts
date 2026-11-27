@@ -41,7 +41,6 @@ export {
 	actionLabel,
 	applyScenarioAction,
 	applyScenarioText,
-	buildReminder,
 	describeLead,
 	type GuideCampaignContext,
 	hasRecordedConsent,
@@ -77,15 +76,6 @@ export {
 	resolveGuideCampaignStart,
 } from "./scenario/guide-campaign";
 export { resolveStartUtm } from "./scenario/marketing-campaign";
-export {
-	clearReminderOnOffScriptText,
-	clearScenarioAwaiting,
-	markScenarioAwaiting,
-	REMINDER_DELAY_MS,
-	type ReminderRunOptions,
-	type ReminderRunResult,
-	runScenarioReminders,
-} from "./scenario/reminders";
 export {
 	BOOK_READY_DATE_KEY,
 	DEFAULT_SCENARIO_TEXTS,

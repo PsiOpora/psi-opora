@@ -2,7 +2,6 @@ import {
 	markBotMessageGuideEmailSent,
 	upsertBotGuideDelivery,
 } from "@psi-opora/db/queries";
-import type { RedisClient } from "../storage/redis";
 import { appendDealComment, createBitrixTask } from "../utils/bitrix";
 import {
 	submitBitrixContact,
@@ -18,15 +17,10 @@ import {
 	type ScenarioMessage,
 	type ScenarioOutput,
 } from "./engine";
-import { clearScenarioAwaiting, markScenarioAwaiting } from "./reminders";
 import { resolveGuideFile, type ScenarioTexts } from "./texts";
 
 export interface ScenarioDispatchDeps {
 	messenger: string;
-	/** Ключ сессии в storage: chat id (TG) / user id (MAX). */
-	sessionKey: string;
-	/** Redis для регистрации напоминаний; без него напоминания отключены. */
-	redis?: RedisClient | null;
 	sendMessage: (message: ScenarioMessage) => Promise<void>;
 	texts: ScenarioTexts;
 	/** Имя из профиля мессенджера — попадает в сделку. */
@@ -116,15 +110,6 @@ async function handleConsentRevocation(
 	out: ScenarioOutput,
 	deps: ScenarioDispatchDeps,
 ): Promise<void> {
-	if (deps.redis) {
-		try {
-			await clearScenarioAwaiting(deps.redis, deps.messenger, deps.sessionKey);
-		} catch (err) {
-			console.error(
-				`[scenario] не удалось снять напоминание при отзыве согласия: ${(err as Error).message}`,
-			);
-		}
-	}
 	if (deps.userId === undefined) return;
 	try {
 		await flagConsentRevocation(deps.messenger, String(deps.userId));
@@ -141,8 +126,8 @@ async function handleConsentRevocation(
 }
 
 /**
- * Исполняет результат шага сценария: отправляет сообщения, трекает воронку,
- * создаёт сделку в Bitrix и управляет очередью напоминаний.
+ * Исполняет результат шага сценария: отправляет сообщения, трекает воронку
+ * и создаёт сделку в Bitrix.
  */
 export async function dispatchScenarioOutput(
 	out: ScenarioOutput,
@@ -154,9 +139,9 @@ export async function dispatchScenarioOutput(
 	// когда dealId известен.
 	let handout: GuideHandout | null = null;
 
-	// Отзыв согласия: заметку оператору и снятие напоминания делаем до отправки
-	// ответа — сбой доставки (клиент заблокировал бота, сеть) не должен оставить
-	// обращение без оператора и дать напоминанию уйти после отзыва.
+	// Отзыв согласия: заметку оператору делаем до отправки ответа — сбой
+	// доставки (клиент заблокировал бота, сеть) не должен оставить обращение
+	// без оператора.
 	if (out.consentRevoked) await handleConsentRevocation(out, deps);
 
 	for (const message of out.messages) {
@@ -349,23 +334,5 @@ export async function dispatchScenarioOutput(
 			out.state.dealId,
 			`Согласие на рассылку: ${out.subscribeChoice === "yes" ? "да" : "нет"}`,
 		);
-	}
-
-	if (deps.redis) {
-		try {
-			if (out.awaitingInput) {
-				await markScenarioAwaiting(deps.redis, deps.messenger, deps.sessionKey);
-			} else {
-				await clearScenarioAwaiting(
-					deps.redis,
-					deps.messenger,
-					deps.sessionKey,
-				);
-			}
-		} catch (err) {
-			console.error(
-				`[scenario] не удалось обновить очередь напоминаний: ${(err as Error).message}`,
-			);
-		}
 	}
 }

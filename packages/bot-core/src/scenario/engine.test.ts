@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import {
 	applyScenarioAction,
 	applyScenarioText,
-	buildReminder,
 	describeLead,
 	type ScenarioOutput,
 	startConsultation,
@@ -38,7 +37,6 @@ describe("startScenario", () => {
 			"sc_book",
 		]);
 		expect(out.track).toEqual(["start"]);
-		expect(out.awaitingInput).toBe(true);
 	});
 });
 
@@ -75,7 +73,6 @@ describe("флоу «запись на консультацию»", () => {
 		});
 		expect(out.lead?.consentAt).toBeTruthy();
 		expect(out.messages[0]?.text).toContain("Анна");
-		expect(out.awaitingInput).toBe(false);
 	});
 
 	test("согласие на ПДн ведёт сразу к вопросу об имени, без шага рекламы", async () => {
@@ -578,39 +575,6 @@ describe("устойчивость к неожиданному вводу", () =
 	});
 });
 
-describe("напоминания", () => {
-	test("на старте — текст напоминания с кнопками выбора", async () => {
-		const start = startScenario(t);
-		const reminder = buildReminder(start.state, t);
-		expect(reminder?.text).toBe(t.reminder);
-		expect(reminder?.buttons?.flat().map((b) => b.action)).toEqual([
-			"sc_consult",
-			"sc_guide",
-			"sc_book",
-		]);
-	});
-
-	test("на шаге согласия — кнопки согласия", async () => {
-		const out = await run([{ action: "sc_consult" }]);
-		const reminder = buildReminder(out.state, t);
-		expect(reminder?.buttons?.flat().map((b) => b.action)).toEqual([
-			"consent_agree",
-		]);
-	});
-
-	test("после завершения напоминать нечего", async () => {
-		const out = await run([
-			{ action: "sc_guide" },
-			{ action: "consent_agree" },
-			{ action: "sc_child" },
-			{ action: "sc_eating" },
-			{ action: "sc_skip_email" },
-			{ action: "sc_skip_phone" },
-		]);
-		expect(buildReminder(out.state, t)).toBeNull();
-	});
-});
-
 describe("describeLead", () => {
 	test("гайд: комментарий содержит подписи кнопок категории и темы", async () => {
 		const comment = describeLead(
@@ -635,87 +599,6 @@ describe("describeLead", () => {
 			t,
 		);
 		expect(comment).toContain(t.btn_consult);
-	});
-});
-
-describe("возобновление после таймаута (state.expired)", () => {
-	const expiredAtPhone = async () => {
-		const out = await run([
-			{ action: "sc_consult" },
-			{ action: "consent_agree" },
-			{ text: "Екатерина" },
-		]);
-		expect(out.state.step).toBe("phone");
-		return { ...out.state, reminded: true, expired: true };
-	};
-
-	test("телефон после таймаута продолжает заявку с шага email", async () => {
-		const state = await expiredAtPhone();
-		const out = await applyScenarioText(state, "89232211138", t);
-		expect(out?.state.step).toBe("email");
-		expect(out?.state.phone).toBe("89232211138");
-		expect(out?.state.expired).toBe(false);
-		expect(out?.track).toEqual(["phone"]);
-	});
-
-	test("email после таймаута на шаге email создаёт заявку", async () => {
-		const state = await expiredAtPhone();
-		const atEmail = await applyScenarioText(state, "89232211138", t);
-		if (!atEmail) throw new Error("телефон не обработан");
-		const out = await applyScenarioText(
-			{ ...atEmail.state, reminded: true, expired: true },
-			"katrin@example.com",
-			t,
-		);
-		expect(out?.lead).toMatchObject({
-			flow: "consult",
-			phone: "89232211138",
-			email: "katrin@example.com",
-			name: "Екатерина",
-		});
-		expect(out?.state.step).toBe("done");
-	});
-
-	test("посторонний текст после таймаута игнорируется без подсчёта попыток", async () => {
-		const state = await expiredAtPhone();
-		expect(await applyScenarioText(state, "спасибо, жду звонка", t)).toBeNull();
-	});
-
-	test("строка из одних разделителей не возобновляет шаг phone", async () => {
-		const state = await expiredAtPhone();
-		expect(await applyScenarioText(state, "Спасибо ------- жду", t)).toBeNull();
-	});
-
-	test("номер в свободном тексте возобновляет шаг, сохраняется сам номер", async () => {
-		const state = await expiredAtPhone();
-		const out = await applyScenarioText(
-			state,
-			"мой номер +7 923 221-11-38, звоните",
-			t,
-		);
-		expect(out?.state.step).toBe("email");
-		expect(out?.state.phone).toBe("+7 923 221-11-38");
-	});
-
-	test("на шаге name таймаут не возобновляется (шаг не резюмируем)", async () => {
-		const state: ScenarioOutput["state"] = {
-			step: "name",
-			flow: "consult",
-			expired: true,
-		};
-		expect(await applyScenarioText(state, "89232211138", t)).toBeNull();
-	});
-
-	test("кнопка после таймаута сбрасывает флаг и работает как обычно", async () => {
-		const out = applyScenarioAction(
-			{ step: "email", flow: "consult", expired: true, phone: "+7" },
-			"sc_skip_email",
-			t,
-		);
-		expect(out).not.toBeNull();
-		expect(out?.state.expired).toBe(false);
-		expect(out?.state.step).toBe("done");
-		expect(out?.lead).toMatchObject({ flow: "consult", phone: "+7" });
 	});
 });
 
@@ -752,7 +635,6 @@ describe("отзыв согласия на обработку ПДн", () => {
 		expect(out?.state.step).toBe("done");
 		expect(out?.state.consentRevoked).toBe(true);
 		expect(out?.state.consentAt).toBeUndefined();
-		expect(out?.awaitingInput).toBe(false);
 		expect(out?.consentRevoked).toBe(true);
 		expect(out?.messages[0]?.text).toBe(t.consent_revoked);
 		expect(out?.dropReason).toEqual({
@@ -780,16 +662,6 @@ describe("отзыв согласия на обработку ПДн", () => {
 			t,
 		);
 		expect(done).toBeNull();
-	});
-
-	test("работает и после таймаута на шаге phone", async () => {
-		const out = await applyScenarioText(
-			{ step: "phone", flow: "consult", expired: true, reminded: true },
-			"отзываю согласие",
-			t,
-		);
-		expect(out?.state.step).toBe("done");
-		expect(out?.state.expired).toBe(false);
 	});
 
 	test("на завершённом сценарии отвечает, но отвал не пишет", async () => {

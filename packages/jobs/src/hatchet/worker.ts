@@ -12,7 +12,6 @@ import { ingestEmailEvents } from "./email-events";
 import { hourlyDrips } from "./hourly-drips";
 import { maxWebhookHealthcheck } from "./max-webhook-healthcheck";
 import { deliverOutreach } from "./outreach";
-import { scenarioReminders } from "./scenario-reminders";
 import { stageConsentOutbox } from "./stage-consent";
 
 export const hatchetTasks = [
@@ -28,7 +27,6 @@ export const hatchetTasks = [
 	pollEmailCampaigns,
 	calendarReminders,
 	diagnosticDealRecheck,
-	scenarioReminders,
 	hourlyDrips,
 	maxWebhookHealthcheck,
 	stageConsentOutbox,

@@ -96,14 +96,13 @@ function output(
 		lead: extra.lead,
 		contact: extra.contact,
 		subscribeChoice: extra.subscribeChoice,
-		awaitingInput: state.step !== "done",
 		dropReason: extra.dropReason,
 	};
 }
 
-/** Сброс одноразовых флагов при переходе на новый шаг. */
+/** Сброс одноразового флага при переходе на новый шаг. */
 function fresh(state: ScenarioState): ScenarioState {
-	return { ...state, reminded: false, nudged: false };
+	return { ...state, nudged: false };
 }
 
 /**
@@ -402,18 +401,6 @@ export function applyScenarioAction(
 	 * адаптеру его искать — см. needsKnownContact. */
 	knownContact?: KnownContact | null,
 ): ScenarioOutput | null {
-	// Клиент нажал кнопку в сообщении после таймаута (см. ScenarioState.expired) —
-	// сценарий продолжается как обычно, флаг больше не нужен.
-	if (state.expired) {
-		return applyScenarioAction(
-			{ ...state, expired: false },
-			action,
-			t,
-			campaign,
-			knownContact,
-		);
-	}
-
 	switch (state.step) {
 		case "entry": {
 			if (action === "sc_consult") return startConsultation(t, knownContact);
@@ -548,9 +535,9 @@ export async function applyScenarioText(
 	t: ScenarioTexts,
 	campaign?: GuideCampaignContext | null,
 ): Promise<ScenarioOutput | null> {
-	// Отзыв согласия на ПДн важнее любого шага сценария (в т.ч. закрытого по
-	// таймауту и завершённого): останавливаем сценарий, снимаем напоминания и
-	// один раз отвечаем. Повторные такие сообщения — уже диалог с оператором.
+	// Отзыв согласия на ПДн важнее любого шага сценария (в т.ч. завершённого):
+	// останавливаем сценарий и один раз отвечаем. Повторные такие сообщения —
+	// уже диалог с оператором.
 	if (looksLikeConsentRevocation(text)) {
 		if (state.consentRevoked) {
 			// Клиенту уже ответили. Если тогда не записалась заметка/тег для
@@ -562,7 +549,6 @@ export async function applyScenarioText(
 		const stopped: ScenarioState = {
 			...state,
 			step: "done",
-			expired: false,
 			consentRevoked: true,
 			consentAt: undefined,
 		};
@@ -579,33 +565,6 @@ export async function applyScenarioText(
 				? { step: funnelStep, reason: "consent_revoked" }
 				: undefined,
 		};
-	}
-
-	if (state.expired) {
-		// Сценарий закрыт по таймауту. Возобновляем только на ожидаемый ввод
-		// (телефон/email) — любой другой текст может быть перепиской с
-		// оператором, бот в неё не встревает и не считает попытки.
-		// hasPhoneNumber пропускает и строку из одних разделителей, поэтому для
-		// возобновления требуем настоящий номер (7–15 цифр) и сохраняем именно
-		// его, а не всю реплику.
-		const phone =
-			state.step === "phone"
-				? text.match(/\+?\d[\d\s()-]{5,}\d/)?.[0]?.trim()
-				: undefined;
-		const phoneDigits = phone?.replace(/\D/g, "").length ?? 0;
-		if (state.step === "phone") {
-			if (!phone || phoneDigits < 7 || phoneDigits > 15) return null;
-			return applyScenarioText(
-				{ ...state, expired: false },
-				phone,
-				t,
-				campaign,
-			);
-		}
-		if (state.step === "email" && isValidEmail(text)) {
-			return applyScenarioText({ ...state, expired: false }, text, t, campaign);
-		}
-		return null;
 	}
 
 	switch (state.step) {
@@ -700,7 +659,7 @@ export async function applyScenarioText(
 						[{ text: t.consult_email_invalid_final }],
 					);
 				}
-				return output({ ...state, emailAttempts: attempts, reminded: false }, [
+				return output({ ...state, emailAttempts: attempts }, [
 					{ text: t.email_invalid },
 				]);
 			}
@@ -737,7 +696,7 @@ export async function applyScenarioText(
 					["email"],
 				);
 			}
-			return output({ ...state, emailAttempts: attempts, reminded: false }, [
+			return output({ ...state, emailAttempts: attempts }, [
 				{ text: t.email_invalid },
 			]);
 		}
@@ -776,7 +735,7 @@ export async function applyScenarioText(
 				}
 				return declinePhone(state, t, "invalid_exhausted");
 			}
-			return output({ ...state, phoneAttempts: attempts, reminded: false }, [
+			return output({ ...state, phoneAttempts: attempts }, [
 				{ text: t.phone_invalid },
 			]);
 		}
@@ -792,23 +751,13 @@ export async function applyScenarioText(
 			if (state.nudged) return null;
 			const question = stepQuestion(state, t);
 			return question
-				? output({ ...state, reminded: false, nudged: true }, [question])
+				? output({ ...state, nudged: true }, [question])
 				: null;
 		}
 
 		default:
 			return null;
 	}
-}
-
-/** Напоминание: текст + кнопки текущего шага. null — напоминать нечего. */
-export function buildReminder(
-	state: ScenarioState,
-	t: ScenarioTexts,
-): ScenarioMessage | null {
-	const question = stepQuestion(state, t);
-	if (!question) return null;
-	return { text: t.reminder, buttons: question.buttons };
 }
 
 /** Человекочитаемая подпись нажатой кнопки — для журнала сообщений. */
