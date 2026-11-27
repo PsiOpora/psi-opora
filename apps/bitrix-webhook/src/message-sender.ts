@@ -13,6 +13,7 @@ import {
 	listTelegramPersonalAccounts,
 	listWhatsappPersonalAccounts,
 	type MessageDeliveryStatus,
+	resolveTelegramPersonalDialogUserId,
 	setWhatsappPersonalAccountStateBySession,
 	upsertBitrixCrmLink,
 } from "@psi-opora/db/queries";
@@ -278,16 +279,23 @@ export async function handleMessageSenderPayload(
 		: outcome.ok
 			? "sent"
 			: "failed";
+	const journalUserId =
+		messenger === "telegram-personal" && outcome.connectorId
+			? await resolveTelegramPersonalDialogUserId(
+					outcome.userId,
+					outcome.connectorId,
+				)
+			: outcome.userId;
 	await insertBotMessage({
 		messenger,
-		userId: outcome.userId,
+		userId: journalUserId,
 		direction: "out",
 		source: "widget",
 		text: payload.text,
 		status,
 		externalId: outcome.externalId,
 		externalChatId:
-			messenger === "telegram-personal" && outcome.userId !== phone
+			messenger === "telegram-personal" && outcome.userId !== journalUserId
 				? outcome.userId
 				: undefined,
 		connectorId: outcome.connectorId,

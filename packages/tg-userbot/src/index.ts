@@ -24,6 +24,7 @@ export {
 	getUserPresence,
 	listenForMessages,
 	listenForOutboxRead,
+	listenForOwnMessages,
 	listenForUserPresence,
 	resolveClientPhoneNumber,
 	resolveClientUsername,

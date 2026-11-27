@@ -241,9 +241,29 @@ export async function updateBotMessageStatus(
  * собственной отправки (MAX присылает его пушем) не писалось второй раз. */
 export async function botMessageExistsByExternalId(
 	db: Database,
-	params: { messenger: string; connectorId: string; externalId: string },
+	params: {
+		messenger: string;
+		connectorId: string;
+		externalId: string;
+		/** Внешний ID не всегда глобально уникален (в Telegram он уникален в
+		 * пределах чата) — для таких каналов передавайте локальный ключ диалога
+		 * и/или canonical external_chat_id. */
+		userId?: string;
+		externalChatId?: string;
+	},
 ): Promise<boolean> {
 	if (!db) return false;
+	const chatScope =
+		params.userId && params.externalChatId
+			? or(
+					eq(botMessages.userId, params.userId),
+					eq(botMessages.externalChatId, params.externalChatId),
+				)
+			: params.userId
+				? eq(botMessages.userId, params.userId)
+				: params.externalChatId
+					? eq(botMessages.externalChatId, params.externalChatId)
+					: undefined;
 	const [row] = await db
 		.select({ id: botMessages.id })
 		.from(botMessages)
@@ -252,6 +272,7 @@ export async function botMessageExistsByExternalId(
 				eq(botMessages.messenger, params.messenger),
 				eq(botMessages.connectorId, params.connectorId),
 				eq(botMessages.externalId, params.externalId),
+				...(chatScope ? [chatScope] : []),
 			),
 		)
 		.limit(1);

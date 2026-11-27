@@ -1,9 +1,11 @@
 import { resolveBitrixApi } from "@psi-opora/bitrix-client";
 import {
+	botMessageExistsByExternalId,
 	insertBotMessage,
 	listConnectedTelegramPersonalAccounts,
 	markOutgoingBotMessagesRead,
 	markTelegramPersonalAccountError,
+	resolveTelegramPersonalDialogUserId,
 	type TelegramPersonalAccount,
 	updateBotMessageExternalResult,
 	updateExistingBotUserPresence,
@@ -24,6 +26,7 @@ import {
 	getUserPresence,
 	listenForMessages,
 	listenForOutboxRead,
+	listenForOwnMessages,
 	listenForUserPresence,
 	resolveClientPhoneNumber,
 	resolveClientUsername,
@@ -31,6 +34,11 @@ import {
 	sendUserbotMessage,
 	setSendResult,
 } from "@psi-opora/tg-userbot";
+import {
+	logOwnDeviceMessage,
+	noteReadMark,
+	rememberSentMessage,
+} from "./own-messages";
 
 initTelemetry("tg-userbot-worker");
 
@@ -111,15 +119,34 @@ async function logInboundMessage(
 		username?: string | null;
 		isPremium?: boolean;
 	},
-	media?: {
-		kind: "image" | "file";
-		mediaS3Key: string;
-		mediaMimeType?: string;
-		mediaFileName?: string;
-	},
+	media:
+		| {
+				kind: "image" | "file";
+				mediaS3Key: string;
+				mediaMimeType?: string;
+				mediaFileName?: string;
+		  }
+		| undefined,
+	externalId: string,
+	createdAt: Date,
 ): Promise<void> {
-	const userId = String(senderId);
+	const canonicalUserId = String(senderId);
 	try {
+		const userId = await resolveTelegramPersonalDialogUserId(
+			canonicalUserId,
+			connectorId,
+		);
+		if (
+			await botMessageExistsByExternalId({
+				messenger: "telegram-personal",
+				connectorId,
+				externalId,
+				userId,
+				externalChatId: canonicalUserId,
+			})
+		) {
+			return;
+		}
 		await upsertBotUser({
 			messenger: "telegram-personal",
 			userId,
@@ -134,7 +161,10 @@ async function logInboundMessage(
 			direction: "in",
 			source: "scenario",
 			text,
+			externalId,
+			externalChatId: canonicalUserId,
 			connectorId,
+			createdAt,
 			...media,
 		});
 	} catch (err) {
@@ -270,6 +300,11 @@ function startOutboxPolling(
 							? target.userId
 							: undefined;
 				if (telegramUserId !== undefined) {
+					rememberSentMessage(
+						account.connectorId,
+						String(telegramUserId),
+						externalId,
+					);
 					const presence = await getUserPresence(client, target).catch(
 						() => null,
 					);
@@ -346,8 +381,9 @@ async function startAccountWorker(
 
 		// Клиент прочитал наши сообщения — статус «прочитано» в журнале: его
 		// видят инбокс и отчёт рассылки по списку.
-		listenForOutboxRead(client, ({ chatId, maxReadId }) =>
-			markOutgoingBotMessagesRead({
+		listenForOutboxRead(client, ({ chatId, maxReadId }) => {
+			noteReadMark(account.connectorId, String(chatId), maxReadId);
+			return markOutgoingBotMessagesRead({
 				messenger: "telegram-personal",
 				connectorId: account.connectorId,
 				chatIds: [String(chatId)],
@@ -358,10 +394,37 @@ async function startAccountWorker(
 					console.error(
 						`[tg-userbot-worker] не удалось отметить прочтение в чате ${chatId} (${label}): ${(err as Error).message}`,
 					),
-				),
-		);
+				);
+		});
+
+		listenForOwnMessages(client, (message) => {
+			if (message.chat.type !== "user") return;
+			const mediaKind =
+				message.media?.type === "photo"
+					? "image"
+					: message.media?.type === "document" || message.media?.type === "video"
+						? "file"
+						: undefined;
+			const text =
+				message.text ||
+				(mediaKind ? (mediaKind === "image" ? "Фото" : "Файл") : "");
+			if (!text) return;
+			void logOwnDeviceMessage(account, {
+				chatId: String(message.chat.id),
+				messageId: String(message.id),
+				text,
+				createdAt: message.date,
+				profile: {
+					firstName: message.chat.firstName,
+					lastName: message.chat.lastName ?? undefined,
+					username: message.chat.username,
+					isPremium: message.chat.isPremium,
+				},
+			});
+		});
 
 		listenForMessages(client, async (message) => {
+			if (message.chat.type !== "user") return;
 			const caption = message.text;
 			// Фото/документ/видео — перезаливаем в наше S3, чтобы инбокс «Клиенты»
 			// показывал превью/ссылку на скачивание, а не молчал (голосовые для
@@ -467,6 +530,8 @@ async function startAccountWorker(
 							: undefined,
 				},
 				mediaUpload,
+				String(message.id),
+				message.date,
 			);
 			if (
 				"status" in message.sender &&

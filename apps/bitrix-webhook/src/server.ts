@@ -25,6 +25,7 @@ import {
 	type MessageDeliveryStatus,
 	removeBotConnector,
 	removeWhatsappPersonalAccount,
+	resolveTelegramPersonalDialogUserId,
 	setWhatsappPersonalAccountStateBySession,
 	updateBotMessageStatus,
 	upsertBotUser,
@@ -101,7 +102,14 @@ async function logOperatorReply(
 	status?: MessageDeliveryStatus,
 	messageId = crypto.randomUUID(),
 ): Promise<string> {
-	const userId = String(reply.chatId);
+	const canonicalUserId = String(reply.chatId);
+	const userId =
+		messenger === "telegram-personal" && reply.connector
+			? await resolveTelegramPersonalDialogUserId(
+					canonicalUserId,
+					reply.connector,
+				)
+			: canonicalUserId;
 	try {
 		await insertBotMessage({
 			id: messageId,
@@ -117,7 +125,7 @@ async function logOperatorReply(
 			externalId,
 			externalChatId:
 				messenger === "telegram-personal" || messenger === "max-personal"
-					? userId
+					? canonicalUserId
 					: undefined,
 			bitrixMessageId: reply.bitrixMessageId,
 			status,
