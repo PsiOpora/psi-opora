@@ -1,11 +1,8 @@
 import {
-	botMessageExistsByExternalId,
-	insertBotMessage,
 	markOutgoingBotMessagesRead,
-	resolveTelegramPersonalDialogUserId,
 	type TelegramPersonalAccount,
-	upsertBotUser,
 } from "@psi-opora/db/queries";
+import { writeTelegramJournal } from "./journal";
 
 const ECHO_SETTLE_DELAY_MS = 2000;
 const SENT_IDS_LIMIT = 500;
@@ -42,6 +39,22 @@ export function noteReadMark(
 	}
 }
 
+export async function applyOutboxReadMark(
+	connectorId: string,
+	chatId: string,
+	messageId: string,
+): Promise<void> {
+	const maxReadId = readMarks.get(`${connectorId}:${chatId}`);
+	if (maxReadId !== undefined && Number(messageId) <= maxReadId) {
+		await markOutgoingBotMessagesRead({
+			messenger: "telegram-personal",
+			connectorId,
+			chatIds: [chatId],
+			upToExternalId: maxReadId,
+		});
+	}
+}
+
 export async function logOwnDeviceMessage(
 	account: TelegramPersonalAccount,
 	message: {
@@ -65,36 +78,14 @@ export async function logOwnDeviceMessage(
 ): Promise<void> {
 	try {
 		await new Promise((resolve) => setTimeout(resolve, ECHO_SETTLE_DELAY_MS));
-		const userId = await resolveTelegramPersonalDialogUserId(
-			message.chatId,
-			account.connectorId,
-		);
 		if (
 			sentExternalIds.has(
 				`${account.connectorId}:${message.chatId}:${message.messageId}`,
-			) ||
-			(await botMessageExistsByExternalId({
-				messenger: "telegram-personal",
-				connectorId: account.connectorId,
-				externalId: message.messageId,
-				userId,
-				externalChatId: message.chatId,
-			}))
+			)
 		) {
 			return;
 		}
-
-		await upsertBotUser({
-			messenger: "telegram-personal",
-			userId,
-			firstName: message.profile?.firstName,
-			lastName: message.profile?.lastName,
-			username: message.profile?.username ?? undefined,
-			isPremium: message.profile?.isPremium,
-		});
-		await insertBotMessage({
-			messenger: "telegram-personal",
-			userId,
+		await writeTelegramJournal({
 			direction: "out",
 			source: "operator",
 			operatorName: "Из приложения Telegram",
@@ -102,19 +93,15 @@ export async function logOwnDeviceMessage(
 			externalId: message.messageId,
 			externalChatId: message.chatId,
 			connectorId: account.connectorId,
-			createdAt: message.createdAt,
+			createdAt: message.createdAt?.getTime() ?? Date.now(),
+			profile: message.profile ?? {},
 			...message.media,
 		});
-
-		const maxReadId = readMarks.get(`${account.connectorId}:${message.chatId}`);
-		if (maxReadId !== undefined && Number(message.messageId) <= maxReadId) {
-			await markOutgoingBotMessagesRead({
-				messenger: "telegram-personal",
-				connectorId: account.connectorId,
-				chatIds: [message.chatId],
-				upToExternalId: maxReadId,
-			});
-		}
+		await applyOutboxReadMark(
+			account.connectorId,
+			message.chatId,
+			message.messageId,
+		);
 	} catch (error) {
 		console.error(
 			`[tg-userbot-worker] ошибка журналирования своего сообщения: ${(error as Error).message}`,

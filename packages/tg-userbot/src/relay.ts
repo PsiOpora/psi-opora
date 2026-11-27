@@ -52,8 +52,13 @@ export async function createUserbotClient(
 			: undefined,
 	});
 	await tg.importSession(session);
-	const me = await tg.getMe();
-	await tg.notifyLoggedIn(me.raw);
+	try {
+		const me = await tg.getMe();
+		await tg.notifyLoggedIn(me.raw);
+	} catch (error) {
+		await tg.destroy().catch(() => {});
+		throw error;
+	}
 	return tg;
 }
 

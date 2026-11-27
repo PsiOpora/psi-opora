@@ -105,11 +105,12 @@ export interface BotMessageEntry {
 export async function insertBotMessage(
 	db: Database,
 	entry: BotMessageEntry,
+	options?: { ignoreDuplicateId: boolean },
 ): Promise<string | undefined> {
 	if (!db) return undefined;
 	const now = entry.createdAt ?? new Date();
 	const id = entry.id ?? crypto.randomUUID();
-	await db.insert(botMessages).values({
+	const insert = db.insert(botMessages).values({
 		id,
 		messenger: entry.messenger,
 		userId: entry.userId,
@@ -130,8 +131,16 @@ export async function insertBotMessage(
 		mediaDurationSec: entry.mediaDurationSec,
 		mediaFileName: entry.mediaFileName,
 		createdAt: now,
-		updatedAt: now,
+		updatedAt: options?.ignoreDuplicateId ? new Date() : now,
 	});
+	if (options?.ignoreDuplicateId) {
+		const [row] = await insert
+			.onConflictDoNothing({ target: botMessages.id })
+			.returning({ id: botMessages.id });
+		if (!row) return id;
+	} else {
+		await insert;
+	}
 	// Ответ клиента официальному боту = он прочитал всё, что мы слали раньше.
 	if (entry.direction === "in") {
 		await markOutgoingReadByClientReply(db, {
@@ -256,8 +265,11 @@ export async function botMessageExistsByExternalId(
 	const chatScope =
 		params.userId && params.externalChatId
 			? or(
-					eq(botMessages.userId, params.userId),
 					eq(botMessages.externalChatId, params.externalChatId),
+					and(
+						eq(botMessages.userId, params.userId),
+						isNull(botMessages.externalChatId),
+					),
 				)
 			: params.userId
 				? eq(botMessages.userId, params.userId)

@@ -17,6 +17,7 @@ import {
 	getConversationDeletionVersionForGroup,
 } from "./bot-conversations";
 import {
+	botMessageExistsByExternalId,
 	listAllBotMessagesForGroup,
 	listBotMessagesSinceForGroup,
 } from "./bot-messages";
@@ -64,6 +65,49 @@ describe.skipIf(!url)("conversation deletion (PostgreSQL)", () => {
 	afterAll(async () => {
 		await client`DROP SCHEMA ${client(schema)} CASCADE`;
 		await client.end();
+	});
+
+	test("matches a Telegram message ID only within its canonical or legacy chat", async () => {
+		const message = {
+			messenger: "telegram-personal",
+			connectorId: "connector",
+			direction: "out",
+			text: "message",
+			externalId: "42",
+			userId: "phone",
+		};
+		await db.insert(botMessages).values([
+			{ ...message, id: "canonical", externalChatId: "chat-a" },
+			{ ...message, id: "legacy", externalId: "43" },
+		]);
+
+		const scope = {
+			messenger: message.messenger,
+			connectorId: message.connectorId,
+			userId: message.userId,
+		};
+		expect(
+			await botMessageExistsByExternalId(db, {
+				...scope,
+				externalId: "42",
+				externalChatId: "chat-a",
+				userId: "renamed",
+			}),
+		).toBe(true);
+		expect(
+			await botMessageExistsByExternalId(db, {
+				...scope,
+				externalId: "42",
+				externalChatId: "chat-b",
+			}),
+		).toBe(false);
+		expect(
+			await botMessageExistsByExternalId(db, {
+				...scope,
+				externalId: "43",
+				externalChatId: "chat-a",
+			}),
+		).toBe(true);
 	});
 
 	async function seed() {

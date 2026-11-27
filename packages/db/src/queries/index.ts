@@ -299,8 +299,9 @@ export async function removeBotConnector(messenger: string): Promise<void> {
 
 export async function insertBotMessage(
 	entry: BotMessageEntry,
+	options?: Parameters<typeof _insertBotMessage>[2],
 ): Promise<string | undefined> {
-	return _insertBotMessage(db, entry);
+	return _insertBotMessage(db, entry, options);
 }
 
 export async function getBotMessageMedia(

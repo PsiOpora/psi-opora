@@ -1,5 +1,10 @@
 export { decryptSecret, encryptSecret } from "./crypto";
 export {
+	deferTelegramJournal,
+	processDeferredTelegramJournal,
+	type TelegramJournalEntry,
+} from "./journal";
+export {
 	type ConfirmLoginResult,
 	confirmLoginCode,
 	confirmLoginPassword,

@@ -1,5 +1,7 @@
 import { createRedisClient } from "@psi-opora/bot-core";
 
+import type { TelegramJournalEntry } from "./journal";
+
 export interface OutboundMessage {
 	memberId: string;
 	openLineId: string;
@@ -30,6 +32,8 @@ export interface OutboundMessage {
 	externalId?: string;
 	/** Строка bot_messages, которой worker допишет ID после отправки. */
 	journalMessageId?: string;
+	/** Журнал оператора, если БД не позволила определить ключ до отправки. */
+	deferredJournal?: TelegramJournalEntry;
 	/** Фото/файл — воркер сам скачивает байты из S3 по s3Key (см.
 	 * downloadOutboundAttachment в apps/tg-userbot-worker), в очередь кладём
 	 * только ссылку, не бинарник. text выше используется как подпись. */
