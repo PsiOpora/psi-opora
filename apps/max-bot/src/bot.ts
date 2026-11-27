@@ -14,7 +14,6 @@ import {
 	type ConsultationSession,
 	claimCallbackClick,
 	completeCallbackClick,
-	clearReminderOnOffScriptText,
 	createBotBackgroundQueue,
 	decodeStartParam,
 	dispatchBookPreorderOutput,
@@ -505,12 +504,10 @@ export function createMaxBot({
 		ctx.session.bookPreorder = undefined;
 		await dispatchScenarioOutput(out, {
 			messenger: "max",
-			sessionKey: sessionKeyOf(ctx),
 			// Bitrix-коннектор получает в качестве chat.id именно user_id (см.
 			// комментарий у mirrorToOpenLine ниже) — тот же ID используем
 			// здесь для поиска диалога через USER_CODE.
 			chatId: ctx.user?.user_id,
-			redis,
 			texts,
 			sendMessage: (message) => replyScenarioMessage(ctx, message),
 			userName: ctx.user?.name,
@@ -1264,12 +1261,6 @@ export function createMaxBot({
 			// пишет что-то своё, а не то, что просит сценарий) — бот здесь не
 			// пытается сам помочь/ответить, только тихо решает, стоит ли передать
 			// его оператору с пометкой (см. triageOffScriptMessage).
-			await clearReminderOnOffScriptText(
-				redis,
-				"max",
-				sessionKeyOf(appCtx),
-				state,
-			);
 			triageInBackground();
 			return;
 		}

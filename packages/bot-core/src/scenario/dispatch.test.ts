@@ -41,8 +41,6 @@ mock.module("@psi-opora/db/queries", () => ({
 	},
 }));
 
-import type { RedisClient } from "../storage/redis";
-
 const { dispatchScenarioOutput } = await import("./dispatch");
 const { applyScenarioText } = await import("./engine");
 const { DEFAULT_SCENARIO_TEXTS: t } = await import("./texts");
@@ -50,26 +48,18 @@ const { setFunnelUpsert } = await import("../utils/funnel");
 
 setFunnelUpsert(async () => {});
 
-function deps(sendMessage: () => Promise<void>, removed: string[] = []) {
+function deps(sendMessage: () => Promise<void>) {
 	return {
 		messenger: "max",
-		sessionKey: "1",
 		userId: 1,
 		texts: t,
-		redis: {
-			zrem: async (_k: string, m: string) => {
-				removed.push(m);
-				return 1;
-			},
-		} as unknown as RedisClient,
 		sendMessage,
 	};
 }
 
 describe("dispatchScenarioOutput: отзыв согласия", () => {
-	test("сбой отправки ответа не мешает пометить обращение и снять напоминание", async () => {
+	test("сбой отправки ответа не мешает пометить обращение", async () => {
 		calls.length = 0;
-		const removed: string[] = [];
 		const out = await applyScenarioText(
 			{ step: "category", flow: "guide" },
 			"Прошу отозвать согласие на обработку персональных данных",
@@ -79,11 +69,10 @@ describe("dispatchScenarioOutput: отзыв согласия", () => {
 		await expect(
 			dispatchScenarioOutput(
 				out,
-				deps(() => Promise.reject(new Error("send failed")), removed),
+				deps(() => Promise.reject(new Error("send failed"))),
 			),
 		).rejects.toThrow("send failed");
 		expect(calls).toEqual(["tag", "note"]);
-		expect(removed).toEqual(["1"]);
 	});
 
 	test("сбой записи уведомления помечает состояние для повтора, повтор его снимает", async () => {
