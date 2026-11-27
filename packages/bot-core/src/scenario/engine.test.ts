@@ -441,6 +441,38 @@ describe("флоу гайда: ветка «помощь для себя»", () 
 	});
 });
 
+describe("проверка телефона перед созданием заявки", () => {
+	test.each(["consult", "guide"] as const)(
+		"%s: телефон должен содержать от 7 до 15 цифр",
+		async (flow) => {
+			const state = {
+				step: "phone",
+				flow,
+				name: "Анна",
+				email: "anna@example.com",
+			} as const;
+
+			for (const invalid of [
+				"-------",
+				"123-456",
+				"1234567890123456",
+				"тел. 1234567",
+			]) {
+				const out = await applyScenarioText(state, invalid, t);
+				expect(out?.state.step).toBe("phone");
+				expect(out?.state.phoneAttempts).toBe(1);
+				expect(out?.messages[0]?.text).toBe(t.phone_invalid);
+				expect(out?.lead).toBeUndefined();
+			}
+
+			for (const valid of ["123-4567", "+123 456 789 012 345"]) {
+				const out = await applyScenarioText(state, valid, t);
+				expect(out?.lead?.phone).toBe(valid);
+			}
+		},
+	);
+});
+
 describe("отказ от телефона и лимиты (флоу гайда)", () => {
 	test("«не оставлять телефон» в ветке «для себя» всё равно спрашивает про рассылку", async () => {
 		const out = await run([

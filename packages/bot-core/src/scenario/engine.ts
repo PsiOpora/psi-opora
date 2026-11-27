@@ -1,6 +1,10 @@
 import type { FunnelStep } from "../utils/funnel";
 import { extractContactInfo } from "../utils/llm-extract";
-import { hasPhoneNumber, isValidEmail } from "../utils/validation";
+import {
+	hasPhoneNumber,
+	isValidEmail,
+	parsePhoneNumber,
+} from "../utils/validation";
 import { hasRecordedConsent, looksLikeConsentRevocation } from "./consent";
 import {
 	categoryQuestion,
@@ -702,7 +706,8 @@ export async function applyScenarioText(
 		}
 
 		case "phone": {
-			if (hasPhoneNumber(text)) {
+			const parsedPhone = parsePhoneNumber(text);
+			if (parsedPhone && parsedPhone.replace(/\D/g, "").length <= 15) {
 				const phone = text.trim();
 				if (state.flow === "consult") {
 					// Email уже известен из CRM (см. prefilled в proceedAfterConsent) —
