@@ -83,10 +83,7 @@ describe("флоу «запись на консультацию»", () => {
 		expect(consent.state.step).toBe("name");
 		expect(consent.state.consentAt).toBeTruthy();
 		expect(consent.track).toEqual(["consent"]);
-		expect(consent.messages.map((m) => m.text)).toEqual([
-			t.consent_agreed,
-			t.name_question,
-		]);
+		expect(consent.messages.map((m) => m.text)).toEqual([t.name_question]);
 
 		// consult_phone_question по умолчанию не содержит {name} — см. ТЗ
 		// (сообщение 3: «Введите ваш номер телефона...», без обращения по имени).
@@ -194,8 +191,8 @@ describe("флоу «запись на консультацию»: клиент 
 			name: "Иван",
 			consentAt: out?.lead?.consentAt,
 		});
-		expect(out?.messages[0]?.text).toBe(t.consent_agreed);
-		expect(out?.messages[1]?.text).toContain("Иван");
+		expect(out?.messages).toHaveLength(1);
+		expect(out?.messages[0]?.text).toContain("Иван");
 	});
 
 	test("известно только имя — сразу спрашиваем телефон, минуя вопрос об имени", async () => {
@@ -206,7 +203,6 @@ describe("флоу «запись на консультацию»: клиент 
 		expect(out?.state.step).toBe("phone");
 		expect(out?.state.name).toBe("Мария");
 		expect(out?.messages.map((m) => m.text)).toEqual([
-			t.consent_agreed,
 			withName(t.consult_phone_question, "Мария"),
 		]);
 	});
@@ -318,11 +314,8 @@ describe("флоу гайда: ветка «трудности с ребенко
 		]);
 		expect(out.state.step).toBe("category");
 		expect(out.track).toEqual(["consent"]);
-		expect(out.messages.map((m) => m.text)).toEqual([
-			t.consent_agreed,
-			t.category_question,
-		]);
-		expect(out.messages[1]?.buttons?.flat().map((b) => b.action)).toEqual([
+		expect(out.messages.map((m) => m.text)).toEqual([t.category_question]);
+		expect(out.messages[0]?.buttons?.flat().map((b) => b.action)).toEqual([
 			"sc_child",
 			"sc_self",
 		]);

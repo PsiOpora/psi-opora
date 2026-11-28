@@ -433,7 +433,6 @@ export function applyScenarioAction(
 					consentAt: new Date().toISOString(),
 					campaign,
 					knownContact,
-					leading: [{ text: t.consent_agreed }],
 					track: ["consent"],
 				});
 			}

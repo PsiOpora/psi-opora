@@ -79,12 +79,6 @@ export const SCENARIO_TEXT_DEFS = [
     defaultValue: "",
   },
   {
-    key: "consent_agreed",
-    label: "Согласие получено",
-    group: "Согласие на обработку данных",
-    defaultValue: "✅ Согласие получено. Идём дальше!",
-  },
-  {
     key: "consent_declined",
     label: "Отказ от согласия (финал)",
     group: "Согласие на обработку данных",
