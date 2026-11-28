@@ -524,7 +524,7 @@ interface WahaMessageEvent {
  * чтобы роут нельзя было накормить поддельными сообщениями. */
 function verifyHmac(rawBody: string, header: string | null): boolean {
 	const key = env.WAHA_WEBHOOK_SECRET;
-	if (!key) return true; // секрет не настроен — работаем без проверки
+	if (!key) return false;
 	if (!header) return false;
 	const expected = createHmac("sha512", key).update(rawBody).digest("hex");
 	const a = Buffer.from(expected, "utf8");

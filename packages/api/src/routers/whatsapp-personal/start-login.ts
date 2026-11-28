@@ -7,7 +7,10 @@ import {
 } from "@psi-opora/waha";
 import { bitrixProcedure } from "../../orpc";
 import { startWhatsappLoginSchema } from "../../schemas/whatsapp-personal";
-import { sessionWebhook } from "./helpers";
+import {
+	sessionWebhook,
+	WHATSAPP_WEBHOOK_CONFIG_ERROR,
+} from "./webhook-config";
 
 /** Сколько ждём, пока свежесозданная сессия дойдёт до состояния, в котором
  * WAHA готова выдать pairing code (STARTING → SCAN_QR_CODE). */
@@ -48,7 +51,9 @@ export const startLogin = bitrixProcedure
 							"Этот канал уже подключён. Сначала явно отключите его в настройках, если хотите заменить номер",
 					};
 				}
-				await wahaCreateSession(session, sessionWebhook());
+				const webhook = sessionWebhook();
+				if (!webhook) return { error: WHATSAPP_WEBHOOK_CONFIG_ERROR };
+				await wahaCreateSession(session, webhook);
 
 				for (let attempt = 0; attempt < SESSION_READY_ATTEMPTS; attempt++) {
 					const state = await wahaGetSession(session);

@@ -21,22 +21,6 @@ export function generateConnectorId(): string {
 }
 
 /**
- * Конфигурация вебхука входящих для создаваемой WAHA-сессии: WAHA сама
- * доставляет события `message` на apps/bitrix-webhook (см. api/waha-webhook),
- * подписывая тело HMAC-ключом — поэтому у нас нет always-on процесса
- * на приём, в отличие от tg-userbot-worker.
- */
-export function sessionWebhook():
-	| { url: string; hmacKey?: string }
-	| undefined {
-	if (!env.WAHA_WEBHOOK_URL) return undefined;
-	return {
-		url: env.WAHA_WEBHOOK_URL,
-		hmacKey: env.WAHA_WEBHOOK_SECRET,
-	};
-}
-
-/**
  * Сохраняет подключённый номер и активирует коннектор на выбранной линии —
  * `imconnector.activate` требует контекста OAuth-приложения, поэтому
  * вызывается через `context.getBitrixApi()` дашборда. Ошибку активации не
